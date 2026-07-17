@@ -1,4 +1,4 @@
-# TradePilot AI — Worker
+# TradePilot AI — Background Worker
 
 Reserved for the Python background worker.
 

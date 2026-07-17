@@ -24,24 +24,21 @@ TradePilot AI is a web-based AI trading analysis workspace designed to follow on
 
 ```
 tradepilot-ai/
-├── apps/
-│   ├── api/          — FastAPI backend (reserved)
-│   ├── worker/       — Python background worker (reserved)
-│   └── web/          — Next.js frontend (reserved)
-├── packages/
-│   ├── schemas/      — Production JSON Schema package (reserved)
-│   └── shared/       — Shared contracts and types (reserved)
-├── infrastructure/
-│   ├── docker/       — Docker / Compose configuration (reserved)
-│   └── deployment/   — VPS deployment configuration (reserved)
-├── scripts/          — Development and maintenance scripts (reserved)
+├── backend/                    — FastAPI backend (reserved)
+├── worker/                     — Python background worker (reserved)
+├── frontend/                   — Next.js frontend (reserved)
+├── schemas/
+│   └── production/v1/          — Production JSON Schema package
+├── infra/
+│   ├── docker/                 — Docker / Compose configuration (reserved)
+│   └── deployment/             — VPS deployment configuration (reserved)
+├── scripts/                    — Development and maintenance scripts (reserved)
 ├── tests/
-│   ├── integration/  — Cross-service integration tests (reserved)
-│   └── fixtures/     — Shared test fixtures (reserved)
-├── docs/             — Engineering documentation
-├── schemas/          — Existing schema definitions
+│   ├── integration/            — Cross-service integration tests (reserved)
+│   └── fixtures/               — Shared test fixtures (reserved)
+├── docs/                       — Engineering documentation
 ├── storage/
-│   └── evidence/     — Local development evidence files
+│   └── evidence/               — Local development evidence files
 ├── .editorconfig
 ├── .env.example
 ├── .gitignore

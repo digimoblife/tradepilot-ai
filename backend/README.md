@@ -1,4 +1,4 @@
-# TradePilot AI — API
+# TradePilot AI — Backend API
 
 Reserved for the FastAPI application.
 

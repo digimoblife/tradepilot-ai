@@ -1,4 +1,4 @@
-# TradePilot AI — Web
+# TradePilot AI — Frontend
 
 Reserved for the Next.js frontend.
 

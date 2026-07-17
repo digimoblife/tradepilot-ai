@@ -16,7 +16,7 @@ tree:
 check-structure:
 	@echo "Checking repository structure..."
 	@ok=true; \
-	for d in apps/api apps/worker apps/web packages/schemas packages/shared infrastructure/docker infrastructure/deployment scripts tests/integration tests/fixtures docs storage/evidence; do \
+	for d in backend worker frontend infra/docker infra/deployment scripts tests/integration tests/fixtures docs storage/evidence; do \
 		if [ ! -d "$$d" ]; then \
 			echo "FAIL: $$d missing"; ok=false; \
 		fi; \
@@ -29,4 +29,9 @@ check-structure:
 	if [ ! -f "storage/evidence/.gitkeep" ]; then \
 		echo "FAIL: storage/evidence/.gitkeep missing"; ok=false; \
 	fi; \
-	$$ok && echo "PASS: All required paths exist." || exit 1
+	for obsolete in apps infrastructure packages/schemas packages/shared packages; do \
+		if [ -e "$$obsolete" ]; then \
+			echo "FAIL: obsolete path still exists: $$obsolete"; ok=false; \
+		fi; \
+	done; \
+	$$ok && echo "PASS: All required paths exist. No obsolete paths remain." || exit 1
