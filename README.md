@@ -57,18 +57,50 @@ tradepilot-ai/
 - **Dashboard output:** Indonesian (Bahasa Indonesia)
 - **Engineering documents, code, schemas, prompts, field names, and implementation instructions:** English
 
-## Planned Commands
+## Docker Development
 
-The following commands are planned for later tasks:
-
+```bash
+cp .env.example .env          # Configure environment
+make docker-build              # Build all container images
+make docker-up                 # Start all services
+make docker-logs               # Tail logs
+make docker-down               # Stop (preserves volumes)
+make docker-reset              # Stop and wipe persistent data
 ```
-make install        Install all dependencies
-make dev            Start local development environment
-make backend        Start the backend server
-make worker         Start the background worker
-make frontend       Start the frontend dev server
-make test           Run all tests
-make lint           Run linters
-make migrate        Run database migrations
-make check-structure  Validate repository structure
+
+| Service  | URL                          |
+|----------|------------------------------|
+| Frontend | http://localhost:3000         |
+| Backend  | http://localhost:8000         |
+| Health   | http://localhost:8000/health  |
+| Postgres | localhost:5432                |
+
+## Native Development
+
+```bash
+# Backend
+cd backend && python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn app.main:app --reload
+
+# Worker
+cd worker && python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m app.main
+
+# Frontend
+cd frontend && npm install
+npm run dev
+```
+
+## Makefile Commands
+
+```bash
+make check-structure   Validate repository structure
+make docker-build      Build container images
+make docker-up         Start Docker environment
+make docker-down       Stop Docker environment
+make docker-logs       Tail Docker logs
+make docker-ps         List Docker containers
+make docker-reset      Reset Docker environment (removes volumes)
 ```

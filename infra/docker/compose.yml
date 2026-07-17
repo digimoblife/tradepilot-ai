@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tradepilot}
+      POSTGRES_USER: ${POSTGRES_USER:-tradepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tradepilot} -d ${POSTGRES_DB:-tradepilot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/docker/backend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-tradepilot}
+      POSTGRES_USER: ${POSTGRES_USER:-tradepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      EVIDENCE_STORAGE_PATH: /data/evidence
+    volumes:
+      - evidence_data:/data/evidence
+    depends_on:
+      postgres:
+        condition: service_started
+
+  worker:
+    build:
+      context: ../../worker
+      dockerfile: ../infra/docker/worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      WORKER_NAME: ${WORKER_NAME:-tradepilot-worker}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-5}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-tradepilot}
+      POSTGRES_USER: ${POSTGRES_USER:-tradepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      EVIDENCE_STORAGE_PATH: /data/evidence
+    volumes:
+      - evidence_data:/data/evidence
+    depends_on:
+      postgres:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: ../infra/docker/frontend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  pgdata:
+  evidence_data:
