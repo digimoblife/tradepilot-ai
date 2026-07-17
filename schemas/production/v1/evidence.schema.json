@@ -1,0 +1,685 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/evidence.schema.json",
+  "title": "TradePilot AI Evidence",
+  "description": "Represents one uploaded or user-provided evidence item used by TradePilot AI, including file reference, evidence type, market timing, usability, extraction result, user notes, and lifecycle status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidence_id",
+    "session_id",
+    "ticker",
+    "evidence_type",
+    "timeframe",
+    "file_name",
+    "file_reference",
+    "mime_type",
+    "uploaded_at",
+    "market_timestamp",
+    "trading_date",
+    "usability",
+    "extraction_status",
+    "extracted_facts",
+    "user_note",
+    "is_active",
+    "superseded_by",
+    "limitations"
+  ],
+  "properties": {
+    "evidence_id": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+    },
+
+    "session_id": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+    },
+
+    "ticker": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/ticker"
+    },
+
+    "evidence_type": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/evidenceType"
+    },
+
+    "timeframe": {
+      "oneOf": [
+        {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timeframe"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "file_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 255
+    },
+
+    "file_reference": {
+      "description": "Internal storage path, object key, attachment reference, or another application-managed file identifier.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 1000
+    },
+
+    "mime_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 100
+    },
+
+    "uploaded_at": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+    },
+
+    "market_timestamp": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+    },
+
+    "trading_date": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTradingDate"
+    },
+
+    "usability": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/evidenceUsability"
+    },
+
+    "extraction_status": {
+      "type": "string",
+      "enum": [
+        "NOT_REQUIRED",
+        "PENDING",
+        "SUCCESS",
+        "PARTIAL",
+        "FAILED"
+      ]
+    },
+
+    "extracted_facts": {
+      "$ref": "#/$defs/extractedFactArray"
+    },
+
+    "user_note": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+    },
+
+    "is_active": {
+      "type": "boolean"
+    },
+
+    "superseded_by": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+    },
+
+    "limitations": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+    }
+  },
+
+  "$defs": {
+    "extractedFactValue": {
+      "title": "Extracted Fact Value",
+      "description": "Simple value extracted from evidence.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "extractedFact": {
+      "title": "Extracted Fact",
+      "description": "One simple fact extracted from a screenshot, chart, note, or user confirmation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "value",
+        "unit",
+        "confidence",
+        "source_region",
+        "summary"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+
+        "value": {
+          "$ref": "#/$defs/extractedFactValue"
+        },
+
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 50
+        },
+
+        "confidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "source_region": {
+          "description": "Optional visible area or label in the evidence, such as best bid row, OHLC header, or chart timeframe label.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 200
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      }
+    },
+
+    "extractedFactArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/extractedFact"
+      },
+      "maxItems": 50,
+      "default": []
+    },
+
+    "evidenceArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#"
+      },
+      "maxItems": 50,
+      "default": []
+    },
+
+    "evidenceSummary": {
+      "title": "Evidence Summary",
+      "description": "Compact evidence overview included inside analysis root schemas.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_ids",
+        "orderbook_available",
+        "chart_3_month_available",
+        "chart_6_month_available",
+        "latest_orderbook_timestamp",
+        "latest_chart_timestamp",
+        "has_unreadable_evidence",
+        "has_stale_evidence",
+        "summary",
+        "limitations"
+      ],
+      "properties": {
+        "evidence_ids": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuidArray"
+        },
+
+        "orderbook_available": {
+          "type": "boolean"
+        },
+
+        "chart_3_month_available": {
+          "type": "boolean"
+        },
+
+        "chart_6_month_available": {
+          "type": "boolean"
+        },
+
+        "latest_orderbook_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "latest_chart_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "has_unreadable_evidence": {
+          "type": "boolean"
+        },
+
+        "has_stale_evidence": {
+          "type": "boolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      }
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "ORDERBOOK_SCREENSHOT"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "timeframe": {
+            "const": "INTRADAY"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_reference": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string",
+            "pattern": "^image/"
+          },
+          "market_timestamp": {
+            "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "CHART_3_MONTH"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "timeframe": {
+            "const": "THREE_MONTH"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_reference": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string",
+            "pattern": "^image/"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "CHART_6_MONTH"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "timeframe": {
+            "const": "SIX_MONTH"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_reference": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string",
+            "pattern": "^image/"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "CHART_OTHER"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "timeframe": {
+            "enum": [
+              "ONE_MONTH",
+              "ONE_YEAR",
+              "OTHER"
+            ]
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_reference": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string",
+            "pattern": "^image/"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "MARKET_SCREENSHOT"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "file_name": {
+            "type": "string"
+          },
+          "file_reference": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string",
+            "pattern": "^image/"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "enum": [
+              "USER_NOTE",
+              "POSITION_CONFIRMATION",
+              "PARTIAL_EXIT_CONFIRMATION",
+              "EXIT_CONFIRMATION"
+            ]
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "timeframe": {
+            "type": "null"
+          },
+          "file_name": {
+            "type": "null"
+          },
+          "file_reference": {
+            "type": "null"
+          },
+          "mime_type": {
+            "type": "null"
+          },
+          "user_note": {
+            "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+          },
+          "extraction_status": {
+            "const": "NOT_REQUIRED"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "usability": {
+            "const": "UNREADABLE"
+          }
+        },
+        "required": [
+          "usability"
+        ]
+      },
+      "then": {
+        "properties": {
+          "extraction_status": {
+            "enum": [
+              "FAILED",
+              "PARTIAL"
+            ]
+          },
+          "extracted_facts": {
+            "maxItems": 0
+          },
+          "limitations": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "usability": {
+            "const": "PARTIALLY_USABLE"
+          }
+        },
+        "required": [
+          "usability"
+        ]
+      },
+      "then": {
+        "properties": {
+          "extraction_status": {
+            "enum": [
+              "PARTIAL",
+              "SUCCESS"
+            ]
+          },
+          "limitations": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "usability": {
+            "const": "STALE"
+          }
+        },
+        "required": [
+          "usability"
+        ]
+      },
+      "then": {
+        "properties": {
+          "limitations": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "usability": {
+            "const": "SUPERSEDED"
+          }
+        },
+        "required": [
+          "usability"
+        ]
+      },
+      "then": {
+        "properties": {
+          "is_active": {
+            "const": false
+          },
+          "superseded_by": {
+            "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "is_active": {
+            "const": true
+          }
+        },
+        "required": [
+          "is_active"
+        ]
+      },
+      "then": {
+        "properties": {
+          "usability": {
+            "not": {
+              "const": "SUPERSEDED"
+            }
+          },
+          "superseded_by": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "extraction_status": {
+            "const": "SUCCESS"
+          }
+        },
+        "required": [
+          "extraction_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "extracted_facts": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "extraction_status": {
+            "const": "FAILED"
+          }
+        },
+        "required": [
+          "extraction_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "extracted_facts": {
+            "maxItems": 0
+          },
+          "limitations": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "evidence_id": "9d8ed908-dc79-4432-a4b6-d95425138c17",
+      "session_id": "d95b3775-aa8c-49fb-b5a8-19c475b5bcc1",
+      "ticker": "BBRI",
+      "evidence_type": "ORDERBOOK_SCREENSHOT",
+      "timeframe": "INTRADAY",
+      "file_name": "bbri_orderbook_midday_2026-07-17.png",
+      "file_reference": "trade-sessions/d95b3775-aa8c-49fb-b5a8-19c475b5bcc1/evidence/bbri_orderbook_midday_2026-07-17.png",
+      "mime_type": "image/png",
+      "uploaded_at": "2026-07-17T13:31:20+07:00",
+      "market_timestamp": "2026-07-17T13:30:00+07:00",
+      "trading_date": "2026-07-17",
+      "usability": "USABLE",
+      "extraction_status": "SUCCESS",
+      "extracted_facts": [
+        {
+          "field": "best_bid",
+          "value": 2880,
+          "unit": "IDR",
+          "confidence": 98,
+          "source_region": "Top bid row",
+          "summary": "Best bid terlihat pada harga 2.880."
+        },
+        {
+          "field": "best_offer",
+          "value": 2890,
+          "unit": "IDR",
+          "confidence": 98,
+          "source_region": "Top offer row",
+          "summary": "Best offer terlihat pada harga 2.890."
+        },
+        {
+          "field": "average",
+          "value": 2867,
+          "unit": "IDR",
+          "confidence": 95,
+          "source_region": "Market summary header",
+          "summary": "Harga rata-rata transaksi terlihat di area 2.867."
+        }
+      ],
+      "user_note": "Update orderbook sesi siang.",
+      "is_active": true,
+      "superseded_by": null,
+      "limitations": []
+    }
+  ]
+}

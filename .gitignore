@@ -1,0 +1,84 @@
+# --- OS files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.coverage.lcov
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Next.js ---
+.next/
+out/
+
+# --- Environment ---
+.env
+.env.local
+.env.production
+.env.development.local
+.env.production.local
+
+# Keep .env.example tracked
+!.env.example
+
+# --- Logs ---
+*.log
+
+# --- Runtime evidence ---
+storage/evidence/*
+!storage/evidence/.gitkeep
+
+# --- Generated AI output ---
+ai_output/
+
+# --- Secrets ---
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Temporary ---
+tmp/
+temp/
+*.tmp
+*.bak
+
+# --- Test artifacts ---
+test-results/
+playwright-report/

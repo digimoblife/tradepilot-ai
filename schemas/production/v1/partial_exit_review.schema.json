@@ -1,0 +1,1607 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/partial_exit_review.schema.json",
+  "title": "TradePilot AI Partial Exit Review",
+  "description": "Represents one structured AI review after the user confirms a partial exit, including realized result, remaining position, current market condition, thesis status, remaining target realism, stop-loss review, trading plan, and AI assessment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "update_period",
+    "comparison",
+    "evidence_summary",
+    "market_snapshot",
+    "partial_exit_confirmation",
+    "result_summary",
+    "orderbook_analysis",
+    "chart_update",
+    "remaining_position_assessment",
+    "thesis_assessment",
+    "remaining_target_assessment",
+    "stop_loss_assessment",
+    "trading_plan",
+    "ai_assessment",
+    "changes_from_previous",
+    "warnings_and_missing_information"
+  ],
+  "properties": {
+    "metadata": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/analysisMetadata"
+    },
+
+    "update_period": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+    },
+
+    "comparison": {
+      "$ref": "#/$defs/comparisonSummary"
+    },
+
+    "evidence_summary": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/evidence.schema.json#/$defs/evidenceSummary"
+    },
+
+    "market_snapshot": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/market_snapshot.schema.json"
+    },
+
+    "partial_exit_confirmation": {
+      "$ref": "#/$defs/partialExitConfirmation"
+    },
+
+    "result_summary": {
+      "$ref": "#/$defs/resultSummary"
+    },
+
+    "orderbook_analysis": {
+      "$ref": "#/$defs/orderbookAnalysis"
+    },
+
+    "chart_update": {
+      "$ref": "#/$defs/chartUpdate"
+    },
+
+    "remaining_position_assessment": {
+      "$ref": "#/$defs/remainingPositionAssessment"
+    },
+
+    "thesis_assessment": {
+      "$ref": "#/$defs/thesisAssessment"
+    },
+
+    "remaining_target_assessment": {
+      "$ref": "#/$defs/remainingTargetAssessment"
+    },
+
+    "stop_loss_assessment": {
+      "$ref": "#/$defs/stopLossAssessment"
+    },
+
+    "trading_plan": {
+      "$ref": "#/$defs/tradingPlan"
+    },
+
+    "ai_assessment": {
+      "$ref": "#/$defs/partialExitAiAssessment"
+    },
+
+    "changes_from_previous": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/materialChangeArray"
+    },
+
+    "warnings_and_missing_information": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/warningsAndMissingInformation"
+    }
+  },
+
+  "$defs": {
+    "comparisonSummary": {
+      "title": "Comparison Summary",
+      "description": "Identifies the previous accepted Open Position or Partial Exit analysis used for comparison.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comparison_available",
+        "previous_analysis_id",
+        "previous_analysis_type",
+        "previous_analysis_timestamp",
+        "previous_update_period",
+        "summary"
+      ],
+      "properties": {
+        "comparison_available": {
+          "type": "boolean"
+        },
+
+        "previous_analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        },
+
+        "previous_analysis_type": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "OPEN_POSITION_UPDATE",
+                "PARTIAL_EXIT_REVIEW"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "previous_analysis_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "previous_update_period": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "comparison_available": {
+                "const": false
+              }
+            },
+            "required": [
+              "comparison_available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "previous_analysis_id": {
+                "type": "null"
+              },
+              "previous_analysis_type": {
+                "type": "null"
+              },
+              "previous_analysis_timestamp": {
+                "type": "null"
+              },
+              "previous_update_period": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "comparison_available": {
+                "const": true
+              }
+            },
+            "required": [
+              "comparison_available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "previous_analysis_id": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+              },
+              "previous_analysis_type": {
+                "type": "string",
+                "enum": [
+                  "OPEN_POSITION_UPDATE",
+                  "PARTIAL_EXIT_REVIEW"
+                ]
+              },
+              "previous_analysis_timestamp": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "previous_update_period": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "partialExitConfirmation": {
+      "title": "Partial Exit Confirmation",
+      "description": "User-confirmed details of the partial exit execution.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed",
+        "confirmation_action_id",
+        "exit_timestamp",
+        "exit_price",
+        "exited_quantity",
+        "remaining_quantity",
+        "exit_reason",
+        "user_note"
+      ],
+      "properties": {
+        "confirmed": {
+          "const": true
+        },
+
+        "confirmation_action_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+        },
+
+        "exit_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "exited_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "remaining_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "exit_reason": {
+          "type": "string",
+          "enum": [
+            "PARTIAL_TAKE_PROFIT",
+            "RISK_REDUCTION",
+            "RESISTANCE_REACHED",
+            "MOMENTUM_WEAKENING",
+            "USER_DECISION",
+            "OTHER"
+          ]
+        },
+
+        "user_note": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        }
+      }
+    },
+
+    "resultSummary": {
+      "title": "Partial Exit Result Summary",
+      "description": "Summary of the result already realized and its effect on the remaining trade.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_price",
+        "partial_exit_price",
+        "exited_quantity",
+        "remaining_quantity",
+        "realized_profit_loss",
+        "realized_return_percentage",
+        "capital_recovered_percentage",
+        "original_risk_reduced",
+        "summary"
+      ],
+      "properties": {
+        "entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "partial_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "exited_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "remaining_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "realized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+        },
+
+        "realized_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+        },
+
+        "capital_recovered_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "original_risk_reduced": {
+          "type": "boolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "orderbookAnalysis": {
+      "title": "Partial Exit Orderbook Analysis",
+      "description": "Latest orderbook analysis used to evaluate the remaining position after a partial exit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "buyer_strength",
+        "seller_pressure",
+        "best_bid",
+        "best_offer",
+        "bid_support",
+        "offer_resistance",
+        "buyer_observations",
+        "seller_observations",
+        "important_changes",
+        "supports_remaining_position",
+        "conclusion",
+        "limitations"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+
+        "buyer_strength": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/buyerStrength"
+        },
+
+        "seller_pressure": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/sellerPressure"
+        },
+
+        "best_bid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "best_offer": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "bid_support": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "offer_resistance": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "buyer_observations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "seller_observations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "important_changes": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "supports_remaining_position": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "conclusion": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "buyer_strength": {
+                "const": "UNKNOWN"
+              },
+              "seller_pressure": {
+                "const": "UNKNOWN"
+              },
+              "best_bid": {
+                "type": "null"
+              },
+              "best_offer": {
+                "type": "null"
+              },
+              "bid_support": {
+                "type": "null"
+              },
+              "offer_resistance": {
+                "type": "null"
+              },
+              "buyer_observations": {
+                "maxItems": 0
+              },
+              "seller_observations": {
+                "maxItems": 0
+              },
+              "important_changes": {
+                "maxItems": 0
+              },
+              "supports_remaining_position": {
+                "type": "null"
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "chartUpdate": {
+      "title": "Partial Exit Chart Update",
+      "description": "Compact chart context for evaluating the remaining position.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "updated_chart_available",
+        "using_historical_context",
+        "chart_context_timestamp",
+        "short_term_trend",
+        "medium_term_trend",
+        "structure_status",
+        "nearest_support",
+        "nearest_resistance",
+        "breakout_status",
+        "breakdown_status",
+        "supports_remaining_position",
+        "conclusion",
+        "limitations"
+      ],
+      "properties": {
+        "updated_chart_available": {
+          "type": "boolean"
+        },
+
+        "using_historical_context": {
+          "type": "boolean"
+        },
+
+        "chart_context_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "short_term_trend": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/trendDirection"
+        },
+
+        "medium_term_trend": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/trendDirection"
+        },
+
+        "structure_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/structureStatus"
+        },
+
+        "nearest_support": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "nearest_resistance": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "breakout_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/breakoutStatus"
+        },
+
+        "breakdown_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/breakdownStatus"
+        },
+
+        "supports_remaining_position": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "conclusion": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "updated_chart_available": {
+                "const": false
+              },
+              "using_historical_context": {
+                "const": false
+              }
+            },
+            "required": [
+              "updated_chart_available",
+              "using_historical_context"
+            ]
+          },
+          "then": {
+            "properties": {
+              "chart_context_timestamp": {
+                "type": "null"
+              },
+              "short_term_trend": {
+                "const": "UNKNOWN"
+              },
+              "medium_term_trend": {
+                "const": "UNKNOWN"
+              },
+              "structure_status": {
+                "const": "UNKNOWN"
+              },
+              "nearest_support": {
+                "type": "null"
+              },
+              "nearest_resistance": {
+                "type": "null"
+              },
+              "breakout_status": {
+                "const": "UNKNOWN"
+              },
+              "breakdown_status": {
+                "const": "UNKNOWN"
+              },
+              "supports_remaining_position": {
+                "type": "null"
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "remainingPositionAssessment": {
+      "title": "Remaining Position Assessment",
+      "description": "Current condition and performance of the quantity that remains after the partial exit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_price",
+        "current_price",
+        "original_quantity",
+        "exited_quantity",
+        "remaining_quantity",
+        "active_stop_loss",
+        "active_target",
+        "realized_profit_loss",
+        "unrealized_profit_loss",
+        "unrealized_return_percentage",
+        "total_trade_profit_loss",
+        "total_trade_return_percentage",
+        "distance_to_stop_percentage",
+        "distance_to_target_percentage",
+        "health",
+        "summary"
+      ],
+      "properties": {
+        "entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "current_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "original_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "exited_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "remaining_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "active_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "active_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "realized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+        },
+
+        "unrealized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "unrealized_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "total_trade_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "total_trade_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "distance_to_stop_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "distance_to_target_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "health": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/positionHealth"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "thesisAssessment": {
+      "title": "Partial Exit Thesis Assessment",
+      "description": "Evaluation of whether the original thesis remains valid for the remaining quantity.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "remains_valid",
+        "summary",
+        "strengthening_evidence",
+        "weakening_evidence",
+        "partial_exit_effect",
+        "invalidation_condition",
+        "invalidation_price",
+        "invalidation_triggered"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/thesisStatus"
+        },
+
+        "remains_valid": {
+          "type": "boolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "strengthening_evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "weakening_evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "partial_exit_effect": {
+          "type": "string",
+          "enum": [
+            "RISK_SIGNIFICANTLY_REDUCED",
+            "RISK_REDUCED",
+            "NEUTRAL",
+            "REMAINING_POSITION_STILL_HIGH_RISK",
+            "UNKNOWN"
+          ]
+        },
+
+        "invalidation_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "invalidation_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "invalidation_triggered": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "INVALIDATED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "remains_valid": {
+                "const": false
+              },
+              "invalidation_triggered": {
+                "const": true
+              },
+              "weakening_evidence": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "remainingTargetAssessment": {
+      "title": "Remaining Target Assessment",
+      "description": "Assessment of whether the target for the remaining quantity remains realistic.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_target",
+        "still_realistic",
+        "realism",
+        "target_probability",
+        "distance_to_target_percentage",
+        "primary_obstacle",
+        "required_condition",
+        "revised_target_proposed",
+        "proposed_target",
+        "summary"
+      ],
+      "properties": {
+        "current_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "still_realistic": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "realism": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/targetRealism"
+        },
+
+        "target_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "distance_to_target_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "primary_obstacle": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableShortText"
+        },
+
+        "required_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "revised_target_proposed": {
+          "type": "boolean"
+        },
+
+        "proposed_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revised_target_proposed": {
+                "const": true
+              }
+            },
+            "required": [
+              "revised_target_proposed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_target": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revised_target_proposed": {
+                "const": false
+              }
+            },
+            "required": [
+              "revised_target_proposed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_target": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "stopLossAssessment": {
+      "title": "Partial Exit Stop-Loss Assessment",
+      "description": "Assessment of the stop loss for the remaining quantity after risk has been partially reduced.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_stop_loss",
+        "still_appropriate",
+        "distance_to_stop_percentage",
+        "move_to_break_even_possible",
+        "profit_protection_possible",
+        "revised_stop_proposed",
+        "proposed_stop_loss",
+        "risk_if_unchanged",
+        "summary"
+      ],
+      "properties": {
+        "current_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "still_appropriate": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "distance_to_stop_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "move_to_break_even_possible": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "profit_protection_possible": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "revised_stop_proposed": {
+          "type": "boolean"
+        },
+
+        "proposed_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "risk_if_unchanged": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/riskLevel"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revised_stop_proposed": {
+                "const": true
+              }
+            },
+            "required": [
+              "revised_stop_proposed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_stop_loss": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revised_stop_proposed": {
+                "const": false
+              }
+            },
+            "required": [
+              "revised_stop_proposed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_stop_loss": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "tradingPlan": {
+      "title": "Partial Exit Trading Plan",
+      "description": "Practical plan for managing the remaining position after a partial exit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_action",
+        "action_rationale",
+        "plan_for_remaining_position",
+        "hold_condition",
+        "protect_profit_condition",
+        "second_partial_exit_condition",
+        "full_exit_condition",
+        "levels_to_monitor",
+        "requires_user_confirmation"
+      ],
+      "properties": {
+        "current_action": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/recommendedAction"
+        },
+
+        "action_rationale": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "plan_for_remaining_position": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "hold_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "protect_profit_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "second_partial_exit_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "full_exit_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "levels_to_monitor": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "requires_user_confirmation": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "REDUCE_RISK",
+                  "CONSIDER_PARTIAL_EXIT",
+                  "REVIEW_EXIT",
+                  "EXIT"
+                ]
+              }
+            },
+            "required": [
+              "current_action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "requires_user_confirmation": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "partialExitAiAssessment": {
+      "title": "Partial Exit AI Assessment",
+      "description": "Overall AI evaluation of the remaining position after partial profit or risk reduction.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bias",
+        "confidence",
+        "bullish_probability",
+        "remaining_target_probability",
+        "downside_probability",
+        "full_exit_probability",
+        "risk_level",
+        "remaining_position_worth_holding",
+        "summary"
+      ],
+      "properties": {
+        "bias": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/directionalBias"
+        },
+
+        "confidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "bullish_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "remaining_target_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "downside_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "full_exit_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "risk_level": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/riskLevel"
+        },
+
+        "remaining_position_worth_holding": {
+          "type": "boolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    }
+  },
+
+  "allOf": [
+    {
+      "properties": {
+        "metadata": {
+          "properties": {
+            "analysis_type": {
+              "const": "PARTIAL_EXIT_REVIEW"
+            },
+            "language": {
+              "const": "id"
+            },
+            "schema": {
+              "properties": {
+                "schema_name": {
+                  "const": "partial_exit_review"
+                },
+                "schema_version": {
+                  "const": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "comparison": {
+            "properties": {
+              "comparison_available": {
+                "const": false
+              }
+            },
+            "required": [
+              "comparison_available"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "changes_from_previous": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "thesis_assessment": {
+            "properties": {
+              "status": {
+                "const": "INVALIDATED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "remaining_position_assessment": {
+            "properties": {
+              "health": {
+                "enum": [
+                  "AT_RISK",
+                  "EXIT_CONDITION_TRIGGERED"
+                ]
+              }
+            }
+          },
+
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "REVIEW_EXIT",
+                  "EXIT"
+                ]
+              },
+              "requires_user_confirmation": {
+                "const": true
+              }
+            }
+          },
+
+          "ai_assessment": {
+            "properties": {
+              "remaining_position_worth_holding": {
+                "const": false
+              },
+              "risk_level": {
+                "enum": [
+                  "HIGH",
+                  "VERY_HIGH"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "ai_assessment": {
+            "properties": {
+              "remaining_position_worth_holding": {
+                "const": false
+              }
+            },
+            "required": [
+              "remaining_position_worth_holding"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "REDUCE_RISK",
+                  "REVIEW_EXIT",
+                  "EXIT"
+                ]
+              },
+              "requires_user_confirmation": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "remaining_target_assessment": {
+            "properties": {
+              "still_realistic": {
+                "const": false
+              }
+            },
+            "required": [
+              "still_realistic"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "remaining_target_assessment": {
+            "properties": {
+              "realism": {
+                "enum": [
+                  "UNLIKELY",
+                  "NO_LONGER_REALISTIC"
+                ]
+              }
+            }
+          },
+
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "HOLD_WITH_CAUTION",
+                  "REDUCE_RISK",
+                  "CONSIDER_PARTIAL_EXIT",
+                  "REVIEW_EXIT",
+                  "EXIT"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "metadata": {
+        "analysis_id": "06cd7433-31f0-4453-a5c3-e4bf8ea39084",
+        "session_id": "d95b3775-aa8c-49fb-b5a8-19c475b5bcc1",
+        "analysis_type": "PARTIAL_EXIT_REVIEW",
+        "ticker": "BBRI",
+        "company_name": "Bank Rakyat Indonesia",
+        "analysis_timestamp": "2026-07-17T14:15:00+07:00",
+        "language": "id",
+        "schema": {
+          "schema_name": "partial_exit_review",
+          "schema_version": "1.0.0"
+        },
+        "prompt_version": "1.0.0",
+        "provider": "GEMINI",
+        "model": "gemini-2.5-pro"
+      },
+
+      "update_period": "AFTERNOON",
+
+      "comparison": {
+        "comparison_available": true,
+        "previous_analysis_id": "88c9fc4d-169c-4bea-a1c5-282584a33952",
+        "previous_analysis_type": "OPEN_POSITION_UPDATE",
+        "previous_analysis_timestamp": "2026-07-17T13:35:00+07:00",
+        "previous_update_period": "MIDDAY",
+        "summary": "Review ini membandingkan kondisi setelah partial exit dengan Open Position update sesi siang."
+      },
+
+      "evidence_summary": {
+        "evidence_ids": [
+          "3a3d4c2d-39bb-4e3c-9370-662ef2dd7d91",
+          "225277e5-cff5-4c24-8854-b740fc020a9c"
+        ],
+        "orderbook_available": true,
+        "chart_3_month_available": true,
+        "chart_6_month_available": true,
+        "latest_orderbook_timestamp": "2026-07-17T14:10:00+07:00",
+        "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+        "has_unreadable_evidence": false,
+        "has_stale_evidence": false,
+        "summary": "Review menggunakan konfirmasi partial exit, orderbook terbaru, dan konteks chart sebelumnya.",
+        "limitations": [
+          "Tidak ada chart baru setelah partial exit."
+        ]
+      },
+
+      "market_snapshot": {
+        "trading_date": "2026-07-17",
+        "market_timestamp": "2026-07-17T14:10:00+07:00",
+        "update_period": "AFTERNOON",
+        "currency": "IDR",
+        "data_available": true,
+        "open": 2840,
+        "high": 2930,
+        "low": 2820,
+        "last": 2910,
+        "close": null,
+        "previous_close": 2830,
+        "average": 2878,
+        "change": 80,
+        "change_percentage": 2.83,
+        "volume": 168000000,
+        "transaction_value": 484000000000,
+        "best_bid": 2900,
+        "best_offer": 2910,
+        "spread": 10,
+        "spread_percentage": 0.34,
+        "summary": "Harga sempat menembus target awal dan sekarang bertahan di 2.910, masih di atas average serta dekat area tertinggi harian.",
+        "source": "MIXED",
+        "limitations": []
+      },
+
+      "partial_exit_confirmation": {
+        "confirmed": true,
+        "confirmation_action_id": "ec170f71-6fa3-469f-8bb5-72ce52a0f422",
+        "exit_timestamp": "2026-07-17T14:05:00+07:00",
+        "exit_price": 2920,
+        "exited_quantity": 50,
+        "remaining_quantity": 50,
+        "exit_reason": "PARTIAL_TAKE_PROFIT",
+        "user_note": "Menjual setengah posisi di target 2.920 dan menyisakan setengah untuk peluang lanjutan."
+      },
+
+      "result_summary": {
+        "entry_price": 2800,
+        "partial_exit_price": 2920,
+        "exited_quantity": 50,
+        "remaining_quantity": 50,
+        "realized_profit_loss": 6000,
+        "realized_return_percentage": 4.29,
+        "capital_recovered_percentage": 52.14,
+        "original_risk_reduced": true,
+        "summary": "Setengah posisi berhasil dijual pada target 2.920 dengan keuntungan sekitar 4,29%. Langkah ini mengamankan sebagian profit dan menurunkan risiko trade secara keseluruhan."
+      },
+
+      "orderbook_analysis": {
+        "available": true,
+        "buyer_strength": "MODERATE",
+        "seller_pressure": "MODERATE",
+        "best_bid": 2900,
+        "best_offer": 2910,
+        "bid_support": {
+          "price": 2900,
+          "label": "Post-breakout support",
+          "summary": "Area yang perlu bertahan agar sisa posisi masih layak dipertahankan."
+        },
+        "offer_resistance": {
+          "price": 2930,
+          "label": "Next offer resistance",
+          "summary": "Hambatan terdekat setelah target awal tercapai."
+        },
+        "buyer_observations": [
+          "Bid masih terlihat pada area 2.900 setelah harga menyentuh 2.930.",
+          "Buyer belum sepenuhnya hilang setelah target awal tercapai."
+        ],
+        "seller_observations": [
+          "Seller mulai muncul di area 2.920–2.930.",
+          "Harga mengalami sedikit pullback setelah mencapai high."
+        ],
+        "important_changes": [
+          "Resistance 2.900 telah ditembus.",
+          "Area 2.900 kini berpotensi berubah menjadi support.",
+          "Tekanan seller meningkat dekat 2.930."
+        ],
+        "supports_remaining_position": true,
+        "conclusion": "Orderbook masih cukup mendukung sisa posisi selama bid 2.900 bertahan. Namun, seller mulai aktif di area 2.920–2.930 sehingga profit protection menjadi lebih penting.",
+        "limitations": [
+          "Belum tersedia bukti bahwa area 2.900 sudah menjadi support yang stabil."
+        ]
+      },
+
+      "chart_update": {
+        "updated_chart_available": false,
+        "using_historical_context": true,
+        "chart_context_timestamp": "2026-07-15T09:10:00+07:00",
+        "short_term_trend": "UP",
+        "medium_term_trend": "SIDEWAYS",
+        "structure_status": "IMPROVING",
+        "nearest_support": {
+          "price": 2900,
+          "label": "Breakout support",
+          "summary": "Area breakout yang perlu dipertahankan."
+        },
+        "nearest_resistance": {
+          "price": 3000,
+          "label": "Next medium-term resistance",
+          "summary": "Resistance berikutnya apabila momentum berlanjut."
+        },
+        "breakout_status": "RETESTING",
+        "breakdown_status": "NOT_PRESENT",
+        "supports_remaining_position": true,
+        "conclusion": "Target awal telah tercapai dan harga sedang menguji kemampuan bertahan di atas area breakout. Sisa posisi masih dapat dipertahankan dengan perlindungan profit.",
+        "limitations": [
+          "Chart menggunakan konteks historis dan belum diperbarui setelah breakout."
+        ]
+      },
+
+      "remaining_position_assessment": {
+        "entry_price": 2800,
+        "current_price": 2910,
+        "original_quantity": 100,
+        "exited_quantity": 50,
+        "remaining_quantity": 50,
+        "active_stop_loss": 2840,
+        "active_target": 3000,
+        "realized_profit_loss": 6000,
+        "unrealized_profit_loss": 5500,
+        "unrealized_return_percentage": 3.93,
+        "total_trade_profit_loss": 11500,
+        "total_trade_return_percentage": 4.11,
+        "distance_to_stop_percentage": 2.41,
+        "distance_to_target_percentage": 3.09,
+        "health": "HEALTHY_WITH_CAUTION",
+        "summary": "Trade secara keseluruhan sudah menguntungkan. Sisa posisi masih sehat, tetapi active stop 2.840 terlalu jauh jika tujuan saat ini adalah melindungi profit yang sudah terbentuk."
+      },
+
+      "thesis_assessment": {
+        "status": "STRENGTHENING",
+        "remains_valid": true,
+        "summary": "Thesis rebound terbukti setelah target awal tercapai dan resistance 2.900 berhasil ditembus. Thesis lanjutan bergantung pada kemampuan harga mempertahankan area breakout.",
+        "strengthening_evidence": [
+          "Target awal 2.920 telah tercapai.",
+          "Resistance 2.900 berhasil ditembus.",
+          "Harga masih bertahan di atas average."
+        ],
+        "weakening_evidence": [
+          "Seller mulai meningkat di area 2.920–2.930.",
+          "Harga belum mengonfirmasi support stabil di atas 2.900."
+        ],
+        "partial_exit_effect": "RISK_SIGNIFICANTLY_REDUCED",
+        "invalidation_condition": "Thesis lanjutan melemah jika harga kembali turun di bawah 2.880 dan buyer tidak mampu reclaim area 2.900.",
+        "invalidation_price": 2880,
+        "invalidation_triggered": false
+      },
+
+      "remaining_target_assessment": {
+        "current_target": 3000,
+        "still_realistic": true,
+        "realism": "POSSIBLE_BUT_CHALLENGING",
+        "target_probability": 48,
+        "distance_to_target_percentage": 3.09,
+        "primary_obstacle": "Seller di area 2.920–2.930 dan resistance menengah 3.000.",
+        "required_condition": "Harga perlu bertahan di atas 2.900 dan membentuk buyer support baru sebelum melanjutkan kenaikan.",
+        "revised_target_proposed": false,
+        "proposed_target": null,
+        "summary": "Target lanjutan 3.000 masih mungkin dicapai, tetapi peluangnya lebih rendah dibanding target pertama. Sisa posisi sebaiknya dikelola dengan perlindungan profit."
+      },
+
+      "stop_loss_assessment": {
+        "current_stop_loss": 2840,
+        "still_appropriate": false,
+        "distance_to_stop_percentage": 2.41,
+        "move_to_break_even_possible": true,
+        "profit_protection_possible": true,
+        "revised_stop_proposed": true,
+        "proposed_stop_loss": 2880,
+        "risk_if_unchanged": "HIGH",
+        "summary": "Stop 2.840 sudah terlalu longgar setelah partial take profit dan breakout 2.900. Stop dapat dinaikkan ke 2.880 untuk melindungi sebagian profit tanpa terlalu dekat dengan noise intraday."
+      },
+
+      "trading_plan": {
+        "current_action": "HOLD_WITH_CAUTION",
+        "action_rationale": "Sebagian profit telah diamankan, thesis masih valid, dan harga masih berada di atas area breakout. Namun, profit pada sisa posisi perlu dilindungi.",
+        "plan_for_remaining_position": "Pertahankan sisa posisi selama harga bertahan di atas 2.880–2.900. Pantau apakah buyer membentuk support baru sebelum mempertahankan target 3.000.",
+        "hold_condition": "Hold selama harga bertahan di atas 2.880 dan buyer tetap terlihat di area 2.900.",
+        "protect_profit_condition": "Naikkan stop ke 2.880 setelah dikonfirmasi user.",
+        "second_partial_exit_condition": "Pertimbangkan partial exit tambahan jika harga kembali gagal menembus 2.930 dan buyer melemah.",
+        "full_exit_condition": "Keluar penuh jika harga menembus 2.880 dengan tekanan seller yang meningkat.",
+        "levels_to_monitor": [
+          {
+            "price": 2880,
+            "label": "Proposed protective stop",
+            "summary": "Batas perlindungan profit untuk sisa posisi."
+          },
+          {
+            "price": 2900,
+            "label": "Breakout support",
+            "summary": "Area yang perlu bertahan untuk kelanjutan momentum."
+          },
+          {
+            "price": 2930,
+            "label": "Immediate resistance",
+            "summary": "Hambatan terdekat setelah target awal."
+          },
+          {
+            "price": 3000,
+            "label": "Remaining target",
+            "summary": "Target lanjutan untuk sisa posisi."
+          }
+        ],
+        "requires_user_confirmation": false
+      },
+
+      "ai_assessment": {
+        "bias": "BULLISH",
+        "confidence": 72,
+        "bullish_probability": 61,
+        "remaining_target_probability": 48,
+        "downside_probability": 31,
+        "full_exit_probability": 26,
+        "risk_level": "MODERATE",
+        "remaining_position_worth_holding": true,
+        "summary": "Sisa posisi masih layak dipertahankan karena target awal sudah tercapai dan struktur tetap positif. Fokus utama sekarang bukan mengejar profit maksimal, melainkan menjaga agar profit yang telah terbentuk tidak kembali hilang."
+      },
+
+      "changes_from_previous": [
+        {
+          "category": "POSITION",
+          "previous_value": 100,
+          "current_value": 50,
+          "direction": "DECREASED",
+          "materiality": "CRITICAL",
+          "explanation": "Setengah posisi telah dijual dan dikonfirmasi user."
+        },
+        {
+          "category": "TARGET",
+          "previous_value": 2920,
+          "current_value": 3000,
+          "direction": "SHIFTED_UP",
+          "materiality": "MATERIAL",
+          "explanation": "Target awal telah tercapai dan sisa posisi diarahkan pada target lanjutan."
+        },
+        {
+          "category": "RISK",
+          "previous_value": "MODERATE",
+          "current_value": "LOWER_AFTER_PARTIAL_EXIT",
+          "direction": "IMPROVED",
+          "materiality": "MATERIAL",
+          "explanation": "Partial exit mengurangi exposure dan mengamankan sebagian profit."
+        },
+        {
+          "category": "STOP_LOSS",
+          "previous_value": 2840,
+          "current_value": 2880,
+          "direction": "SHIFTED_UP",
+          "materiality": "MATERIAL",
+          "explanation": "AI mengusulkan stop yang lebih tinggi untuk melindungi profit sisa posisi."
+        }
+      ],
+
+      "warnings_and_missing_information": {
+        "missing_information": [
+          "Tidak ada chart terbaru setelah breakout."
+        ],
+        "warnings": [
+          "Stop loss baru masih berupa proposal sampai dikonfirmasi user.",
+          "Sisa posisi tetap dapat kehilangan sebagian profit jika area breakout gagal bertahan.",
+          "Orderbook merupakan snapshot dan dapat berubah cepat.",
+          "Probabilitas merupakan estimasi analitis, bukan jaminan hasil."
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,597 @@
+{
+  "manifest_name": "tradepilot_ai_production_schemas",
+  "manifest_version": "1.0.0",
+  "schema_standard": "https://json-schema.org/draft/2020-12/schema",
+  "environment": "production",
+  "status": "ACTIVE",
+  "generated_at": "2026-07-17T20:00:00+07:00",
+
+  "base_uri": "https://schemas.tradepilot.local/production/v1/",
+
+  "default_language": "id",
+  "technical_language": "en",
+
+  "description": "Production schema registry for the simplified TradePilot AI swing-trading analysis workflow.",
+
+  "provider_compatibility": {
+    "supported_providers": [
+      "GEMINI",
+      "DEEPSEEK"
+    ],
+    "structured_output_required": true,
+    "fallback_must_preserve_schema": true,
+    "additional_properties_allowed": false
+  },
+
+  "schemas": [
+    {
+      "name": "common",
+      "title": "TradePilot AI Common Definitions",
+      "version": "1.0.0",
+      "category": "SHARED",
+      "root_schema": false,
+      "active": true,
+      "file": "common.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/common.schema.json",
+      "description": "Shared primitive definitions, reusable objects, and compact enums used by all production schemas.",
+      "analysis_types": [],
+      "dependencies": [],
+      "used_by": [
+        "market_snapshot",
+        "trade_state",
+        "evidence",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+        "context_summary"
+      ]
+    },
+
+    {
+      "name": "market_snapshot",
+      "title": "TradePilot AI Market Snapshot",
+      "version": "1.0.0",
+      "category": "SHARED",
+      "root_schema": false,
+      "active": true,
+      "file": "market_snapshot.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/market_snapshot.schema.json",
+      "description": "Latest available OHLC, average, volume, transaction value, bid, offer, and market-summary values used in an analysis.",
+      "analysis_types": [],
+      "dependencies": [
+        "common"
+      ],
+      "used_by": [
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review"
+      ]
+    },
+
+    {
+      "name": "trade_state",
+      "title": "TradePilot AI Trade State",
+      "version": "1.0.0",
+      "category": "CANONICAL_STATE",
+      "root_schema": true,
+      "active": true,
+      "file": "trade_state.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/trade_state.schema.json",
+      "description": "Canonical user-confirmed state of one Trade Session, including position, thesis, active plan, performance, and confirmed actions.",
+      "analysis_types": [],
+      "dependencies": [
+        "common"
+      ],
+      "used_by": [
+        "application_backend",
+        "context_summary",
+        "analysis_context_builder",
+        "session_lifecycle"
+      ]
+    },
+
+    {
+      "name": "evidence",
+      "title": "TradePilot AI Evidence",
+      "version": "1.0.0",
+      "category": "EVIDENCE",
+      "root_schema": true,
+      "active": true,
+      "file": "evidence.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/evidence.schema.json",
+      "description": "Uploaded screenshots, charts, user notes, and trade confirmations used by the analysis workflow.",
+      "analysis_types": [],
+      "dependencies": [
+        "common"
+      ],
+      "used_by": [
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+        "context_summary"
+      ]
+    },
+
+    {
+      "name": "initial_analysis",
+      "title": "TradePilot AI Initial Analysis",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "initial_analysis.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/initial_analysis.schema.json",
+      "description": "First structured analysis before a position is opened, including charts, orderbook, entry, stop loss, target, thesis, and initial trading plan.",
+      "analysis_types": [
+        "INITIAL_ANALYSIS"
+      ],
+      "valid_session_statuses": [
+        "READY_FOR_ANALYSIS",
+        "ANALYZING"
+      ],
+      "resulting_session_statuses": [
+        "WATCHING"
+      ],
+      "dependencies": [
+        "common",
+        "market_snapshot",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder"
+      ]
+    },
+
+    {
+      "name": "watching_update",
+      "title": "TradePilot AI Watching Update",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "watching_update.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/watching_update.schema.json",
+      "description": "Longitudinal analysis while a setup is still being watched and no real position has been confirmed.",
+      "analysis_types": [
+        "WATCHING_UPDATE"
+      ],
+      "valid_session_statuses": [
+        "WATCHING"
+      ],
+      "resulting_session_statuses": [
+        "WATCHING"
+      ],
+      "dependencies": [
+        "common",
+        "market_snapshot",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder"
+      ]
+    },
+
+    {
+      "name": "open_position_update",
+      "title": "TradePilot AI Open Position Update",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "open_position_update.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/open_position_update.schema.json",
+      "description": "Primary analysis contract for an active swing-trading position, including daily summary, orderbook, position condition, thesis, target realism, stop-loss review, plan, and AI assessment.",
+      "analysis_types": [
+        "OPEN_POSITION_UPDATE"
+      ],
+      "valid_session_statuses": [
+        "OPEN_POSITION"
+      ],
+      "resulting_session_statuses": [
+        "OPEN_POSITION"
+      ],
+      "dependencies": [
+        "common",
+        "market_snapshot",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder",
+        "position_monitor"
+      ],
+      "priority": "HIGHEST"
+    },
+
+    {
+      "name": "partial_exit_review",
+      "title": "TradePilot AI Partial Exit Review",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "partial_exit_review.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/partial_exit_review.schema.json",
+      "description": "Analysis after a user-confirmed partial exit, including realized result, remaining position, revised target, stop-loss protection, and next plan.",
+      "analysis_types": [
+        "PARTIAL_EXIT_REVIEW"
+      ],
+      "valid_session_statuses": [
+        "PARTIALLY_CLOSED"
+      ],
+      "resulting_session_statuses": [
+        "PARTIALLY_CLOSED"
+      ],
+      "dependencies": [
+        "common",
+        "market_snapshot",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder",
+        "position_monitor"
+      ]
+    },
+
+    {
+      "name": "closing_analysis",
+      "title": "TradePilot AI Closing Analysis",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "closing_analysis.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/closing_analysis.schema.json",
+      "description": "Final analysis after the entire position has been closed, including trade result, timeline, thesis review, execution quality, mistakes, and lessons.",
+      "analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "valid_session_statuses": [
+        "CLOSED_TAKE_PROFIT",
+        "CLOSED_STOP_LOSS",
+        "CLOSED_MANUAL",
+        "CANCELLED"
+      ],
+      "resulting_session_statuses": [
+        "CLOSED_TAKE_PROFIT",
+        "CLOSED_STOP_LOSS",
+        "CLOSED_MANUAL",
+        "CANCELLED"
+      ],
+      "dependencies": [
+        "common",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder",
+        "trading_journal",
+        "reporting_engine"
+      ]
+    },
+
+    {
+      "name": "context_summary",
+      "title": "TradePilot AI Context Summary",
+      "version": "1.0.0",
+      "category": "AI_MEMORY",
+      "root_schema": true,
+      "active": true,
+      "file": "context_summary.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/context_summary.schema.json",
+      "description": "Compact longitudinal memory used to preserve one Trade Session story across multiple AI analysis requests.",
+      "analysis_types": [],
+      "valid_session_statuses": [
+        "DRAFT",
+        "READY_FOR_ANALYSIS",
+        "ANALYZING",
+        "WATCHING",
+        "OPEN_POSITION",
+        "PARTIALLY_CLOSED",
+        "CLOSED_TAKE_PROFIT",
+        "CLOSED_STOP_LOSS",
+        "CLOSED_MANUAL",
+        "CANCELLED",
+        "ARCHIVED"
+      ],
+      "dependencies": [
+        "common",
+        "trade_state",
+        "evidence"
+      ],
+      "used_by": [
+        "context_summary_builder",
+        "prompt_context_builder",
+        "ai_analysis_worker",
+        "trade_session_page"
+      ]
+    }
+  ],
+
+  "analysis_type_registry": {
+    "INITIAL_ANALYSIS": {
+      "schema": "initial_analysis",
+      "schema_version": "1.0.0",
+      "requires_position": false,
+      "requires_user_confirmation_before_execution": true,
+      "required_evidence": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH"
+      ],
+      "optional_evidence": [
+        "MARKET_SCREENSHOT",
+        "USER_NOTE",
+        "CHART_OTHER"
+      ]
+    },
+
+    "WATCHING_UPDATE": {
+      "schema": "watching_update",
+      "schema_version": "1.0.0",
+      "requires_position": false,
+      "requires_previous_analysis": true,
+      "requires_user_confirmation_before_execution": true,
+      "required_evidence": [
+        "ORDERBOOK_SCREENSHOT"
+      ],
+      "optional_evidence": [
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE"
+      ]
+    },
+
+    "OPEN_POSITION_UPDATE": {
+      "schema": "open_position_update",
+      "schema_version": "1.0.0",
+      "requires_position": true,
+      "requires_previous_analysis": false,
+      "requires_canonical_trade_state": true,
+      "requires_user_confirmation_before_state_change": true,
+      "required_evidence": [
+        "ORDERBOOK_SCREENSHOT"
+      ],
+      "optional_evidence": [
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE"
+      ]
+    },
+
+    "PARTIAL_EXIT_REVIEW": {
+      "schema": "partial_exit_review",
+      "schema_version": "1.0.0",
+      "requires_position": true,
+      "requires_partial_position": true,
+      "requires_canonical_trade_state": true,
+      "requires_user_confirmation_before_state_change": true,
+      "required_evidence": [
+        "PARTIAL_EXIT_CONFIRMATION"
+      ],
+      "optional_evidence": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE"
+      ]
+    },
+
+    "CLOSING_ANALYSIS": {
+      "schema": "closing_analysis",
+      "schema_version": "1.0.0",
+      "requires_position": true,
+      "requires_closed_position": true,
+      "requires_canonical_trade_state": true,
+      "required_evidence": [
+        "EXIT_CONFIRMATION"
+      ],
+      "optional_evidence": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE",
+        "PARTIAL_EXIT_CONFIRMATION"
+      ]
+    }
+  },
+
+  "session_status_schema_mapping": {
+    "DRAFT": {
+      "allowed_analysis_types": [],
+      "canonical_schema": "trade_state"
+    },
+
+    "READY_FOR_ANALYSIS": {
+      "allowed_analysis_types": [
+        "INITIAL_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "ANALYZING": {
+      "allowed_analysis_types": [
+        "INITIAL_ANALYSIS",
+        "WATCHING_UPDATE",
+        "OPEN_POSITION_UPDATE",
+        "PARTIAL_EXIT_REVIEW",
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "WATCHING": {
+      "allowed_analysis_types": [
+        "WATCHING_UPDATE"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "OPEN_POSITION": {
+      "allowed_analysis_types": [
+        "OPEN_POSITION_UPDATE"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "PARTIALLY_CLOSED": {
+      "allowed_analysis_types": [
+        "OPEN_POSITION_UPDATE",
+        "PARTIAL_EXIT_REVIEW"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "CLOSED_TAKE_PROFIT": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "CLOSED_STOP_LOSS": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "CLOSED_MANUAL": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "CANCELLED": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "ARCHIVED": {
+      "allowed_analysis_types": [],
+      "canonical_schema": "trade_state"
+    }
+  },
+
+  "validation": {
+    "json_schema_validation_required": true,
+    "domain_validation_required": true,
+    "validate_format_keywords": true,
+    "reject_unknown_properties": true,
+    "reject_unknown_schema_versions": true,
+    "reject_inactive_schemas": true,
+    "reject_unregistered_schema_ids": true,
+
+    "domain_validators": [
+      "validate_market_snapshot",
+      "validate_trade_state",
+      "validate_position_calculations",
+      "validate_price_level_relationships",
+      "validate_entry_plan",
+      "validate_stop_loss_plan",
+      "validate_target_plan",
+      "validate_analysis_trade_state_consistency",
+      "validate_session_status_transition",
+      "validate_user_confirmation_requirement",
+      "validate_partial_exit",
+      "validate_closing_result",
+      "validate_trade_timeline",
+      "validate_context_summary",
+      "validate_context_cutoff",
+      "validate_provider_output"
+    ]
+  },
+
+  "canonical_state_rules": {
+    "canonical_schema": "trade_state",
+    "ai_may_directly_modify_canonical_state": false,
+
+    "user_confirmation_required_for": [
+      "POSITION_OPENED",
+      "POSITION_DETAILS_CORRECTED",
+      "STOP_LOSS_CONFIRMED",
+      "STOP_LOSS_CHANGED",
+      "TARGET_CONFIRMED",
+      "TARGET_CHANGED",
+      "PARTIAL_EXIT_CONFIRMED",
+      "FULL_EXIT_CONFIRMED",
+      "SESSION_CANCELLED"
+    ],
+
+    "ai_proposals_are_non_canonical_until_confirmed": true,
+
+    "unknown_numeric_values_must_use_null": true,
+    "unknown_numeric_values_must_not_use_zero": true
+  },
+
+  "context_rules": {
+    "context_schema": "context_summary",
+    "context_is_canonical_state": false,
+    "context_must_include_latest_trade_state": true,
+    "context_must_include_latest_accepted_analysis": true,
+    "context_must_preserve_user_confirmed_actions": true,
+    "context_must_label_historical_chart_usage": true,
+    "context_must_preserve_pending_confirmations": true,
+    "context_must_not_include_events_after_source_cutoff": true
+  },
+
+  "narrative_rules": {
+    "user_facing_language": "id",
+    "technical_keys_language": "en",
+    "enum_language": "en",
+    "facts_and_interpretations_should_be_distinguishable": true,
+    "probabilities_are_estimates_not_guarantees": true,
+    "confidence_is_not_probability": true
+  },
+
+  "storage_rules": {
+    "store_schema_name": true,
+    "store_schema_version": true,
+    "store_prompt_version": true,
+    "store_provider": true,
+    "store_model": true,
+    "store_analysis_timestamp": true,
+    "store_raw_provider_response": true,
+    "store_validated_payload": true,
+    "store_validation_errors": true
+  },
+
+  "migration_rules": {
+    "semantic_versioning": true,
+    "allow_patch_upgrade_without_data_migration": true,
+    "allow_minor_upgrade_when_backward_compatible": true,
+    "require_migration_for_major_upgrade": true,
+    "retain_previous_schema_versions": true,
+    "never_reinterpret_historical_payload_with_new_schema_without_migration": true
+  },
+
+  "experimental_schemas": {
+    "enabled": false,
+    "directory": "../../experimental/enterprise-draft/",
+    "included_in_production_registry": false
+  }
+}

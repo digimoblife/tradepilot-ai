@@ -1,0 +1,2216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/context_summary.schema.json",
+  "title": "TradePilot AI Context Summary",
+  "description": "Represents the compact working memory of one Trade Session, preserving confirmed trade facts, current thesis, active position state, latest analytical conclusions, important historical changes, user-confirmed actions, and unresolved warnings for use in subsequent AI analysis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_id",
+    "session_id",
+    "ticker",
+    "company_name",
+    "currency",
+    "session_status",
+    "generated_at",
+    "source_cutoff_timestamp",
+    "context_version",
+    "current_position",
+    "thesis_context",
+    "active_levels",
+    "latest_market_context",
+    "latest_orderbook_context",
+    "latest_chart_context",
+    "latest_ai_assessment",
+    "active_trading_plan",
+    "important_history",
+    "user_confirmed_actions",
+    "unresolved_items",
+    "closing_context",
+    "context_quality",
+    "summary"
+  ],
+  "properties": {
+    "context_id": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+    },
+
+    "session_id": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+    },
+
+    "ticker": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/ticker"
+    },
+
+    "company_name": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableCompanyName"
+    },
+
+    "currency": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/currencyCode"
+    },
+
+    "session_status": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/sessionStatus"
+    },
+
+    "generated_at": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+    },
+
+    "source_cutoff_timestamp": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+    },
+
+    "context_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+
+    "current_position": {
+      "$ref": "#/$defs/currentPositionContext"
+    },
+
+    "thesis_context": {
+      "$ref": "#/$defs/thesisContext"
+    },
+
+    "active_levels": {
+      "$ref": "#/$defs/activeLevels"
+    },
+
+    "latest_market_context": {
+      "$ref": "#/$defs/latestMarketContext"
+    },
+
+    "latest_orderbook_context": {
+      "$ref": "#/$defs/latestOrderbookContext"
+    },
+
+    "latest_chart_context": {
+      "$ref": "#/$defs/latestChartContext"
+    },
+
+    "latest_ai_assessment": {
+      "$ref": "#/$defs/latestAiAssessment"
+    },
+
+    "active_trading_plan": {
+      "$ref": "#/$defs/activeTradingPlan"
+    },
+
+    "important_history": {
+      "$ref": "#/$defs/importantHistoryArray"
+    },
+
+    "user_confirmed_actions": {
+      "$ref": "#/$defs/confirmedActionSummaryArray"
+    },
+
+    "unresolved_items": {
+      "$ref": "#/$defs/unresolvedItems"
+    },
+
+    "closing_context": {
+      "$ref": "#/$defs/closingContext"
+    },
+
+    "context_quality": {
+      "$ref": "#/$defs/contextQuality"
+    },
+
+    "summary": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+    }
+  },
+
+  "$defs": {
+    "currentPositionContext": {
+      "title": "Current Position Context",
+      "description": "Compact canonical position state used by the next analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position_exists",
+        "position_status",
+        "entry_price",
+        "entry_timestamp",
+        "original_quantity",
+        "remaining_quantity",
+        "average_exit_price",
+        "current_price",
+        "active_stop_loss",
+        "active_target",
+        "realized_profit_loss",
+        "realized_return_percentage",
+        "unrealized_profit_loss",
+        "unrealized_return_percentage",
+        "holding_duration_days",
+        "last_confirmed_at"
+      ],
+      "properties": {
+        "position_exists": {
+          "type": "boolean"
+        },
+
+        "position_status": {
+          "type": "string",
+          "enum": [
+            "NOT_OPENED",
+            "OPEN",
+            "PARTIALLY_CLOSED",
+            "CLOSED"
+          ]
+        },
+
+        "entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "entry_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "original_quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "remaining_quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "average_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "current_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "active_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "active_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "realized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "realized_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "unrealized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "unrealized_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "holding_duration_days": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNonNegativeInteger"
+        },
+
+        "last_confirmed_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "position_exists": {
+                "const": false
+              }
+            },
+            "required": [
+              "position_exists"
+            ]
+          },
+          "then": {
+            "properties": {
+              "position_status": {
+                "const": "NOT_OPENED"
+              },
+              "entry_price": {
+                "type": "null"
+              },
+              "entry_timestamp": {
+                "type": "null"
+              },
+              "original_quantity": {
+                "type": "null"
+              },
+              "remaining_quantity": {
+                "type": "null"
+              },
+              "average_exit_price": {
+                "type": "null"
+              },
+              "active_stop_loss": {
+                "type": "null"
+              },
+              "active_target": {
+                "type": "null"
+              },
+              "realized_profit_loss": {
+                "type": "null"
+              },
+              "realized_return_percentage": {
+                "type": "null"
+              },
+              "unrealized_profit_loss": {
+                "type": "null"
+              },
+              "unrealized_return_percentage": {
+                "type": "null"
+              },
+              "holding_duration_days": {
+                "type": "null"
+              },
+              "last_confirmed_at": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_status": {
+                "const": "OPEN"
+              }
+            },
+            "required": [
+              "position_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "entry_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "entry_timestamp": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "original_quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "remaining_quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "average_exit_price": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_status": {
+                "const": "PARTIALLY_CLOSED"
+              }
+            },
+            "required": [
+              "position_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "entry_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "original_quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "remaining_quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "average_exit_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "realized_profit_loss": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_status": {
+                "const": "CLOSED"
+              }
+            },
+            "required": [
+              "position_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "remaining_quantity": {
+                "const": 0
+              },
+              "average_exit_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "active_stop_loss": {
+                "type": "null"
+              },
+              "active_target": {
+                "type": "null"
+              },
+              "unrealized_profit_loss": {
+                "type": "null"
+              },
+              "unrealized_return_percentage": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "thesisContext": {
+      "title": "Thesis Context",
+      "description": "Original and current thesis preserved for longitudinal comparison.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_thesis",
+        "current_thesis",
+        "status",
+        "remains_valid",
+        "support_condition",
+        "invalidation_condition",
+        "invalidation_price",
+        "strengthening_factors",
+        "weakening_factors",
+        "last_updated_at"
+      ],
+      "properties": {
+        "original_thesis": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "current_thesis": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/thesisStatus"
+        },
+
+        "remains_valid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "support_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "invalidation_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "invalidation_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "strengthening_factors": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "weakening_factors": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "last_updated_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_ESTABLISHED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "original_thesis": {
+                "type": "null"
+              },
+              "current_thesis": {
+                "type": "null"
+              },
+              "remains_valid": {
+                "type": "null"
+              },
+              "support_condition": {
+                "type": "null"
+              },
+              "invalidation_condition": {
+                "type": "null"
+              },
+              "invalidation_price": {
+                "type": "null"
+              },
+              "strengthening_factors": {
+                "maxItems": 0
+              },
+              "weakening_factors": {
+                "maxItems": 0
+              },
+              "last_updated_at": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "INVALIDATED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "remains_valid": {
+                "const": false
+              },
+              "weakening_factors": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "activeLevels": {
+      "title": "Active Levels",
+      "description": "Latest accepted and proposed price levels relevant to the next analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supports",
+        "resistances",
+        "entry_reference",
+        "maximum_acceptable_entry",
+        "active_stop_loss",
+        "active_target",
+        "proposed_stop_loss",
+        "proposed_target",
+        "invalidation_level",
+        "last_updated_at"
+      ],
+      "properties": {
+        "supports": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "resistances": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "entry_reference": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "maximum_acceptable_entry": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "active_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "active_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "proposed_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "proposed_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "invalidation_level": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "last_updated_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        }
+      }
+    },
+
+    "latestMarketContext": {
+      "title": "Latest Market Context",
+      "description": "Compact latest market snapshot used as a reference for the next update.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "trading_date",
+        "market_timestamp",
+        "update_period",
+        "open",
+        "high",
+        "low",
+        "last_or_close",
+        "average",
+        "change_percentage",
+        "best_bid",
+        "best_offer",
+        "summary"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+
+        "trading_date": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTradingDate"
+        },
+
+        "market_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "update_period": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "open": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "high": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "low": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "last_or_close": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "average": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "change_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "best_bid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "best_offer": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "trading_date": {
+                "type": "null"
+              },
+              "market_timestamp": {
+                "type": "null"
+              },
+              "update_period": {
+                "type": "null"
+              },
+              "open": {
+                "type": "null"
+              },
+              "high": {
+                "type": "null"
+              },
+              "low": {
+                "type": "null"
+              },
+              "last_or_close": {
+                "type": "null"
+              },
+              "average": {
+                "type": "null"
+              },
+              "change_percentage": {
+                "type": "null"
+              },
+              "best_bid": {
+                "type": "null"
+              },
+              "best_offer": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "latestOrderbookContext": {
+      "title": "Latest Orderbook Context",
+      "description": "Latest accepted orderbook conclusion and key levels.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "evidence_id",
+        "market_timestamp",
+        "buyer_strength",
+        "seller_pressure",
+        "best_bid",
+        "best_offer",
+        "bid_support",
+        "offer_resistance",
+        "supports_current_plan",
+        "key_observations",
+        "conclusion",
+        "limitations"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+
+        "evidence_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        },
+
+        "market_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "buyer_strength": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/buyerStrength"
+        },
+
+        "seller_pressure": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/sellerPressure"
+        },
+
+        "best_bid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "best_offer": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "bid_support": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "offer_resistance": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "supports_current_plan": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "key_observations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "conclusion": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_id": {
+                "type": "null"
+              },
+              "market_timestamp": {
+                "type": "null"
+              },
+              "buyer_strength": {
+                "const": "UNKNOWN"
+              },
+              "seller_pressure": {
+                "const": "UNKNOWN"
+              },
+              "best_bid": {
+                "type": "null"
+              },
+              "best_offer": {
+                "type": "null"
+              },
+              "bid_support": {
+                "type": "null"
+              },
+              "offer_resistance": {
+                "type": "null"
+              },
+              "supports_current_plan": {
+                "type": "null"
+              },
+              "key_observations": {
+                "maxItems": 0
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "latestChartContext": {
+      "title": "Latest Chart Context",
+      "description": "Latest accepted chart interpretation, including whether it came from current or historical chart evidence.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "chart_3_month_available",
+        "chart_6_month_available",
+        "using_historical_context",
+        "latest_chart_timestamp",
+        "short_term_trend",
+        "medium_term_trend",
+        "structure_status",
+        "nearest_support",
+        "nearest_resistance",
+        "breakout_status",
+        "breakdown_status",
+        "supports_current_plan",
+        "conclusion",
+        "limitations"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+
+        "chart_3_month_available": {
+          "type": "boolean"
+        },
+
+        "chart_6_month_available": {
+          "type": "boolean"
+        },
+
+        "using_historical_context": {
+          "type": "boolean"
+        },
+
+        "latest_chart_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "short_term_trend": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/trendDirection"
+        },
+
+        "medium_term_trend": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/trendDirection"
+        },
+
+        "structure_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/structureStatus"
+        },
+
+        "nearest_support": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "nearest_resistance": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "breakout_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/breakoutStatus"
+        },
+
+        "breakdown_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/breakdownStatus"
+        },
+
+        "supports_current_plan": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "conclusion": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "chart_3_month_available": {
+                "const": false
+              },
+              "chart_6_month_available": {
+                "const": false
+              },
+              "using_historical_context": {
+                "const": false
+              },
+              "latest_chart_timestamp": {
+                "type": "null"
+              },
+              "short_term_trend": {
+                "const": "UNKNOWN"
+              },
+              "medium_term_trend": {
+                "const": "UNKNOWN"
+              },
+              "structure_status": {
+                "const": "UNKNOWN"
+              },
+              "nearest_support": {
+                "type": "null"
+              },
+              "nearest_resistance": {
+                "type": "null"
+              },
+              "breakout_status": {
+                "const": "UNKNOWN"
+              },
+              "breakdown_status": {
+                "const": "UNKNOWN"
+              },
+              "supports_current_plan": {
+                "type": "null"
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "using_historical_context": {
+                "const": true
+              }
+            },
+            "required": [
+              "using_historical_context"
+            ]
+          },
+          "then": {
+            "properties": {
+              "latest_chart_timestamp": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "latestAiAssessment": {
+      "title": "Latest AI Assessment",
+      "description": "Latest accepted AI judgment carried forward to the next analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysis_id",
+        "analysis_type",
+        "analysis_timestamp",
+        "bias",
+        "confidence",
+        "setup_quality",
+        "position_health",
+        "bullish_probability",
+        "target_probability",
+        "downside_probability",
+        "risk_level",
+        "recommended_action",
+        "summary"
+      ],
+      "properties": {
+        "analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        },
+
+        "analysis_type": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/analysisType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "analysis_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "bias": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/directionalBias"
+        },
+
+        "confidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableConfidenceScore"
+        },
+
+        "setup_quality": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/setupQuality"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "position_health": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/positionHealth"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "bullish_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "target_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "downside_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "risk_level": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/riskLevel"
+        },
+
+        "recommended_action": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/recommendedAction"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "activeTradingPlan": {
+      "title": "Active Trading Plan",
+      "description": "Latest accepted practical plan carried forward into the next analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_action",
+        "action_rationale",
+        "entry_condition",
+        "hold_condition",
+        "reduce_risk_condition",
+        "exit_condition",
+        "cancel_setup_condition",
+        "next_checkpoint",
+        "levels_to_monitor",
+        "requires_user_confirmation",
+        "last_updated_at"
+      ],
+      "properties": {
+        "current_action": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/recommendedAction"
+        },
+
+        "action_rationale": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "entry_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "hold_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "reduce_risk_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "exit_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "cancel_setup_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "next_checkpoint": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableShortText"
+        },
+
+        "levels_to_monitor": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "requires_user_confirmation": {
+          "type": "boolean"
+        },
+
+        "last_updated_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        }
+      }
+    },
+
+    "historyEventType": {
+      "title": "Important History Event Type",
+      "type": "string",
+      "enum": [
+        "INITIAL_SETUP_CREATED",
+        "ENTRY_BECAME_VALID",
+        "ENTRY_CANCELLED",
+        "POSITION_OPENED",
+        "THESIS_STRENGTHENED",
+        "THESIS_WEAKENED",
+        "THESIS_INVALIDATED",
+        "SUPPORT_SHIFTED",
+        "RESISTANCE_SHIFTED",
+        "STOP_LOSS_CHANGED",
+        "TARGET_CHANGED",
+        "TARGET_REACHED",
+        "PARTIAL_EXIT",
+        "FINAL_EXIT",
+        "RISK_INCREASED",
+        "RISK_REDUCED",
+        "OTHER"
+      ]
+    },
+
+    "importantHistoryItem": {
+      "title": "Important History Item",
+      "description": "One material historical fact that should remain available in future AI context.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "timestamp",
+        "event_type",
+        "price",
+        "previous_value",
+        "current_value",
+        "related_analysis_id",
+        "summary",
+        "why_it_matters"
+      ],
+      "properties": {
+        "event_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+        },
+
+        "timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "event_type": {
+          "$ref": "#/$defs/historyEventType"
+        },
+
+        "price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "previous_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "current_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "related_analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "why_it_matters": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      }
+    },
+
+    "importantHistoryArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/importantHistoryItem"
+      },
+      "maxItems": 30,
+      "default": []
+    },
+
+    "confirmedActionSummary": {
+      "title": "Confirmed Action Summary",
+      "description": "Compact representation of one user-confirmed action that must not be overwritten by AI interpretation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id",
+        "action_type",
+        "confirmed_at",
+        "price",
+        "quantity",
+        "summary",
+        "related_analysis_id"
+      ],
+      "properties": {
+        "action_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+        },
+
+        "action_type": {
+          "type": "string",
+          "enum": [
+            "POSITION_OPENED",
+            "POSITION_DETAILS_CORRECTED",
+            "STOP_LOSS_CONFIRMED",
+            "STOP_LOSS_CHANGED",
+            "TARGET_CONFIRMED",
+            "TARGET_CHANGED",
+            "PARTIAL_EXIT_CONFIRMED",
+            "FULL_EXIT_CONFIRMED",
+            "SESSION_CANCELLED",
+            "THESIS_NOTE_CONFIRMED",
+            "OTHER"
+          ]
+        },
+
+        "confirmed_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "related_analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        }
+      }
+    },
+
+    "confirmedActionSummaryArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/confirmedActionSummary"
+      },
+      "maxItems": 100,
+      "default": []
+    },
+
+    "unresolvedItems": {
+      "title": "Unresolved Items",
+      "description": "Missing data, warnings, pending proposals, and questions that should remain visible to the next analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing_information",
+        "warnings",
+        "pending_user_confirmations",
+        "pending_stop_loss_proposal",
+        "pending_target_proposal",
+        "pending_entry_proposal",
+        "stale_context",
+        "items_requiring_review"
+      ],
+      "properties": {
+        "missing_information": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "warnings": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "pending_user_confirmations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "pending_stop_loss_proposal": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "pending_target_proposal": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "pending_entry_proposal": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "stale_context": {
+          "type": "boolean"
+        },
+
+        "items_requiring_review": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      }
+    },
+
+    "closingContext": {
+      "title": "Closing Context",
+      "description": "Final session result retained when the Trade Session has been closed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "closing_reason",
+        "closed_at",
+        "average_exit_price",
+        "gross_profit_loss",
+        "gross_return_percentage",
+        "net_profit_loss",
+        "net_return_percentage",
+        "trade_grade",
+        "main_lesson",
+        "summary"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+
+        "closing_reason": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/closingReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "closed_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "average_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "gross_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "gross_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "net_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "net_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "trade_grade": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "A",
+                "B",
+                "C",
+                "D",
+                "E"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "main_lesson": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableShortText"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "closing_reason": {
+                "type": "null"
+              },
+              "closed_at": {
+                "type": "null"
+              },
+              "average_exit_price": {
+                "type": "null"
+              },
+              "gross_profit_loss": {
+                "type": "null"
+              },
+              "gross_return_percentage": {
+                "type": "null"
+              },
+              "net_profit_loss": {
+                "type": "null"
+              },
+              "net_return_percentage": {
+                "type": "null"
+              },
+              "trade_grade": {
+                "type": "null"
+              },
+              "main_lesson": {
+                "type": "null"
+              },
+              "summary": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "closing_reason": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/closingReason"
+              },
+              "closed_at": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "average_exit_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "gross_profit_loss": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+              },
+              "gross_return_percentage": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+              },
+              "trade_grade": {
+                "type": "string",
+                "enum": [
+                  "A",
+                  "B",
+                  "C",
+                  "D",
+                  "E"
+                ]
+              },
+              "main_lesson": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+              },
+              "summary": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "contextQuality": {
+      "title": "Context Quality",
+      "description": "Indicates whether the compact memory is sufficiently complete and current for the next AI analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quality",
+        "complete_enough_for_analysis",
+        "canonical_state_included",
+        "latest_analysis_included",
+        "latest_evidence_included",
+        "history_compressed",
+        "stale",
+        "limitations"
+      ],
+      "properties": {
+        "quality": {
+          "type": "string",
+          "enum": [
+            "HIGH",
+            "MODERATE",
+            "LOW",
+            "INSUFFICIENT"
+          ]
+        },
+
+        "complete_enough_for_analysis": {
+          "type": "boolean"
+        },
+
+        "canonical_state_included": {
+          "type": "boolean"
+        },
+
+        "latest_analysis_included": {
+          "type": "boolean"
+        },
+
+        "latest_evidence_included": {
+          "type": "boolean"
+        },
+
+        "history_compressed": {
+          "type": "boolean"
+        },
+
+        "stale": {
+          "type": "boolean"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "quality": {
+                "const": "INSUFFICIENT"
+              }
+            },
+            "required": [
+              "quality"
+            ]
+          },
+          "then": {
+            "properties": {
+              "complete_enough_for_analysis": {
+                "const": false
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stale": {
+                "const": true
+              }
+            },
+            "required": [
+              "stale"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "enum": [
+              "DRAFT",
+              "READY_FOR_ANALYSIS",
+              "ANALYZING",
+              "WATCHING"
+            ]
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "current_position": {
+            "properties": {
+              "position_exists": {
+                "const": false
+              },
+              "position_status": {
+                "const": "NOT_OPENED"
+              }
+            }
+          },
+          "closing_context": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "const": "OPEN_POSITION"
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "current_position": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "position_status": {
+                "const": "OPEN"
+              }
+            }
+          },
+          "closing_context": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "const": "PARTIALLY_CLOSED"
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "current_position": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "position_status": {
+                "const": "PARTIALLY_CLOSED"
+              }
+            }
+          },
+          "closing_context": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "enum": [
+              "CLOSED_TAKE_PROFIT",
+              "CLOSED_STOP_LOSS",
+              "CLOSED_MANUAL"
+            ]
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "current_position": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "position_status": {
+                "const": "CLOSED"
+              },
+              "remaining_quantity": {
+                "const": 0
+              }
+            }
+          },
+          "closing_context": {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "unresolved_items": {
+            "properties": {
+              "stale_context": {
+                "const": true
+              }
+            },
+            "required": [
+              "stale_context"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "context_quality": {
+            "properties": {
+              "stale": {
+                "const": true
+              },
+              "quality": {
+                "enum": [
+                  "MODERATE",
+                  "LOW",
+                  "INSUFFICIENT"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "context_id": "18d567f2-1203-4ad6-8076-e594f8d1177d",
+      "session_id": "d95b3775-aa8c-49fb-b5a8-19c475b5bcc1",
+      "ticker": "BBRI",
+      "company_name": "Bank Rakyat Indonesia",
+      "currency": "IDR",
+      "session_status": "OPEN_POSITION",
+      "generated_at": "2026-07-17T13:40:00+07:00",
+      "source_cutoff_timestamp": "2026-07-17T13:35:00+07:00",
+      "context_version": "1.0.0",
+
+      "current_position": {
+        "position_exists": true,
+        "position_status": "OPEN",
+        "entry_price": 2800,
+        "entry_timestamp": "2026-07-15T10:12:00+07:00",
+        "original_quantity": 100,
+        "remaining_quantity": 100,
+        "average_exit_price": null,
+        "current_price": 2890,
+        "active_stop_loss": 2840,
+        "active_target": 2920,
+        "realized_profit_loss": null,
+        "realized_return_percentage": null,
+        "unrealized_profit_loss": 9000,
+        "unrealized_return_percentage": 3.21,
+        "holding_duration_days": 2,
+        "last_confirmed_at": "2026-07-16T15:45:00+07:00"
+      },
+
+      "thesis_context": {
+        "original_thesis": "BBRI berpotensi melanjutkan rebound menuju 2.900–2.920 selama buyer menjaga area 2.780 dan support utama 2.700 tidak ditembus.",
+        "current_thesis": "Thesis rebound masih valid karena harga bertahan di atas support aktif, berada di atas average, dan buyer tetap menjaga area 2.870–2.880.",
+        "status": "INTACT",
+        "remains_valid": true,
+        "support_condition": "Harga bertahan di atas 2.840 dan bid tidak melemah secara material.",
+        "invalidation_condition": "Harga menembus 2.840 disertai tekanan seller yang meningkat.",
+        "invalidation_price": 2840,
+        "strengthening_factors": [
+          "Harga berada di atas average.",
+          "Bid support bergeser naik.",
+          "Harga berada dekat target."
+        ],
+        "weakening_factors": [
+          "Offer 2.900 masih menjadi hambatan utama.",
+          "Buyer belum menunjukkan dominasi sangat kuat."
+        ],
+        "last_updated_at": "2026-07-17T13:35:00+07:00"
+      },
+
+      "active_levels": {
+        "supports": [
+          {
+            "price": 2840,
+            "label": "Active support",
+            "summary": "Batas risiko dan invalidation posisi."
+          },
+          {
+            "price": 2870,
+            "label": "Intraday bid support",
+            "summary": "Support orderbook terbaru."
+          }
+        ],
+        "resistances": [
+          {
+            "price": 2900,
+            "label": "Immediate resistance",
+            "summary": "Hambatan utama menuju target."
+          },
+          {
+            "price": 2920,
+            "label": "Active target",
+            "summary": "Target profit posisi."
+          }
+        ],
+        "entry_reference": {
+          "price": 2800,
+          "label": "Confirmed entry",
+          "summary": "Harga entry yang telah dikonfirmasi user."
+        },
+        "maximum_acceptable_entry": null,
+        "active_stop_loss": {
+          "price": 2840,
+          "label": "Confirmed stop loss",
+          "summary": "Stop loss aktif yang telah dikonfirmasi user."
+        },
+        "active_target": {
+          "price": 2920,
+          "label": "Confirmed target",
+          "summary": "Target aktif yang telah dikonfirmasi user."
+        },
+        "proposed_stop_loss": null,
+        "proposed_target": null,
+        "invalidation_level": {
+          "price": 2840,
+          "label": "Current thesis invalidation",
+          "summary": "Level yang membatalkan thesis saat ini."
+        },
+        "last_updated_at": "2026-07-17T13:35:00+07:00"
+      },
+
+      "latest_market_context": {
+        "available": true,
+        "trading_date": "2026-07-17",
+        "market_timestamp": "2026-07-17T13:30:00+07:00",
+        "update_period": "MIDDAY",
+        "open": 2840,
+        "high": 2910,
+        "low": 2820,
+        "last_or_close": 2890,
+        "average": 2867,
+        "change_percentage": 2.12,
+        "best_bid": 2880,
+        "best_offer": 2890,
+        "summary": "Harga berada di bagian atas range harian, di atas average, dan masih menghadapi resistance di area 2.900."
+      },
+
+      "latest_orderbook_context": {
+        "available": true,
+        "evidence_id": "9d8ed908-dc79-4432-a4b6-d95425138c17",
+        "market_timestamp": "2026-07-17T13:30:00+07:00",
+        "buyer_strength": "MODERATE",
+        "seller_pressure": "MODERATE",
+        "best_bid": 2880,
+        "best_offer": 2890,
+        "bid_support": {
+          "price": 2870,
+          "label": "Bid support",
+          "summary": "Area bid yang perlu bertahan untuk menjaga momentum."
+        },
+        "offer_resistance": {
+          "price": 2900,
+          "label": "Offer resistance",
+          "summary": "Hambatan utama sebelum target."
+        },
+        "supports_current_plan": true,
+        "key_observations": [
+          "Bid masih bertahan di area 2.870–2.880.",
+          "Offer 2.900 belum terserap penuh.",
+          "Buyer lebih baik dibanding update pagi."
+        ],
+        "conclusion": "Orderbook masih mendukung hold, tetapi target memerlukan penyerapan offer 2.900.",
+        "limitations": [
+          "Orderbook hanya merupakan snapshot."
+        ]
+      },
+
+      "latest_chart_context": {
+        "available": true,
+        "chart_3_month_available": true,
+        "chart_6_month_available": true,
+        "using_historical_context": true,
+        "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+        "short_term_trend": "UP",
+        "medium_term_trend": "SIDEWAYS",
+        "structure_status": "IMPROVING",
+        "nearest_support": {
+          "price": 2840,
+          "label": "Nearest chart support",
+          "summary": "Support jangka pendek posisi."
+        },
+        "nearest_resistance": {
+          "price": 2920,
+          "label": "Nearest chart resistance",
+          "summary": "Resistance chart dan target aktif."
+        },
+        "breakout_status": "POSSIBLE",
+        "breakdown_status": "NOT_PRESENT",
+        "supports_current_plan": true,
+        "conclusion": "Chart masih mendukung thesis rebound, tetapi konteks berasal dari initial analysis.",
+        "limitations": [
+          "Tidak ada chart baru pada update siang."
+        ]
+      },
+
+      "latest_ai_assessment": {
+        "analysis_id": "88c9fc4d-169c-4bea-a1c5-282584a33952",
+        "analysis_type": "OPEN_POSITION_UPDATE",
+        "analysis_timestamp": "2026-07-17T13:35:00+07:00",
+        "bias": "BULLISH",
+        "confidence": 74,
+        "setup_quality": null,
+        "position_health": "HEALTHY_WITH_CAUTION",
+        "bullish_probability": 68,
+        "target_probability": 62,
+        "downside_probability": 28,
+        "risk_level": "MODERATE",
+        "recommended_action": "HOLD",
+        "summary": "Bias masih bullish moderat. Posisi tetap layak dipertahankan dengan resistance 2.900 sebagai hambatan utama."
+      },
+
+      "active_trading_plan": {
+        "current_action": "HOLD",
+        "action_rationale": "Posisi masih profit dan thesis tetap valid.",
+        "entry_condition": null,
+        "hold_condition": "Pertahankan posisi selama harga bertahan di atas 2.840 dan buyer tidak melemah secara material.",
+        "reduce_risk_condition": "Kurangi risiko jika harga gagal berulang kali di 2.900 dan bid 2.870 mulai menghilang.",
+        "exit_condition": "Tinjau exit jika harga menembus 2.840 dengan tekanan seller yang meningkat.",
+        "cancel_setup_condition": null,
+        "next_checkpoint": "Periksa orderbook pada sesi sore.",
+        "levels_to_monitor": [
+          {
+            "price": 2840,
+            "label": "Stop loss",
+            "summary": "Batas risiko aktif."
+          },
+          {
+            "price": 2870,
+            "label": "Bid support",
+            "summary": "Support orderbook terbaru."
+          },
+          {
+            "price": 2900,
+            "label": "Immediate resistance",
+            "summary": "Hambatan menuju target."
+          },
+          {
+            "price": 2920,
+            "label": "Target",
+            "summary": "Target profit aktif."
+          }
+        ],
+        "requires_user_confirmation": false,
+        "last_updated_at": "2026-07-17T13:35:00+07:00"
+      },
+
+      "important_history": [
+        {
+          "event_id": "b1af3aaa-0296-4d5d-b458-6fac04c70430",
+          "timestamp": "2026-07-15T09:20:00+07:00",
+          "event_type": "INITIAL_SETUP_CREATED",
+          "price": 2800,
+          "previous_value": null,
+          "current_value": "BULLISH_REBOUND_SETUP",
+          "related_analysis_id": "d3098664-009b-4992-a118-fc30ec8fde07",
+          "summary": "Initial analysis menetapkan setup rebound dengan entry referensi 2.800.",
+          "why_it_matters": "Menjadi dasar untuk menilai apakah thesis masih berjalan sesuai rencana."
+        },
+        {
+          "event_id": "e887e92f-72cc-4bdf-ac58-a71dd8395b76",
+          "timestamp": "2026-07-15T10:00:00+07:00",
+          "event_type": "ENTRY_BECAME_VALID",
+          "price": 2800,
+          "previous_value": "WAITING_FOR_CONFIRMATION",
+          "current_value": "ENTER_IF_CONFIRMED",
+          "related_analysis_id": "4e0b226e-d9c0-4681-a79c-6643fe8d2558",
+          "summary": "Buyer menguat dan kondisi entry dinilai terpenuhi.",
+          "why_it_matters": "Menjelaskan alasan posisi dibuka."
+        },
+        {
+          "event_id": "4b4b2fca-34c5-424d-a693-9071713bfc53",
+          "timestamp": "2026-07-15T10:12:00+07:00",
+          "event_type": "POSITION_OPENED",
+          "price": 2800,
+          "previous_value": "NOT_OPENED",
+          "current_value": "OPEN",
+          "related_analysis_id": null,
+          "summary": "User membuka posisi 100 unit di harga 2.800.",
+          "why_it_matters": "Entry dan quantity merupakan fakta canonical."
+        },
+        {
+          "event_id": "5f47f1bc-6235-4e0f-8539-10291f72ee81",
+          "timestamp": "2026-07-16T15:45:00+07:00",
+          "event_type": "STOP_LOSS_CHANGED",
+          "price": 2840,
+          "previous_value": 2820,
+          "current_value": 2840,
+          "related_analysis_id": "724a1579-a220-45bd-aa85-f97c9f825974",
+          "summary": "User mengonfirmasi perubahan stop loss menjadi 2.840.",
+          "why_it_matters": "Level 2.840 menjadi batas risiko canonical saat ini."
+        },
+        {
+          "event_id": "0b763c3e-3750-44ea-b1fb-22200272404a",
+          "timestamp": "2026-07-17T13:35:00+07:00",
+          "event_type": "SUPPORT_SHIFTED",
+          "price": 2870,
+          "previous_value": 2850,
+          "current_value": 2870,
+          "related_analysis_id": "88c9fc4d-169c-4bea-a1c5-282584a33952",
+          "summary": "Bid support bergeser naik dari 2.850 ke 2.870.",
+          "why_it_matters": "Menunjukkan perbaikan kondisi orderbook dibanding update sebelumnya."
+        }
+      ],
+
+      "user_confirmed_actions": [
+        {
+          "action_id": "ab495e76-1fb6-4804-948a-8b2423e9fd34",
+          "action_type": "POSITION_OPENED",
+          "confirmed_at": "2026-07-15T10:12:00+07:00",
+          "price": 2800,
+          "quantity": 100,
+          "summary": "User mengonfirmasi pembukaan posisi BBRI.",
+          "related_analysis_id": "d3098664-009b-4992-a118-fc30ec8fde07"
+        },
+        {
+          "action_id": "e34b3b21-d89c-4d58-970f-ea385ca10a4c",
+          "action_type": "STOP_LOSS_CHANGED",
+          "confirmed_at": "2026-07-16T15:45:00+07:00",
+          "price": 2840,
+          "quantity": null,
+          "summary": "User mengonfirmasi perubahan stop loss menjadi 2.840.",
+          "related_analysis_id": "724a1579-a220-45bd-aa85-f97c9f825974"
+        }
+      ],
+
+      "unresolved_items": {
+        "missing_information": [
+          "Tidak ada chart terbaru pada sesi siang."
+        ],
+        "warnings": [
+          "Orderbook bersifat snapshot dan dapat berubah cepat.",
+          "Probabilitas merupakan estimasi analitis."
+        ],
+        "pending_user_confirmations": [],
+        "pending_stop_loss_proposal": null,
+        "pending_target_proposal": null,
+        "pending_entry_proposal": null,
+        "stale_context": false,
+        "items_requiring_review": [
+          "Periksa kemampuan buyer menyerap offer 2.900 pada update berikutnya."
+        ]
+      },
+
+      "closing_context": {
+        "available": false,
+        "closing_reason": null,
+        "closed_at": null,
+        "average_exit_price": null,
+        "gross_profit_loss": null,
+        "gross_return_percentage": null,
+        "net_profit_loss": null,
+        "net_return_percentage": null,
+        "trade_grade": null,
+        "main_lesson": null,
+        "summary": null
+      },
+
+      "context_quality": {
+        "quality": "HIGH",
+        "complete_enough_for_analysis": true,
+        "canonical_state_included": true,
+        "latest_analysis_included": true,
+        "latest_evidence_included": true,
+        "history_compressed": true,
+        "stale": false,
+        "limitations": [
+          "Chart terbaru belum tersedia, tetapi konteks chart initial analysis masih dapat digunakan."
+        ]
+      },
+
+      "summary": "BBRI berada dalam status Open Position dengan entry 2.800, stop loss aktif 2.840, dan target 2.920. Thesis rebound masih valid. Harga terakhir 2.890 berada di atas average, buyer moderat, dan bid support naik ke 2.870. Hambatan utama adalah offer 2.900. Rencana terakhir adalah hold selama harga bertahan di atas 2.840 dan pantau kemampuan buyer menyerap resistance 2.900."
+    }
+  ]
+}

@@ -1,0 +1,1740 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/watching_update.schema.json",
+  "title": "TradePilot AI Watching Update",
+  "description": "Represents one structured AI update for a Trade Session that is still being watched before any position is opened, including latest market condition, orderbook changes, chart context, setup quality, entry realism, chase risk, trading plan, and AI assessment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "update_period",
+    "comparison",
+    "evidence_summary",
+    "market_snapshot",
+    "today_summary",
+    "orderbook_analysis",
+    "chart_update",
+    "setup_assessment",
+    "entry_assessment",
+    "price_levels",
+    "trading_plan",
+    "ai_assessment",
+    "changes_from_previous",
+    "warnings_and_missing_information"
+  ],
+  "properties": {
+    "metadata": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/analysisMetadata"
+    },
+
+    "update_period": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+    },
+
+    "comparison": {
+      "$ref": "#/$defs/comparisonSummary"
+    },
+
+    "evidence_summary": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/evidence.schema.json#/$defs/evidenceSummary"
+    },
+
+    "market_snapshot": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/market_snapshot.schema.json"
+    },
+
+    "today_summary": {
+      "$ref": "#/$defs/todaySummary"
+    },
+
+    "orderbook_analysis": {
+      "$ref": "#/$defs/orderbookAnalysis"
+    },
+
+    "chart_update": {
+      "$ref": "#/$defs/chartUpdate"
+    },
+
+    "setup_assessment": {
+      "$ref": "#/$defs/setupAssessment"
+    },
+
+    "entry_assessment": {
+      "$ref": "#/$defs/entryAssessment"
+    },
+
+    "price_levels": {
+      "$ref": "#/$defs/priceLevels"
+    },
+
+    "trading_plan": {
+      "$ref": "#/$defs/tradingPlan"
+    },
+
+    "ai_assessment": {
+      "$ref": "#/$defs/watchingAiAssessment"
+    },
+
+    "changes_from_previous": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/materialChangeArray"
+    },
+
+    "warnings_and_missing_information": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/warningsAndMissingInformation"
+    }
+  },
+
+  "$defs": {
+    "comparisonSummary": {
+      "title": "Comparison Summary",
+      "description": "Identifies the previous accepted analysis used to evaluate how the watched setup has changed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comparison_available",
+        "previous_analysis_id",
+        "previous_analysis_type",
+        "previous_analysis_timestamp",
+        "previous_update_period",
+        "summary"
+      ],
+      "properties": {
+        "comparison_available": {
+          "type": "boolean"
+        },
+
+        "previous_analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        },
+
+        "previous_analysis_type": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "INITIAL_ANALYSIS",
+                "WATCHING_UPDATE"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "previous_analysis_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "previous_update_period": {
+          "oneOf": [
+            {
+              "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "comparison_available": {
+                "const": false
+              }
+            },
+            "required": [
+              "comparison_available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "previous_analysis_id": {
+                "type": "null"
+              },
+              "previous_analysis_type": {
+                "type": "null"
+              },
+              "previous_analysis_timestamp": {
+                "type": "null"
+              },
+              "previous_update_period": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "comparison_available": {
+                "const": true
+              }
+            },
+            "required": [
+              "comparison_available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "previous_analysis_id": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+              },
+              "previous_analysis_type": {
+                "type": "string",
+                "enum": [
+                  "INITIAL_ANALYSIS",
+                  "WATCHING_UPDATE"
+                ]
+              },
+              "previous_analysis_timestamp": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "previous_update_period": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "todaySummary": {
+      "title": "Today's Summary",
+      "description": "User-facing summary of today's price movement while the setup remains under observation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "open",
+        "high",
+        "low",
+        "last_or_close",
+        "average",
+        "change_percentage",
+        "position_in_daily_range",
+        "distance_from_reference_entry_percentage",
+        "summary"
+      ],
+      "properties": {
+        "open": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "high": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "low": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "last_or_close": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "average": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "change_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "position_in_daily_range": {
+          "type": "string",
+          "enum": [
+            "NEAR_LOW",
+            "LOWER_HALF",
+            "MIDDLE",
+            "UPPER_HALF",
+            "NEAR_HIGH",
+            "UNKNOWN"
+          ]
+        },
+
+        "distance_from_reference_entry_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "orderbookAnalysis": {
+      "title": "Watching Orderbook Analysis",
+      "description": "Practical orderbook interpretation used to determine whether the watched entry setup is improving or weakening.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "buyer_strength",
+        "seller_pressure",
+        "best_bid",
+        "best_offer",
+        "bid_support",
+        "offer_resistance",
+        "buyer_observations",
+        "seller_observations",
+        "important_changes",
+        "supports_entry",
+        "entry_confirmation_visible",
+        "conclusion",
+        "limitations"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+
+        "buyer_strength": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/buyerStrength"
+        },
+
+        "seller_pressure": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/sellerPressure"
+        },
+
+        "best_bid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "best_offer": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "bid_support": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "offer_resistance": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "buyer_observations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "seller_observations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "important_changes": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "supports_entry": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "entry_confirmation_visible": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "conclusion": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": false
+              }
+            },
+            "required": [
+              "available"
+            ]
+          },
+          "then": {
+            "properties": {
+              "buyer_strength": {
+                "const": "UNKNOWN"
+              },
+              "seller_pressure": {
+                "const": "UNKNOWN"
+              },
+              "best_bid": {
+                "type": "null"
+              },
+              "best_offer": {
+                "type": "null"
+              },
+              "bid_support": {
+                "type": "null"
+              },
+              "offer_resistance": {
+                "type": "null"
+              },
+              "buyer_observations": {
+                "maxItems": 0
+              },
+              "seller_observations": {
+                "maxItems": 0
+              },
+              "important_changes": {
+                "maxItems": 0
+              },
+              "supports_entry": {
+                "type": "null"
+              },
+              "entry_confirmation_visible": {
+                "type": "null"
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "chartUpdate": {
+      "title": "Watching Chart Update",
+      "description": "Compact chart evaluation for a watched setup, using either newly uploaded charts or accepted historical chart context.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "updated_chart_available",
+        "using_historical_context",
+        "chart_context_timestamp",
+        "short_term_trend",
+        "medium_term_trend",
+        "structure_status",
+        "nearest_support",
+        "nearest_resistance",
+        "breakout_status",
+        "breakdown_status",
+        "supports_setup",
+        "important_changes",
+        "conclusion",
+        "limitations"
+      ],
+      "properties": {
+        "updated_chart_available": {
+          "type": "boolean"
+        },
+
+        "using_historical_context": {
+          "type": "boolean"
+        },
+
+        "chart_context_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "short_term_trend": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/trendDirection"
+        },
+
+        "medium_term_trend": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/trendDirection"
+        },
+
+        "structure_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/structureStatus"
+        },
+
+        "nearest_support": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "nearest_resistance": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "breakout_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/breakoutStatus"
+        },
+
+        "breakdown_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/breakdownStatus"
+        },
+
+        "supports_setup": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "important_changes": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "conclusion": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "limitations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "updated_chart_available": {
+                "const": false
+              },
+              "using_historical_context": {
+                "const": false
+              }
+            },
+            "required": [
+              "updated_chart_available",
+              "using_historical_context"
+            ]
+          },
+          "then": {
+            "properties": {
+              "chart_context_timestamp": {
+                "type": "null"
+              },
+              "short_term_trend": {
+                "const": "UNKNOWN"
+              },
+              "medium_term_trend": {
+                "const": "UNKNOWN"
+              },
+              "structure_status": {
+                "const": "UNKNOWN"
+              },
+              "nearest_support": {
+                "type": "null"
+              },
+              "nearest_resistance": {
+                "type": "null"
+              },
+              "breakout_status": {
+                "const": "UNKNOWN"
+              },
+              "breakdown_status": {
+                "const": "UNKNOWN"
+              },
+              "supports_setup": {
+                "type": "null"
+              },
+              "important_changes": {
+                "maxItems": 0
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "using_historical_context": {
+                "const": true
+              }
+            },
+            "required": [
+              "using_historical_context"
+            ]
+          },
+          "then": {
+            "properties": {
+              "chart_context_timestamp": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "setupAssessment": {
+      "title": "Setup Assessment",
+      "description": "Evaluation of whether the original watched setup has improved, remained valid, weakened, or become invalid.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "still_valid",
+        "original_thesis_summary",
+        "current_thesis_summary",
+        "strengthening_evidence",
+        "weakening_evidence",
+        "invalidation_condition",
+        "invalidation_price",
+        "invalidation_triggered",
+        "summary"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/setupStatus"
+        },
+
+        "still_valid": {
+          "type": "boolean"
+        },
+
+        "original_thesis_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "current_thesis_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "strengthening_evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "weakening_evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "invalidation_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "invalidation_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "invalidation_triggered": {
+          "type": "boolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "INVALIDATED",
+                  "CANCELLED"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "still_valid": {
+                "const": false
+              },
+              "invalidation_triggered": {
+                "const": true
+              },
+              "weakening_evidence": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "still_valid": {
+                "const": true
+              }
+            },
+            "required": [
+              "still_valid"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "IMPROVING",
+                  "STILL_VALID",
+                  "WAITING_FOR_CONFIRMATION",
+                  "WEAKENING"
+                ]
+              },
+              "invalidation_triggered": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "entryAssessment": {
+      "title": "Entry Assessment",
+      "description": "Evaluation of whether the planned entry remains attractive, requires waiting, should not be chased, or should be cancelled.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_entry_type",
+        "reference_entry_price",
+        "reference_entry_zone_low",
+        "reference_entry_zone_high",
+        "current_price",
+        "entry_still_attractive",
+        "entry_confirmation_met",
+        "price_already_extended",
+        "chase_risk",
+        "maximum_acceptable_entry",
+        "revised_entry_proposed",
+        "proposed_entry_type",
+        "proposed_entry_price",
+        "proposed_entry_zone_low",
+        "proposed_entry_zone_high",
+        "entry_condition",
+        "wait_condition",
+        "cancel_entry_condition",
+        "summary"
+      ],
+      "properties": {
+        "reference_entry_type": {
+          "type": "string",
+          "enum": [
+            "EXACT_PRICE",
+            "PRICE_ZONE",
+            "BREAKOUT_CONFIRMATION",
+            "PULLBACK_CONFIRMATION",
+            "WAIT",
+            "NO_ENTRY"
+          ]
+        },
+
+        "reference_entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "reference_entry_zone_low": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "reference_entry_zone_high": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "current_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "entry_still_attractive": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "entry_confirmation_met": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "price_already_extended": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "chase_risk": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/riskLevel"
+        },
+
+        "maximum_acceptable_entry": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "revised_entry_proposed": {
+          "type": "boolean"
+        },
+
+        "proposed_entry_type": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "EXACT_PRICE",
+                "PRICE_ZONE",
+                "BREAKOUT_CONFIRMATION",
+                "PULLBACK_CONFIRMATION",
+                "WAIT",
+                "NO_ENTRY"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "proposed_entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "proposed_entry_zone_low": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "proposed_entry_zone_high": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "entry_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "wait_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "cancel_entry_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revised_entry_proposed": {
+                "const": false
+              }
+            },
+            "required": [
+              "revised_entry_proposed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_entry_type": {
+                "type": "null"
+              },
+              "proposed_entry_price": {
+                "type": "null"
+              },
+              "proposed_entry_zone_low": {
+                "type": "null"
+              },
+              "proposed_entry_zone_high": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revised_entry_proposed": {
+                "const": true
+              }
+            },
+            "required": [
+              "revised_entry_proposed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_entry_type": {
+                "type": "string",
+                "enum": [
+                  "EXACT_PRICE",
+                  "PRICE_ZONE",
+                  "BREAKOUT_CONFIRMATION",
+                  "PULLBACK_CONFIRMATION",
+                  "WAIT",
+                  "NO_ENTRY"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "proposed_entry_type": {
+                "const": "EXACT_PRICE"
+              }
+            },
+            "required": [
+              "proposed_entry_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_entry_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "proposed_entry_zone_low": {
+                "type": "null"
+              },
+              "proposed_entry_zone_high": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "proposed_entry_type": {
+                "const": "PRICE_ZONE"
+              }
+            },
+            "required": [
+              "proposed_entry_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "proposed_entry_price": {
+                "type": "null"
+              },
+              "proposed_entry_zone_low": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "proposed_entry_zone_high": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "price_already_extended": {
+                "const": true
+              }
+            },
+            "required": [
+              "price_already_extended"
+            ]
+          },
+          "then": {
+            "properties": {
+              "chase_risk": {
+                "enum": [
+                  "HIGH",
+                  "VERY_HIGH"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "priceLevels": {
+      "title": "Watching Price Levels",
+      "description": "Current important levels used to decide whether to enter, wait, or cancel the watched setup.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supports",
+        "resistances",
+        "reference_entry",
+        "maximum_acceptable_entry",
+        "invalidation_level",
+        "proposed_stop_loss",
+        "proposed_target",
+        "summary"
+      ],
+      "properties": {
+        "supports": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "resistances": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "reference_entry": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "maximum_acceptable_entry": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "invalidation_level": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "proposed_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "proposed_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePriceLevel"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "tradingPlan": {
+      "title": "Watching Trading Plan",
+      "description": "Recommended action while the user has not opened a position.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_action",
+        "action_rationale",
+        "entry_condition",
+        "wait_condition",
+        "do_not_chase_condition",
+        "cancel_setup_condition",
+        "next_checkpoint",
+        "levels_to_monitor",
+        "requires_user_confirmation"
+      ],
+      "properties": {
+        "current_action": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/recommendedAction"
+        },
+
+        "action_rationale": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "entry_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "wait_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "do_not_chase_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "cancel_setup_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "next_checkpoint": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "levels_to_monitor": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "requires_user_confirmation": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "current_action": {
+                "const": "ENTER_IF_CONFIRMED"
+              }
+            },
+            "required": [
+              "current_action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "entry_condition": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              },
+              "requires_user_confirmation": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "WAIT",
+                  "DO_NOT_ENTER",
+                  "CANCEL_SETUP",
+                  "NO_ACTION"
+                ]
+              }
+            },
+            "required": [
+              "current_action"
+            ]
+          },
+          "then": {
+            "properties": {
+              "requires_user_confirmation": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "watchingAiAssessment": {
+      "title": "Watching AI Assessment",
+      "description": "Overall AI assessment of the watched setup before entry.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bias",
+        "confidence",
+        "setup_quality",
+        "bullish_probability",
+        "target_probability",
+        "downside_probability",
+        "entry_probability",
+        "risk_level",
+        "setup_valid",
+        "summary"
+      ],
+      "properties": {
+        "bias": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/directionalBias"
+        },
+
+        "confidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "setup_quality": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/setupQuality"
+        },
+
+        "bullish_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "target_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "downside_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "entry_probability": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableProbability"
+        },
+
+        "risk_level": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/riskLevel"
+        },
+
+        "setup_valid": {
+          "type": "boolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    }
+  },
+
+  "allOf": [
+    {
+      "properties": {
+        "metadata": {
+          "properties": {
+            "analysis_type": {
+              "const": "WATCHING_UPDATE"
+            },
+            "language": {
+              "const": "id"
+            },
+            "schema": {
+              "properties": {
+                "schema_name": {
+                  "const": "watching_update"
+                },
+                "schema_version": {
+                  "const": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "comparison": {
+            "properties": {
+              "comparison_available": {
+                "const": false
+              }
+            },
+            "required": [
+              "comparison_available"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "changes_from_previous": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "setup_assessment": {
+            "properties": {
+              "still_valid": {
+                "const": false
+              }
+            },
+            "required": [
+              "still_valid"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "entry_assessment": {
+            "properties": {
+              "entry_still_attractive": {
+                "const": false
+              },
+              "entry_confirmation_met": {
+                "const": false
+              },
+              "revised_entry_proposed": {
+                "const": false
+              }
+            }
+          },
+
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "DO_NOT_ENTER",
+                  "CANCEL_SETUP",
+                  "NO_ACTION"
+                ]
+              },
+              "requires_user_confirmation": {
+                "const": false
+              }
+            }
+          },
+
+          "ai_assessment": {
+            "properties": {
+              "setup_valid": {
+                "const": false
+              },
+              "setup_quality": {
+                "enum": [
+                  "WEAK",
+                  "INVALID",
+                  "UNKNOWN"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "entry_assessment": {
+            "properties": {
+              "entry_confirmation_met": {
+                "const": true
+              },
+              "entry_still_attractive": {
+                "const": true
+              },
+              "price_already_extended": {
+                "const": false
+              }
+            },
+            "required": [
+              "entry_confirmation_met",
+              "entry_still_attractive",
+              "price_already_extended"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "const": "ENTER_IF_CONFIRMED"
+              },
+              "requires_user_confirmation": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "entry_assessment": {
+            "properties": {
+              "price_already_extended": {
+                "const": true
+              }
+            },
+            "required": [
+              "price_already_extended"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "WAIT",
+                  "DO_NOT_ENTER"
+                ]
+              },
+              "requires_user_confirmation": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "ai_assessment": {
+            "properties": {
+              "setup_quality": {
+                "const": "INVALID"
+              }
+            },
+            "required": [
+              "setup_quality"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "ai_assessment": {
+            "properties": {
+              "setup_valid": {
+                "const": false
+              }
+            }
+          },
+
+          "setup_assessment": {
+            "properties": {
+              "still_valid": {
+                "const": false
+              },
+              "status": {
+                "enum": [
+                  "INVALIDATED",
+                  "CANCELLED"
+                ]
+              }
+            }
+          },
+
+          "trading_plan": {
+            "properties": {
+              "current_action": {
+                "enum": [
+                  "DO_NOT_ENTER",
+                  "CANCEL_SETUP"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "metadata": {
+        "analysis_id": "4e0b226e-d9c0-4681-a79c-6643fe8d2558",
+        "session_id": "d95b3775-aa8c-49fb-b5a8-19c475b5bcc1",
+        "analysis_type": "WATCHING_UPDATE",
+        "ticker": "BBRI",
+        "company_name": "Bank Rakyat Indonesia",
+        "analysis_timestamp": "2026-07-15T10:00:00+07:00",
+        "language": "id",
+        "schema": {
+          "schema_name": "watching_update",
+          "schema_version": "1.0.0"
+        },
+        "prompt_version": "1.0.0",
+        "provider": "GEMINI",
+        "model": "gemini-2.5-pro"
+      },
+
+      "update_period": "MORNING",
+
+      "comparison": {
+        "comparison_available": true,
+        "previous_analysis_id": "d3098664-009b-4992-a118-fc30ec8fde07",
+        "previous_analysis_type": "INITIAL_ANALYSIS",
+        "previous_analysis_timestamp": "2026-07-15T09:20:00+07:00",
+        "previous_update_period": "MORNING",
+        "summary": "Update ini membandingkan kondisi terbaru dengan initial analysis pada pagi yang sama."
+      },
+
+      "evidence_summary": {
+        "evidence_ids": [
+          "be55c6d5-7dd7-4371-bcab-4601f46b2794"
+        ],
+        "orderbook_available": true,
+        "chart_3_month_available": true,
+        "chart_6_month_available": true,
+        "latest_orderbook_timestamp": "2026-07-15T09:55:00+07:00",
+        "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+        "has_unreadable_evidence": false,
+        "has_stale_evidence": false,
+        "summary": "Update menggunakan orderbook terbaru dan konteks chart dari initial analysis.",
+        "limitations": [
+          "Tidak ada chart baru pada update ini."
+        ]
+      },
+
+      "market_snapshot": {
+        "trading_date": "2026-07-15",
+        "market_timestamp": "2026-07-15T09:55:00+07:00",
+        "update_period": "MORNING",
+        "currency": "IDR",
+        "data_available": true,
+        "open": 2780,
+        "high": 2820,
+        "low": 2770,
+        "last": 2800,
+        "close": null,
+        "previous_close": 2770,
+        "average": 2796,
+        "change": 30,
+        "change_percentage": 1.08,
+        "volume": 31800000,
+        "transaction_value": 88900000000,
+        "best_bid": 2800,
+        "best_offer": 2810,
+        "spread": 10,
+        "spread_percentage": 0.36,
+        "summary": "Harga masih berada di sekitar entry referensi dan sedikit di atas average. Buyer mulai terlihat lebih baik dibandingkan initial snapshot.",
+        "source": "MIXED",
+        "limitations": []
+      },
+
+      "today_summary": {
+        "open": 2780,
+        "high": 2820,
+        "low": 2770,
+        "last_or_close": 2800,
+        "average": 2796,
+        "change_percentage": 1.08,
+        "position_in_daily_range": "MIDDLE",
+        "distance_from_reference_entry_percentage": 0,
+        "summary": "Harga saat ini tepat di area entry referensi 2.800 dan masih sedikit di atas average 2.796. Posisi harga belum terlalu tinggi sehingga risiko mengejar masih terkendali."
+      },
+
+      "orderbook_analysis": {
+        "available": true,
+        "buyer_strength": "STRONG",
+        "seller_pressure": "MODERATE",
+        "best_bid": 2800,
+        "best_offer": 2810,
+        "bid_support": {
+          "price": 2790,
+          "label": "Bid support",
+          "summary": "Area buyer yang perlu bertahan untuk mengonfirmasi entry."
+        },
+        "offer_resistance": {
+          "price": 2820,
+          "label": "Offer resistance",
+          "summary": "Hambatan awal setelah entry."
+        },
+        "buyer_observations": [
+          "Best bid naik dari 2.790 menjadi 2.800.",
+          "Antrean buyer di area 2.790–2.800 terlihat lebih kuat.",
+          "Harga tetap bertahan di atas average."
+        ],
+        "seller_observations": [
+          "Offer masih tersedia di area 2.810–2.820.",
+          "Seller belum menunjukkan tekanan agresif."
+        ],
+        "important_changes": [
+          "Buyer strength meningkat dari moderat menjadi kuat.",
+          "Best bid bergeser naik ke area entry referensi.",
+          "Spread tetap satu fraksi."
+        ],
+        "supports_entry": true,
+        "entry_confirmation_visible": true,
+        "conclusion": "Konfirmasi buyer mulai terlihat. Orderbook saat ini lebih mendukung entry dibandingkan initial analysis, selama bid 2.790 tetap bertahan.",
+        "limitations": [
+          "Orderbook tetap merupakan snapshot dan dapat berubah setelah analisa dibuat."
+        ]
+      },
+
+      "chart_update": {
+        "updated_chart_available": false,
+        "using_historical_context": true,
+        "chart_context_timestamp": "2026-07-15T09:10:00+07:00",
+        "short_term_trend": "UP",
+        "medium_term_trend": "SIDEWAYS",
+        "structure_status": "IMPROVING",
+        "nearest_support": {
+          "price": 2720,
+          "label": "Short-term support",
+          "summary": "Support chart jangka pendek."
+        },
+        "nearest_resistance": {
+          "price": 2900,
+          "label": "Primary resistance",
+          "summary": "Resistance utama setup rebound."
+        },
+        "breakout_status": "POSSIBLE",
+        "breakdown_status": "NOT_PRESENT",
+        "supports_setup": true,
+        "important_changes": [],
+        "conclusion": "Konteks chart masih mendukung setup rebound. Belum ada perubahan chart karena tidak ada upload chart baru.",
+        "limitations": [
+          "Analisa chart menggunakan konteks initial analysis."
+        ]
+      },
+
+      "setup_assessment": {
+        "status": "IMPROVING",
+        "still_valid": true,
+        "original_thesis_summary": "BBRI berpotensi melanjutkan rebound menuju 2.900–2.920 selama buyer menjaga area 2.780 dan support utama 2.700 tidak ditembus.",
+        "current_thesis_summary": "Thesis rebound menguat karena buyer kini terlihat lebih aktif di area entry dan harga tetap bertahan di atas average.",
+        "strengthening_evidence": [
+          "Buyer strength meningkat menjadi kuat.",
+          "Best bid bergeser naik ke 2.800.",
+          "Harga tetap berada di sekitar entry referensi tanpa terlalu extended."
+        ],
+        "weakening_evidence": [
+          "Offer 2.810–2.820 belum sepenuhnya terserap.",
+          "Trend enam bulan masih sideways."
+        ],
+        "invalidation_condition": "Setup batal jika harga turun menembus 2.700 atau buyer pada area 2.780–2.790 menghilang secara material.",
+        "invalidation_price": 2700,
+        "invalidation_triggered": false,
+        "summary": "Setup membaik dan masih valid. Konfirmasi buyer yang sebelumnya ditunggu mulai terlihat."
+      },
+
+      "entry_assessment": {
+        "reference_entry_type": "EXACT_PRICE",
+        "reference_entry_price": 2800,
+        "reference_entry_zone_low": null,
+        "reference_entry_zone_high": null,
+        "current_price": 2800,
+        "entry_still_attractive": true,
+        "entry_confirmation_met": true,
+        "price_already_extended": false,
+        "chase_risk": "LOW",
+        "maximum_acceptable_entry": 2820,
+        "revised_entry_proposed": false,
+        "proposed_entry_type": null,
+        "proposed_entry_price": null,
+        "proposed_entry_zone_low": null,
+        "proposed_entry_zone_high": null,
+        "entry_condition": "Entry dapat dipertimbangkan selama bid 2.790–2.800 tetap bertahan dan harga tidak langsung kehilangan average.",
+        "wait_condition": "Tunggu apabila best bid turun kembali di bawah 2.780 atau offer 2.820 menebal secara agresif.",
+        "cancel_entry_condition": "Batalkan entry jika harga menembus 2.700 atau buyer menghilang sebelum eksekusi.",
+        "summary": "Entry 2.800 masih menarik dan konfirmasi buyer mulai terpenuhi. Harga belum terlalu tinggi sehingga chase risk masih rendah."
+      },
+
+      "price_levels": {
+        "supports": [
+          {
+            "price": 2790,
+            "label": "Entry support",
+            "summary": "Support orderbook yang menjaga kualitas entry."
+          },
+          {
+            "price": 2720,
+            "label": "Chart support",
+            "summary": "Support jangka pendek."
+          },
+          {
+            "price": 2700,
+            "label": "Major support",
+            "summary": "Batas invalidation setup."
+          }
+        ],
+        "resistances": [
+          {
+            "price": 2820,
+            "label": "Immediate resistance",
+            "summary": "Hambatan awal setelah entry."
+          },
+          {
+            "price": 2900,
+            "label": "Primary resistance",
+            "summary": "Resistance utama sebelum target."
+          },
+          {
+            "price": 2920,
+            "label": "Target",
+            "summary": "Target profit awal."
+          }
+        ],
+        "reference_entry": {
+          "price": 2800,
+          "label": "Reference entry",
+          "summary": "Harga entry yang masih dianggap menarik."
+        },
+        "maximum_acceptable_entry": {
+          "price": 2820,
+          "label": "Maximum entry",
+          "summary": "Batas atas agar posisi tidak dikejar terlalu tinggi."
+        },
+        "invalidation_level": {
+          "price": 2700,
+          "label": "Invalidation",
+          "summary": "Penembusan level ini membatalkan thesis."
+        },
+        "proposed_stop_loss": {
+          "price": 2700,
+          "label": "Proposed stop loss",
+          "summary": "Batas risiko awal setelah posisi dikonfirmasi."
+        },
+        "proposed_target": {
+          "price": 2920,
+          "label": "Proposed target",
+          "summary": "Target awal swing rebound."
+        },
+        "summary": "Area 2.790–2.800 menjadi zona konfirmasi entry. Harga sebaiknya tidak dikejar di atas 2.820."
+      },
+
+      "trading_plan": {
+        "current_action": "ENTER_IF_CONFIRMED",
+        "action_rationale": "Buyer menguat, harga berada tepat di area entry referensi, dan setup belum terlalu extended.",
+        "entry_condition": "Entry sekitar 2.800 dapat dilakukan jika bid 2.790–2.800 tetap bertahan saat user mengeksekusi.",
+        "wait_condition": "Tunda entry jika buyer melemah kembali atau harga turun di bawah average.",
+        "do_not_chase_condition": "Jangan mengejar apabila harga bergerak di atas 2.820 sebelum posisi dibuka.",
+        "cancel_setup_condition": "Batalkan setup jika harga menembus 2.700 atau struktur berubah menjadi breakdown.",
+        "next_checkpoint": "Setelah entry, konfirmasikan harga dan quantity agar sesi berubah menjadi Open Position.",
+        "levels_to_monitor": [
+          {
+            "price": 2790,
+            "label": "Buyer support",
+            "summary": "Area yang mengonfirmasi buyer."
+          },
+          {
+            "price": 2820,
+            "label": "Maximum entry",
+            "summary": "Batas agar entry tidak terlalu tinggi."
+          },
+          {
+            "price": 2700,
+            "label": "Stop loss",
+            "summary": "Batas risiko awal."
+          },
+          {
+            "price": 2920,
+            "label": "Target",
+            "summary": "Target profit awal."
+          }
+        ],
+        "requires_user_confirmation": true
+      },
+
+      "ai_assessment": {
+        "bias": "BULLISH",
+        "confidence": 73,
+        "setup_quality": "GOOD",
+        "bullish_probability": 69,
+        "target_probability": 60,
+        "downside_probability": 28,
+        "entry_probability": 72,
+        "risk_level": "MODERATE",
+        "setup_valid": true,
+        "summary": "Setup membaik dan entry mulai layak dipertimbangkan. Buyer lebih kuat dibanding initial analysis, sementara harga masih berada di area yang wajar dan belum perlu dikejar."
+      },
+
+      "changes_from_previous": [
+        {
+          "category": "ORDERBOOK",
+          "previous_value": "MODERATE",
+          "current_value": "STRONG",
+          "direction": "IMPROVED",
+          "materiality": "MATERIAL",
+          "explanation": "Buyer strength meningkat setelah best bid bergeser naik ke area entry."
+        },
+        {
+          "category": "SUPPORT",
+          "previous_value": 2780,
+          "current_value": 2790,
+          "direction": "SHIFTED_UP",
+          "materiality": "MATERIAL",
+          "explanation": "Support orderbook bergeser lebih dekat ke harga saat ini."
+        },
+        {
+          "category": "ACTION",
+          "previous_value": "WAITING_FOR_CONFIRMATION",
+          "current_value": "ENTER_IF_CONFIRMED",
+          "direction": "IMPROVED",
+          "materiality": "CRITICAL",
+          "explanation": "Konfirmasi buyer yang sebelumnya ditunggu mulai terpenuhi."
+        },
+        {
+          "category": "PROBABILITY",
+          "previous_value": 56,
+          "current_value": 60,
+          "direction": "INCREASED",
+          "materiality": "MATERIAL",
+          "explanation": "Peluang target meningkat seiring perbaikan orderbook."
+        }
+      ],
+
+      "warnings_and_missing_information": {
+        "missing_information": [
+          "Tidak ada chart terbaru pada update ini."
+        ],
+        "warnings": [
+          "Belum ada posisi yang dikonfirmasi.",
+          "Rekomendasi entry bukan bukti bahwa transaksi telah dilakukan.",
+          "Orderbook merupakan snapshot dan dapat berubah cepat.",
+          "Probabilitas merupakan estimasi analitis, bukan jaminan hasil."
+        ]
+      }
+    }
+  ]
+}

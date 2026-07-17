@@ -1,0 +1,360 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/market_snapshot.schema.json",
+  "title": "TradePilot AI Market Snapshot",
+  "description": "Represents the latest available market values used in one TradePilot AI analysis update.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trading_date",
+    "market_timestamp",
+    "update_period",
+    "currency",
+    "data_available",
+    "open",
+    "high",
+    "low",
+    "last",
+    "close",
+    "previous_close",
+    "average",
+    "change",
+    "change_percentage",
+    "volume",
+    "transaction_value",
+    "best_bid",
+    "best_offer",
+    "spread",
+    "spread_percentage",
+    "summary",
+    "source",
+    "limitations"
+  ],
+  "properties": {
+    "trading_date": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTradingDate"
+    },
+
+    "market_timestamp": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+    },
+
+    "update_period": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/updatePeriod"
+    },
+
+    "currency": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/currencyCode"
+    },
+
+    "data_available": {
+      "type": "boolean",
+      "description": "Whether enough market data is available to produce a usable market summary."
+    },
+
+    "open": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "high": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "low": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "last": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "close": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "previous_close": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "average": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "change": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+    },
+
+    "change_percentage": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+    },
+
+    "volume": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+    },
+
+    "transaction_value": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNonNegativeNumber"
+    },
+
+    "best_bid": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "best_offer": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "spread": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNonNegativeNumber"
+    },
+
+    "spread_percentage": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+    },
+
+    "summary": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+    },
+
+    "source": {
+      "type": "string",
+      "enum": [
+        "MARKET_DATA",
+        "ORDERBOOK_SCREENSHOT",
+        "MARKET_SCREENSHOT",
+        "USER_PROVIDED",
+        "MIXED",
+        "UNAVAILABLE"
+      ]
+    },
+
+    "limitations": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "data_available": {
+            "const": false
+          }
+        },
+        "required": [
+          "data_available"
+        ]
+      },
+      "then": {
+        "properties": {
+          "trading_date": {
+            "type": "null"
+          },
+          "market_timestamp": {
+            "type": "null"
+          },
+          "open": {
+            "type": "null"
+          },
+          "high": {
+            "type": "null"
+          },
+          "low": {
+            "type": "null"
+          },
+          "last": {
+            "type": "null"
+          },
+          "close": {
+            "type": "null"
+          },
+          "previous_close": {
+            "type": "null"
+          },
+          "average": {
+            "type": "null"
+          },
+          "change": {
+            "type": "null"
+          },
+          "change_percentage": {
+            "type": "null"
+          },
+          "volume": {
+            "type": "null"
+          },
+          "transaction_value": {
+            "type": "null"
+          },
+          "best_bid": {
+            "type": "null"
+          },
+          "best_offer": {
+            "type": "null"
+          },
+          "spread": {
+            "type": "null"
+          },
+          "spread_percentage": {
+            "type": "null"
+          },
+          "source": {
+            "const": "UNAVAILABLE"
+          },
+          "limitations": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "data_available": {
+            "const": true
+          }
+        },
+        "required": [
+          "data_available"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "not": {
+              "const": "UNAVAILABLE"
+            }
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "last"
+            ],
+            "properties": {
+              "last": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              }
+            }
+          },
+          {
+            "required": [
+              "close"
+            ],
+            "properties": {
+              "close": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "best_bid": {
+            "type": "number"
+          },
+          "best_offer": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "best_bid",
+          "best_offer"
+        ]
+      },
+      "then": {
+        "properties": {
+          "spread": {
+            "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nonNegativeNumber"
+          },
+          "spread_percentage": {
+            "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "previous_close": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "previous_close"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "last",
+              "change",
+              "change_percentage"
+            ],
+            "properties": {
+              "last": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "change": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+              },
+              "change_percentage": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+              }
+            }
+          },
+          {
+            "required": [
+              "close",
+              "change",
+              "change_percentage"
+            ],
+            "properties": {
+              "close": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "change": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+              },
+              "change_percentage": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "trading_date": "2026-07-17",
+      "market_timestamp": "2026-07-17T13:30:00+07:00",
+      "update_period": "MIDDAY",
+      "currency": "IDR",
+      "data_available": true,
+      "open": 2840,
+      "high": 2910,
+      "low": 2820,
+      "last": 2890,
+      "close": null,
+      "previous_close": 2830,
+      "average": 2867,
+      "change": 60,
+      "change_percentage": 2.12,
+      "volume": 125000000,
+      "transaction_value": 357500000000,
+      "best_bid": 2880,
+      "best_offer": 2890,
+      "spread": 10,
+      "spread_percentage": 0.35,
+      "summary": "Harga bergerak positif sejak pembukaan dan bertahan dekat area tertinggi hari ini. Area 2.900 masih menjadi resistance terdekat.",
+      "source": "MIXED",
+      "limitations": []
+    }
+  ]
+}

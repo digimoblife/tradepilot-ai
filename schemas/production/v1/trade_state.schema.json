@@ -1,0 +1,980 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/trade_state.schema.json",
+  "title": "TradePilot AI Trade State",
+  "description": "Represents the current confirmed business state of one Trade Session, including session identity, position, thesis, active risk levels, current plan, user-confirmed actions, and calculated performance values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "ticker",
+    "company_name",
+    "currency",
+    "session_status",
+    "created_at",
+    "updated_at",
+    "position",
+    "thesis",
+    "active_plan",
+    "latest_market_price",
+    "user_confirmed_actions",
+    "notes"
+  ],
+  "properties": {
+    "session_id": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+    },
+
+    "ticker": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/ticker"
+    },
+
+    "company_name": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableCompanyName"
+    },
+
+    "currency": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/currencyCode"
+    },
+
+    "session_status": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/sessionStatus"
+    },
+
+    "created_at": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+    },
+
+    "updated_at": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+    },
+
+    "position": {
+      "$ref": "#/$defs/positionState"
+    },
+
+    "thesis": {
+      "$ref": "#/$defs/thesisState"
+    },
+
+    "active_plan": {
+      "$ref": "#/$defs/activePlan"
+    },
+
+    "latest_market_price": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+    },
+
+    "user_confirmed_actions": {
+      "$ref": "#/$defs/userConfirmedActionArray"
+    },
+
+    "notes": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+    }
+  },
+
+  "$defs": {
+    "positionState": {
+      "title": "Position State",
+      "description": "Current confirmed position information for the Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position_exists",
+        "position_status",
+        "entry_price",
+        "entry_timestamp",
+        "original_quantity",
+        "remaining_quantity",
+        "average_exit_price",
+        "active_stop_loss",
+        "active_target",
+        "realized_profit_loss",
+        "realized_return_percentage",
+        "unrealized_profit_loss",
+        "unrealized_return_percentage",
+        "distance_to_stop_percentage",
+        "distance_to_target_percentage",
+        "holding_duration_days",
+        "last_confirmed_at"
+      ],
+      "properties": {
+        "position_exists": {
+          "type": "boolean"
+        },
+
+        "position_status": {
+          "type": "string",
+          "enum": [
+            "NOT_OPENED",
+            "OPEN",
+            "PARTIALLY_CLOSED",
+            "CLOSED"
+          ]
+        },
+
+        "entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "entry_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        },
+
+        "original_quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "remaining_quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "average_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "active_stop_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "active_target": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "realized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "realized_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "unrealized_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "unrealized_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "distance_to_stop_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "distance_to_target_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "holding_duration_days": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNonNegativeInteger"
+        },
+
+        "last_confirmed_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "position_exists": {
+                "const": false
+              }
+            },
+            "required": [
+              "position_exists"
+            ]
+          },
+          "then": {
+            "properties": {
+              "position_status": {
+                "const": "NOT_OPENED"
+              },
+              "entry_price": {
+                "type": "null"
+              },
+              "entry_timestamp": {
+                "type": "null"
+              },
+              "original_quantity": {
+                "type": "null"
+              },
+              "remaining_quantity": {
+                "type": "null"
+              },
+              "average_exit_price": {
+                "type": "null"
+              },
+              "active_stop_loss": {
+                "type": "null"
+              },
+              "active_target": {
+                "type": "null"
+              },
+              "realized_profit_loss": {
+                "type": "null"
+              },
+              "realized_return_percentage": {
+                "type": "null"
+              },
+              "unrealized_profit_loss": {
+                "type": "null"
+              },
+              "unrealized_return_percentage": {
+                "type": "null"
+              },
+              "distance_to_stop_percentage": {
+                "type": "null"
+              },
+              "distance_to_target_percentage": {
+                "type": "null"
+              },
+              "holding_duration_days": {
+                "type": "null"
+              },
+              "last_confirmed_at": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              }
+            },
+            "required": [
+              "position_exists"
+            ]
+          },
+          "then": {
+            "properties": {
+              "position_status": {
+                "enum": [
+                  "OPEN",
+                  "PARTIALLY_CLOSED",
+                  "CLOSED"
+                ]
+              },
+              "entry_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "entry_timestamp": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              },
+              "original_quantity": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/quantity"
+              },
+              "remaining_quantity": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/quantity"
+              },
+              "last_confirmed_at": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_status": {
+                "const": "OPEN"
+              }
+            },
+            "required": [
+              "position_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "remaining_quantity": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/quantity"
+              },
+              "average_exit_price": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_status": {
+                "const": "PARTIALLY_CLOSED"
+              }
+            },
+            "required": [
+              "position_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "remaining_quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "average_exit_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "realized_profit_loss": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+              },
+              "realized_return_percentage": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "position_status": {
+                "const": "CLOSED"
+              }
+            },
+            "required": [
+              "position_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "remaining_quantity": {
+                "const": 0
+              },
+              "average_exit_price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "active_stop_loss": {
+                "type": "null"
+              },
+              "active_target": {
+                "type": "null"
+              },
+              "unrealized_profit_loss": {
+                "type": "null"
+              },
+              "unrealized_return_percentage": {
+                "type": "null"
+              },
+              "distance_to_stop_percentage": {
+                "type": "null"
+              },
+              "distance_to_target_percentage": {
+                "type": "null"
+              },
+              "realized_profit_loss": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+              },
+              "realized_return_percentage": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "thesisState": {
+      "title": "Thesis State",
+      "description": "Current accepted thesis for the Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "original_summary",
+        "current_summary",
+        "support_condition",
+        "invalidation_condition",
+        "invalidation_price",
+        "last_updated_at"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/thesisStatus"
+        },
+
+        "original_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "current_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "support_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "invalidation_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "invalidation_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "last_updated_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableTimestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_ESTABLISHED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "original_summary": {
+                "type": "null"
+              },
+              "current_summary": {
+                "type": "null"
+              },
+              "support_condition": {
+                "type": "null"
+              },
+              "invalidation_condition": {
+                "type": "null"
+              },
+              "invalidation_price": {
+                "type": "null"
+              },
+              "last_updated_at": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "not": {
+                  "const": "NOT_ESTABLISHED"
+                }
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "original_summary": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              },
+              "current_summary": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              },
+              "invalidation_condition": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              },
+              "last_updated_at": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "INVALIDATED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "current_summary": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              },
+              "invalidation_condition": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "activePlan": {
+      "title": "Active Plan",
+      "description": "Current accepted trading plan associated with the Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current_action",
+        "action_summary",
+        "hold_condition",
+        "reduce_risk_condition",
+        "exit_condition",
+        "next_checkpoint",
+        "levels_to_monitor",
+        "last_updated_at"
+      ],
+      "properties": {
+        "current_action": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/recommendedAction"
+        },
+
+        "action_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "hold_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "reduce_risk_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "exit_condition": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        },
+
+        "next_checkpoint": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableShortText"
+        },
+
+        "levels_to_monitor": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/priceLevelArray"
+        },
+
+        "last_updated_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        }
+      }
+    },
+
+    "userConfirmedActionType": {
+      "title": "User Confirmed Action Type",
+      "type": "string",
+      "enum": [
+        "POSITION_OPENED",
+        "POSITION_DETAILS_CORRECTED",
+        "STOP_LOSS_CONFIRMED",
+        "STOP_LOSS_CHANGED",
+        "TARGET_CONFIRMED",
+        "TARGET_CHANGED",
+        "PARTIAL_EXIT_CONFIRMED",
+        "FULL_EXIT_CONFIRMED",
+        "SESSION_CANCELLED",
+        "THESIS_NOTE_CONFIRMED",
+        "OTHER"
+      ]
+    },
+
+    "userConfirmedAction": {
+      "title": "User Confirmed Action",
+      "description": "One user-confirmed action that changed or clarified canonical Trade State.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id",
+        "action_type",
+        "confirmed_at",
+        "summary",
+        "price",
+        "quantity",
+        "previous_value",
+        "current_value",
+        "related_analysis_id"
+      ],
+      "properties": {
+        "action_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+        },
+
+        "action_type": {
+          "$ref": "#/$defs/userConfirmedActionType"
+        },
+
+        "confirmed_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "previous_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "current_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+
+        "related_analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action_type": {
+                "const": "POSITION_OPENED"
+              }
+            },
+            "required": [
+              "action_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              },
+              "quantity": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/quantity"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action_type": {
+                "enum": [
+                  "STOP_LOSS_CONFIRMED",
+                  "STOP_LOSS_CHANGED",
+                  "TARGET_CONFIRMED",
+                  "TARGET_CHANGED",
+                  "PARTIAL_EXIT_CONFIRMED",
+                  "FULL_EXIT_CONFIRMED"
+                ]
+              }
+            },
+            "required": [
+              "action_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "price": {
+                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action_type": {
+                "const": "PARTIAL_EXIT_CONFIRMED"
+              }
+            },
+            "required": [
+              "action_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "quantity": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "userConfirmedActionArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/userConfirmedAction"
+      },
+      "maxItems": 200,
+      "default": []
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "enum": [
+              "DRAFT",
+              "READY_FOR_ANALYSIS",
+              "ANALYZING",
+              "WATCHING"
+            ]
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "position": {
+            "properties": {
+              "position_exists": {
+                "const": false
+              },
+              "position_status": {
+                "const": "NOT_OPENED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "const": "OPEN_POSITION"
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "position": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "position_status": {
+                "const": "OPEN"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "const": "PARTIALLY_CLOSED"
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "position": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "position_status": {
+                "const": "PARTIALLY_CLOSED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "enum": [
+              "CLOSED_TAKE_PROFIT",
+              "CLOSED_STOP_LOSS",
+              "CLOSED_MANUAL"
+            ]
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "position": {
+            "properties": {
+              "position_exists": {
+                "const": true
+              },
+              "position_status": {
+                "const": "CLOSED"
+              },
+              "remaining_quantity": {
+                "const": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "session_status": {
+            "const": "CANCELLED"
+          }
+        },
+        "required": [
+          "session_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "position": {
+            "properties": {
+              "position_status": {
+                "enum": [
+                  "NOT_OPENED",
+                  "CLOSED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "session_id": "d95b3775-aa8c-49fb-b5a8-19c475b5bcc1",
+      "ticker": "BBRI",
+      "company_name": "Bank Rakyat Indonesia",
+      "currency": "IDR",
+      "session_status": "OPEN_POSITION",
+      "created_at": "2026-07-15T09:05:00+07:00",
+      "updated_at": "2026-07-17T13:35:00+07:00",
+      "position": {
+        "position_exists": true,
+        "position_status": "OPEN",
+        "entry_price": 2800,
+        "entry_timestamp": "2026-07-15T10:12:00+07:00",
+        "original_quantity": 100,
+        "remaining_quantity": 100,
+        "average_exit_price": null,
+        "active_stop_loss": 2840,
+        "active_target": 2920,
+        "realized_profit_loss": null,
+        "realized_return_percentage": null,
+        "unrealized_profit_loss": 9000,
+        "unrealized_return_percentage": 3.21,
+        "distance_to_stop_percentage": 1.73,
+        "distance_to_target_percentage": 1.04,
+        "holding_duration_days": 2,
+        "last_confirmed_at": "2026-07-15T10:12:00+07:00"
+      },
+      "thesis": {
+        "status": "INTACT",
+        "original_summary": "Harga berpotensi melanjutkan rebound selama buyer bertahan di atas support utama.",
+        "current_summary": "Thesis masih valid karena harga bertahan di atas support dan buyer tetap terlihat pada orderbook.",
+        "support_condition": "Harga bertahan di atas 2.840 dan bid tidak melemah secara material.",
+        "invalidation_condition": "Harga menembus 2.840 disertai tekanan jual yang meningkat.",
+        "invalidation_price": 2840,
+        "last_updated_at": "2026-07-17T13:35:00+07:00"
+      },
+      "active_plan": {
+        "current_action": "HOLD",
+        "action_summary": "Pertahankan posisi selama harga tetap bertahan di atas support aktif.",
+        "hold_condition": "Bid tetap bertahan di 2.870–2.880 dan harga tidak kehilangan area 2.840.",
+        "reduce_risk_condition": "Kurangi risiko jika offer 2.900 terus menebal dan buyer mulai mundur.",
+        "exit_condition": "Keluar jika harga menembus 2.840 dengan tekanan jual yang meningkat.",
+        "next_checkpoint": "Periksa kembali orderbook pada sesi sore.",
+        "levels_to_monitor": [
+          {
+            "price": 2840,
+            "label": "Active stop",
+            "summary": "Batas risiko utama posisi saat ini."
+          },
+          {
+            "price": 2900,
+            "label": "Immediate resistance",
+            "summary": "Hambatan terdekat sebelum target."
+          },
+          {
+            "price": 2920,
+            "label": "Active target",
+            "summary": "Target profit posisi saat ini."
+          }
+        ],
+        "last_updated_at": "2026-07-17T13:35:00+07:00"
+      },
+      "latest_market_price": 2890,
+      "user_confirmed_actions": [
+        {
+          "action_id": "ab495e76-1fb6-4804-948a-8b2423e9fd34",
+          "action_type": "POSITION_OPENED",
+          "confirmed_at": "2026-07-15T10:12:00+07:00",
+          "summary": "User confirmed opening the BBRI position.",
+          "price": 2800,
+          "quantity": 100,
+          "previous_value": null,
+          "current_value": "OPEN",
+          "related_analysis_id": "d3098664-009b-4992-a118-fc30ec8fde07"
+        },
+        {
+          "action_id": "e34b3b21-d89c-4d58-970f-ea385ca10a4c",
+          "action_type": "STOP_LOSS_CHANGED",
+          "confirmed_at": "2026-07-16T15:45:00+07:00",
+          "summary": "User confirmed changing the active stop loss to 2,840.",
+          "price": 2840,
+          "quantity": null,
+          "previous_value": 2820,
+          "current_value": 2840,
+          "related_analysis_id": "724a1579-a220-45bd-aa85-f97c9f825974"
+        }
+      ],
+      "notes": [
+        "All actual trade executions must come from explicit user confirmation."
+      ]
+    }
+  ]
+}

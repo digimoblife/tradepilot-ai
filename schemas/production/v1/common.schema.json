@@ -1,0 +1,879 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/common.schema.json",
+  "title": "TradePilot AI Common Definitions",
+  "description": "Shared primitive types and compact enums used across the simplified TradePilot AI production schemas.",
+  "type": "object",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+
+    "nullableUuid": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+
+    "nullableTimestamp": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "tradingDate": {
+      "type": "string",
+      "format": "date"
+    },
+
+    "nullableTradingDate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/tradingDate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "ticker": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20,
+      "pattern": "^[A-Z0-9._-]+$"
+    },
+
+    "companyName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 150
+    },
+
+    "nullableCompanyName": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/companyName"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "languageCode": {
+      "type": "string",
+      "enum": [
+        "id",
+        "en"
+      ]
+    },
+
+    "currencyCode": {
+      "type": "string",
+      "enum": [
+        "IDR",
+        "USD"
+      ]
+    },
+
+    "price": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+
+    "nullablePrice": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/price"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
+
+    "nullableNonNegativeNumber": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "signedNumber": {
+      "type": "number"
+    },
+
+    "nullableSignedNumber": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/signedNumber"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+
+    "nullablePositiveInteger": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "nullableNonNegativeInteger": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "quantity": {
+      "type": "number",
+      "minimum": 0
+    },
+
+    "nullableQuantity": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/quantity"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "percentage": {
+      "type": "number",
+      "minimum": -1000000,
+      "maximum": 1000000
+    },
+
+    "nullablePercentage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/percentage"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "probability": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+
+    "nullableProbability": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/probability"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "confidenceScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+
+    "nullableConfidenceScore": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/confidenceScore"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "shortText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+
+    "nullableShortText": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/shortText"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "narrative": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 3000
+    },
+
+    "nullableNarrative": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/narrative"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "shortTextArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/shortText"
+      },
+      "maxItems": 20,
+      "default": []
+    },
+
+    "narrativeArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/narrative"
+      },
+      "maxItems": 20,
+      "default": []
+    },
+
+    "uuidArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/uuid"
+      },
+      "uniqueItems": true,
+      "maxItems": 50,
+      "default": []
+    },
+
+    "nullableBoolean": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "analysisType": {
+      "type": "string",
+      "enum": [
+        "INITIAL_ANALYSIS",
+        "WATCHING_UPDATE",
+        "OPEN_POSITION_UPDATE",
+        "PARTIAL_EXIT_REVIEW",
+        "CLOSING_ANALYSIS"
+      ]
+    },
+
+    "sessionStatus": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "READY_FOR_ANALYSIS",
+        "ANALYZING",
+        "WATCHING",
+        "OPEN_POSITION",
+        "PARTIALLY_CLOSED",
+        "CLOSED_TAKE_PROFIT",
+        "CLOSED_STOP_LOSS",
+        "CLOSED_MANUAL",
+        "CANCELLED",
+        "ARCHIVED"
+      ]
+    },
+
+    "thesisStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_ESTABLISHED",
+        "STRENGTHENING",
+        "INTACT",
+        "INTACT_BUT_WEAKENING",
+        "UNDER_REVIEW",
+        "INVALIDATED",
+        "COMPLETED"
+      ]
+    },
+
+    "directionalBias": {
+      "type": "string",
+      "enum": [
+        "STRONGLY_BULLISH",
+        "BULLISH",
+        "NEUTRAL",
+        "BEARISH",
+        "STRONGLY_BEARISH",
+        "UNCERTAIN"
+      ]
+    },
+
+    "riskLevel": {
+      "type": "string",
+      "enum": [
+        "LOW",
+        "MODERATE",
+        "HIGH",
+        "VERY_HIGH",
+        "UNKNOWN"
+      ]
+    },
+
+    "setupQuality": {
+      "type": "string",
+      "enum": [
+        "EXCELLENT",
+        "GOOD",
+        "FAIR",
+        "WEAK",
+        "INVALID",
+        "UNKNOWN"
+      ]
+    },
+
+    "recommendedAction": {
+      "type": "string",
+      "enum": [
+        "WAIT",
+        "ENTER_IF_CONFIRMED",
+        "DO_NOT_ENTER",
+        "HOLD",
+        "HOLD_WITH_CAUTION",
+        "DO_NOT_ADD",
+        "ADD_ONLY_IF_CONFIRMED",
+        "REDUCE_RISK",
+        "CONSIDER_PARTIAL_EXIT",
+        "REVIEW_EXIT",
+        "EXIT",
+        "CANCEL_SETUP",
+        "NO_ACTION"
+      ]
+    },
+
+    "positionHealth": {
+      "type": "string",
+      "enum": [
+        "HEALTHY",
+        "HEALTHY_WITH_CAUTION",
+        "UNDER_PRESSURE",
+        "AT_RISK",
+        "EXIT_CONDITION_TRIGGERED",
+        "NOT_APPLICABLE",
+        "UNKNOWN"
+      ]
+    },
+
+    "targetRealism": {
+      "type": "string",
+      "enum": [
+        "HIGHLY_REALISTIC",
+        "REALISTIC",
+        "POSSIBLE_BUT_CHALLENGING",
+        "UNLIKELY",
+        "NO_LONGER_REALISTIC",
+        "NOT_APPLICABLE",
+        "UNKNOWN"
+      ]
+    },
+
+    "updatePeriod": {
+      "type": "string",
+      "enum": [
+        "PRE_MARKET",
+        "MORNING",
+        "MIDDAY",
+        "AFTERNOON",
+        "MARKET_CLOSE",
+        "POST_MARKET",
+        "AD_HOC"
+      ]
+    },
+
+    "timeframe": {
+      "type": "string",
+      "enum": [
+        "INTRADAY",
+        "ONE_MONTH",
+        "THREE_MONTH",
+        "SIX_MONTH",
+        "ONE_YEAR",
+        "OTHER"
+      ]
+    },
+
+    "evidenceType": {
+      "type": "string",
+      "enum": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE",
+        "POSITION_CONFIRMATION",
+        "PARTIAL_EXIT_CONFIRMATION",
+        "EXIT_CONFIRMATION"
+      ]
+    },
+
+    "evidenceUsability": {
+      "type": "string",
+      "enum": [
+        "USABLE",
+        "PARTIALLY_USABLE",
+        "UNREADABLE",
+        "STALE",
+        "SUPERSEDED"
+      ]
+    },
+
+    "buyerStrength": {
+      "type": "string",
+      "enum": [
+        "VERY_STRONG",
+        "STRONG",
+        "MODERATE",
+        "WEAK",
+        "VERY_WEAK",
+        "UNKNOWN"
+      ]
+    },
+
+    "sellerPressure": {
+      "type": "string",
+      "enum": [
+        "VERY_HIGH",
+        "HIGH",
+        "MODERATE",
+        "LOW",
+        "VERY_LOW",
+        "UNKNOWN"
+      ]
+    },
+
+    "trendDirection": {
+      "type": "string",
+      "enum": [
+        "STRONGLY_UP",
+        "UP",
+        "SIDEWAYS",
+        "DOWN",
+        "STRONGLY_DOWN",
+        "MIXED",
+        "UNKNOWN"
+      ]
+    },
+
+    "structureStatus": {
+      "type": "string",
+      "enum": [
+        "IMPROVING",
+        "INTACT",
+        "WEAKENING",
+        "BROKEN",
+        "RECOVERING",
+        "MIXED",
+        "UNKNOWN"
+      ]
+    },
+
+    "breakoutStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_PRESENT",
+        "POSSIBLE",
+        "CONFIRMED",
+        "RETESTING",
+        "FAILED",
+        "UNKNOWN"
+      ]
+    },
+
+    "breakdownStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_PRESENT",
+        "POSSIBLE",
+        "CONFIRMED",
+        "RECLAIMED",
+        "FAILED",
+        "UNKNOWN"
+      ]
+    },
+
+    "setupStatus": {
+      "type": "string",
+      "enum": [
+        "IMPROVING",
+        "STILL_VALID",
+        "WAITING_FOR_CONFIRMATION",
+        "WEAKENING",
+        "INVALIDATED",
+        "CANCELLED",
+        "UNKNOWN"
+      ]
+    },
+
+    "changeDirection": {
+      "type": "string",
+      "enum": [
+        "IMPROVED",
+        "WEAKENED",
+        "INCREASED",
+        "DECREASED",
+        "SHIFTED_UP",
+        "SHIFTED_DOWN",
+        "UNCHANGED",
+        "NEW",
+        "REMOVED",
+        "NOT_COMPARABLE"
+      ]
+    },
+
+    "changeMateriality": {
+      "type": "string",
+      "enum": [
+        "MINOR",
+        "MATERIAL",
+        "CRITICAL"
+      ]
+    },
+
+    "changeCategory": {
+      "type": "string",
+      "enum": [
+        "MARKET",
+        "ORDERBOOK",
+        "CHART",
+        "SUPPORT",
+        "RESISTANCE",
+        "POSITION",
+        "THESIS",
+        "STOP_LOSS",
+        "TARGET",
+        "PROBABILITY",
+        "CONFIDENCE",
+        "RISK",
+        "ACTION",
+        "OTHER"
+      ]
+    },
+
+    "closingReason": {
+      "type": "string",
+      "enum": [
+        "TAKE_PROFIT",
+        "STOP_LOSS",
+        "MANUAL_EXIT",
+        "THESIS_INVALIDATED",
+        "RISK_REDUCTION",
+        "SESSION_CANCELLED",
+        "OTHER"
+      ]
+    },
+
+    "schemaMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_name",
+        "schema_version"
+      ],
+      "properties": {
+        "schema_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+
+    "analysisMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "analysis_id",
+        "session_id",
+        "analysis_type",
+        "ticker",
+        "company_name",
+        "analysis_timestamp",
+        "language",
+        "schema",
+        "prompt_version",
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "analysis_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "analysis_type": {
+          "$ref": "#/$defs/analysisType"
+        },
+        "ticker": {
+          "$ref": "#/$defs/ticker"
+        },
+        "company_name": {
+          "$ref": "#/$defs/nullableCompanyName"
+        },
+        "analysis_timestamp": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "language": {
+          "$ref": "#/$defs/languageCode"
+        },
+        "schema": {
+          "$ref": "#/$defs/schemaMetadata"
+        },
+        "prompt_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "GEMINI",
+            "DEEPSEEK"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+
+    "priceLevel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "price",
+        "label",
+        "summary"
+      ],
+      "properties": {
+        "price": {
+          "$ref": "#/$defs/price"
+        },
+        "label": {
+          "$ref": "#/$defs/shortText"
+        },
+        "summary": {
+          "$ref": "#/$defs/shortText"
+        }
+      }
+    },
+
+    "nullablePriceLevel": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/priceLevel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+
+    "priceLevelArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/priceLevel"
+      },
+      "maxItems": 10,
+      "default": []
+    },
+
+    "materialChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "previous_value",
+        "current_value",
+        "direction",
+        "materiality",
+        "explanation"
+      ],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/changeCategory"
+        },
+        "previous_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direction": {
+          "$ref": "#/$defs/changeDirection"
+        },
+        "materiality": {
+          "$ref": "#/$defs/changeMateriality"
+        },
+        "explanation": {
+          "$ref": "#/$defs/shortText"
+        }
+      }
+    },
+
+    "materialChangeArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/materialChange"
+      },
+      "maxItems": 20,
+      "default": []
+    },
+
+    "aiAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bias",
+        "confidence",
+        "bullish_probability",
+        "target_probability",
+        "downside_probability",
+        "risk_level",
+        "summary"
+      ],
+      "properties": {
+        "bias": {
+          "$ref": "#/$defs/directionalBias"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidenceScore"
+        },
+        "bullish_probability": {
+          "$ref": "#/$defs/nullableProbability"
+        },
+        "target_probability": {
+          "$ref": "#/$defs/nullableProbability"
+        },
+        "downside_probability": {
+          "$ref": "#/$defs/nullableProbability"
+        },
+        "risk_level": {
+          "$ref": "#/$defs/riskLevel"
+        },
+        "summary": {
+          "$ref": "#/$defs/narrative"
+        }
+      }
+    },
+
+    "warningsAndMissingInformation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing_information",
+        "warnings"
+      ],
+      "properties": {
+        "missing_information": {
+          "$ref": "#/$defs/shortTextArray"
+        },
+        "warnings": {
+          "$ref": "#/$defs/shortTextArray"
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {}
+  ]
+}

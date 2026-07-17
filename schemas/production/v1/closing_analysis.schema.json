@@ -1,0 +1,1343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/closing_analysis.schema.json",
+  "title": "TradePilot AI Closing Analysis",
+  "description": "Represents the final structured analysis after a Trade Session is fully closed, including confirmed exit details, realized result, thesis evaluation, trading-plan execution, timeline review, strengths, mistakes, lessons learned, and final journal summary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "evidence_summary",
+    "closing_confirmation",
+    "trade_result",
+    "trade_timeline",
+    "final_thesis_evaluation",
+    "plan_execution_evaluation",
+    "risk_management_evaluation",
+    "what_worked",
+    "what_did_not_work",
+    "avoidable_mistakes",
+    "lessons_learned",
+    "future_improvements",
+    "final_ai_evaluation",
+    "journal_summary",
+    "warnings_and_missing_information"
+  ],
+  "properties": {
+    "metadata": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/analysisMetadata"
+    },
+
+    "evidence_summary": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/evidence.schema.json#/$defs/evidenceSummary"
+    },
+
+    "closing_confirmation": {
+      "$ref": "#/$defs/closingConfirmation"
+    },
+
+    "trade_result": {
+      "$ref": "#/$defs/tradeResult"
+    },
+
+    "trade_timeline": {
+      "$ref": "#/$defs/tradeTimeline"
+    },
+
+    "final_thesis_evaluation": {
+      "$ref": "#/$defs/finalThesisEvaluation"
+    },
+
+    "plan_execution_evaluation": {
+      "$ref": "#/$defs/planExecutionEvaluation"
+    },
+
+    "risk_management_evaluation": {
+      "$ref": "#/$defs/riskManagementEvaluation"
+    },
+
+    "what_worked": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+    },
+
+    "what_did_not_work": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+    },
+
+    "avoidable_mistakes": {
+      "$ref": "#/$defs/mistakeArray"
+    },
+
+    "lessons_learned": {
+      "$ref": "#/$defs/lessonArray"
+    },
+
+    "future_improvements": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+    },
+
+    "final_ai_evaluation": {
+      "$ref": "#/$defs/finalAiEvaluation"
+    },
+
+    "journal_summary": {
+      "$ref": "#/$defs/journalSummary"
+    },
+
+    "warnings_and_missing_information": {
+      "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/warningsAndMissingInformation"
+    }
+  },
+
+  "$defs": {
+    "closingConfirmation": {
+      "title": "Closing Confirmation",
+      "description": "User-confirmed details of the execution that fully closed the remaining position.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed",
+        "confirmation_action_id",
+        "closing_reason",
+        "exit_timestamp",
+        "final_exit_price",
+        "final_exit_quantity",
+        "average_exit_price",
+        "user_note"
+      ],
+      "properties": {
+        "confirmed": {
+          "const": true
+        },
+
+        "confirmation_action_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/uuid"
+        },
+
+        "closing_reason": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/closingReason"
+        },
+
+        "exit_timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "final_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "final_exit_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "average_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "user_note": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNarrative"
+        }
+      }
+    },
+
+    "tradeOutcome": {
+      "title": "Trade Outcome",
+      "type": "string",
+      "enum": [
+        "LARGE_PROFIT",
+        "PROFIT",
+        "SMALL_PROFIT",
+        "BREAK_EVEN",
+        "SMALL_LOSS",
+        "LOSS",
+        "LARGE_LOSS"
+      ]
+    },
+
+    "tradeResult": {
+      "title": "Trade Result",
+      "description": "Calculated final result of the fully closed Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "currency",
+        "entry_price",
+        "original_quantity",
+        "average_exit_price",
+        "gross_profit_loss",
+        "fees",
+        "taxes",
+        "net_profit_loss",
+        "gross_return_percentage",
+        "net_return_percentage",
+        "maximum_unrealized_profit_percentage",
+        "maximum_unrealized_loss_percentage",
+        "holding_duration_calendar_days",
+        "holding_duration_trading_days",
+        "partial_exit_count",
+        "outcome",
+        "summary"
+      ],
+      "properties": {
+        "currency": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/currencyCode"
+        },
+
+        "entry_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "original_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+
+        "average_exit_price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+        },
+
+        "gross_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+        },
+
+        "fees": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNonNegativeNumber"
+        },
+
+        "taxes": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableNonNegativeNumber"
+        },
+
+        "net_profit_loss": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableSignedNumber"
+        },
+
+        "gross_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/percentage"
+        },
+
+        "net_return_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "maximum_unrealized_profit_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "maximum_unrealized_loss_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "holding_duration_calendar_days": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nonNegativeInteger"
+        },
+
+        "holding_duration_trading_days": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nonNegativeInteger"
+        },
+
+        "partial_exit_count": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nonNegativeInteger"
+        },
+
+        "outcome": {
+          "$ref": "#/$defs/tradeOutcome"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "timelineEventType": {
+      "title": "Timeline Event Type",
+      "type": "string",
+      "enum": [
+        "SESSION_CREATED",
+        "INITIAL_ANALYSIS",
+        "WATCHING_UPDATE",
+        "POSITION_OPENED",
+        "OPEN_POSITION_UPDATE",
+        "STOP_LOSS_CHANGED",
+        "TARGET_CHANGED",
+        "PARTIAL_EXIT",
+        "FINAL_EXIT",
+        "THESIS_STRENGTHENED",
+        "THESIS_WEAKENED",
+        "THESIS_INVALIDATED",
+        "OTHER"
+      ]
+    },
+
+    "timelineEvent": {
+      "title": "Trade Timeline Event",
+      "description": "One important event in the Trade Session journey.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestamp",
+        "event_type",
+        "price",
+        "quantity",
+        "related_analysis_id",
+        "summary"
+      ],
+      "properties": {
+        "timestamp": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "event_type": {
+          "$ref": "#/$defs/timelineEventType"
+        },
+
+        "price": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePrice"
+        },
+
+        "quantity": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableQuantity"
+        },
+
+        "related_analysis_id": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableUuid"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      }
+    },
+
+    "timelineEventArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/timelineEvent"
+      },
+      "minItems": 2,
+      "maxItems": 100
+    },
+
+    "tradeTimeline": {
+      "title": "Trade Timeline",
+      "description": "Compact chronological reconstruction of the Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_started_at",
+        "position_opened_at",
+        "position_closed_at",
+        "analysis_count",
+        "events",
+        "journey_summary"
+      ],
+      "properties": {
+        "session_started_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "position_opened_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "position_closed_at": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+        },
+
+        "analysis_count": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/positiveInteger"
+        },
+
+        "events": {
+          "$ref": "#/$defs/timelineEventArray"
+        },
+
+        "journey_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "thesisOutcome": {
+      "title": "Thesis Outcome",
+      "type": "string",
+      "enum": [
+        "FULLY_CONFIRMED",
+        "PARTIALLY_CONFIRMED",
+        "CORRECT_BUT_POORLY_EXECUTED",
+        "INVALIDATED_AFTER_PROGRESS",
+        "INVALIDATED_EARLY",
+        "INCORRECT",
+        "INCONCLUSIVE"
+      ]
+    },
+
+    "finalThesisEvaluation": {
+      "title": "Final Thesis Evaluation",
+      "description": "Evaluation of the original trading thesis against the actual trade journey and result.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_thesis",
+        "final_thesis_status",
+        "outcome",
+        "thesis_was_correct",
+        "entry_reason_remained_valid",
+        "invalidation_condition_respected",
+        "supporting_evidence",
+        "contradicting_evidence",
+        "summary"
+      ],
+      "properties": {
+        "original_thesis": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "final_thesis_status": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/thesisStatus"
+        },
+
+        "outcome": {
+          "$ref": "#/$defs/thesisOutcome"
+        },
+
+        "thesis_was_correct": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "entry_reason_remained_valid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "invalidation_condition_respected": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "supporting_evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "contradicting_evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "executionQuality": {
+      "title": "Execution Quality",
+      "type": "string",
+      "enum": [
+        "EXCELLENT",
+        "GOOD",
+        "FAIR",
+        "POOR",
+        "VERY_POOR",
+        "NOT_APPLICABLE",
+        "UNKNOWN"
+      ]
+    },
+
+    "planExecutionEvaluation": {
+      "title": "Plan Execution Evaluation",
+      "description": "Evaluation of how consistently the user followed the accepted entry, hold, target, and exit plan.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall_quality",
+        "entry_quality",
+        "position_management_quality",
+        "exit_quality",
+        "entry_plan_followed",
+        "stop_loss_plan_followed",
+        "target_plan_followed",
+        "exit_plan_followed",
+        "positive_execution_points",
+        "execution_deviations",
+        "summary"
+      ],
+      "properties": {
+        "overall_quality": {
+          "$ref": "#/$defs/executionQuality"
+        },
+
+        "entry_quality": {
+          "$ref": "#/$defs/executionQuality"
+        },
+
+        "position_management_quality": {
+          "$ref": "#/$defs/executionQuality"
+        },
+
+        "exit_quality": {
+          "$ref": "#/$defs/executionQuality"
+        },
+
+        "entry_plan_followed": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "stop_loss_plan_followed": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "target_plan_followed": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "exit_plan_followed": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "positive_execution_points": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "execution_deviations": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "riskManagementEvaluation": {
+      "title": "Risk Management Evaluation",
+      "description": "Evaluation of stop-loss discipline, position exposure, profit protection, and risk control throughout the trade.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quality",
+        "initial_risk_percentage",
+        "maximum_loss_limit_respected",
+        "stop_loss_used",
+        "stop_loss_respected",
+        "profit_protected",
+        "partial_exit_used",
+        "risk_increased_without_confirmation",
+        "strengths",
+        "weaknesses",
+        "summary"
+      ],
+      "properties": {
+        "quality": {
+          "$ref": "#/$defs/executionQuality"
+        },
+
+        "initial_risk_percentage": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullablePercentage"
+        },
+
+        "maximum_loss_limit_respected": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "stop_loss_used": {
+          "type": "boolean"
+        },
+
+        "stop_loss_respected": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "profit_protected": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "partial_exit_used": {
+          "type": "boolean"
+        },
+
+        "risk_increased_without_confirmation": {
+          "type": "boolean"
+        },
+
+        "strengths": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "weaknesses": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortTextArray"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "mistakeCategory": {
+      "title": "Mistake Category",
+      "type": "string",
+      "enum": [
+        "ENTRY",
+        "POSITION_SIZE",
+        "STOP_LOSS",
+        "TARGET",
+        "ORDERBOOK_READING",
+        "CHART_READING",
+        "THESIS",
+        "RISK_MANAGEMENT",
+        "EXIT",
+        "DISCIPLINE",
+        "TIMING",
+        "EMOTIONAL_DECISION",
+        "DATA_QUALITY",
+        "OTHER"
+      ]
+    },
+
+    "mistakeSeverity": {
+      "title": "Mistake Severity",
+      "type": "string",
+      "enum": [
+        "MINOR",
+        "MATERIAL",
+        "MAJOR"
+      ]
+    },
+
+    "mistake": {
+      "title": "Avoidable Mistake",
+      "description": "One avoidable mistake identified from the Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "severity",
+        "description",
+        "impact",
+        "how_to_avoid"
+      ],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/mistakeCategory"
+        },
+
+        "severity": {
+          "$ref": "#/$defs/mistakeSeverity"
+        },
+
+        "description": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "impact": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "how_to_avoid": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      }
+    },
+
+    "mistakeArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mistake"
+      },
+      "maxItems": 15,
+      "default": []
+    },
+
+    "lessonCategory": {
+      "title": "Lesson Category",
+      "type": "string",
+      "enum": [
+        "SETUP_SELECTION",
+        "ENTRY",
+        "ORDERBOOK",
+        "CHART",
+        "THESIS",
+        "STOP_LOSS",
+        "TARGET",
+        "POSITION_MANAGEMENT",
+        "EXIT",
+        "DISCIPLINE",
+        "RISK_MANAGEMENT",
+        "PROCESS",
+        "OTHER"
+      ]
+    },
+
+    "lesson": {
+      "title": "Trade Lesson",
+      "description": "One reusable lesson learned from the completed Trade Session.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "lesson",
+        "evidence",
+        "future_rule"
+      ],
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/lessonCategory"
+        },
+
+        "lesson": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "evidence": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "future_rule": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        }
+      }
+    },
+
+    "lessonArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/lesson"
+      },
+      "minItems": 1,
+      "maxItems": 15
+    },
+
+    "finalTradeGrade": {
+      "title": "Final Trade Grade",
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ]
+    },
+
+    "finalAiEvaluation": {
+      "title": "Final AI Evaluation",
+      "description": "Final assessment of the completed trade as a decision-making process, separate from profit or loss alone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trade_grade",
+        "process_score",
+        "thesis_score",
+        "execution_score",
+        "risk_management_score",
+        "result_score",
+        "good_trade",
+        "result_aligned_with_process",
+        "summary"
+      ],
+      "properties": {
+        "trade_grade": {
+          "$ref": "#/$defs/finalTradeGrade"
+        },
+
+        "process_score": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "thesis_score": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "execution_score": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "risk_management_score": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "result_score": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/confidenceScore"
+        },
+
+        "good_trade": {
+          "type": "boolean"
+        },
+
+        "result_aligned_with_process": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/nullableBoolean"
+        },
+
+        "summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        }
+      }
+    },
+
+    "journalSummary": {
+      "title": "Trade Journal Summary",
+      "description": "Final compact journal entry that can be displayed in the session and reused in performance reporting.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "setup_summary",
+        "entry_summary",
+        "management_summary",
+        "exit_summary",
+        "result_summary",
+        "main_lesson",
+        "one_sentence_review",
+        "tags"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "setup_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "entry_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "management_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "exit_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "result_summary": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/narrative"
+        },
+
+        "main_lesson": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "one_sentence_review": {
+          "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/shortText"
+        },
+
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "pattern": "^[a-z0-9_-]+$"
+          },
+          "uniqueItems": true,
+          "maxItems": 15,
+          "default": []
+        }
+      }
+    }
+  },
+
+  "allOf": [
+    {
+      "properties": {
+        "metadata": {
+          "properties": {
+            "analysis_type": {
+              "const": "CLOSING_ANALYSIS"
+            },
+            "language": {
+              "const": "id"
+            },
+            "schema": {
+              "properties": {
+                "schema_name": {
+                  "const": "closing_analysis"
+                },
+                "schema_version": {
+                  "const": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "closing_confirmation": {
+            "properties": {
+              "closing_reason": {
+                "const": "TAKE_PROFIT"
+              }
+            },
+            "required": [
+              "closing_reason"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "final_thesis_evaluation": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "FULLY_CONFIRMED",
+                  "PARTIALLY_CONFIRMED",
+                  "CORRECT_BUT_POORLY_EXECUTED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "closing_confirmation": {
+            "properties": {
+              "closing_reason": {
+                "const": "THESIS_INVALIDATED"
+              }
+            },
+            "required": [
+              "closing_reason"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "final_thesis_evaluation": {
+            "properties": {
+              "final_thesis_status": {
+                "const": "INVALIDATED"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "closing_confirmation": {
+            "properties": {
+              "closing_reason": {
+                "const": "STOP_LOSS"
+              }
+            },
+            "required": [
+              "closing_reason"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "risk_management_evaluation": {
+            "properties": {
+              "stop_loss_used": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "trade_result": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "LARGE_PROFIT",
+                  "PROFIT",
+                  "SMALL_PROFIT"
+                ]
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trade_result": {
+            "properties": {
+              "gross_profit_loss": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "gross_return_percentage": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "trade_result": {
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "SMALL_LOSS",
+                  "LOSS",
+                  "LARGE_LOSS"
+                ]
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trade_result": {
+            "properties": {
+              "gross_profit_loss": {
+                "type": "number",
+                "exclusiveMaximum": 0
+              },
+              "gross_return_percentage": {
+                "type": "number",
+                "exclusiveMaximum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+
+    {
+      "if": {
+        "properties": {
+          "trade_result": {
+            "properties": {
+              "outcome": {
+                "const": "BREAK_EVEN"
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trade_result": {
+            "properties": {
+              "gross_return_percentage": {
+                "minimum": -0.25,
+                "maximum": 0.25
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "metadata": {
+        "analysis_id": "f56753c1-e93e-447c-aa44-b943c9137251",
+        "session_id": "d95b3775-aa8c-49fb-b5a8-19c475b5bcc1",
+        "analysis_type": "CLOSING_ANALYSIS",
+        "ticker": "BBRI",
+        "company_name": "Bank Rakyat Indonesia",
+        "analysis_timestamp": "2026-07-17T15:25:00+07:00",
+        "language": "id",
+        "schema": {
+          "schema_name": "closing_analysis",
+          "schema_version": "1.0.0"
+        },
+        "prompt_version": "1.0.0",
+        "provider": "GEMINI",
+        "model": "gemini-2.5-pro"
+      },
+
+      "evidence_summary": {
+        "evidence_ids": [
+          "3a3d4c2d-39bb-4e3c-9370-662ef2dd7d91",
+          "225277e5-cff5-4c24-8854-b740fc020a9c",
+          "94979531-da12-4e8e-9a85-e835820d0957"
+        ],
+        "orderbook_available": true,
+        "chart_3_month_available": true,
+        "chart_6_month_available": true,
+        "latest_orderbook_timestamp": "2026-07-17T15:15:00+07:00",
+        "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+        "has_unreadable_evidence": false,
+        "has_stale_evidence": false,
+        "summary": "Closing analysis menggunakan seluruh histori sesi, konfirmasi partial exit, dan konfirmasi penutupan sisa posisi.",
+        "limitations": [
+          "Tidak ada chart baru pada saat posisi ditutup."
+        ]
+      },
+
+      "closing_confirmation": {
+        "confirmed": true,
+        "confirmation_action_id": "0f4828e0-ceef-4872-901f-c783798484a6",
+        "closing_reason": "MANUAL_EXIT",
+        "exit_timestamp": "2026-07-17T15:12:00+07:00",
+        "final_exit_price": 2900,
+        "final_exit_quantity": 50,
+        "average_exit_price": 2910,
+        "user_note": "Menutup sisa posisi di 2.900 karena buyer mulai melemah menjelang penutupan."
+      },
+
+      "trade_result": {
+        "currency": "IDR",
+        "entry_price": 2800,
+        "original_quantity": 100,
+        "average_exit_price": 2910,
+        "gross_profit_loss": 11000,
+        "fees": null,
+        "taxes": null,
+        "net_profit_loss": null,
+        "gross_return_percentage": 3.93,
+        "net_return_percentage": null,
+        "maximum_unrealized_profit_percentage": 4.64,
+        "maximum_unrealized_loss_percentage": -1.07,
+        "holding_duration_calendar_days": 2,
+        "holding_duration_trading_days": 3,
+        "partial_exit_count": 1,
+        "outcome": "PROFIT",
+        "summary": "Trade ditutup dengan keuntungan kotor Rp11.000 atau sekitar 3,93%. Setengah posisi dijual pada 2.920 dan sisa posisi ditutup pada 2.900."
+      },
+
+      "trade_timeline": {
+        "session_started_at": "2026-07-15T09:05:00+07:00",
+        "position_opened_at": "2026-07-15T10:12:00+07:00",
+        "position_closed_at": "2026-07-17T15:12:00+07:00",
+        "analysis_count": 6,
+        "events": [
+          {
+            "timestamp": "2026-07-15T09:20:00+07:00",
+            "event_type": "INITIAL_ANALYSIS",
+            "price": 2800,
+            "quantity": null,
+            "related_analysis_id": "d3098664-009b-4992-a118-fc30ec8fde07",
+            "summary": "AI mengidentifikasi setup rebound dengan entry referensi 2.800."
+          },
+          {
+            "timestamp": "2026-07-15T10:00:00+07:00",
+            "event_type": "WATCHING_UPDATE",
+            "price": 2800,
+            "quantity": null,
+            "related_analysis_id": "4e0b226e-d9c0-4681-a79c-6643fe8d2558",
+            "summary": "Buyer menguat dan konfirmasi entry mulai terpenuhi."
+          },
+          {
+            "timestamp": "2026-07-15T10:12:00+07:00",
+            "event_type": "POSITION_OPENED",
+            "price": 2800,
+            "quantity": 100,
+            "related_analysis_id": "d3098664-009b-4992-a118-fc30ec8fde07",
+            "summary": "User membuka posisi sebanyak 100 unit pada harga 2.800."
+          },
+          {
+            "timestamp": "2026-07-17T13:35:00+07:00",
+            "event_type": "OPEN_POSITION_UPDATE",
+            "price": 2890,
+            "quantity": 100,
+            "related_analysis_id": "88c9fc4d-169c-4bea-a1c5-282584a33952",
+            "summary": "Target 2.920 dinilai masih realistis dengan resistance utama di 2.900."
+          },
+          {
+            "timestamp": "2026-07-17T14:05:00+07:00",
+            "event_type": "PARTIAL_EXIT",
+            "price": 2920,
+            "quantity": 50,
+            "related_analysis_id": "06cd7433-31f0-4453-a5c3-e4bf8ea39084",
+            "summary": "Setengah posisi dijual ketika target awal tercapai."
+          },
+          {
+            "timestamp": "2026-07-17T15:12:00+07:00",
+            "event_type": "FINAL_EXIT",
+            "price": 2900,
+            "quantity": 50,
+            "related_analysis_id": null,
+            "summary": "Sisa posisi ditutup karena buyer mulai melemah menjelang penutupan."
+          }
+        ],
+        "journey_summary": "Trade dimulai dari setup rebound yang menunggu konfirmasi buyer. Setelah entry di 2.800, thesis menguat dan target awal 2.920 tercapai. Sebagian profit diamankan, lalu sisa posisi ditutup di 2.900 ketika buyer mulai melemah."
+      },
+
+      "final_thesis_evaluation": {
+        "original_thesis": "BBRI berpotensi melanjutkan rebound menuju 2.900–2.920 selama buyer menjaga area 2.780 dan support utama 2.700 tidak ditembus.",
+        "final_thesis_status": "COMPLETED",
+        "outcome": "FULLY_CONFIRMED",
+        "thesis_was_correct": true,
+        "entry_reason_remained_valid": true,
+        "invalidation_condition_respected": true,
+        "supporting_evidence": [
+          "Buyer menguat sebelum entry.",
+          "Harga tetap bertahan di atas support utama.",
+          "Resistance 2.900 berhasil ditembus.",
+          "Target awal 2.920 tercapai."
+        ],
+        "contradicting_evidence": [
+          "Trend enam bulan tetap sideways.",
+          "Buyer melemah setelah target tercapai."
+        ],
+        "summary": "Thesis awal terbukti benar. Harga bergerak sesuai skenario rebound dan mencapai target sebelum momentum mulai melemah."
+      },
+
+      "plan_execution_evaluation": {
+        "overall_quality": "GOOD",
+        "entry_quality": "GOOD",
+        "position_management_quality": "GOOD",
+        "exit_quality": "GOOD",
+        "entry_plan_followed": true,
+        "stop_loss_plan_followed": true,
+        "target_plan_followed": true,
+        "exit_plan_followed": true,
+        "positive_execution_points": [
+          "Entry dilakukan setelah konfirmasi buyer muncul.",
+          "Harga entry tidak melebihi batas maksimum.",
+          "Sebagian posisi dijual pada target awal.",
+          "Sisa posisi ditutup ketika buyer mulai melemah."
+        ],
+        "execution_deviations": [
+          "Protective stop yang diusulkan setelah partial exit belum sempat dikonfirmasi."
+        ],
+        "summary": "Eksekusi secara keseluruhan disiplin dan sejalan dengan trading plan. Entry tidak dikejar, target digunakan, dan exit sisa posisi didasarkan pada perubahan kondisi."
+      },
+
+      "risk_management_evaluation": {
+        "quality": "GOOD",
+        "initial_risk_percentage": 3.57,
+        "maximum_loss_limit_respected": true,
+        "stop_loss_used": true,
+        "stop_loss_respected": true,
+        "profit_protected": true,
+        "partial_exit_used": true,
+        "risk_increased_without_confirmation": false,
+        "strengths": [
+          "Risiko awal berada di bawah batas 5%.",
+          "Tidak ada penambahan posisi saat harga naik.",
+          "Partial exit mengurangi exposure.",
+          "Trade tidak dibiarkan kembali menjadi rugi."
+        ],
+        "weaknesses": [
+          "Protective stop setelah partial exit belum dikonfirmasi secara formal."
+        ],
+        "summary": "Manajemen risiko berjalan baik. Risiko awal terukur, profit diamankan, dan posisi ditutup sebelum momentum memburuk lebih jauh."
+      },
+
+      "what_worked": [
+        "Menunggu konfirmasi buyer sebelum entry.",
+        "Menggunakan chart tiga bulan untuk membaca momentum rebound.",
+        "Menjaga batas risiko di bawah 5%.",
+        "Mengambil partial profit pada target pertama.",
+        "Membandingkan orderbook dari pagi hingga sore."
+      ],
+
+      "what_did_not_work": [
+        "Target lanjutan 3.000 tidak mendapatkan konfirmasi buyer yang cukup.",
+        "Chart tidak diperbarui setelah breakout sehingga keputusan akhir lebih bergantung pada orderbook.",
+        "Protective stop baru belum sempat menjadi canonical state."
+      ],
+
+      "avoidable_mistakes": [
+        {
+          "category": "STOP_LOSS",
+          "severity": "MINOR",
+          "description": "Protective stop setelah partial exit belum langsung dikonfirmasi.",
+          "impact": "Sisa posisi sempat memiliki batas risiko canonical yang terlalu longgar.",
+          "how_to_avoid": "Konfirmasikan perubahan stop segera setelah partial exit dilakukan."
+        }
+      ],
+
+      "lessons_learned": [
+        {
+          "category": "ENTRY",
+          "lesson": "Entry yang menunggu konfirmasi buyer menghasilkan posisi yang lebih nyaman.",
+          "evidence": "Buyer strength meningkat sebelum posisi dibuka dan harga tidak langsung bergerak melawan entry.",
+          "future_rule": "Hindari entry hanya berdasarkan chart ketika orderbook belum mendukung."
+        },
+        {
+          "category": "POSITION_MANAGEMENT",
+          "lesson": "Partial exit efektif untuk mengamankan hasil ketika target awal tercapai.",
+          "evidence": "Setengah profit diamankan di 2.920 sebelum harga kembali ke 2.900.",
+          "future_rule": "Pertimbangkan partial exit pada resistance utama ketika momentum lanjutan belum kuat."
+        },
+        {
+          "category": "STOP_LOSS",
+          "lesson": "Stop perlu segera disesuaikan setelah exposure berkurang.",
+          "evidence": "Stop 2.840 menjadi terlalu longgar setelah partial exit pada 2.920.",
+          "future_rule": "Setelah partial exit, selalu evaluasi dan konfirmasikan protective stop."
+        }
+      ],
+
+      "future_improvements": [
+        "Minta chart terbaru setelah terjadi breakout penting.",
+        "Konfirmasikan protective stop segera setelah partial exit.",
+        "Bedakan target utama dan target lanjutan sejak initial analysis.",
+        "Catat biaya transaksi agar net return dapat dihitung."
+      ],
+
+      "final_ai_evaluation": {
+        "trade_grade": "A",
+        "process_score": 86,
+        "thesis_score": 90,
+        "execution_score": 84,
+        "risk_management_score": 88,
+        "result_score": 82,
+        "good_trade": true,
+        "result_aligned_with_process": true,
+        "summary": "Ini merupakan trade yang baik, bukan hanya karena menghasilkan profit, tetapi karena keputusan entry, pengelolaan posisi, dan exit mengikuti thesis serta perubahan bukti yang terlihat."
+      },
+
+      "journal_summary": {
+        "title": "BBRI — Rebound terkonfirmasi dengan partial profit",
+        "setup_summary": "Setup dimulai dari struktur rebound tiga bulan dengan buyer moderat dan support utama di area 2.700–2.780.",
+        "entry_summary": "Posisi dibuka di 2.800 setelah buyer menguat dan harga tetap berada di area entry referensi.",
+        "management_summary": "Posisi dipantau melalui orderbook pagi, siang, dan sore. Target tetap realistis selama harga bertahan di atas support.",
+        "exit_summary": "Setengah posisi dijual di 2.920, kemudian sisa posisi ditutup di 2.900 ketika buyer mulai melemah.",
+        "result_summary": "Trade menghasilkan keuntungan kotor sekitar 3,93% dengan risiko awal sekitar 3,57%.",
+        "main_lesson": "Konfirmasi buyer dan partial exit membantu menjaga kualitas entry sekaligus melindungi profit.",
+        "one_sentence_review": "Thesis benar, eksekusi disiplin, dan profit berhasil diamankan sebelum momentum melemah.",
+        "tags": [
+          "swing-trade",
+          "rebound",
+          "orderbook-confirmation",
+          "partial-exit",
+          "profit"
+        ]
+      },
+
+      "warnings_and_missing_information": {
+        "missing_information": [
+          "Biaya transaksi dan pajak belum tersedia sehingga net profit belum dapat dihitung.",
+          "Tidak ada chart terbaru pada saat penutupan posisi."
+        ],
+        "warnings": [
+          "Nilai maksimal floating profit dan loss bergantung pada kelengkapan market snapshot selama sesi.",
+          "Penilaian kualitas trade mengevaluasi proses dan tidak hanya didasarkan pada profit akhir."
+        ]
+      }
+    }
+  ]
+}
