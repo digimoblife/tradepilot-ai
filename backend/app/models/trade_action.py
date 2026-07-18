@@ -73,7 +73,9 @@ class TradeAction(Base):
     quantity: Mapped[Decimal | None] = mapped_column(quantity_numeric(), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     related_analysis_id: Mapped[uuid.UUID | None] = mapped_column(
-        pg_uuid(), nullable=True
+        pg_uuid(),
+        ForeignKey("analyses.id", ondelete="RESTRICT"),
+        nullable=True,
     )
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict[str, object]] = mapped_column(

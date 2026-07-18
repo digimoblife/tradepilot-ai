@@ -27,8 +27,13 @@ async def _make_user_and_session(
     label: str,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     async with engine.begin() as conn:
-        await conn.execute(text("DELETE FROM evidence"))
+        await conn.execute(text("DELETE FROM validation_attempts"))
+        await conn.execute(text("DELETE FROM provider_responses"))
+        await conn.execute(text("DELETE FROM provider_requests"))
         await conn.execute(text("DELETE FROM trade_actions"))
+        await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM analysis_jobs"))
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
         await conn.execute(text("DELETE FROM users"))
@@ -162,7 +167,13 @@ async def test_same_key_different_session_succeeds(db_url: str) -> None:
     engine = create_async_engine_from_config(config)
     # Create both sessions within a single cleanup scope
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM validation_attempts"))
+        await conn.execute(text("DELETE FROM provider_responses"))
+        await conn.execute(text("DELETE FROM provider_requests"))
         await conn.execute(text("DELETE FROM trade_actions"))
+        await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM analysis_jobs"))
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
         await conn.execute(text("DELETE FROM users"))

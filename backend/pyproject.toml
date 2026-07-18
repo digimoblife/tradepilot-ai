@@ -47,6 +47,10 @@ disallow_untyped_defs = true
 ignore_missing_imports = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["index", "no-any-return"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

@@ -82,6 +82,11 @@ async def test_no_business_tables_after_migration(
             "trade_states",
             "trade_actions",
             "evidence",
+            "analysis_jobs",
+            "analyses",
+            "provider_requests",
+            "provider_responses",
+            "validation_attempts",
         }, f"Unexpected tables: {tables}"
 
     await engine.dispose()

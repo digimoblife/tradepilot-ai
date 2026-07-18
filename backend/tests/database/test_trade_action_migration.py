@@ -163,5 +163,10 @@ async def test_only_expected_tables(async_db_url: str) -> None:
             "trade_states",
             "trade_actions",
             "evidence",
+            "analysis_jobs",
+            "analyses",
+            "provider_requests",
+            "provider_responses",
+            "validation_attempts",
         }
     await engine.dispose()

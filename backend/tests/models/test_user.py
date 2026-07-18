@@ -23,8 +23,13 @@ def db_url() -> str:
 async def test_user_can_be_inserted(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
-        await conn.execute(text("DELETE FROM evidence"))
+        await conn.execute(text("DELETE FROM validation_attempts"))
+        await conn.execute(text("DELETE FROM provider_responses"))
+        await conn.execute(text("DELETE FROM provider_requests"))
         await conn.execute(text("DELETE FROM trade_actions"))
+        await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM analysis_jobs"))
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
         await conn.execute(text("DELETE FROM users"))
@@ -66,8 +71,13 @@ async def test_timestamps_are_timezone_aware(db_url: str) -> None:
 async def test_uuid_primary_key(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
-        await conn.execute(text("DELETE FROM evidence"))
+        await conn.execute(text("DELETE FROM validation_attempts"))
+        await conn.execute(text("DELETE FROM provider_responses"))
+        await conn.execute(text("DELETE FROM provider_requests"))
         await conn.execute(text("DELETE FROM trade_actions"))
+        await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM analysis_jobs"))
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
         await conn.execute(text("DELETE FROM users"))
@@ -89,8 +99,13 @@ async def test_uuid_primary_key(db_url: str) -> None:
 async def test_duplicate_email_rejected(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
-        await conn.execute(text("DELETE FROM evidence"))
+        await conn.execute(text("DELETE FROM validation_attempts"))
+        await conn.execute(text("DELETE FROM provider_responses"))
+        await conn.execute(text("DELETE FROM provider_requests"))
         await conn.execute(text("DELETE FROM trade_actions"))
+        await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM analysis_jobs"))
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
         await conn.execute(text("DELETE FROM users"))

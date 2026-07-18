@@ -96,3 +96,57 @@ class Currency(StrEnum):
     IDR = "IDR"
     USD = "USD"
     OTHER = "OTHER"
+
+
+class AnalysisType(StrEnum):
+    INITIAL_ANALYSIS = "INITIAL_ANALYSIS"
+    WATCHING_UPDATE = "WATCHING_UPDATE"
+    OPEN_POSITION_UPDATE = "OPEN_POSITION_UPDATE"
+    PARTIAL_EXIT_REVIEW = "PARTIAL_EXIT_REVIEW"
+    CLOSING_ANALYSIS = "CLOSING_ANALYSIS"
+
+
+class AnalysisJobStatus(StrEnum):
+    CREATED = "CREATED"
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    RETRYING = "RETRYING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class AcceptanceStatus(StrEnum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    SUPERSEDED = "SUPERSEDED"
+
+
+class ProviderType(StrEnum):
+    GEMINI = "GEMINI"
+    DEEPSEEK = "DEEPSEEK"
+    MOCK = "MOCK"
+
+
+class ProviderResponseStatus(StrEnum):
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ValidationStage(StrEnum):
+    PARSE = "PARSE"
+    JSON_SCHEMA = "JSON_SCHEMA"
+    DOMAIN = "DOMAIN"
+    STATE_CONSISTENCY = "STATE_CONSISTENCY"
+    LIFECYCLE = "LIFECYCLE"
+    NARRATIVE = "NARRATIVE"
+
+
+class ValidationResult(StrEnum):
+    PENDING = "PENDING"
+    VALID = "VALID"
+    VALID_WITH_WARNINGS = "VALID_WITH_WARNINGS"
+    INVALID = "INVALID"
