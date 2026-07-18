@@ -1,18 +1,16 @@
-.PHONY: help tree check-structure docker-build docker-up docker-down docker-logs docker-ps docker-reset docker-config
+.PHONY: help tree check-structure docker-build docker-up docker-down docker-logs docker-ps docker-reset docker-config migrate migration-current migration-history migration-downgrade db-check db-test
 
 DOCKER_COMPOSE = docker compose -f infra/docker/compose.yml
 
 help:
 	@echo "TradePilot AI — Development Makefile"
 	@echo ""
-	@echo "Repository status: Foundation stage — Docker environment configured."
-	@echo ""
 	@echo "Available commands:"
 	@echo "  help              Show this help message"
 	@echo "  tree              Display repository directory structure"
 	@echo "  check-structure   Validate that all required paths exist"
 	@echo ""
-	@echo "Docker commands:"
+	@echo "Docker:"
 	@echo "  docker-config     Show rendered Compose configuration"
 	@echo "  docker-build      Build all container images"
 	@echo "  docker-up         Start the development environment"
@@ -20,6 +18,14 @@ help:
 	@echo "  docker-logs       Tail container logs"
 	@echo "  docker-ps         List running containers"
 	@echo "  docker-reset      Stop and remove all containers and volumes"
+	@echo ""
+	@echo "Database (run from backend/ with .venv active):"
+	@echo "  migrate                   Run Alembic upgrade to head"
+	@echo "  migration-current         Show current Alembic revision"
+	@echo "  migration-history         Show migration history"
+	@echo "  migration-downgrade       Downgrade to base (DANGER)"
+	@echo "  db-check                  Check PostgreSQL connectivity"
+	@echo "  db-test                   Run database integration tests"
 
 tree:
 	@find . -maxdepth 4 -not -path './.git/*' -not -name '.DS_Store' | sort | sed 's|[^/]*/|  |g'
@@ -70,3 +76,26 @@ docker-reset:
 	@echo "Are you sure? Press Ctrl+C to abort, or wait 3 seconds..."
 	@sleep 3
 	$(DOCKER_COMPOSE) down -v
+
+# Database commands (run from backend/ with .venv active)
+migrate:
+	@echo "Running Alembic upgrade to head..."
+	cd backend && DATABASE_SYNC_URL="postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot" alembic -c alembic.ini upgrade head
+
+migration-current:
+	cd backend && DATABASE_SYNC_URL="postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot" alembic -c alembic.ini current
+
+migration-history:
+	cd backend && DATABASE_SYNC_URL="postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot" alembic -c alembic.ini history
+
+migration-downgrade:
+	@echo "DANGER: This will downgrade all migrations to base."
+	cd backend && DATABASE_SYNC_URL="postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot" alembic -c alembic.ini downgrade base
+
+db-check:
+	@echo "Checking PostgreSQL connectivity..."
+	$(DOCKER_COMPOSE) exec -T postgres pg_isready -U tradepilot -d tradepilot
+
+db-test:
+	@echo "Running database integration tests (requires APP_ENV=test and tradepilot_test database)..."
+	cd backend && APP_ENV=test DATABASE_URL="postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test" pytest -v -m database

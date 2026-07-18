@@ -34,7 +34,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-tradepilot}
       POSTGRES_USER: ${POSTGRES_USER:-tradepilot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}?sslmode=disable
+      DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
       EVIDENCE_STORAGE_PATH: /data/evidence
     volumes:
       - evidence_data:/data/evidence
@@ -57,7 +58,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-tradepilot}
       POSTGRES_USER: ${POSTGRES_USER:-tradepilot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-tradepilot}
       EVIDENCE_STORAGE_PATH: /data/evidence
     volumes:
       - evidence_data:/data/evidence

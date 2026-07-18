@@ -12,6 +12,11 @@ dependencies = [
     "uvicorn[standard]>=0.34.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.30.0",
+    "greenlet>=3.0.0",
+    "alembic>=1.14.0",
+    "psycopg[binary]>=3.2.0",
 ]
 
 [project.optional-dependencies]
@@ -45,3 +50,7 @@ warn_unused_ignores = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+asyncio_mode = "auto"
+markers = [
+    "database: tests that require a running PostgreSQL instance",
+]

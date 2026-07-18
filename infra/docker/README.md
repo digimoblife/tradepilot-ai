@@ -79,13 +79,29 @@ Configuration is read from the root `.env` file. Key variables:
 | Variable                       | Docker Value                                |
 |-------------------------------|---------------------------------------------|
 | `POSTGRES_HOST`               | `postgres` (Docker service name)            |
-| `DATABASE_URL`                | `postgresql://tradepilot:change_me@postgres:5432/tradepilot` |
+| `DATABASE_URL`                | `postgresql+asyncpg://tradepilot:change_me@postgres:5432/tradepilot` (async) |
+| `DATABASE_SYNC_URL`           | `postgresql+psycopg://tradepilot:change_me@postgres:5432/tradepilot` (sync) |
 | `NEXT_PUBLIC_API_BASE_URL`    | `http://localhost:8000`                     |
 | `EVIDENCE_STORAGE_PATH`       | `/data/evidence` (inside containers)        |
 
+## Test Database
+
+```bash
+# Create the test database (one-time setup after docker-up)
+docker compose exec -T postgres createdb -U tradepilot tradepilot_test
+
+# Run migrations against test database
+DATABASE_SYNC_URL=postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot_test \
+  alembic -c ../../backend/alembic.ini upgrade head
+
+# Run database integration tests
+make db-test
+```
+
 ## Current Limitations
 
-- No database domain schema or tables are created — PostgreSQL is a running instance only.
+- SQLAlchemy metadata and Alembic are configured, but no domain models or business tables exist yet.
+- PostgreSQL is a running instance with no user-created tables beyond the Alembic version table.
 - The worker runs an idle loop — no job queue, AI processing, or business logic.
 - The frontend is a static foundation page — no API calls, session features, or trading UI.
 - No reverse proxy, TLS, or production deployment configuration.
