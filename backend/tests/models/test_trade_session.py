@@ -41,6 +41,8 @@ async def test_default_status() -> None:
 async def test_session_can_be_inserted(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))
@@ -92,6 +94,8 @@ async def test_unknown_user_rejected(db_url: str) -> None:
 async def test_ticker_whitespace_removed(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))
@@ -132,6 +136,8 @@ async def test_ticker_whitespace_removed(db_url: str) -> None:
 async def test_relationship_to_user(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))

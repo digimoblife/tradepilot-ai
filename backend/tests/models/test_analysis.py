@@ -28,6 +28,8 @@ async def _make_session_with_job(
     async with engine.begin() as conn:
         await conn.execute(text("DELETE FROM trade_actions"))
         await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))

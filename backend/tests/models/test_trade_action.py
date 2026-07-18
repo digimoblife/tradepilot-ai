@@ -27,6 +27,8 @@ async def _make_user_and_session(
     label: str,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))
@@ -167,6 +169,8 @@ async def test_same_key_different_session_succeeds(db_url: str) -> None:
     engine = create_async_engine_from_config(config)
     # Create both sessions within a single cleanup scope
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))

@@ -25,6 +25,8 @@ async def _make_user_and_session(
     label: str,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))
@@ -267,6 +269,8 @@ async def test_queue_order_deterministic(db_url: str) -> None:
     config = AppConfig(database_url=db_url)
     engine = create_async_engine_from_config(config)
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))

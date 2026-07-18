@@ -172,6 +172,31 @@ DATABASE_SYNC_URL="..." alembic -c alembic.ini check
 - `issues` JSONB preserves normalized validation issues
 - `valid` boolean is explicit and not inferred
 
+### Context Summary
+
+`context_summaries` stores compact derived longitudinal memory for a Trade Session:
+- Versioned rows (version >= 1, unique per session)
+- `source_cutoff` timestamp identifies latest source material
+- `payload` JSONB for structured compressed history
+- `quality` enum: `HIGH`, `MEDIUM`, `LOW`, `INCOMPLETE`, `DEGRADED`
+- `is_stale` boolean flag (future stale-detection service)
+- Efficient latest-summary selection via `(session_id, context_version DESC)` index
+- Multiple versions retained; historical versions remain immutable
+- Context Summary is derived data, NOT canonical Trade State
+
+### Session Event
+
+`session_events` stores immutable timeline history:
+- Controlled `event_type` enum with 14 values covering the full session lifecycle
+- `occurred_at` timestamp (timezone-aware) for chronological ordering
+- Optional FK to `trade_actions.related_action_id`
+- Optional FK to `analyses.related_analysis_id`
+- Optional `price` (Decimal, `NUMERIC(20,6)`) and `quantity` (Decimal, `NUMERIC(24,6)`)
+- Negative quantity rejected by check constraint
+- `compact_summary` text for concise audit descriptions
+- Chronological retrieval via `(session_id, occurred_at, id)` index with deterministic tie-breaking
+- Events do not execute lifecycle changes
+
 ### Analysis
 
 `analyses` represents the accepted analysis result:
@@ -196,6 +221,7 @@ DATABASE_SYNC_URL="..." alembic -c alembic.ini check
 - `analysis_type_enum`, `analysis_job_status_enum`, `acceptance_status_enum`
 - `provider_enum`, `provider_response_status_enum`
 - `validation_stage_enum`
+- `context_quality_enum`, `session_event_type_enum`
 
 ### Test Database
 
@@ -226,7 +252,10 @@ make db-test
 - **Analysis APIs** (job creation, result retrieval)
 - **Repositories** (typed persistence layer)
 - **Service transactions** (orchestration layer)
-- **Context Summary** and Session Event models
+- **Context Summary generation** (material-history selection)
+- **Context Summary rebuilding** (stale detection)
+- **Session Event publishing**
+- **Timeline and context APIs**
 - **Authentication and authorisation**
 - **Evidence upload and storage**
 - **API route handlers** for trade sessions, actions, evidence

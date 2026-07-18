@@ -15,7 +15,9 @@ from app.models.enums import Currency, Market, TradeSessionStatus
 if TYPE_CHECKING:
     from app.models.analysis import Analysis
     from app.models.analysis_job import AnalysisJob
+    from app.models.context_summary import ContextSummary
     from app.models.evidence import Evidence
+    from app.models.session_event import SessionEvent
     from app.models.trade_action import TradeAction
     from app.models.trade_state import TradeState
     from app.models.user import User
@@ -109,6 +111,12 @@ class TradeSession(Base):
         back_populates="trade_session",
     )
     analyses: Mapped[list[Analysis]] = relationship(
+        back_populates="trade_session",
+    )
+    context_summaries: Mapped[list[ContextSummary]] = relationship(
+        back_populates="trade_session",
+    )
+    session_events: Mapped[list[SessionEvent]] = relationship(
         back_populates="trade_session",
     )
 

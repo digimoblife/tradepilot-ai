@@ -31,22 +31,9 @@ def async_db_url() -> str:
     return os.environ.get("TEST_DATABASE_URL", _DEFAULT_ASYNC)
 
 
-_TP0106_TABLES = {
-    "analysis_jobs",
-    "analyses",
-    "provider_requests",
-    "provider_responses",
-    "validation_attempts",
-}
+_TP0107_TABLES = {"context_summaries", "session_events"}
 
-_TP0106_ENUMS = {
-    "analysis_type_enum",
-    "analysis_job_status_enum",
-    "acceptance_status_enum",
-    "provider_enum",
-    "provider_response_status_enum",
-    "validation_stage_enum",
-}
+_TP0107_ENUMS = {"context_quality_enum", "session_event_type_enum"}
 
 
 @pytest.mark.database
@@ -69,15 +56,13 @@ async def test_tables_exist(async_db_url: str) -> None:
             await conn.execute(
                 text(
                     "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = 'public' AND table_name IN ("
-                    "'analysis_jobs', 'analyses', 'provider_requests', "
-                    "'provider_responses', 'validation_attempts')"
-                    " ORDER BY table_name"
+                    "WHERE table_schema = 'public' AND table_name IN "
+                    "('context_summaries', 'session_events') ORDER BY table_name"
                 )
             )
         ).all()
         found = {r[0] for r in rows}
-        assert found == _TP0106_TABLES
+        assert found == _TP0107_TABLES
     await engine.dispose()
 
 
@@ -88,43 +73,19 @@ async def test_enum_types_exist(async_db_url: str) -> None:
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
-                text("SELECT t.typname FROM pg_type t WHERE t.typname = ANY(:enums)"),
-                {"enums": list(_TP0106_ENUMS)},
-            )
-        ).all()
-        assert len(rows) == 6
-    await engine.dispose()
-
-
-@pytest.mark.database
-async def test_foreign_keys_exist(async_db_url: str) -> None:
-    config = AppConfig(database_url=async_db_url)
-    engine = create_async_engine_from_config(config)
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
                 text(
-                    "SELECT conname, contype FROM pg_constraint "
-                    "WHERE conrelid::regclass::text IN ("
-                    "'analysis_jobs', 'analyses', 'provider_requests', "
-                    "'provider_responses', 'validation_attempts'"
-                    ")"
-                )
+                    "SELECT t.typname FROM pg_type t "
+                    "WHERE t.typname = ANY(:enums)"
+                ),
+                {"enums": list(_TP0107_ENUMS)},
             )
         ).all()
-        defs = {r[0]: r[1] for r in rows}
-        assert "fk_analysis_jobs_session_id_trade_sessions" in defs
-        assert "fk_analyses_session_id_trade_sessions" in defs
-        assert "fk_analyses_analysis_job_id_analysis_jobs" in defs
-        assert "fk_analyses_supersedes_analysis_id_analyses" in defs
-        assert "fk_provider_requests_analysis_job_id_analysis_jobs" in defs
-        assert "fk_provider_responses_provider_request_id_provider_requests" in defs
-        assert "fk_validation_attempts_analysis_job_id_analysis_jobs" in defs
+        assert len(rows) == 2
     await engine.dispose()
 
 
 @pytest.mark.database
-async def test_trade_action_deferred_fk_exists(async_db_url: str) -> None:
+async def test_context_summary_session_fk(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
@@ -132,18 +93,17 @@ async def test_trade_action_deferred_fk_exists(async_db_url: str) -> None:
             await conn.execute(
                 text(
                     "SELECT conname FROM pg_constraint "
-                    "WHERE conrelid = 'trade_actions'::regclass "
-                    "AND contype = 'f'"
+                    "WHERE conrelid = 'context_summaries'::regclass AND contype = 'f'"
                 )
             )
         ).all()
         names = {r[0] for r in rows}
-        assert "fk_trade_actions_related_analysis_id_analyses" in names
+        assert "fk_context_summaries_session_id_trade_sessions" in names
     await engine.dispose()
 
 
 @pytest.mark.database
-async def test_retry_constraints_exist(async_db_url: str) -> None:
+async def test_session_event_session_fk(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
@@ -151,57 +111,103 @@ async def test_retry_constraints_exist(async_db_url: str) -> None:
             await conn.execute(
                 text(
                     "SELECT conname FROM pg_constraint "
-                    "WHERE conrelid = 'analysis_jobs'::regclass "
-                    "AND contype = 'c'"
+                    "WHERE conrelid = 'session_events'::regclass AND contype = 'f'"
                 )
             )
         ).all()
         names = {r[0] for r in rows}
-        assert "ck_analysis_jobs_attempt_count" in names
-        assert "ck_analysis_jobs_max_attempts" in names
-        assert "ck_analysis_jobs_attempts_bound" in names
+        assert "fk_session_events_session_id_trade_sessions" in names
     await engine.dispose()
 
 
 @pytest.mark.database
-async def test_schema_version_requirements(async_db_url: str) -> None:
+async def test_related_action_fk(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
-        # Check analyses constraints
         rows = (
             await conn.execute(
                 text(
                     "SELECT conname FROM pg_constraint "
-                    "WHERE conrelid = 'analyses'::regclass "
-                    "AND contype = 'c'"
+                    "WHERE conrelid = 'session_events'::regclass AND contype = 'f'"
                 )
             )
         ).all()
         names = {r[0] for r in rows}
-        assert "ck_analyses_schema_name" in names
-        assert "ck_analyses_schema_version" in names
-        assert "ck_analyses_prompt_version" in names
+        assert "fk_session_events_related_action_id_trade_actions" in names
     await engine.dispose()
 
 
 @pytest.mark.database
-async def test_superseding_fk_exists(async_db_url: str) -> None:
+async def test_related_analysis_fk(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
                 text(
-                    "SELECT conname, contype, pg_get_constraintdef(oid) "
-                    "FROM pg_constraint WHERE conrelid = 'analyses'::regclass "
-                    "AND conname = 'ck_analyses_no_self_supersede'"
+                    "SELECT conname FROM pg_constraint "
+                    "WHERE conrelid = 'session_events'::regclass AND contype = 'f'"
+                )
+            )
+        ).all()
+        names = {r[0] for r in rows}
+        assert "fk_session_events_related_analysis_id_analyses" in names
+    await engine.dispose()
+
+
+@pytest.mark.database
+async def test_version_uniqueness(async_db_url: str) -> None:
+    config = AppConfig(database_url=async_db_url)
+    engine = create_async_engine_from_config(config)
+    async with engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT conname FROM pg_constraint "
+                    "WHERE conrelid = 'context_summaries'::regclass "
+                    "AND contype = 'u'"
+                )
+            )
+        ).all()
+        names = {r[0] for r in rows}
+        assert "uq_context_summaries_session_version" in names
+    await engine.dispose()
+
+
+@pytest.mark.database
+async def test_version_check(async_db_url: str) -> None:
+    config = AppConfig(database_url=async_db_url)
+    engine = create_async_engine_from_config(config)
+    async with engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT conname FROM pg_constraint "
+                    "WHERE conrelid = 'context_summaries'::regclass "
+                    "AND contype = 'c' AND conname = 'ck_context_summaries_version'"
                 )
             )
         ).all()
         assert len(rows) == 1
-        assert "supersedes_analysis_id IS NULL" in rows[0][2]
-        assert "supersedes_analysis_id <> id" in rows[0][2]
+    await engine.dispose()
+
+
+@pytest.mark.database
+async def test_quantity_check(async_db_url: str) -> None:
+    config = AppConfig(database_url=async_db_url)
+    engine = create_async_engine_from_config(config)
+    async with engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT conname FROM pg_constraint "
+                    "WHERE conrelid = 'session_events'::regclass "
+                    "AND contype = 'c' AND conname = 'ck_session_events_quantity'"
+                )
+            )
+        ).all()
+        assert len(rows) == 1
     await engine.dispose()
 
 
@@ -214,34 +220,27 @@ async def test_indexes_exist(async_db_url: str) -> None:
             await conn.execute(
                 text(
                     "SELECT indexname FROM pg_indexes "
-                    "WHERE tablename IN ("
-                    "'analysis_jobs', 'analyses', 'provider_requests', "
-                    "'provider_responses', 'validation_attempts'"
-                    ")"
+                    "WHERE tablename IN ('context_summaries', 'session_events')"
                 )
             )
         ).all()
         names = {r[0] for r in rows}
-        assert "ix_analysis_jobs_queue" in names
-        assert "ix_analysis_jobs_lease" in names
-        assert "ix_analysis_jobs_session_created" in names
-        assert "ix_analysis_jobs_session_type_status" in names
-        assert "ix_analyses_session_type_created" in names
-        assert "ix_analyses_accepted" in names
-        assert "ix_analyses_supersedes" in names
-        assert "ix_analyses_job" in names
+        assert "ix_context_summaries_session_version" in names
+        assert "ix_context_summaries_session_created" in names
+        assert "ix_session_events_chronological" in names
+        assert "ix_session_events_type" in names
     await engine.dispose()
 
 
 @pytest.mark.database
-def test_downgrade_removes_tp0106(sync_db_url: str) -> None:
+def test_downgrade_removes_tp0107(sync_db_url: str) -> None:
     _assert_safe_test_db(sync_db_url)
     from alembic import command
     from alembic.config import Config
 
     config = Config(ALEMBIC_CFG)
     config.set_main_option("sqlalchemy.url", sync_db_url)
-    command.downgrade(config, "9d219c5a02e1")
+    command.downgrade(config, "fc58b8bbeab7")
 
 
 @pytest.mark.database
@@ -255,7 +254,7 @@ async def test_downgrade_removes_tables(async_db_url: str) -> None:
                     "SELECT table_name FROM information_schema.tables "
                     "WHERE table_schema = 'public' AND table_name = ANY(:tables)"
                 ),
-                {"tables": list(_TP0106_TABLES)},
+                {"tables": list(_TP0107_TABLES)},
             )
         ).all()
         assert len(rows) == 0
@@ -269,26 +268,11 @@ async def test_downgrade_removes_enums(async_db_url: str) -> None:
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
-                text("SELECT t.typname FROM pg_type t WHERE t.typname = ANY(:enums)"),
-                {"enums": list(_TP0106_ENUMS)},
-            )
-        ).all()
-        assert len(rows) == 0
-    await engine.dispose()
-
-
-@pytest.mark.database
-async def test_downgrade_removes_deferred_fk(async_db_url: str) -> None:
-    config = AppConfig(database_url=async_db_url)
-    engine = create_async_engine_from_config(config)
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
                 text(
-                    "SELECT conname FROM pg_constraint "
-                    "WHERE conrelid = 'trade_actions'::regclass "
-                    "AND contype = 'f' AND conname = 'fk_trade_actions_related_analysis_id_analyses'"
-                )
+                    "SELECT t.typname FROM pg_type t "
+                    "WHERE t.typname = ANY(:enums)"
+                ),
+                {"enums": list(_TP0107_ENUMS)},
             )
         ).all()
         assert len(rows) == 0
@@ -318,24 +302,6 @@ async def test_one_head(sync_db_url: str) -> None:
     heads = script.get_heads()
     assert len(heads) == 1
     assert heads[0] == "8e4d747e19db"
-
-
-@pytest.mark.database
-async def test_no_tp0107_table_exists(async_db_url: str) -> None:
-    config = AppConfig(database_url=async_db_url)
-    engine = create_async_engine_from_config(config)
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
-                text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = 'public' AND table_name IN "
-                    "('worker_heartbeats')"
-                )
-            )
-        ).all()
-        assert len(rows) == 0
-    await engine.dispose()
 
 
 @pytest.mark.database

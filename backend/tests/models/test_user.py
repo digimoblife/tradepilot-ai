@@ -23,6 +23,8 @@ def db_url() -> str:
 async def test_user_can_be_inserted(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))
@@ -71,6 +73,8 @@ async def test_timestamps_are_timezone_aware(db_url: str) -> None:
 async def test_uuid_primary_key(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))
@@ -99,6 +103,8 @@ async def test_uuid_primary_key(db_url: str) -> None:
 async def test_duplicate_email_rejected(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM session_events"))
+        await conn.execute(text("DELETE FROM context_summaries"))
         await conn.execute(text("DELETE FROM validation_attempts"))
         await conn.execute(text("DELETE FROM provider_responses"))
         await conn.execute(text("DELETE FROM provider_requests"))

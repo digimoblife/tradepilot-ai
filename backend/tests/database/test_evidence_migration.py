@@ -124,15 +124,17 @@ async def test_only_expected_tables(async_db_url: str) -> None:
         ).all()
         tables = {r[0] for r in rows}
         assert tables == {
-            "users",
-            "trade_sessions",
-            "trade_states",
-            "trade_actions",
-            "evidence",
-            "analysis_jobs",
             "analyses",
+            "analysis_jobs",
+            "context_summaries",
+            "evidence",
             "provider_requests",
             "provider_responses",
+            "session_events",
+            "trade_actions",
+            "trade_sessions",
+            "trade_states",
+            "users",
             "validation_attempts",
         }
     await engine.dispose()

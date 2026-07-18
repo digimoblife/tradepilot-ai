@@ -8,9 +8,11 @@ from app.database.base import Base
 from app.models import (  # noqa: F401
     Analysis,
     AnalysisJob,
+    ContextSummary,
     Evidence,
     ProviderRequest,
     ProviderResponse,
+    SessionEvent,
     TradeAction,
     TradeSession,
     TradeState,

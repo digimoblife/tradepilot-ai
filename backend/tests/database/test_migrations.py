@@ -77,15 +77,17 @@ async def test_no_business_tables_after_migration(
         )
         tables = {row[0] for row in result}
         assert tables == {
-            "users",
-            "trade_sessions",
-            "trade_states",
-            "trade_actions",
-            "evidence",
-            "analysis_jobs",
             "analyses",
+            "analysis_jobs",
+            "context_summaries",
+            "evidence",
             "provider_requests",
             "provider_responses",
+            "session_events",
+            "trade_actions",
+            "trade_sessions",
+            "trade_states",
+            "users",
             "validation_attempts",
         }, f"Unexpected tables: {tables}"
 

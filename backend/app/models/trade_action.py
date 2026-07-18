@@ -22,6 +22,7 @@ from app.database.types import pg_uuid, price_numeric, quantity_numeric, utc_dat
 from app.models.enums import ActionType
 
 if TYPE_CHECKING:
+    from app.models.session_event import SessionEvent
     from app.models.trade_session import TradeSession
 
 
@@ -87,6 +88,9 @@ class TradeAction(Base):
 
     trade_session: Mapped[TradeSession] = relationship(
         back_populates="trade_actions",
+    )
+    session_events: Mapped[list[SessionEvent]] = relationship(
+        back_populates="related_action",
     )
 
     def __init__(self, **kwargs: object) -> None:

@@ -15,6 +15,7 @@ from app.models.enums import AcceptanceStatus, AnalysisType
 
 if TYPE_CHECKING:
     from app.models.analysis_job import AnalysisJob
+    from app.models.session_event import SessionEvent
     from app.models.trade_session import TradeSession
 
 
@@ -126,6 +127,9 @@ class Analysis(Base):
         foreign_keys=[supersedes_analysis_id],
         back_populates="supersedes",
         uselist=True,
+    )
+    session_events: Mapped[list[SessionEvent]] = relationship(
+        back_populates="related_analysis",
     )
 
     def __init__(self, **kwargs: object) -> None:
