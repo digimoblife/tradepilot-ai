@@ -39,3 +39,7 @@ class ManifestLoadError(SchemaPackageError):
 
 class ManifestValidationError(SchemaPackageError):
     """Raised when the manifest content fails structural or semantic validation."""
+
+
+class SchemaRegistryError(SchemaPackageError):
+    """Raised during schema registry construction or lookup."""
