@@ -5,7 +5,13 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.database.base import Base
-from app.models import TradeAction, TradeSession, TradeState, User  # noqa: F401
+from app.models import (  # noqa: F401
+    Evidence,
+    TradeAction,
+    TradeSession,
+    TradeState,
+    User,
+)
 
 config = context.config
 

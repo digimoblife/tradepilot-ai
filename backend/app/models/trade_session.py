@@ -13,6 +13,7 @@ from app.database.types import pg_uuid, utc_datetime
 from app.models.enums import Currency, Market, TradeSessionStatus
 
 if TYPE_CHECKING:
+    from app.models.evidence import Evidence
     from app.models.trade_action import TradeAction
     from app.models.trade_state import TradeState
     from app.models.user import User
@@ -97,6 +98,9 @@ class TradeSession(Base):
         uselist=False,
     )
     trade_actions: Mapped[list[TradeAction]] = relationship(
+        back_populates="trade_session",
+    )
+    evidence_items: Mapped[list[Evidence]] = relationship(
         back_populates="trade_session",
     )
 

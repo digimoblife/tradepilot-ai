@@ -23,6 +23,7 @@ def db_url() -> str:
 async def test_user_can_be_inserted(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_actions"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
@@ -65,6 +66,7 @@ async def test_timestamps_are_timezone_aware(db_url: str) -> None:
 async def test_uuid_primary_key(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_actions"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
@@ -87,6 +89,7 @@ async def test_uuid_primary_key(db_url: str) -> None:
 async def test_duplicate_email_rejected(db_url: str) -> None:
     engine = create_async_engine_from_config(AppConfig(database_url=db_url))
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_actions"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))

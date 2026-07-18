@@ -166,7 +166,11 @@ async def test_only_expected_tables(async_db_url: str) -> None:
             )
         ).all()
         tables = {r[0] for r in rows}
-        assert tables == {"users", "trade_sessions", "trade_states", "trade_actions"}, (
-            f"Unexpected tables: {tables}"
-        )
+        assert tables == {
+            "users",
+            "trade_sessions",
+            "trade_states",
+            "trade_actions",
+            "evidence",
+        }, f"Unexpected tables: {tables}"
     await engine.dispose()

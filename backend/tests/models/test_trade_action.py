@@ -27,6 +27,7 @@ async def _make_user_and_session(
     label: str,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM evidence"))
         await conn.execute(text("DELETE FROM trade_actions"))
         await conn.execute(text("DELETE FROM trade_states"))
         await conn.execute(text("DELETE FROM trade_sessions"))
@@ -35,7 +36,8 @@ async def _make_user_and_session(
         ur = (
             await conn.execute(
                 text(
-                    "INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"
+                    "INSERT INTO users (email, password_hash) "
+                    "VALUES (:e, :p) RETURNING id"
                 ),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )

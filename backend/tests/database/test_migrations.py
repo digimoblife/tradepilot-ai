@@ -76,9 +76,13 @@ async def test_no_business_tables_after_migration(
             )
         )
         tables = {row[0] for row in result}
-        assert tables == {"users", "trade_sessions", "trade_states", "trade_actions"}, (
-            f"Unexpected tables: {tables}"
-        )
+        assert tables == {
+            "users",
+            "trade_sessions",
+            "trade_states",
+            "trade_actions",
+            "evidence",
+        }, f"Unexpected tables: {tables}"
 
     await engine.dispose()
 

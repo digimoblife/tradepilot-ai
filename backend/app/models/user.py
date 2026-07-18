@@ -13,6 +13,7 @@ from app.database.types import pg_uuid, utc_datetime
 from app.models.enums import AccountStatus
 
 if TYPE_CHECKING:
+    from app.models.evidence import Evidence
     from app.models.trade_session import TradeSession
 
 
@@ -53,6 +54,9 @@ class User(Base):
 
     trade_sessions: Mapped[list[TradeSession]] = relationship(
         back_populates="user",
+    )
+    evidence_items: Mapped[list[Evidence]] = relationship(
+        back_populates="owner",
     )
 
     def __init__(self, **kwargs: object) -> None:

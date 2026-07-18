@@ -32,7 +32,7 @@ def async_db_url() -> str:
 
 
 @pytest.mark.database
-def test_migration_creates_tables(sync_db_url: str) -> None:
+def test_migration_upgrade(sync_db_url: str) -> None:
     _assert_safe_test_db(sync_db_url)
     from alembic import command
     from alembic.config import Config
@@ -43,108 +43,82 @@ def test_migration_creates_tables(sync_db_url: str) -> None:
 
 
 @pytest.mark.database
-async def test_users_table_columns(async_db_url: str) -> None:
+async def test_evidence_table_columns(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
                 text(
-                    "SELECT column_name, data_type, is_nullable "
-                    "FROM information_schema.columns "
-                    "WHERE table_name = 'users' ORDER BY ordinal_position"
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'evidence' ORDER BY ordinal_position"
                 )
             )
         ).all()
-        col_names = {r[0] for r in rows}
-        for col in (
+        cols = {r[0] for r in rows}
+        for c in (
             "id",
-            "email",
-            "password_hash",
-            "account_status",
-            "created_at",
-            "updated_at",
-        ):
-            assert col in col_names, f"Missing column: {col}"
-    await engine.dispose()
-
-
-@pytest.mark.database
-async def test_trade_sessions_table_columns(async_db_url: str) -> None:
-    config = AppConfig(database_url=async_db_url)
-    engine = create_async_engine_from_config(config)
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
-                text(
-                    "SELECT column_name, data_type, is_nullable "
-                    "FROM information_schema.columns "
-                    "WHERE table_name = 'trade_sessions' ORDER BY ordinal_position"
-                )
-            )
-        ).all()
-        col_names = {r[0] for r in rows}
-        for col in (
-            "id",
+            "session_id",
             "owner_id",
-            "ticker",
-            "lifecycle_status",
+            "evidence_type",
+            "evidence_status",
+            "uploaded_at",
             "created_at",
             "updated_at",
-            "version",
         ):
-            assert col in col_names, f"Missing column: {col}"
+            assert c in cols
     await engine.dispose()
 
 
 @pytest.mark.database
-async def test_foreign_key_exists(async_db_url: str) -> None:
+async def test_constraints_exist(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
                 text(
-                    "SELECT conname FROM pg_constraint "
-                    "WHERE conrelid = 'trade_sessions'::regclass "
-                    "AND contype = 'f'"
+                    "SELECT conname, contype, pg_get_constraintdef(oid) "
+                    "FROM pg_constraint WHERE conrelid = 'evidence'::regclass ORDER BY conname"
                 )
             )
         ).all()
-        assert len(rows) >= 1
+        defs = {r[0]: (r[1], r[2]) for r in rows}
+        assert "ck_evidence_file_size_non_negative" in defs
+        assert "ck_evidence_extraction_confidence_range" in defs
+        assert "ck_evidence_excluded_state" in defs
+        assert "ck_evidence_checksum_format" in defs
+        assert "ck_evidence_no_self_replacement" in defs
+        assert "ck_evidence_safe_storage_key" in defs
+        assert "fk_evidence_session_id_trade_sessions" in defs
+        assert "fk_evidence_owner_id_users" in defs
+        assert "fk_evidence_supersedes_evidence_id_evidence" in defs
     await engine.dispose()
 
 
 @pytest.mark.database
-async def test_unique_email_constraint(async_db_url: str) -> None:
+async def test_enum_types_exist(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
                 text(
-                    "SELECT conname FROM pg_constraint "
-                    "WHERE conrelid = 'users'::regclass "
-                    "AND contype = 'u'"
+                    "SELECT t.typname FROM pg_type t WHERE t.typname IN ('evidence_type_enum', 'evidence_status_enum', 'extraction_status_enum')"
                 )
             )
         ).all()
-        assert any("email" in str(r[0]) for r in rows)
-    await engine.dispose()
+        assert len(rows) == 3
 
 
 @pytest.mark.database
-async def test_only_expected_tables_exist(async_db_url: str) -> None:
+async def test_only_expected_tables(async_db_url: str) -> None:
     config = AppConfig(database_url=async_db_url)
     engine = create_async_engine_from_config(config)
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
                 text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = 'public' "
-                    "AND table_name NOT IN ('alembic_version') "
-                    "ORDER BY table_name"
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name NOT IN ('alembic_version') ORDER BY table_name"
                 )
             )
         ).all()
@@ -155,5 +129,5 @@ async def test_only_expected_tables_exist(async_db_url: str) -> None:
             "trade_states",
             "trade_actions",
             "evidence",
-        }, f"Unexpected tables: {tables}"
+        }
     await engine.dispose()
