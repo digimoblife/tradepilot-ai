@@ -117,8 +117,16 @@ DATABASE_SYNC_URL="..." alembic -c alembic.ini history
 
 - SQLAlchemy metadata is configured with naming conventions
 - Alembic is initialised with an empty foundation migration
-- No domain models exist yet
-- No business tables are created
+- **Domain models implemented:**
+
+  | Model | Table | Description |
+  |-------|-------|-------------|
+  | `User` | `users` | Application user with email, password hash, account status |
+  | `TradeSession` | `trade_sessions` | One trade lifecycle per ticker, owned by a user |
+
+- **Enum types:** `account_status_enum`, `session_status_enum`, `market_enum`, `currency_enum`
+- **Normalization:** email (lowercase + trim), ticker (uppercase + trim), currency (uppercase + trim)
+- **Ownership:** `trade_sessions.owner_id` → `users.id` with `ON DELETE RESTRICT`
 - Migrations do not run automatically on startup
 - `/health` remains a process-health check only (no database requirement)
 
@@ -140,8 +148,13 @@ make db-test
 
 ## Deferred Capabilities
 
-- User and Trade Session models (TP-0102+)
-- Domain migrations
+- Canonical Trade State model (TP-0103+)
+- Trade Action model
+- Evidence and analysis models
+- Context Summary and Session Events
+- Repositories and service layer
+- Authentication and authorisation logic
+- API route handlers
 - Repository layer
 - Service layer
 - API routes for trade sessions

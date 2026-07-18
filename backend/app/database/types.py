@@ -31,20 +31,24 @@ def utc_datetime() -> UTCDateTime:
 
 
 def price_numeric() -> Numeric:  # type: ignore[type-arg]
-    return Numeric(precision=20, scale=6)
+    return Numeric(precision=20, scale=6, asdecimal=True)
 
 
 def monetary_numeric() -> Numeric:  # type: ignore[type-arg]
-    return Numeric(precision=24, scale=6)
+    return Numeric(precision=24, scale=6, asdecimal=True)
 
 
 def quantity_numeric() -> Numeric:  # type: ignore[type-arg]
-    return Numeric(precision=24, scale=6)
+    return Numeric(precision=24, scale=6, asdecimal=True)
 
 
 def percentage_numeric() -> Numeric:  # type: ignore[type-arg]
-    return Numeric(precision=7, scale=4)
+    return Numeric(precision=7, scale=4, asdecimal=True)
+
+
+def return_pct_numeric() -> Numeric:  # type: ignore[type-arg]
+    return Numeric(precision=12, scale=6, asdecimal=True)
 
 
 def probability_numeric() -> Numeric:  # type: ignore[type-arg]
-    return Numeric(precision=7, scale=4)
+    return Numeric(precision=7, scale=4, asdecimal=True)
