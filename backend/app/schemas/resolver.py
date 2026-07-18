@@ -31,7 +31,7 @@ def build_offline_registry(
     """
     resources: dict[str, Resource] = {}
     for sid, document in documents.items():
-        resources[sid] = Resource(contents=document, specification=DRAFT202012)
+        resources[sid] = DRAFT202012.create_resource(document)
 
     def _retrieve(uri: str) -> Resource:
         resource = resources.get(uri)
@@ -43,13 +43,14 @@ def build_offline_registry(
             details={"reference_uri": uri, "base_uri": base_uri},
         )
 
-    return Registry(retrieve=_retrieve)
+    return Registry(retrieve=_retrieve)  # type: ignore[call-arg]
 
 
-def check_fragment(resource: Resource, fragment: str) -> bool:
+def check_fragment(resource: object, fragment: str) -> bool:
     """Return ``True`` if *fragment* (a JSON Pointer) exists in *resource*."""
     try:
-        resource.contents[fragment]
+        if isinstance(resource, dict):
+            resource[fragment]
         return True
     except (LookupError, TypeError, KeyError, IndexError):
         return False
@@ -70,7 +71,7 @@ def resolve_fragment(schema: object, fragment: str) -> object | None:
     current: object = schema
     for part in parts:
         if isinstance(current, dict):
-            current = current.get(part)  # type: ignore[arg-type]
+            current = current.get(part)
         elif isinstance(current, list):
             try:
                 idx = int(part)

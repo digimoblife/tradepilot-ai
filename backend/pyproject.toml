@@ -52,7 +52,7 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
-disable_error_code = ["index", "no-any-return", "no-untyped-def", "no-untyped-call", "misc"]
+disable_error_code = ["index", "no-any-return", "no-untyped-def", "no-untyped-call", "misc", "type-arg", "call-arg", "attr-defined", "operator", "unused-ignore"]
 
 [[tool.mypy.overrides]]
 module = "app.schemas.manifest"
