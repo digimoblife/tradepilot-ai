@@ -25,3 +25,4 @@ class AppConfig(BaseSettings):
     db_pool_timeout_seconds: int = Field(default=30, ge=1)
     db_pool_recycle_seconds: int = Field(default=1800, ge=1)
     db_echo: bool = False
+    schema_package_root: str = "schemas/production/v1"
