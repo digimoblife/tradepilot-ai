@@ -26,6 +26,8 @@ dev = [
     "httpx>=0.28.0",
     "ruff>=0.9.0",
     "mypy>=1.14.0",
+    "jsonschema>=4.23.0",
+    "referencing>=0.35.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -51,6 +53,8 @@ warn_unused_ignores = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disable_error_code = ["index", "no-any-return", "no-untyped-def", "no-untyped-call", "misc"]
+
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

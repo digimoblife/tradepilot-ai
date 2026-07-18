@@ -1,0 +1,211 @@
+{
+  "metadata": {
+    "analysis_id": "55555555-5555-4555-8555-555555555555",
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "analysis_type": "CLOSING_ANALYSIS",
+    "ticker": "BBRI",
+    "company_name": "Bank Rakyat Indonesia",
+    "analysis_timestamp": "2026-07-17T15:25:00+07:00",
+    "language": "id",
+    "schema": {
+      "schema_name": "closing_analysis",
+      "schema_version": "1.0.0"
+    },
+    "prompt_version": "1.0.0",
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash"
+  },
+  "evidence_summary": {
+    "evidence_ids": ["99999999-9999-4999-8999-999999999999"],
+    "orderbook_available": true,
+    "chart_3_month_available": true,
+    "chart_6_month_available": true,
+    "latest_orderbook_timestamp": "2026-07-17T15:15:00+07:00",
+    "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "has_unreadable_evidence": false,
+    "has_stale_evidence": false,
+    "summary": "Closing analysis menggunakan seluruh histori sesi.",
+    "limitations": []
+  },
+  "closing_confirmation": {
+    "confirmed": true,
+    "confirmation_action_id": "00000000-0000-4000-8000-000000000002",
+    "closing_reason": "MANUAL_EXIT",
+    "exit_timestamp": "2026-07-17T15:12:00+07:00",
+    "final_exit_price": 2900,
+    "final_exit_quantity": 50,
+    "average_exit_price": 2910,
+    "user_note": "Menutup sisa posisi di 2.900 karena buyer mulai melemah."
+  },
+  "trade_result": {
+    "currency": "IDR",
+    "entry_price": 2800,
+    "original_quantity": 100,
+    "average_exit_price": 2910,
+    "gross_profit_loss": 11000,
+    "fees": null,
+    "taxes": null,
+    "net_profit_loss": null,
+    "gross_return_percentage": 3.93,
+    "net_return_percentage": null,
+    "maximum_unrealized_profit_percentage": 4.64,
+    "maximum_unrealized_loss_percentage": -1.07,
+    "holding_duration_calendar_days": 2,
+    "holding_duration_trading_days": 3,
+    "partial_exit_count": 1,
+    "outcome": "PROFIT",
+    "summary": "Trade ditutup dengan keuntungan kotor Rp11.000 atau sekitar 3,93%."
+  },
+  "trade_timeline": {
+    "session_started_at": "2026-07-15T09:05:00+07:00",
+    "position_opened_at": "2026-07-15T10:12:00+07:00",
+    "position_closed_at": "2026-07-17T15:12:00+07:00",
+    "analysis_count": 4,
+    "events": [
+      {
+        "timestamp": "2026-07-15T09:20:00+07:00",
+        "event_type": "INITIAL_ANALYSIS",
+        "price": 2800,
+        "quantity": null,
+        "related_analysis_id": "11111111-1111-4111-8111-111111111111",
+        "summary": "AI mengidentifikasi setup rebound."
+      },
+      {
+        "timestamp": "2026-07-15T10:12:00+07:00",
+        "event_type": "POSITION_OPENED",
+        "price": 2800,
+        "quantity": 100,
+        "related_analysis_id": "11111111-1111-4111-8111-111111111111",
+        "summary": "User membuka posisi 100 unit."
+      },
+      {
+        "timestamp": "2026-07-17T14:05:00+07:00",
+        "event_type": "PARTIAL_EXIT",
+        "price": 2920,
+        "quantity": 50,
+        "related_analysis_id": "44444444-4444-4444-8444-444444444444",
+        "summary": "Setengah posisi dijual pada target."
+      },
+      {
+        "timestamp": "2026-07-17T15:12:00+07:00",
+        "event_type": "FINAL_EXIT",
+        "price": 2900,
+        "quantity": 50,
+        "related_analysis_id": null,
+        "summary": "Sisa posisi ditutup karena buyer melemah."
+      }
+    ],
+    "journey_summary": "Trade dimulai dari setup rebound. Setelah entry di 2.800, target awal 2.920 tercapai dan sebagian profit diamankan. Sisa posisi ditutup di 2.900."
+  },
+  "final_thesis_evaluation": {
+    "original_thesis": "BBRI berpotensi rebound menuju 2.900–2.920 selama buyer menjaga area 2.780.",
+    "final_thesis_status": "COMPLETED",
+    "outcome": "FULLY_CONFIRMED",
+    "thesis_was_correct": true,
+    "entry_reason_remained_valid": true,
+    "invalidation_condition_respected": true,
+    "supporting_evidence": [
+      "Buyer menguat sebelum entry.",
+      "Target awal 2.920 tercapai."
+    ],
+    "contradicting_evidence": [
+      "Trend enam bulan tetap sideways."
+    ],
+    "summary": "Thesis awal terbukti benar."
+  },
+  "plan_execution_evaluation": {
+    "overall_quality": "GOOD",
+    "entry_quality": "GOOD",
+    "position_management_quality": "GOOD",
+    "exit_quality": "GOOD",
+    "entry_plan_followed": true,
+    "stop_loss_plan_followed": true,
+    "target_plan_followed": true,
+    "exit_plan_followed": true,
+    "positive_execution_points": [
+      "Entry dilakukan setelah konfirmasi buyer.",
+      "Sebagian posisi dijual pada target."
+    ],
+    "execution_deviations": [],
+    "summary": "Eksekusi secara keseluruhan disiplin."
+  },
+  "risk_management_evaluation": {
+    "quality": "GOOD",
+    "initial_risk_percentage": 3.57,
+    "maximum_loss_limit_respected": true,
+    "stop_loss_used": true,
+    "stop_loss_respected": true,
+    "profit_protected": true,
+    "partial_exit_used": true,
+    "risk_increased_without_confirmation": false,
+    "strengths": [
+      "Risiko awal di bawah 5%."
+    ],
+    "weaknesses": [],
+    "summary": "Manajemen risiko berjalan baik."
+  },
+  "what_worked": [
+    "Menunggu konfirmasi buyer sebelum entry.",
+    "Mengambil partial profit pada target pertama."
+  ],
+  "what_did_not_work": [
+    "Target lanjutan tidak mendapatkan konfirmasi buyer yang cukup."
+  ],
+  "avoidable_mistakes": [
+    {
+      "category": "STOP_LOSS",
+      "severity": "MINOR",
+      "description": "Protective stop belum langsung dikonfirmasi setelah partial exit.",
+      "impact": "Sisa posisi sempat memiliki batas risiko yang terlalu longgar.",
+      "how_to_avoid": "Konfirmasi perubahan stop segera setelah partial exit."
+    }
+  ],
+  "lessons_learned": [
+    {
+      "category": "ENTRY",
+      "lesson": "Entry yang menunggu konfirmasi buyer menghasilkan posisi lebih nyaman.",
+      "evidence": "Buyer strength meningkat sebelum posisi dibuka.",
+      "future_rule": "Hindari entry hanya berdasarkan chart."
+    },
+    {
+      "category": "POSITION_MANAGEMENT",
+      "lesson": "Partial exit efektif untuk mengamankan hasil.",
+      "evidence": "Setengah profit diamankan di 2.920.",
+      "future_rule": "Pertimbangkan partial exit pada resistance utama."
+    }
+  ],
+  "future_improvements": [
+    "Minta chart terbaru setelah breakout penting.",
+    "Konfirmasi protective stop segera setelah partial exit."
+  ],
+  "final_ai_evaluation": {
+    "trade_grade": "A",
+    "process_score": 86,
+    "thesis_score": 90,
+    "execution_score": 84,
+    "risk_management_score": 88,
+    "result_score": 82,
+    "good_trade": true,
+    "result_aligned_with_process": true,
+    "summary": "Trade yang baik karena keputusan mengikuti thesis dan perubahan bukti."
+  },
+  "journal_summary": {
+    "title": "BBRI — Rebound terkonfirmasi dengan partial profit",
+    "setup_summary": "Setup dari struktur rebound tiga bulan dengan buyer moderat.",
+    "entry_summary": "Posisi dibuka di 2.800 setelah buyer menguat.",
+    "management_summary": "Posisi dipantau melalui orderbook setiap sesi.",
+    "exit_summary": "Setengah posisi dijual di 2.920, sisa ditutup di 2.900.",
+    "result_summary": "Keuntungan kotor sekitar 3,93% dengan risiko awal 3,57%.",
+    "main_lesson": "Konfirmasi buyer dan partial exit membantu kualitas trade.",
+    "one_sentence_review": "Thesis benar, eksekusi disiplin, profit diamankan.",
+    "tags": ["swing-trade", "rebound", "partial-exit", "profit"]
+  },
+  "warnings_and_missing_information": {
+    "missing_information": [
+      "Biaya transaksi belum tersedia."
+    ],
+    "warnings": [
+      "Penilaian kualitas trade mengevaluasi proses, tidak hanya profit."
+    ]
+  }
+}

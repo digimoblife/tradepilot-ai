@@ -1,0 +1,252 @@
+{
+  "metadata": {
+    "analysis_id": "44444444-4444-4444-8444-444444444444",
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "analysis_type": "PARTIAL_EXIT_REVIEW",
+    "ticker": "BBRI",
+    "company_name": "Bank Rakyat Indonesia",
+    "analysis_timestamp": "2026-07-17T14:15:00+07:00",
+    "language": "id",
+    "schema": {
+      "schema_name": "partial_exit_review",
+      "schema_version": "1.0.0"
+    },
+    "prompt_version": "1.0.0",
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash"
+  },
+  "update_period": "AFTERNOON",
+  "comparison": {
+    "comparison_available": true,
+    "previous_analysis_id": "33333333-3333-4333-8333-333333333333",
+    "previous_analysis_type": "OPEN_POSITION_UPDATE",
+    "previous_analysis_timestamp": "2026-07-17T13:35:00+07:00",
+    "previous_update_period": "MIDDAY",
+    "summary": "Review setelah partial exit."
+  },
+  "evidence_summary": {
+    "evidence_ids": ["99999999-9999-4999-8999-999999999999"],
+    "orderbook_available": true,
+    "chart_3_month_available": true,
+    "chart_6_month_available": true,
+    "latest_orderbook_timestamp": "2026-07-17T14:10:00+07:00",
+    "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "has_unreadable_evidence": false,
+    "has_stale_evidence": false,
+    "summary": "Review menggunakan konfirmasi partial exit dan orderbook terbaru.",
+    "limitations": []
+  },
+  "market_snapshot": {
+    "trading_date": "2026-07-17",
+    "market_timestamp": "2026-07-17T14:10:00+07:00",
+    "update_period": "AFTERNOON",
+    "currency": "IDR",
+    "data_available": true,
+    "open": 2840,
+    "high": 2930,
+    "low": 2820,
+    "last": 2910,
+    "close": null,
+    "previous_close": 2830,
+    "average": 2878,
+    "change": 80,
+    "change_percentage": 2.83,
+    "volume": 168000000,
+    "transaction_value": 484000000000,
+    "best_bid": 2900,
+    "best_offer": 2910,
+    "spread": 10,
+    "spread_percentage": 0.34,
+    "summary": "Harga sempat menembus target awal dan bertahan di 2.910.",
+    "source": "MIXED",
+    "limitations": []
+  },
+  "partial_exit_confirmation": {
+    "confirmed": true,
+    "confirmation_action_id": "00000000-0000-4000-8000-000000000001",
+    "exit_timestamp": "2026-07-17T14:05:00+07:00",
+    "exit_price": 2920,
+    "exited_quantity": 50,
+    "remaining_quantity": 50,
+    "exit_reason": "PARTIAL_TAKE_PROFIT",
+    "user_note": "Menjual setengah posisi di target 2.920."
+  },
+  "result_summary": {
+    "entry_price": 2800,
+    "partial_exit_price": 2920,
+    "exited_quantity": 50,
+    "remaining_quantity": 50,
+    "realized_profit_loss": 6000,
+    "realized_return_percentage": 4.29,
+    "capital_recovered_percentage": 52.14,
+    "original_risk_reduced": true,
+    "summary": "Setengah posisi berhasil dijual pada target 2.920."
+  },
+  "orderbook_analysis": {
+    "available": true,
+    "buyer_strength": "MODERATE",
+    "seller_pressure": "MODERATE",
+    "best_bid": 2900,
+    "best_offer": 2910,
+    "bid_support": {
+      "price": 2900,
+      "label": "Post-breakout support",
+      "summary": "Area support setelah breakout."
+    },
+    "offer_resistance": {
+      "price": 2930,
+      "label": "Next offer resistance",
+      "summary": "Hambatan terdekat."
+    },
+    "buyer_observations": [
+      "Bid masih terlihat pada area 2.900."
+    ],
+    "seller_observations": [
+      "Seller mulai muncul di area 2.920–2.930."
+    ],
+    "important_changes": [
+      "Resistance 2.900 telah ditembus."
+    ],
+    "supports_remaining_position": true,
+    "conclusion": "Orderbook masih cukup mendukung sisa posisi.",
+    "limitations": []
+  },
+  "chart_update": {
+    "updated_chart_available": false,
+    "using_historical_context": true,
+    "chart_context_timestamp": "2026-07-15T09:10:00+07:00",
+    "short_term_trend": "UP",
+    "medium_term_trend": "SIDEWAYS",
+    "structure_status": "IMPROVING",
+    "nearest_support": {
+      "price": 2900,
+      "label": "Breakout support",
+      "summary": "Area yang perlu dipertahankan."
+    },
+    "nearest_resistance": {
+      "price": 3000,
+      "label": "Next resistance",
+      "summary": "Resistance berikutnya."
+    },
+    "breakout_status": "RETESTING",
+    "breakdown_status": "NOT_PRESENT",
+    "supports_remaining_position": true,
+    "conclusion": "Target awal telah tercapai dan harga sedang menguji breakout.",
+    "limitations": ["Chart menggunakan konteks historis."]
+  },
+  "remaining_position_assessment": {
+    "entry_price": 2800,
+    "current_price": 2910,
+    "original_quantity": 100,
+    "exited_quantity": 50,
+    "remaining_quantity": 50,
+    "active_stop_loss": 2840,
+    "active_target": 3000,
+    "realized_profit_loss": 6000,
+    "unrealized_profit_loss": 5500,
+    "unrealized_return_percentage": 3.93,
+    "total_trade_profit_loss": 11500,
+    "total_trade_return_percentage": 4.11,
+    "distance_to_stop_percentage": 2.41,
+    "distance_to_target_percentage": 3.09,
+    "health": "HEALTHY_WITH_CAUTION",
+    "summary": "Trade secara keseluruhan sudah menguntungkan."
+  },
+  "thesis_assessment": {
+    "status": "STRENGTHENING",
+    "remains_valid": true,
+    "summary": "Thesis rebound terbukti setelah target awal tercapai.",
+    "strengthening_evidence": [
+      "Target awal 2.920 telah tercapai."
+    ],
+    "weakening_evidence": [
+      "Seller mulai meningkat di area 2.920–2.930."
+    ],
+    "partial_exit_effect": "RISK_SIGNIFICANTLY_REDUCED",
+    "invalidation_condition": "Thesis melemah jika harga turun di bawah 2.880.",
+    "invalidation_price": 2880,
+    "invalidation_triggered": false
+  },
+  "remaining_target_assessment": {
+    "current_target": 3000,
+    "still_realistic": true,
+    "realism": "POSSIBLE_BUT_CHALLENGING",
+    "target_probability": 48,
+    "distance_to_target_percentage": 3.09,
+    "primary_obstacle": "Seller di area 2.920–2.930.",
+    "required_condition": "Harga bertahan di atas 2.900.",
+    "revised_target_proposed": false,
+    "proposed_target": null,
+    "summary": "Target lanjutan 3.000 masih mungkin dicapai."
+  },
+  "stop_loss_assessment": {
+    "current_stop_loss": 2840,
+    "still_appropriate": false,
+    "distance_to_stop_percentage": 2.41,
+    "move_to_break_even_possible": true,
+    "profit_protection_possible": true,
+    "revised_stop_proposed": true,
+    "proposed_stop_loss": 2880,
+    "risk_if_unchanged": "HIGH",
+    "summary": "Stop dapat dinaikkan ke 2.880 untuk melindungi profit."
+  },
+  "trading_plan": {
+    "current_action": "HOLD_WITH_CAUTION",
+    "action_rationale": "Sebagian profit telah diamankan, thesis masih valid.",
+    "plan_for_remaining_position": "Pertahankan sisa posisi selama harga bertahan di atas 2.880.",
+    "hold_condition": "Hold selama harga bertahan di atas 2.880.",
+    "protect_profit_condition": "Naikkan stop ke 2.880.",
+    "second_partial_exit_condition": "Pertimbangkan partial exit tambahan jika harga gagal di 2.930.",
+    "full_exit_condition": "Keluar penuh jika harga menembus 2.880.",
+    "levels_to_monitor": [
+      {
+        "price": 2880,
+        "label": "Protective stop",
+        "summary": "Batas perlindungan profit."
+      },
+      {
+        "price": 2900,
+        "label": "Breakout support",
+        "summary": "Area dukungan breakout."
+      }
+    ],
+    "requires_user_confirmation": false
+  },
+  "ai_assessment": {
+    "bias": "BULLISH",
+    "confidence": 72,
+    "bullish_probability": 61,
+    "remaining_target_probability": 48,
+    "downside_probability": 31,
+    "full_exit_probability": 26,
+    "risk_level": "MODERATE",
+    "remaining_position_worth_holding": true,
+    "summary": "Sisa posisi masih layak dipertahankan dengan fokus pada perlindungan profit."
+  },
+  "changes_from_previous": [
+    {
+      "category": "POSITION",
+      "previous_value": 100,
+      "current_value": 50,
+      "direction": "DECREASED",
+      "materiality": "CRITICAL",
+      "explanation": "Setengah posisi telah dijual."
+    },
+    {
+      "category": "TARGET",
+      "previous_value": 2920,
+      "current_value": 3000,
+      "direction": "SHIFTED_UP",
+      "materiality": "MATERIAL",
+      "explanation": "Target awal telah tercapai."
+    }
+  ],
+  "warnings_and_missing_information": {
+    "missing_information": [
+      "Tidak ada chart terbaru setelah breakout."
+    ],
+    "warnings": [
+      "Stop loss baru masih berupa proposal sampai dikonfirmasi user."
+    ]
+  }
+}

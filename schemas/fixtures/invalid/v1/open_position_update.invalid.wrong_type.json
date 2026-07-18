@@ -1,0 +1,192 @@
+{
+  "metadata": {
+    "analysis_id": "33333333-3333-4333-8333-333333333333",
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "analysis_type": "OPEN_POSITION_UPDATE",
+    "ticker": "BBRI",
+    "company_name": "Bank Rakyat Indonesia",
+    "analysis_timestamp": "2026-07-17T13:35:00+07:00",
+    "language": "id",
+    "schema": {
+      "schema_name": "open_position_update",
+      "schema_version": "1.0.0"
+    },
+    "prompt_version": "1.0.0",
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash"
+  },
+  "update_period": 12345,
+  "comparison": {
+    "comparison_available": true,
+    "previous_analysis_id": "11111111-1111-4111-8111-111111111111",
+    "previous_analysis_timestamp": "2026-07-15T09:20:00+07:00",
+    "previous_update_period": "MORNING",
+    "summary": "Wrong type for update_period."
+  },
+  "evidence_summary": {
+    "evidence_ids": ["99999999-9999-4999-8999-999999999999"],
+    "orderbook_available": true,
+    "chart_3_month_available": true,
+    "chart_6_month_available": true,
+    "latest_orderbook_timestamp": "2026-07-17T13:30:00+07:00",
+    "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "has_unreadable_evidence": false,
+    "has_stale_evidence": false,
+    "summary": "Analisa menggunakan orderbook terbaru.",
+    "limitations": []
+  },
+  "market_snapshot": {
+    "trading_date": "2026-07-17",
+    "market_timestamp": "2026-07-17T13:30:00+07:00",
+    "update_period": "MIDDAY",
+    "currency": "IDR",
+    "data_available": true,
+    "open": 2840,
+    "high": 2910,
+    "low": 2820,
+    "last": 2890,
+    "close": null,
+    "previous_close": 2830,
+    "average": 2867,
+    "change": 60,
+    "change_percentage": 2.12,
+    "volume": 125000000,
+    "transaction_value": 357500000000,
+    "best_bid": 2880,
+    "best_offer": 2890,
+    "spread": 10,
+    "spread_percentage": 0.35,
+    "summary": "Harga bergerak positif.",
+    "source": "MIXED",
+    "limitations": []
+  },
+  "today_summary": {
+    "open": 2840,
+    "high": 2910,
+    "low": 2820,
+    "last_or_close": 2890,
+    "average": 2867,
+    "change_percentage": 2.12,
+    "position_in_daily_range": "UPPER_HALF",
+    "summary": "BBRI di 2.890."
+  },
+  "orderbook_analysis": {
+    "available": true,
+    "buyer_strength": "MODERATE",
+    "seller_pressure": "MODERATE",
+    "best_bid": 2880,
+    "best_offer": 2890,
+    "bid_support": {
+      "price": 2870,
+      "label": "Bid support",
+      "summary": "Area bid."
+    },
+    "offer_resistance": {
+      "price": 2900,
+      "label": "Offer resistance",
+      "summary": "Hambatan."
+    },
+    "spread_observation": "Normal.",
+    "buyer_observations": ["Bid bertahan."],
+    "seller_observations": ["Offer di 2.900."],
+    "important_changes": [],
+    "supports_position": true,
+    "conclusion": "Orderbook mendukung.",
+    "limitations": []
+  },
+  "chart_update": {
+    "updated_chart_available": false,
+    "using_historical_context": true,
+    "chart_context_timestamp": "2026-07-15T09:10:00+07:00",
+    "short_term_trend": "UP",
+    "medium_term_trend": "SIDEWAYS",
+    "structure_status": "IMPROVING",
+    "nearest_support": {
+      "price": 2840,
+      "label": "Support",
+      "summary": "Support."
+    },
+    "nearest_resistance": {
+      "price": 2920,
+      "label": "Resistance",
+      "summary": "Resistance."
+    },
+    "breakout_status": "POSSIBLE",
+    "breakdown_status": "NOT_PRESENT",
+    "supports_position": true,
+    "conclusion": "Chart mendukung.",
+    "limitations": ["Tidak ada chart baru."]
+  },
+  "position_assessment": {
+    "entry_price": 2800,
+    "current_price": 2890,
+    "remaining_quantity": 100,
+    "active_stop_loss": 2840,
+    "active_target": 2920,
+    "unrealized_profit_loss": 9000,
+    "unrealized_return_percentage": 3.21,
+    "distance_to_stop_percentage": 1.73,
+    "distance_to_target_percentage": 1.04,
+    "holding_duration_days": 2,
+    "health": "HEALTHY_WITH_CAUTION",
+    "summary": "Posisi profit."
+  },
+  "thesis_assessment": {
+    "status": "INTACT",
+    "remains_valid": true,
+    "summary": "Thesis valid.",
+    "strengthening_evidence": ["Harga di atas average."],
+    "weakening_evidence": ["Offer di 2.900 tebal."],
+    "invalidation_condition": "Harga turun di bawah 2.840.",
+    "invalidation_price": 2840,
+    "invalidation_triggered": false
+  },
+  "target_assessment": {
+    "target_price": 2920,
+    "still_realistic": true,
+    "realism": "REALISTIC",
+    "target_probability": 62,
+    "distance_to_target_percentage": 1.04,
+    "primary_obstacle": "Offer 2.900.",
+    "required_condition": "Harga serap offer 2.900.",
+    "revised_target_proposed": false,
+    "proposed_target": null,
+    "summary": "Target realistis."
+  },
+  "stop_loss_assessment": {
+    "stop_loss_price": 2840,
+    "still_appropriate": true,
+    "distance_to_stop_percentage": 1.73,
+    "approached": false,
+    "triggered": false,
+    "risk_if_unchanged": "MODERATE",
+    "revised_stop_proposed": false,
+    "proposed_stop_loss": null,
+    "summary": "Stop sesuai."
+  },
+  "trading_plan": {
+    "current_action": "HOLD",
+    "action_rationale": "Posisi profit.",
+    "plan_for_next_session": "Pantau.",
+    "hold_condition": "Hold di atas 2.840.",
+    "reduce_risk_condition": "Kurangi jika gagal.",
+    "exit_condition": "Exit jika turun.",
+    "add_position_condition": null,
+    "levels_to_monitor": [],
+    "requires_user_confirmation": false
+  },
+  "ai_assessment": {
+    "bias": "BULLISH",
+    "confidence": 74,
+    "bullish_probability": 68,
+    "target_probability": 62,
+    "downside_probability": 28,
+    "risk_level": "MODERATE",
+    "summary": "Bias bullish."
+  },
+  "changes_from_previous": [],
+  "warnings_and_missing_information": {
+    "missing_information": [],
+    "warnings": []
+  }
+}

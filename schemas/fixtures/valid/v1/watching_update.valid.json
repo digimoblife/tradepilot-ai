@@ -1,0 +1,268 @@
+{
+  "metadata": {
+    "analysis_id": "22222222-2222-4222-8222-222222222222",
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "analysis_type": "WATCHING_UPDATE",
+    "ticker": "BBRI",
+    "company_name": "Bank Rakyat Indonesia",
+    "analysis_timestamp": "2026-07-15T10:00:00+07:00",
+    "language": "id",
+    "schema": {
+      "schema_name": "watching_update",
+      "schema_version": "1.0.0"
+    },
+    "prompt_version": "1.0.0",
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash"
+  },
+  "update_period": "MORNING",
+  "comparison": {
+    "comparison_available": true,
+    "previous_analysis_id": "11111111-1111-4111-8111-111111111111",
+    "previous_analysis_type": "INITIAL_ANALYSIS",
+    "previous_analysis_timestamp": "2026-07-15T09:20:00+07:00",
+    "previous_update_period": "MORNING",
+    "summary": "Update ini membandingkan kondisi terbaru dengan initial analysis."
+  },
+  "evidence_summary": {
+    "evidence_ids": ["88888888-8888-4888-8888-888888888888"],
+    "orderbook_available": true,
+    "chart_3_month_available": true,
+    "chart_6_month_available": true,
+    "latest_orderbook_timestamp": "2026-07-15T09:55:00+07:00",
+    "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "has_unreadable_evidence": false,
+    "has_stale_evidence": false,
+    "summary": "Update menggunakan orderbook terbaru dan konteks chart dari initial analysis.",
+    "limitations": []
+  },
+  "market_snapshot": {
+    "trading_date": "2026-07-15",
+    "market_timestamp": "2026-07-15T09:55:00+07:00",
+    "update_period": "MORNING",
+    "currency": "IDR",
+    "data_available": true,
+    "open": 2780,
+    "high": 2820,
+    "low": 2770,
+    "last": 2800,
+    "close": null,
+    "previous_close": 2770,
+    "average": 2796,
+    "change": 30,
+    "change_percentage": 1.08,
+    "volume": 31800000,
+    "transaction_value": 88900000000,
+    "best_bid": 2800,
+    "best_offer": 2810,
+    "spread": 10,
+    "spread_percentage": 0.36,
+    "summary": "Harga masih di sekitar entry referensi dan sedikit di atas average.",
+    "source": "MIXED",
+    "limitations": []
+  },
+  "today_summary": {
+    "open": 2780,
+    "high": 2820,
+    "low": 2770,
+    "last_or_close": 2800,
+    "average": 2796,
+    "change_percentage": 1.08,
+    "position_in_daily_range": "MIDDLE",
+    "distance_from_reference_entry_percentage": 0,
+    "summary": "Harga saat ini tepat di area entry referensi 2.800."
+  },
+  "orderbook_analysis": {
+    "available": true,
+    "buyer_strength": "STRONG",
+    "seller_pressure": "MODERATE",
+    "best_bid": 2800,
+    "best_offer": 2810,
+    "bid_support": {
+      "price": 2790,
+      "label": "Bid support",
+      "summary": "Area buyer yang perlu bertahan."
+    },
+    "offer_resistance": {
+      "price": 2820,
+      "label": "Offer resistance",
+      "summary": "Hambatan awal setelah entry."
+    },
+    "buyer_observations": [
+      "Best bid naik dari 2.790 menjadi 2.800."
+    ],
+    "seller_observations": [
+      "Offer masih tersedia di area 2.810–2.820."
+    ],
+    "important_changes": [
+      "Buyer strength meningkat dari moderat menjadi kuat."
+    ],
+    "supports_entry": true,
+    "entry_confirmation_visible": true,
+    "conclusion": "Konfirmasi buyer mulai terlihat. Orderbook saat ini lebih mendukung entry.",
+    "limitations": []
+  },
+  "chart_update": {
+    "updated_chart_available": false,
+    "using_historical_context": true,
+    "chart_context_timestamp": "2026-07-15T09:10:00+07:00",
+    "short_term_trend": "UP",
+    "medium_term_trend": "SIDEWAYS",
+    "structure_status": "IMPROVING",
+    "nearest_support": {
+      "price": 2720,
+      "label": "Short-term support",
+      "summary": "Support chart jangka pendek."
+    },
+    "nearest_resistance": {
+      "price": 2900,
+      "label": "Primary resistance",
+      "summary": "Resistance utama setup rebound."
+    },
+    "breakout_status": "POSSIBLE",
+    "breakdown_status": "NOT_PRESENT",
+    "supports_setup": true,
+    "important_changes": [],
+    "conclusion": "Konteks chart masih mendukung setup rebound.",
+    "limitations": ["Analisa chart menggunakan konteks initial analysis."]
+  },
+  "setup_assessment": {
+    "status": "IMPROVING",
+    "still_valid": true,
+    "original_thesis_summary": "BBRI berpotensi rebound menuju 2.900–2.920 selama buyer menjaga area 2.780.",
+    "current_thesis_summary": "Thesis rebound menguat karena buyer kini lebih aktif.",
+    "strengthening_evidence": [
+      "Buyer strength meningkat menjadi kuat."
+    ],
+    "weakening_evidence": [
+      "Offer 2.810–2.820 belum terserap."
+    ],
+    "invalidation_condition": "Setup batal jika harga turun menembus 2.700.",
+    "invalidation_price": 2700,
+    "invalidation_triggered": false,
+    "summary": "Setup membaik dan masih valid."
+  },
+  "entry_assessment": {
+    "reference_entry_type": "EXACT_PRICE",
+    "reference_entry_price": 2800,
+    "reference_entry_zone_low": null,
+    "reference_entry_zone_high": null,
+    "current_price": 2800,
+    "entry_still_attractive": true,
+    "entry_confirmation_met": true,
+    "price_already_extended": false,
+    "chase_risk": "LOW",
+    "maximum_acceptable_entry": 2820,
+    "revised_entry_proposed": false,
+    "proposed_entry_type": null,
+    "proposed_entry_price": null,
+    "proposed_entry_zone_low": null,
+    "proposed_entry_zone_high": null,
+    "entry_condition": "Entry dapat dipertimbangkan selama bid 2.790–2.800 bertahan.",
+    "wait_condition": "Tunggu jika best bid turun di bawah 2.780.",
+    "cancel_entry_condition": "Batalkan entry jika harga menembus 2.700.",
+    "summary": "Entry 2.800 masih menarik dan konfirmasi buyer mulai terpenuhi."
+  },
+  "price_levels": {
+    "supports": [
+      {
+        "price": 2790,
+        "label": "Entry support",
+        "summary": "Support orderbook."
+      },
+      {
+        "price": 2700,
+        "label": "Major support",
+        "summary": "Batas invalidation."
+      }
+    ],
+    "resistances": [
+      {
+        "price": 2820,
+        "label": "Immediate resistance",
+        "summary": "Hambatan awal."
+      },
+      {
+        "price": 2900,
+        "label": "Primary resistance",
+        "summary": "Resistance utama."
+      }
+    ],
+    "reference_entry": {
+      "price": 2800,
+      "label": "Reference entry",
+      "summary": "Harga entry yang masih menarik."
+    },
+    "maximum_acceptable_entry": {
+      "price": 2820,
+      "label": "Maximum entry",
+      "summary": "Batas atas entry."
+    },
+    "invalidation_level": {
+      "price": 2700,
+      "label": "Invalidation",
+      "summary": "Penembusan level ini membatalkan thesis."
+    },
+    "proposed_stop_loss": {
+      "price": 2700,
+      "label": "Proposed stop loss",
+      "summary": "Batas risiko awal."
+    },
+    "proposed_target": {
+      "price": 2920,
+      "label": "Proposed target",
+      "summary": "Target awal swing."
+    },
+    "summary": "Area 2.790–2.800 menjadi zona konfirmasi entry."
+  },
+  "trading_plan": {
+    "current_action": "ENTER_IF_CONFIRMED",
+    "action_rationale": "Buyer menguat dan setup belum terlalu extended.",
+    "entry_condition": "Entry sekitar 2.800 dapat dilakukan jika bid 2.790–2.800 bertahan.",
+    "wait_condition": "Tunda entry jika buyer melemah kembali.",
+    "do_not_chase_condition": "Jangan mengejar di atas 2.820.",
+    "cancel_setup_condition": "Batalkan jika harga turun di bawah 2.700.",
+    "next_checkpoint": "Setelah entry, konfirmasi posisi ke Open Position.",
+    "levels_to_monitor": [
+      {
+        "price": 2790,
+        "label": "Buyer support",
+        "summary": "Area konfirmasi buyer."
+      },
+      {
+        "price": 2700,
+        "label": "Stop loss",
+        "summary": "Batas risiko awal."
+      }
+    ],
+    "requires_user_confirmation": true
+  },
+  "ai_assessment": {
+    "bias": "BULLISH",
+    "confidence": 70,
+    "setup_quality": "GOOD",
+    "bullish_probability": 65,
+    "target_probability": 58,
+    "downside_probability": 30,
+    "entry_probability": 72,
+    "risk_level": "MODERATE",
+    "setup_valid": true,
+    "summary": "Setup membaik dan entry mulai layak dipertimbangkan."
+  },
+  "changes_from_previous": [
+    {
+      "category": "ORDERBOOK",
+      "previous_value": "MODERATE",
+      "current_value": "STRONG",
+      "direction": "IMPROVED",
+      "materiality": "MATERIAL",
+      "explanation": "Buyer strength meningkat setelah best bid bergeser naik."
+    }
+  ],
+  "warnings_and_missing_information": {
+    "missing_information": [],
+    "warnings": [
+      "Orderbook bersifat snapshot dan dapat berubah cepat."
+    ]
+  }
+}

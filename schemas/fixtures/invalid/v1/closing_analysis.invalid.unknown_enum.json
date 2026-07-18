@@ -1,0 +1,159 @@
+{
+  "metadata": {
+    "analysis_id": "55555555-5555-4555-8555-555555555555",
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "analysis_type": "CLOSING_ANALYSIS",
+    "ticker": "BBRI",
+    "company_name": "Bank Rakyat Indonesia",
+    "analysis_timestamp": "2026-07-17T15:25:00+07:00",
+    "language": "id",
+    "schema": {
+      "schema_name": "closing_analysis",
+      "schema_version": "1.0.0"
+    },
+    "prompt_version": "1.0.0",
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash"
+  },
+  "evidence_summary": {
+    "evidence_ids": ["99999999-9999-4999-8999-999999999999"],
+    "orderbook_available": true,
+    "chart_3_month_available": true,
+    "chart_6_month_available": true,
+    "latest_orderbook_timestamp": "2026-07-17T15:15:00+07:00",
+    "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "has_unreadable_evidence": false,
+    "has_stale_evidence": false,
+    "summary": "Closing analysis.",
+    "limitations": []
+  },
+  "closing_confirmation": {
+    "confirmed": true,
+    "confirmation_action_id": "00000000-0000-4000-8000-000000000002",
+    "closing_reason": "UNKNOWN_REASON",
+    "exit_timestamp": "2026-07-17T15:12:00+07:00",
+    "final_exit_price": 2900,
+    "final_exit_quantity": 50,
+    "average_exit_price": 2910,
+    "user_note": "Menutup posisi."
+  },
+  "trade_result": {
+    "currency": "IDR",
+    "entry_price": 2800,
+    "original_quantity": 100,
+    "average_exit_price": 2910,
+    "gross_profit_loss": 11000,
+    "fees": null,
+    "taxes": null,
+    "net_profit_loss": null,
+    "gross_return_percentage": 3.93,
+    "net_return_percentage": null,
+    "maximum_unrealized_profit_percentage": 4.64,
+    "maximum_unrealized_loss_percentage": -1.07,
+    "holding_duration_calendar_days": 2,
+    "holding_duration_trading_days": 3,
+    "partial_exit_count": 1,
+    "outcome": "PROFIT",
+    "summary": "Trade profit."
+  },
+  "trade_timeline": {
+    "session_started_at": "2026-07-15T09:05:00+07:00",
+    "position_opened_at": "2026-07-15T10:12:00+07:00",
+    "position_closed_at": "2026-07-17T15:12:00+07:00",
+    "analysis_count": 4,
+    "events": [
+      {
+        "timestamp": "2026-07-15T09:20:00+07:00",
+        "event_type": "INITIAL_ANALYSIS",
+        "price": 2800,
+        "quantity": null,
+        "related_analysis_id": "11111111-1111-4111-8111-111111111111",
+        "summary": "Setup rebound."
+      },
+      {
+        "timestamp": "2026-07-15T10:12:00+07:00",
+        "event_type": "POSITION_OPENED",
+        "price": 2800,
+        "quantity": 100,
+        "related_analysis_id": "11111111-1111-4111-8111-111111111111",
+        "summary": "Posisi dibuka."
+      }
+    ],
+    "journey_summary": "Trade dari setup rebound hingga profit."
+  },
+  "final_thesis_evaluation": {
+    "original_thesis": "BBRI berpotensi rebound.",
+    "final_thesis_status": "COMPLETED",
+    "outcome": "FULLY_CONFIRMED",
+    "thesis_was_correct": true,
+    "entry_reason_remained_valid": true,
+    "invalidation_condition_respected": true,
+    "supporting_evidence": ["Buyer menguat."],
+    "contradicting_evidence": [],
+    "summary": "Thesis terbukti benar."
+  },
+  "plan_execution_evaluation": {
+    "overall_quality": "GOOD",
+    "entry_quality": "GOOD",
+    "position_management_quality": "GOOD",
+    "exit_quality": "GOOD",
+    "entry_plan_followed": true,
+    "stop_loss_plan_followed": true,
+    "target_plan_followed": true,
+    "exit_plan_followed": true,
+    "positive_execution_points": [],
+    "execution_deviations": [],
+    "summary": "Eksekusi disiplin."
+  },
+  "risk_management_evaluation": {
+    "quality": "GOOD",
+    "initial_risk_percentage": 3.57,
+    "maximum_loss_limit_respected": true,
+    "stop_loss_used": true,
+    "stop_loss_respected": true,
+    "profit_protected": true,
+    "partial_exit_used": true,
+    "risk_increased_without_confirmation": false,
+    "strengths": [],
+    "weaknesses": [],
+    "summary": "Manajemen risiko baik."
+  },
+  "what_worked": [],
+  "what_did_not_work": [],
+  "avoidable_mistakes": [],
+  "lessons_learned": [
+    {
+      "category": "ENTRY",
+      "lesson": "Entry dengan konfirmasi buyer lebih nyaman.",
+      "evidence": "Buyer menguat sebelum entry.",
+      "future_rule": "Hindari entry tanpa orderbook."
+    }
+  ],
+  "future_improvements": [],
+  "final_ai_evaluation": {
+    "trade_grade": "A",
+    "process_score": 86,
+    "thesis_score": 90,
+    "execution_score": 84,
+    "risk_management_score": 88,
+    "result_score": 82,
+    "good_trade": true,
+    "result_aligned_with_process": true,
+    "summary": "Trade yang baik."
+  },
+  "journal_summary": {
+    "title": "BBRI Rebound",
+    "setup_summary": "Setup dari rebound tiga bulan.",
+    "entry_summary": "Posisi di 2.800.",
+    "management_summary": "Dipantau via orderbook.",
+    "exit_summary": "Partial exit di 2.920, sisa di 2.900.",
+    "result_summary": "Profit 3,93%.",
+    "main_lesson": "Konfirmasi buyer penting.",
+    "one_sentence_review": "Thesis benar, eksekusi baik.",
+    "tags": ["swing-trade"]
+  },
+  "warnings_and_missing_information": {
+    "missing_information": [],
+    "warnings": []
+  }
+}

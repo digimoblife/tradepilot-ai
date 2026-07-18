@@ -39,6 +39,7 @@ services:
       EVIDENCE_STORAGE_PATH: /data/evidence
     volumes:
       - evidence_data:/data/evidence
+      - ../../schemas:/app/schemas:ro
     depends_on:
       postgres:
         condition: service_started

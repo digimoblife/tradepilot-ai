@@ -1,0 +1,246 @@
+{
+  "metadata": {
+    "analysis_id": "11111111-1111-4111-8111-111111111111",
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "analysis_type": "INITIAL_ANALYSIS",
+    "ticker": "BBRI",
+    "company_name": "Bank Rakyat Indonesia",
+    "analysis_timestamp": "2026-07-15T09:20:00+07:00",
+    "language": "id",
+    "schema": {
+      "schema_name": "initial_analysis",
+      "schema_version": "1.0.0"
+    },
+    "prompt_version": "1.0.0",
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash"
+  },
+  "evidence_summary": {
+    "evidence_ids": ["77777777-7777-4777-8777-777777777777"],
+    "orderbook_available": true,
+    "chart_3_month_available": true,
+    "chart_6_month_available": true,
+    "latest_orderbook_timestamp": "2026-07-15T09:10:00+07:00",
+    "latest_chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "has_unreadable_evidence": false,
+    "has_stale_evidence": false,
+    "summary": "Analisa menggunakan screenshot orderbook dan chart.",
+    "limitations": []
+  },
+  "market_snapshot": {
+    "trading_date": "2026-07-15",
+    "market_timestamp": "2026-07-15T09:10:00+07:00",
+    "update_period": "MORNING",
+    "currency": "IDR",
+    "data_available": true,
+    "open": 2780,
+    "high": 2820,
+    "low": 2770,
+    "last": 2800,
+    "close": null,
+    "previous_close": 2770,
+    "average": 2794,
+    "change": 30,
+    "change_percentage": 1.08,
+    "volume": 24500000,
+    "transaction_value": 68450000000,
+    "best_bid": 2790,
+    "best_offer": 2800,
+    "spread": 10,
+    "spread_percentage": 0.36,
+    "summary": "Harga bergerak positif.",
+    "source": "MIXED",
+    "limitations": []
+  },
+  "executive_summary": {
+    "setup_status": "UNKNOWN",
+    "recommended_action": "NO_ACTION",
+    "headline": "Setup membutuhkan konfirmasi.",
+    "summary": "Kondisi awal menunjukkan potensi rebound.",
+    "main_opportunity": "Potensi rebound ke 2.900.",
+    "main_risk": "Rebound gagal."
+  },
+  "orderbook_analysis": {
+    "available": true,
+    "market_timestamp": "2026-07-15T09:10:00+07:00",
+    "buyer_strength": "MODERATE",
+    "seller_pressure": "MODERATE",
+    "best_bid": 2790,
+    "best_offer": 2800,
+    "bid_support": {
+      "price": 2780,
+      "label": "Bid support",
+      "summary": "Area bid."
+    },
+    "offer_resistance": {
+      "price": 2820,
+      "label": "Offer resistance",
+      "summary": "Hambatan."
+    },
+    "buyer_observations": ["Bid merata."],
+    "seller_observations": [],
+    "positive_signals": ["Harga di atas average."],
+    "risk_signals": [],
+    "supports_entry": false,
+    "conclusion": "Orderbook belum mendukung entry.",
+    "limitations": []
+  },
+  "chart_3_month_analysis": {
+    "available": true,
+    "timeframe": "THREE_MONTH",
+    "chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "trend": "UP",
+    "structure_status": "IMPROVING",
+    "momentum": "IMPROVING",
+    "volume_condition": "SUPPORTIVE",
+    "nearest_support": {
+      "price": 2720,
+      "label": "Support",
+      "summary": "Support."
+    },
+    "nearest_resistance": {
+      "price": 2900,
+      "label": "Resistance",
+      "summary": "Resistance."
+    },
+    "breakout_status": "POSSIBLE",
+    "breakdown_status": "NOT_PRESENT",
+    "positive_signals": ["Higher low."],
+    "risk_signals": [],
+    "supports_setup": true,
+    "conclusion": "Chart 3M mendukung.",
+    "limitations": []
+  },
+  "chart_6_month_analysis": {
+    "available": true,
+    "timeframe": "SIX_MONTH",
+    "chart_timestamp": "2026-07-15T09:10:00+07:00",
+    "trend": "SIDEWAYS",
+    "structure_status": "MIXED",
+    "momentum": "NEUTRAL",
+    "volume_condition": "NORMAL",
+    "nearest_support": {
+      "price": 2700,
+      "label": "Support",
+      "summary": "Support."
+    },
+    "nearest_resistance": {
+      "price": 3000,
+      "label": "Resistance",
+      "summary": "Resistance."
+    },
+    "breakout_status": "NOT_PRESENT",
+    "breakdown_status": "NOT_PRESENT",
+    "positive_signals": [],
+    "risk_signals": [],
+    "supports_setup": true,
+    "conclusion": "Chart 6M sideways.",
+    "limitations": []
+  },
+  "combined_chart_analysis": {
+    "multi_timeframe_alignment": "PARTIALLY_ALIGNED",
+    "short_term_trend": "UP",
+    "medium_term_trend": "SIDEWAYS",
+    "dominant_structure": "IMPROVING",
+    "setup_supported": true,
+    "main_confirmation": "Struktur 3M membaik.",
+    "main_conflict": "Chart 6M sideways.",
+    "conclusion": "Kedua timeframe mendukung."
+  },
+  "price_levels": {
+    "supports": [],
+    "resistances": [],
+    "entry_reference": {
+      "price": 2800,
+      "label": "Entry",
+      "summary": "Entry referensi."
+    },
+    "invalidation_level": {
+      "price": 2700,
+      "label": "Invalidation",
+      "summary": "Batas invalidation."
+    },
+    "stop_loss_level": {
+      "price": 2700,
+      "label": "Stop loss",
+      "summary": "Batas risiko."
+    },
+    "target_level": {
+      "price": 2920,
+      "label": "Target",
+      "summary": "Target profit."
+    },
+    "summary": "Area entry 2.800."
+  },
+  "entry_plan": {
+    "entry_recommended": false,
+    "entry_type": "NO_ENTRY",
+    "entry_price": null,
+    "entry_zone_low": null,
+    "entry_zone_high": null,
+    "confirmation_required": false,
+    "confirmation_condition": null,
+    "chase_risk": "UNKNOWN",
+    "maximum_acceptable_entry": null,
+    "cancel_entry_condition": "Batalkan jika turun.",
+    "summary": "Entry tidak direkomendasikan."
+  },
+  "stop_loss_plan": {
+    "stop_loss_recommended": false,
+    "stop_loss_price": null,
+    "risk_from_reference_entry_percentage": null,
+    "invalidation_condition": "Keluar jika harga turun.",
+    "reason": "Belum ada posisi.",
+    "maximum_risk_respected": null,
+    "summary": "Stop belum diperlukan."
+  },
+  "target_plan": {
+    "target_recommended": false,
+    "target_price": null,
+    "reward_from_reference_entry_percentage": null,
+    "risk_reward_ratio": null,
+    "target_basis": "Target di 2.920.",
+    "primary_obstacle": null,
+    "required_condition": null,
+    "summary": "Target belum aktif."
+  },
+  "initial_thesis": {
+    "status": "INTACT",
+    "summary": "BBRI berpotensi rebound.",
+    "setup_reason": "Struktur chart 3M membaik.",
+    "supporting_factors": [],
+    "risk_factors": [],
+    "support_condition": "Harga bertahan di atas 2.700.",
+    "invalidation_condition": "Harga menembus 2.700.",
+    "invalidation_price": 2700,
+    "expected_holding_period": "1–2 minggu",
+    "review_conditions": []
+  },
+  "trading_plan": {
+    "current_action": "NO_ACTION",
+    "action_rationale": "Setup belum cukup kuat.",
+    "entry_condition": null,
+    "wait_condition": "Tunggu konfirmasi buyer.",
+    "cancel_setup_condition": "Batalkan jika turun.",
+    "post_entry_hold_condition": null,
+    "post_entry_exit_condition": null,
+    "levels_to_monitor": [],
+    "next_checkpoint": "Sesi berikutnya.",
+    "requires_user_confirmation": false
+  },
+  "ai_assessment": {
+    "bias": "NEUTRAL",
+    "confidence": 55,
+    "setup_quality": "WEAK",
+    "bullish_probability": 150,
+    "target_probability": 35,
+    "downside_probability": 40,
+    "risk_level": "MODERATE",
+    "setup_valid": false,
+    "summary": "Setup masih lemah."
+  },
+  "warnings_and_missing_information": {
+    "missing_information": [],
+    "warnings": []
+  }
+}
