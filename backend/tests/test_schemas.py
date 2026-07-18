@@ -294,3 +294,166 @@ def test_valid_fixtures_have_correct_metadata() -> None:
             assert schema_block.get("schema_version") == "1.0.0", (
                 f"{fixture.name}: schema_version not 1.0.0"
             )
+
+
+# ---------------------------------------------------------------------------
+# 11. Recursive $ref extraction and resolution
+# ---------------------------------------------------------------------------
+
+def _walk_refs(value: object, path: str) -> list[tuple[str, str]]:
+    refs: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            child = f"{path}/{key}"
+            if key == "$ref" and isinstance(item, str):
+                refs.append((child, item))
+            refs.extend(_walk_refs(item, child))
+    elif isinstance(value, list):
+        for idx, item in enumerate(value):
+            refs.extend(_walk_refs(item, f"{path}/{idx}"))
+    return refs
+
+
+def test_all_refs_resolve_with_local_registry() -> None:
+    for schema_file in SCHEMA_FILES:
+        schema = _load_json(schema_file)
+        refs = _walk_refs(schema, "$")
+        for location, ref_value in refs:
+            if ref_value.startswith("#"):
+                if ref_value == "#":
+                    continue
+                parts = ref_value.lstrip("#/").split("/")
+                cur: object = schema
+                for p in parts:
+                    if isinstance(cur, dict):
+                        cur = cur.get(p, {})
+                    else:
+                        break
+                assert cur is not None and cur != {}, f"{schema_file.name}{location}: fragment {ref_value} not found"
+            else:
+                uri_part = ref_value.split("#")[0]
+                matched = False
+                for other in SCHEMA_FILES:
+                    other_schema = _load_json(other)
+                    if other_schema.get("$id") == uri_part:
+                        matched = True
+                        break
+                assert matched, f"{schema_file.name}{location}: document {uri_part} not in registry"
+
+
+# ---------------------------------------------------------------------------
+# 12. No unsafe references
+# ---------------------------------------------------------------------------
+
+def test_no_unsafe_references() -> None:
+    unsafe_patterns = ["file://", "localhost", "/Users/", "schemas/draft", "fixtures"]
+    for schema_file in SCHEMA_FILES:
+        schema = _load_json(schema_file)
+        refs = _walk_refs(schema, "$")
+        for location, ref_value in refs:
+            for up in unsafe_patterns:
+                assert up not in ref_value, (
+                    f"{schema_file.name}{location}: unsafe reference {ref_value}"
+                )
+
+
+# ---------------------------------------------------------------------------
+# 13. Common $defs inventory
+# ---------------------------------------------------------------------------
+
+EXPECTED_COMMON_DEFS = {
+    "uuid", "nullableUuid", "timestamp", "nullableTimestamp", "ticker",
+    "companyName", "nullableCompanyName", "languageCode", "currencyCode",
+    "price", "nullablePrice", "nonNegativeNumber", "nullableNonNegativeNumber",
+    "signedNumber", "nullableSignedNumber", "positiveInteger", "nonNegativeInteger",
+    "nullablePositiveInteger", "nullableNonNegativeInteger", "quantity", "nullableQuantity",
+    "percentage", "nullablePercentage", "probability", "nullableProbability",
+    "confidenceScore", "nullableConfidenceScore", "shortText", "nullableShortText",
+    "narrative", "nullableNarrative", "shortTextArray", "narrativeArray", "uuidArray",
+    "nullableBoolean", "analysisType", "sessionStatus", "thesisStatus",
+    "tradingDate", "nullableTradingDate",
+    "directionalBias", "riskLevel", "setupQuality", "recommendedAction",
+    "positionHealth", "targetRealism", "updatePeriod", "timeframe",
+    "evidenceType", "evidenceUsability", "buyerStrength", "sellerPressure",
+    "trendDirection", "structureStatus", "breakoutStatus", "breakdownStatus",
+    "setupStatus", "changeDirection", "changeMateriality", "changeCategory",
+    "closingReason", "schemaMetadata", "analysisMetadata", "priceLevel",
+    "nullablePriceLevel", "priceLevelArray", "materialChange",
+    "materialChangeArray", "aiAssessment", "warningsAndMissingInformation",
+}
+
+
+def test_common_defs_inventory() -> None:
+    common = _load_json(PRODUCTION_DIR / "common.schema.json")
+    actual = set(common.get("$defs", {}).keys())
+    missing = EXPECTED_COMMON_DEFS - actual
+    extra = actual - EXPECTED_COMMON_DEFS
+    assert not missing, f"Missing expected $defs: {sorted(missing)}"
+    assert not extra, f"Unexpected $defs (update EXPECTED_COMMON_DEFS): {sorted(extra)}"
+
+
+# ---------------------------------------------------------------------------
+# 14. Probability/confidence consistency
+# ---------------------------------------------------------------------------
+
+def test_probability_confidence_scale() -> None:
+    common = _load_json(PRODUCTION_DIR / "common.schema.json")
+    prob = common["$defs"]["probability"]
+    assert prob["type"] == "integer"
+    assert prob["minimum"] == 0
+    assert prob["maximum"] == 100
+    conf = common["$defs"]["confidenceScore"]
+    assert conf["type"] == "integer"
+    assert conf["minimum"] == 0
+    assert conf["maximum"] == 100
+
+
+# ---------------------------------------------------------------------------
+# 15. Expected common refs in analysis schemas
+# ---------------------------------------------------------------------------
+
+EXPECTED_ANALYSIS_COMMON_REFS: dict[str, set[str]] = {
+    "analysisMetadata": {"initial_analysis", "watching_update", "open_position_update",
+                          "partial_exit_review", "closing_analysis"},
+    "aiAssessment": {"open_position_update"},
+    "materialChangeArray": {"watching_update", "open_position_update", "partial_exit_review"},
+    "warningsAndMissingInformation": {
+        "initial_analysis", "watching_update", "open_position_update",
+        "partial_exit_review", "closing_analysis",
+    },
+}
+
+COMMON_URI = "https://schemas.tradepilot.local/production/v1/common.schema.json"
+
+
+def test_expected_common_refs_used() -> None:
+    for def_name, expected_schemas in EXPECTED_ANALYSIS_COMMON_REFS.items():
+        for schema_name in expected_schemas:
+            schema_file = PRODUCTION_DIR / f"{schema_name}.schema.json"
+            assert schema_file.exists(), f"Schema file not found: {schema_file}"
+            schema = _load_json(schema_file)
+            ref_value = f"{COMMON_URI}#/$defs/{def_name}"
+            schema_str = json.dumps(schema)
+            assert ref_value in schema_str, (
+                f"{schema_name}.schema.json missing $ref to {def_name}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# 16. Offline resolution test (registry built from local files)
+# ---------------------------------------------------------------------------
+
+def test_offline_registry_resolves_all() -> None:
+    registry = _build_registry()
+    for schema_file in SCHEMA_FILES:
+        schema = _load_json(schema_file)
+        sid = schema.get("$id", "")
+        if not sid:
+            continue
+        validator_cls = jsonschema.validators.validator_for(schema)
+        validator = validator_cls(schema, registry=registry)
+        errors = list(validator.iter_errors({}))
+        for err in errors:
+            if err.validator in ("required", "type"):
+                continue
+            assert False, f"{schema_file.name}: offline resolution error: {err.message}"
