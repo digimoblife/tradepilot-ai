@@ -17,9 +17,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @dataclass(frozen=True)
@@ -53,9 +51,7 @@ def engine(db_url: str) -> AsyncIterator[AsyncEngine]:
 
 @pytest.fixture
 async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    factory = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False
-    )
+    factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as s:
         yield s
 
@@ -89,13 +85,17 @@ async def _seed(engine: AsyncEngine) -> RepositorySeedData:
         ).first()
         sa = (
             await conn.execute(
-                text("INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING id"),
+                text(
+                    "INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING id"
+                ),
                 {"uid": ua[0], "t": "BBRI"},
             )
         ).first()
         sb = (
             await conn.execute(
-                text("INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING id"),
+                text(
+                    "INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING id"
+                ),
                 {"uid": ub[0], "t": "TLKM"},
             )
         ).first()
@@ -107,28 +107,45 @@ async def _seed(engine: AsyncEngine) -> RepositorySeedData:
         ).first()
         ac = (
             await conn.execute(
-                text("INSERT INTO trade_actions (session_id, action_type, confirmed_at, idempotency_key) "
-                     "VALUES (:sid, :at, :ca, :ik) RETURNING id"),
-                {"sid": sa[0], "at": "POSITION_OPENED",
-                 "ca": datetime(2026, 7, 18, 10, 0, 0, tzinfo=timezone.utc),
-                 "ik": f"act_{uuid.uuid4().hex[:8]}"},
+                text(
+                    "INSERT INTO trade_actions (session_id, action_type, confirmed_at, idempotency_key) "
+                    "VALUES (:sid, :at, :ca, :ik) RETURNING id"
+                ),
+                {
+                    "sid": sa[0],
+                    "at": "POSITION_OPENED",
+                    "ca": datetime(2026, 7, 18, 10, 0, 0, tzinfo=timezone.utc),
+                    "ik": f"act_{uuid.uuid4().hex[:8]}",
+                },
             )
         ).first()
         jb = (
             await conn.execute(
-                text("INSERT INTO analysis_jobs (session_id, analysis_type) VALUES (:sid, :at) RETURNING id"),
+                text(
+                    "INSERT INTO analysis_jobs (session_id, analysis_type) VALUES (:sid, :at) RETURNING id"
+                ),
                 {"sid": sa[0], "at": "INITIAL_ANALYSIS"},
             )
         ).first()
         an = (
             await conn.execute(
-                text("INSERT INTO analyses (session_id, analysis_job_id, analysis_type, "
-                     "acceptance_status, prompt_name, prompt_version, schema_name, schema_version, "
-                     "accepted_at) "
-                     "VALUES (:sid, :jid, :at, :ast, :pn, :pv, :sn, :sv, :aa) RETURNING id"),
-                {"sid": sa[0], "jid": jb[0], "at": "INITIAL_ANALYSIS", "ast": "ACCEPTED",
-                 "pn": "v1", "pv": "1.0", "sn": "schema", "sv": "1.0",
-                 "aa": datetime(2026, 7, 18, 9, 0, 0, tzinfo=timezone.utc)},
+                text(
+                    "INSERT INTO analyses (session_id, analysis_job_id, analysis_type, "
+                    "acceptance_status, prompt_name, prompt_version, schema_name, schema_version, "
+                    "accepted_at) "
+                    "VALUES (:sid, :jid, :at, :ast, :pn, :pv, :sn, :sv, :aa) RETURNING id"
+                ),
+                {
+                    "sid": sa[0],
+                    "jid": jb[0],
+                    "at": "INITIAL_ANALYSIS",
+                    "ast": "ACCEPTED",
+                    "pn": "v1",
+                    "pv": "1.0",
+                    "sn": "schema",
+                    "sv": "1.0",
+                    "aa": datetime(2026, 7, 18, 9, 0, 0, tzinfo=timezone.utc),
+                },
             )
         ).first()
     return RepositorySeedData(

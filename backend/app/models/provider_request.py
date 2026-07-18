@@ -41,9 +41,7 @@ class ProviderRequest(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     analysis_job_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("analysis_jobs.id", ondelete="RESTRICT"),
@@ -60,12 +58,8 @@ class ProviderRequest(Base):
     prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
     schema_name: Mapped[str] = mapped_column(String(255), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    request_payload: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
-    request_metadata: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    request_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    request_metadata: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     requested_at: Mapped[datetime] = mapped_column(
         utc_datetime(), nullable=False, server_default=func.now()
     )

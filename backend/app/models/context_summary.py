@@ -47,18 +47,14 @@ class ContextSummary(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("trade_sessions.id", ondelete="RESTRICT"),
         nullable=False,
     )
     context_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    source_cutoff: Mapped[datetime | None] = mapped_column(
-        utc_datetime(), nullable=True
-    )
+    source_cutoff: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     quality: Mapped[ContextQuality] = mapped_column(
         SAEnum(ContextQuality, name="context_quality_enum"),

@@ -50,17 +50,13 @@ def normalize_storage_object_key(value: str) -> str:
     if p.is_absolute():
         raise ValueError(f"Storage object key must be relative: {stripped!r}")
     if ".." in p.parts:
-        raise ValueError(
-            f"Storage object key must not contain traversal segments: {stripped!r}"
-        )
+        raise ValueError(f"Storage object key must not contain traversal segments: {stripped!r}")
     if "." in p.parts:
         raise ValueError(
             f"Storage object key must not contain current-directory segment: {stripped!r}"
         )
     if re.match(r"^[A-Za-z]:[/\\]", stripped):
-        raise ValueError(
-            f"Storage object key must not contain Windows drive prefix: {stripped!r}"
-        )
+        raise ValueError(f"Storage object key must not contain Windows drive prefix: {stripped!r}")
     return stripped
 
 
@@ -112,9 +108,7 @@ class Evidence(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("trade_sessions.id", ondelete="RESTRICT"),
@@ -140,9 +134,7 @@ class Evidence(Base):
     mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    market_timestamp: Mapped[datetime | None] = mapped_column(
-        utc_datetime(), nullable=True
-    )
+    market_timestamp: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     text_content: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -151,9 +143,7 @@ class Evidence(Base):
         default=ExtractionStatus.NOT_REQUESTED,
         nullable=False,
     )
-    extraction_payload: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    extraction_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     extraction_confidence: Mapped[Decimal | None] = mapped_column(
         percentage_numeric(), nullable=True
     )

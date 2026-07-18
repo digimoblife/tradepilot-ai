@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Sequence
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.trade_session import TradeSession
 
@@ -63,9 +61,7 @@ class TradeSessionRepository:
         result = await self._session.execute(query)
         return result.unique().scalars().all()
 
-    async def exists_for_user(
-        self, session_id: uuid.UUID, user_id: uuid.UUID
-    ) -> bool:
+    async def exists_for_user(self, session_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         result = await self._session.execute(
             select(func.count(TradeSession.id)).where(
                 TradeSession.id == session_id,

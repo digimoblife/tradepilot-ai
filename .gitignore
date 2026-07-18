@@ -82,3 +82,4 @@ temp/
 # --- Test artifacts ---
 test-results/
 playwright-report/
+backend/schemas

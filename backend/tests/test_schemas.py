@@ -15,6 +15,8 @@ INVALID_DIR = FIXTURES_DIR / "invalid" / "v1"
 
 SCHEMA_FILE_PATTERN = "*.schema.json"
 SCHEMA_FILES = sorted(PRODUCTION_DIR.glob(SCHEMA_FILE_PATTERN))
+
+
 def _load_json(path: Path) -> dict[str, object]:
     with open(path) as f:
         return json.load(f)
@@ -27,10 +29,12 @@ def _build_registry() -> Registry:
         sid = str(schema.get("$id", ""))
         if sid:
             resources[sid] = Resource.from_contents(schema)
+
     def retriever(uri: str) -> Resource:
         if uri in resources:
             return resources[uri]
         raise jsonschema.RefResolutionError(f"Unresolvable $ref: {uri}")
+
     return Registry(retrieve=retriever)  # type: ignore[call-arg]
 
 
@@ -74,6 +78,7 @@ def _resolve_and_validate(
 # 1. Every schema file is valid JSON
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("schema_file", SCHEMA_FILES, ids=lambda p: p.name)
 def test_schema_is_valid_json(schema_file: Path) -> None:
     _load_json(schema_file)
@@ -82,6 +87,7 @@ def test_schema_is_valid_json(schema_file: Path) -> None:
 # ---------------------------------------------------------------------------
 # 2. Every schema is valid under Draft 2020-12
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("schema_file", SCHEMA_FILES, ids=lambda p: p.name)
 def test_schema_is_valid_draft2020(schema_file: Path) -> None:
@@ -94,6 +100,7 @@ def test_schema_is_valid_draft2020(schema_file: Path) -> None:
 # 3. All $ref references resolve
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("schema_file", SCHEMA_FILES, ids=lambda p: p.name)
 def test_schema_refs_resolve(schema_file: Path, registry: Registry) -> None:
     schema = _load_json(schema_file)
@@ -105,6 +112,7 @@ def test_schema_refs_resolve(schema_file: Path, registry: Registry) -> None:
 # ---------------------------------------------------------------------------
 # 4. Valid fixtures pass schema validation
 # ---------------------------------------------------------------------------
+
 
 def _valid_fixtures() -> list[tuple[str, str, Path]]:
     results: list[tuple[str, str, Path]] = []
@@ -137,6 +145,7 @@ def test_valid_fixture_passes(
 # 5. Invalid fixtures fail schema validation
 # ---------------------------------------------------------------------------
 
+
 def _invalid_fixtures() -> list[tuple[str, str, Path]]:
     results: list[tuple[str, str, Path]] = []
     for fixture in sorted(INVALID_DIR.glob("*.json")):
@@ -168,6 +177,7 @@ def test_invalid_fixture_fails(
 # 6. Manifest entries match actual files
 # ---------------------------------------------------------------------------
 
+
 def test_manifest_matches_files() -> None:
     manifest_path = PRODUCTION_DIR / "manifest.json"
     assert manifest_path.exists()
@@ -187,6 +197,7 @@ def test_manifest_matches_files() -> None:
 # 7. $id values are unique
 # ---------------------------------------------------------------------------
 
+
 def test_schema_ids_are_unique() -> None:
     ids = []
     for file in SCHEMA_FILES:
@@ -201,6 +212,7 @@ def test_schema_ids_are_unique() -> None:
 # ---------------------------------------------------------------------------
 # 8. All schemas have additionalProperties: false at root
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("schema_file", SCHEMA_FILES, ids=lambda p: p.name)
 def test_schema_root_has_additional_properties_false(schema_file: Path) -> None:
@@ -271,10 +283,14 @@ def test_schema_version_pattern(schema_file: Path, registry: Registry) -> None:
 # 10. Fixture metadata correctness
 # ---------------------------------------------------------------------------
 
+
 def test_valid_fixtures_have_correct_metadata() -> None:
     analysis_schemas = {
-        "initial_analysis", "watching_update", "open_position_update",
-        "partial_exit_review", "closing_analysis",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
     }
     for fixture in sorted(VALID_DIR.glob("*.json")):
         instance = _load_json(fixture)
@@ -299,6 +315,7 @@ def test_valid_fixtures_have_correct_metadata() -> None:
 # ---------------------------------------------------------------------------
 # 11. Recursive $ref extraction and resolution
 # ---------------------------------------------------------------------------
+
 
 def _walk_refs(value: object, path: str) -> list[tuple[str, str]]:
     refs: list[tuple[str, str]] = []
@@ -329,7 +346,9 @@ def test_all_refs_resolve_with_local_registry() -> None:
                         cur = cur.get(p, {})
                     else:
                         break
-                assert cur is not None and cur != {}, f"{schema_file.name}{location}: fragment {ref_value} not found"
+                assert cur is not None and cur != {}, (
+                    f"{schema_file.name}{location}: fragment {ref_value} not found"
+                )
             else:
                 uri_part = ref_value.split("#")[0]
                 matched = False
@@ -338,12 +357,15 @@ def test_all_refs_resolve_with_local_registry() -> None:
                     if other_schema.get("$id") == uri_part:
                         matched = True
                         break
-                assert matched, f"{schema_file.name}{location}: document {uri_part} not in registry"
+                assert matched, (
+                    f"{schema_file.name}{location}: document {uri_part} not in registry"
+                )
 
 
 # ---------------------------------------------------------------------------
 # 12. No unsafe references
 # ---------------------------------------------------------------------------
+
 
 def test_no_unsafe_references() -> None:
     unsafe_patterns = ["file://", "localhost", "/Users/", "schemas/draft", "fixtures"]
@@ -362,24 +384,76 @@ def test_no_unsafe_references() -> None:
 # ---------------------------------------------------------------------------
 
 EXPECTED_COMMON_DEFS = {
-    "uuid", "nullableUuid", "timestamp", "nullableTimestamp", "ticker",
-    "companyName", "nullableCompanyName", "languageCode", "currencyCode",
-    "price", "nullablePrice", "nonNegativeNumber", "nullableNonNegativeNumber",
-    "signedNumber", "nullableSignedNumber", "positiveInteger", "nonNegativeInteger",
-    "nullablePositiveInteger", "nullableNonNegativeInteger", "quantity", "nullableQuantity",
-    "percentage", "nullablePercentage", "probability", "nullableProbability",
-    "confidenceScore", "nullableConfidenceScore", "shortText", "nullableShortText",
-    "narrative", "nullableNarrative", "shortTextArray", "narrativeArray", "uuidArray",
-    "nullableBoolean", "analysisType", "sessionStatus", "thesisStatus",
-    "tradingDate", "nullableTradingDate",
-    "directionalBias", "riskLevel", "setupQuality", "recommendedAction",
-    "positionHealth", "targetRealism", "updatePeriod", "timeframe",
-    "evidenceType", "evidenceUsability", "buyerStrength", "sellerPressure",
-    "trendDirection", "structureStatus", "breakoutStatus", "breakdownStatus",
-    "setupStatus", "changeDirection", "changeMateriality", "changeCategory",
-    "closingReason", "schemaMetadata", "analysisMetadata", "priceLevel",
-    "nullablePriceLevel", "priceLevelArray", "materialChange",
-    "materialChangeArray", "aiAssessment", "warningsAndMissingInformation",
+    "uuid",
+    "nullableUuid",
+    "timestamp",
+    "nullableTimestamp",
+    "ticker",
+    "companyName",
+    "nullableCompanyName",
+    "languageCode",
+    "currencyCode",
+    "price",
+    "nullablePrice",
+    "nonNegativeNumber",
+    "nullableNonNegativeNumber",
+    "signedNumber",
+    "nullableSignedNumber",
+    "positiveInteger",
+    "nonNegativeInteger",
+    "nullablePositiveInteger",
+    "nullableNonNegativeInteger",
+    "quantity",
+    "nullableQuantity",
+    "percentage",
+    "nullablePercentage",
+    "probability",
+    "nullableProbability",
+    "confidenceScore",
+    "nullableConfidenceScore",
+    "shortText",
+    "nullableShortText",
+    "narrative",
+    "nullableNarrative",
+    "shortTextArray",
+    "narrativeArray",
+    "uuidArray",
+    "nullableBoolean",
+    "analysisType",
+    "sessionStatus",
+    "thesisStatus",
+    "tradingDate",
+    "nullableTradingDate",
+    "directionalBias",
+    "riskLevel",
+    "setupQuality",
+    "recommendedAction",
+    "positionHealth",
+    "targetRealism",
+    "updatePeriod",
+    "timeframe",
+    "evidenceType",
+    "evidenceUsability",
+    "buyerStrength",
+    "sellerPressure",
+    "trendDirection",
+    "structureStatus",
+    "breakoutStatus",
+    "breakdownStatus",
+    "setupStatus",
+    "changeDirection",
+    "changeMateriality",
+    "changeCategory",
+    "closingReason",
+    "schemaMetadata",
+    "analysisMetadata",
+    "priceLevel",
+    "nullablePriceLevel",
+    "priceLevelArray",
+    "materialChange",
+    "materialChangeArray",
+    "aiAssessment",
+    "warningsAndMissingInformation",
 }
 
 
@@ -395,6 +469,7 @@ def test_common_defs_inventory() -> None:
 # ---------------------------------------------------------------------------
 # 14. Probability/confidence consistency
 # ---------------------------------------------------------------------------
+
 
 def test_probability_confidence_scale() -> None:
     common = _load_json(PRODUCTION_DIR / "common.schema.json")
@@ -413,13 +488,21 @@ def test_probability_confidence_scale() -> None:
 # ---------------------------------------------------------------------------
 
 EXPECTED_ANALYSIS_COMMON_REFS: dict[str, set[str]] = {
-    "analysisMetadata": {"initial_analysis", "watching_update", "open_position_update",
-                          "partial_exit_review", "closing_analysis"},
+    "analysisMetadata": {
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+    },
     "aiAssessment": {"open_position_update"},
     "materialChangeArray": {"watching_update", "open_position_update", "partial_exit_review"},
     "warningsAndMissingInformation": {
-        "initial_analysis", "watching_update", "open_position_update",
-        "partial_exit_review", "closing_analysis",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
     },
 }
 
@@ -434,14 +517,13 @@ def test_expected_common_refs_used() -> None:
             schema = _load_json(schema_file)
             ref_value = f"{COMMON_URI}#/$defs/{def_name}"
             schema_str = json.dumps(schema)
-            assert ref_value in schema_str, (
-                f"{schema_name}.schema.json missing $ref to {def_name}"
-            )
+            assert ref_value in schema_str, f"{schema_name}.schema.json missing $ref to {def_name}"
 
 
 # ---------------------------------------------------------------------------
 # 16. Offline resolution test (registry built from local files)
 # ---------------------------------------------------------------------------
+
 
 def test_offline_registry_resolves_all() -> None:
     registry = _build_registry()

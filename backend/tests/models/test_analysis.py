@@ -11,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -40,10 +38,7 @@ async def _make_session_with_job(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -155,9 +150,7 @@ async def test_accepted_payload_distinct_from_raw(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT payload FROM analyses WHERE analysis_job_id = :jid"
-                ),
+                text("SELECT payload FROM analyses WHERE analysis_job_id = :jid"),
                 {"jid": jid},
             )
         ).first()
@@ -369,9 +362,7 @@ async def test_superseding_analysis_relationship(db_url: str) -> None:
         # Verify superseding relationship
         row = (
             await conn.execute(
-                text(
-                    "SELECT supersedes_analysis_id FROM analyses WHERE id = :aid"
-                ),
+                text("SELECT supersedes_analysis_id FROM analyses WHERE id = :aid"),
                 {"aid": aid2},
             )
         ).first()

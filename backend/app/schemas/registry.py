@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 from app.schemas.errors import SchemaRegistryError
 from app.schemas.manifest import ProductionManifest, SchemaManifestEntry
@@ -43,9 +44,25 @@ SCHEMA_INACTIVE = "SCHEMA_INACTIVE"
 SCHEMA_COMPILATION_FAILED = "SCHEMA_COMPILATION_FAILED"
 SCHEMA_NETWORK_RETRIEVAL_DISABLED = "SCHEMA_NETWORK_RETRIEVAL_DISABLED"
 
-_SUPPORTED_DRAFT_URIS = frozenset(
-    {"https://json-schema.org/draft/2020-12/schema"}
-)
+# ---------------------------------------------------------------------------
+# Custom FormatChecker with required timezone-aware date-time support
+# ---------------------------------------------------------------------------
+
+
+def _check_date_time(instance: str) -> bool:
+    """Validate ``date-time`` format: must be RFC 3339 with timezone."""
+    try:
+        dt = datetime.fromisoformat(instance)
+        return dt.tzinfo is not None
+    except (ValueError, TypeError):
+        return False
+
+
+_FORMAT_CHECKER = FormatChecker()
+_FORMAT_CHECKER.checks("date-time")(_check_date_time)
+
+
+_SUPPORTED_DRAFT_URIS = frozenset({"https://json-schema.org/draft/2020-12/schema"})
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +196,8 @@ class LocalSchemaRegistry:
         return self.get(name, version).validator
 
     def get_validator_by_analysis_type(
-        self, analysis_type: str,
+        self,
+        analysis_type: str,
     ) -> Draft202012Validator:
         """Get the compiled validator for an analysis type."""
         return self.get_by_analysis_type(analysis_type).validator
@@ -205,9 +223,7 @@ class LocalSchemaRegistry:
         file_map: dict[str, SchemaManifestEntry] = {}
 
         # 1. Collect active entries
-        active_entries = [
-            e for e in self._manifest.schemas if e.active
-        ]
+        active_entries = [e for e in self._manifest.schemas if e.active]
 
         # 2. Load all active schema documents (including non-user-facing ones
         #    needed for $ref resolution)
@@ -233,9 +249,7 @@ class LocalSchemaRegistry:
             file_map[entry.schema_id] = entry
 
         # 3. Build offline referencing registry
-        offline_registry = build_offline_registry(
-            documents, base_uri=str(self._package_root)
-        )
+        offline_registry = build_offline_registry(documents, base_uri=str(self._package_root))
 
         # 4. Compile validators for active entries, with reference preflight
         for entry in active_entries:
@@ -361,8 +375,7 @@ class LocalSchemaRegistry:
                 if resolve_fragment(document, fragment) is None:
                     raise SchemaRegistryError(
                         code=SCHEMA_REFERENCE_UNRESOLVED,
-                        message=f"Unresolved local fragment in "
-                        f"'{entry.name}': {ref_value}",
+                        message=f"Unresolved local fragment in '{entry.name}': {ref_value}",
                         details={
                             "schema_name": entry.name,
                             "reference": ref_value,
@@ -387,8 +400,7 @@ class LocalSchemaRegistry:
                     if resolve_fragment(target_doc, frag_part) is None:
                         raise SchemaRegistryError(
                             code=SCHEMA_REFERENCE_UNRESOLVED,
-                            message=f"Unresolved fragment in '{entry.name}': "
-                            f"'{ref_value}'",
+                            message=f"Unresolved fragment in '{entry.name}': '{ref_value}'",
                             details={
                                 "schema_name": entry.name,
                                 "reference": ref_value,
@@ -414,6 +426,7 @@ class LocalSchemaRegistry:
             validator = Draft202012Validator(
                 schema=document,
                 registry=offline_registry,
+                format_checker=_FORMAT_CHECKER,
             )
         except Exception as exc:
             raise SchemaRegistryError(

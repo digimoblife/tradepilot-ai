@@ -65,9 +65,7 @@ class Analysis(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("trade_sessions.id", ondelete="RESTRICT"),
@@ -92,12 +90,8 @@ class Analysis(Base):
     prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
     schema_name: Mapped[str] = mapped_column(String(255), nullable=False)
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
-    accepted_at: Mapped[datetime | None] = mapped_column(
-        utc_datetime(), nullable=True
-    )
+    payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     supersedes_analysis_id: Mapped[uuid.UUID | None] = mapped_column(
         pg_uuid(),
         ForeignKey("analyses.id", ondelete="RESTRICT"),

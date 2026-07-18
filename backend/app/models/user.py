@@ -24,9 +24,7 @@ def normalize_email(email: str) -> str:
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     username: Mapped[str | None] = mapped_column(String(320), nullable=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
@@ -35,15 +33,9 @@ class User(Base):
         default=AccountStatus.ACTIVE,
         nullable=False,
     )
-    preferred_ui_language: Mapped[str] = mapped_column(
-        String(10), nullable=False, default="id-ID"
-    )
-    timezone: Mapped[str] = mapped_column(
-        String(64), nullable=False, default="Asia/Jakarta"
-    )
-    last_login_at: Mapped[datetime | None] = mapped_column(
-        utc_datetime(), nullable=True
-    )
+    preferred_ui_language: Mapped[str] = mapped_column(String(10), nullable=False, default="id-ID")
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Asia/Jakarta")
+    last_login_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         utc_datetime(), nullable=False, server_default=func.now()
     )

@@ -94,9 +94,16 @@ def test_deterministic_ordering() -> None:
     assert len(names) == len(set(names))
     # Expected canonical order from manifest.json
     expected = [
-        "common", "market_snapshot", "trade_state", "evidence",
-        "initial_analysis", "watching_update", "open_position_update",
-        "partial_exit_review", "closing_analysis", "context_summary",
+        "common",
+        "market_snapshot",
+        "trade_state",
+        "evidence",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+        "context_summary",
     ]
     assert names == expected
 
@@ -206,9 +213,7 @@ def test_unsupported_manifest_status() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _inject_duplicate_entry_field(
-    field: str, value_a: object, value_b: object
-) -> dict:
+def _inject_duplicate_entry_field(field: str, value_a: object, value_b: object) -> dict:
     data = _read_production_manifest()
     schemas = list(data["schemas"])
     entry0 = dict(schemas[0])
@@ -248,9 +253,7 @@ def test_duplicate_id() -> None:
 
 
 def test_duplicate_filename() -> None:
-    data = _inject_duplicate_entry_field(
-        "file", "same.schema.json", "same.schema.json"
-    )
+    data = _inject_duplicate_entry_field("file", "same.schema.json", "same.schema.json")
     data["schemas"][1]["name"] = "other-name"
     data["schemas"][1]["schema_id"] = (
         "https://schemas.tradepilot.local/production/v1/other.schema.json"
@@ -280,7 +283,8 @@ def test_duplicate_name_version() -> None:
     with pytest.raises(ManifestValidationError) as excinfo:
         load_manifest(Path(tmp))
     assert excinfo.value.code in (
-        "MANIFEST_DUPLICATE_NAME_VERSION", "MANIFEST_DUPLICATE_SCHEMA_NAME",
+        "MANIFEST_DUPLICATE_NAME_VERSION",
+        "MANIFEST_DUPLICATE_SCHEMA_NAME",
     )
     os.unlink(tmp)
 
@@ -345,9 +349,7 @@ def test_valid_dependencies_resolve() -> None:
     for entry in manifest.schemas:
         for dep in entry.dependencies:
             if dep == "common":
-                assert manifest.get_schema(
-                    "common", "1.0.0"
-                ), f"Missing dependency: {dep}"
+                assert manifest.get_schema("common", "1.0.0"), f"Missing dependency: {dep}"
 
 
 # ---------------------------------------------------------------------------

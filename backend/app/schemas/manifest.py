@@ -405,12 +405,8 @@ def _parse_manifest(raw: dict[str, object], path: Path) -> ProductionManifest:
         entries.append(entry)
 
     # Parse registries
-    at_registry = _parse_analysis_type_registry(
-        raw.get("analysis_type_registry", {}), path
-    )
-    ss_mapping = _parse_session_status_mapping(
-        raw.get("session_status_schema_mapping", {}), path
-    )
+    at_registry = _parse_analysis_type_registry(raw.get("analysis_type_registry", {}), path)
+    ss_mapping = _parse_session_status_mapping(raw.get("session_status_schema_mapping", {}), path)
 
     # Validate required analysis mappings
     for atype in REQUIRED_ANALYSIS_TYPES:
@@ -458,9 +454,7 @@ def _parse_manifest(raw: dict[str, object], path: Path) -> ProductionManifest:
     # Parse ancillary sections
     validation_rules = _parse_validation_rules(raw.get("validation"))
     narrative_rules = _parse_narrative_rules(raw.get("narrative_rules"))
-    provider_comp = _parse_provider_compatibility(
-        raw.get("provider_compatibility")
-    )
+    provider_comp = _parse_provider_compatibility(raw.get("provider_compatibility"))
 
     entries_tuple = tuple(entries)
     indexes = _build_indexes(entries_tuple)
@@ -485,9 +479,7 @@ def _parse_manifest(raw: dict[str, object], path: Path) -> ProductionManifest:
     )
 
 
-def _parse_schema_entry(
-    raw: dict[str, object], location: str, path: Path
-) -> SchemaManifestEntry:
+def _parse_schema_entry(raw: dict[str, object], location: str, path: Path) -> SchemaManifestEntry:
     r: dict[str, object] = raw
     name = str(r.get("name", ""))
     if not name:
@@ -514,15 +506,15 @@ def _parse_schema_entry(
             path=path,
         )
     at_list: list[str] = []
-    for v in (r.get("analysis_types") or []):
+    for v in r.get("analysis_types") or []:
         if isinstance(v, str):
             at_list.append(v)
     dep_list: list[str] = []
-    for v in (r.get("dependencies") or []):
+    for v in r.get("dependencies") or []:
         if isinstance(v, str):
             dep_list.append(v)
     used_by_list: list[str] = []
-    for v in (r.get("used_by") or []):
+    for v in r.get("used_by") or []:
         if isinstance(v, str):
             used_by_list.append(v)
 
@@ -542,9 +534,7 @@ def _parse_schema_entry(
     )
 
 
-def _parse_analysis_type_registry(
-    raw: object, path: Path
-) -> dict[str, AnalysisTypeRegistration]:
+def _parse_analysis_type_registry(raw: object, path: Path) -> dict[str, AnalysisTypeRegistration]:
     if not isinstance(raw, dict):
         return {}
     result: dict[str, AnalysisTypeRegistration] = {}
@@ -565,9 +555,7 @@ def _parse_analysis_type_registry(
             schema_name=str(entry_dict.get("schema", "")),
             schema_version=str(entry_dict.get("schema_version", "")),
             requires_position=bool(entry_dict.get("requires_position", False)),
-            requires_previous_analysis=bool(
-                entry_dict.get("requires_previous_analysis", False)
-            ),
+            requires_previous_analysis=bool(entry_dict.get("requires_previous_analysis", False)),
             requires_canonical_trade_state=bool(
                 entry_dict.get("requires_canonical_trade_state", False)
             ),
@@ -580,9 +568,7 @@ def _parse_analysis_type_registry(
     return result
 
 
-def _parse_session_status_mapping(
-    raw: object, path: Path
-) -> dict[str, SessionStatusEntry]:
+def _parse_session_status_mapping(raw: object, path: Path) -> dict[str, SessionStatusEntry]:
     if not isinstance(raw, dict):
         return {}
     result: dict[str, SessionStatusEntry] = {}
@@ -633,9 +619,7 @@ def _parse_narrative_rules(raw: object) -> ManifestNarrativeRules | None:
         probabilities_are_estimates_not_guarantees=bool(
             d.get("probabilities_are_estimates_not_guarantees", True)
         ),
-        confidence_is_not_probability=bool(
-            d.get("confidence_is_not_probability", True)
-        ),
+        confidence_is_not_probability=bool(d.get("confidence_is_not_probability", True)),
     )
 
 

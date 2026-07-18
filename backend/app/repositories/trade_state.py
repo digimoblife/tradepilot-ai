@@ -18,9 +18,7 @@ class TradeStateRepository:
         await self._session.flush()
         return entity
 
-    async def get_for_user(
-        self, session_id: uuid.UUID, user_id: uuid.UUID
-    ) -> TradeState | None:
+    async def get_for_user(self, session_id: uuid.UUID, user_id: uuid.UUID) -> TradeState | None:
         result = await self._session.execute(
             select(TradeState)
             .join(TradeSession, TradeState.session_id == TradeSession.id)

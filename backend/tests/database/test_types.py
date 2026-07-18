@@ -15,9 +15,7 @@ from app.database.types import (
     utc_datetime,
 )
 
-_DEFAULT_TEST_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_TEST_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture

@@ -56,9 +56,7 @@ class TradeAction(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("trade_sessions.id", ondelete="RESTRICT"),

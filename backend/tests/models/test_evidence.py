@@ -12,9 +12,7 @@ from app.database.session import create_async_engine_from_config
 from app.models.enums import EvidenceStatus, EvidenceType, ExtractionStatus
 from app.models.evidence import Evidence, normalize_storage_object_key
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -42,9 +40,7 @@ async def _make_user_and_session(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -130,10 +126,7 @@ def test_normalize_storage_object_key_valid() -> None:
         normalize_storage_object_key("sessions/456/evidence/abc.webp")
         == "sessions/456/evidence/abc.webp"
     )
-    assert (
-        normalize_storage_object_key("  nested/path/file.jpg  ")
-        == "nested/path/file.jpg"
-    )
+    assert normalize_storage_object_key("  nested/path/file.jpg  ") == "nested/path/file.jpg"
 
 
 def test_normalize_storage_object_key_invalid() -> None:
@@ -335,9 +328,7 @@ async def test_self_replacement_rejected(db_url: str) -> None:
         eid = r[0]
         with pytest.raises(Exception) as exc:
             await conn.execute(
-                text(
-                    "UPDATE evidence SET supersedes_evidence_id = :self WHERE id = :id"
-                ),
+                text("UPDATE evidence SET supersedes_evidence_id = :self WHERE id = :id"),
                 {"self": eid, "id": eid},
             )
         assert "check constraint" in str(exc.value).lower()
@@ -386,9 +377,7 @@ async def test_market_and_upload_timestamps_distinct(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT market_timestamp, uploaded_at FROM evidence WHERE session_id = :s"
-                ),
+                text("SELECT market_timestamp, uploaded_at FROM evidence WHERE session_id = :s"),
                 {"s": sid},
             )
         ).first()

@@ -19,12 +19,8 @@ def _assert_safe_test_db(db_url: str) -> None:
     )
 
 
-_DEFAULT_SYNC_URL = (
-    "postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
-_DEFAULT_ASYNC_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_SYNC_URL = "postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot_test"
+_DEFAULT_ASYNC_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture(scope="session")

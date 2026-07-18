@@ -10,7 +10,6 @@ from app.models.analysis_job import AnalysisJob
 from app.models.enums import AnalysisJobStatus
 from app.models.trade_session import TradeSession
 
-
 _STATUSES_TERMINAL = frozenset(
     {
         AnalysisJobStatus.COMPLETED,

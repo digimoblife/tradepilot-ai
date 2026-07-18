@@ -76,27 +76,13 @@ class TradeState(Base):
     )
     entry_price: Mapped[Decimal | None] = mapped_column(price_numeric(), nullable=True)
     entry_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
-    original_quantity: Mapped[Decimal | None] = mapped_column(
-        monetary_numeric(), nullable=True
-    )
-    remaining_quantity: Mapped[Decimal | None] = mapped_column(
-        monetary_numeric(), nullable=True
-    )
-    active_stop_loss: Mapped[Decimal | None] = mapped_column(
-        price_numeric(), nullable=True
-    )
-    active_target: Mapped[Decimal | None] = mapped_column(
-        price_numeric(), nullable=True
-    )
-    average_exit_price: Mapped[Decimal | None] = mapped_column(
-        price_numeric(), nullable=True
-    )
-    realized_pnl: Mapped[Decimal | None] = mapped_column(
-        monetary_numeric(), nullable=True
-    )
-    realized_return: Mapped[Decimal | None] = mapped_column(
-        return_pct_numeric(), nullable=True
-    )
+    original_quantity: Mapped[Decimal | None] = mapped_column(monetary_numeric(), nullable=True)
+    remaining_quantity: Mapped[Decimal | None] = mapped_column(monetary_numeric(), nullable=True)
+    active_stop_loss: Mapped[Decimal | None] = mapped_column(price_numeric(), nullable=True)
+    active_target: Mapped[Decimal | None] = mapped_column(price_numeric(), nullable=True)
+    average_exit_price: Mapped[Decimal | None] = mapped_column(price_numeric(), nullable=True)
+    realized_pnl: Mapped[Decimal | None] = mapped_column(monetary_numeric(), nullable=True)
+    realized_return: Mapped[Decimal | None] = mapped_column(return_pct_numeric(), nullable=True)
     last_confirmed_action_at: Mapped[datetime | None] = mapped_column(
         utc_datetime(), nullable=True
     )

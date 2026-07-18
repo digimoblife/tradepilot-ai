@@ -19,9 +19,7 @@ from app.schemas.registry import (
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRODUCTION_DIR = PROJECT_ROOT / "schemas" / "production" / "v1"
-VALID_DIR = (
-    Path(__file__).resolve().parent.parent.parent / "schemas" / "fixtures" / "valid" / "v1"
-)
+VALID_DIR = Path(__file__).resolve().parent.parent.parent / "schemas" / "fixtures" / "valid" / "v1"
 INVALID_DIR = (
     Path(__file__).resolve().parent.parent.parent / "schemas" / "fixtures" / "invalid" / "v1"
 )
@@ -165,6 +163,7 @@ def test_missing_schema_file_fails() -> None:
     # Delete a non-common schema file and use load_manifest (no file validation)
     (dst / "context_summary.schema.json").unlink()
     from app.schemas.manifest import load_manifest
+
     manifest = load_manifest(dst / "manifest.json")
     with pytest.raises(SchemaRegistryError) as exc:
         LocalSchemaRegistry(manifest, dst)
@@ -322,8 +321,11 @@ def test_cross_registry_isolation() -> None:
 def test_valid_fixtures_pass() -> None:
     registry, _ = _production_registry()
     analysis_schemas = {
-        "initial_analysis", "watching_update", "open_position_update",
-        "partial_exit_review", "closing_analysis",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
     }
     for fixture_path in sorted(VALID_DIR.glob("*.json")):
         name_part = fixture_path.stem.split(".")[0]

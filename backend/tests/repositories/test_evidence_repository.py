@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.models.evidence import Evidence
 from app.models.enums import EvidenceStatus, EvidenceType
+from app.models.evidence import Evidence
 from app.repositories.evidence import EvidenceRepository
 
 

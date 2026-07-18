@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy import text
 
 from app.models.trade_session import TradeSession
 from app.repositories.trade_session import TradeSessionRepository

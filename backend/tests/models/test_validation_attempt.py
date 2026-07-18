@@ -10,9 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -40,10 +38,7 @@ async def _make_job_and_response(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -146,9 +141,7 @@ async def test_schema_validation_failure_persists(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT issues FROM validation_attempts WHERE analysis_job_id = :jid"
-                ),
+                text("SELECT issues FROM validation_attempts WHERE analysis_job_id = :jid"),
                 {"jid": jid},
             )
         ).first()
@@ -321,9 +314,7 @@ async def test_issues_jsonb_round_trip(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT issues FROM validation_attempts WHERE analysis_job_id = :jid"
-                ),
+                text("SELECT issues FROM validation_attempts WHERE analysis_job_id = :jid"),
                 {"jid": jid},
             )
         ).first()

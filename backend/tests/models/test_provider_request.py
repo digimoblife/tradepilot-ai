@@ -11,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -41,10 +39,7 @@ async def _make_job(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -105,9 +100,7 @@ async def test_job_fk_works(db_url: str) -> None:
     _, jid = await _make_job(engine, "jfw")
     async with engine.begin() as conn:
         result = await conn.execute(
-            text(
-                "SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
-            ),
+            text("SELECT id FROM provider_requests WHERE analysis_job_id = :jid"),
             {"jid": jid},
         )
         assert result.first() is None
@@ -241,9 +234,7 @@ async def test_jsonb_request_payload_round_trip(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT request_payload FROM provider_requests WHERE analysis_job_id = :jid"
-                ),
+                text("SELECT request_payload FROM provider_requests WHERE analysis_job_id = :jid"),
                 {"jid": jid},
             )
         ).first()

@@ -11,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -41,10 +39,7 @@ async def _make_session(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -283,9 +278,7 @@ async def test_compact_summary_round_trip(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT compact_summary FROM session_events WHERE session_id = :sid"
-                ),
+                text("SELECT compact_summary FROM session_events WHERE session_id = :sid"),
                 {"sid": sid},
             )
         ).first()

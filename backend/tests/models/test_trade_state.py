@@ -13,9 +13,7 @@ from app.database.session import create_async_engine_from_config
 from app.models.enums import PositionStatus, ThesisStatus
 from app.models.trade_state import TradeState
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -43,10 +41,7 @@ async def _make_user_and_session(
     async with engine.begin() as conn:
         user_r = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -55,8 +50,7 @@ async def _make_user_and_session(
         sess_r = (
             await conn.execute(
                 text(
-                    "INSERT INTO trade_sessions (owner_id, ticker) "
-                    "VALUES (:uid, :t) RETURNING id"
+                    "INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING id"
                 ),
                 {"uid": uid, "t": "BBRI"},
             )
@@ -223,9 +217,7 @@ async def test_decimal_round_trip(db_url: str) -> None:
     async with engine.begin() as conn:
         val = Decimal("0.1")
         await conn.execute(
-            text(
-                "INSERT INTO trade_states (session_id, entry_price) VALUES (:sid, :ep)"
-            ),
+            text("INSERT INTO trade_states (session_id, entry_price) VALUES (:sid, :ep)"),
             {"sid": sid, "ep": val},
         )
         row = (
@@ -249,8 +241,7 @@ async def test_negative_original_quantity_rejected(db_url: str) -> None:
         with pytest.raises(Exception) as excinfo:
             await conn.execute(
                 text(
-                    "INSERT INTO trade_states (session_id, original_quantity) "
-                    "VALUES (:sid, :oq)"
+                    "INSERT INTO trade_states (session_id, original_quantity) VALUES (:sid, :oq)"
                 ),
                 {"sid": sid, "oq": Decimal("-1")},
             )
@@ -302,10 +293,7 @@ async def test_negative_state_version_rejected(db_url: str) -> None:
     async with engine.begin() as conn:
         with pytest.raises(Exception) as excinfo:
             await conn.execute(
-                text(
-                    "INSERT INTO trade_states (session_id, state_version) "
-                    "VALUES (:sid, :sv)"
-                ),
+                text("INSERT INTO trade_states (session_id, state_version) VALUES (:sid, :sv)"),
                 {"sid": sid, "sv": 0},
             )
         assert "violates check constraint" in str(excinfo.value)
@@ -346,17 +334,12 @@ async def test_exact_decimal_round_trip(db_url: str) -> None:
         _, sid = await _make_user_and_session(engine, f"edr_{v}")
         async with engine.begin() as conn:
             await conn.execute(
-                text(
-                    "INSERT INTO trade_states (session_id, entry_price) "
-                    "VALUES (:sid, :ep)"
-                ),
+                text("INSERT INTO trade_states (session_id, entry_price) VALUES (:sid, :ep)"),
                 {"sid": sid, "ep": v},
             )
             row = (
                 await conn.execute(
-                    text(
-                        "SELECT entry_price FROM trade_states WHERE session_id = :sid"
-                    ),
+                    text("SELECT entry_price FROM trade_states WHERE session_id = :sid"),
                     {"sid": sid},
                 )
             ).first()

@@ -3,12 +3,12 @@ from __future__ import annotations
 import uuid
 from typing import Sequence
 
-from sqlalchemy import select, nullslast
+from sqlalchemy import nullslast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enums import EvidenceStatus
 from app.models.evidence import Evidence
 from app.models.trade_session import TradeSession
-from app.models.enums import EvidenceStatus
 
 
 class EvidenceRepository:

@@ -30,20 +30,12 @@ class ProviderResponse(Base):
 
     __table_args__ = (
         CheckConstraint("latency_ms IS NULL OR latency_ms >= 0", name="latency"),
-        CheckConstraint(
-            "input_tokens IS NULL OR input_tokens >= 0", name="input_tokens"
-        ),
-        CheckConstraint(
-            "output_tokens IS NULL OR output_tokens >= 0", name="output_tokens"
-        ),
-        CheckConstraint(
-            "total_tokens IS NULL OR total_tokens >= 0", name="total_tokens"
-        ),
+        CheckConstraint("input_tokens IS NULL OR input_tokens >= 0", name="input_tokens"),
+        CheckConstraint("output_tokens IS NULL OR output_tokens >= 0", name="output_tokens"),
+        CheckConstraint("total_tokens IS NULL OR total_tokens >= 0", name="total_tokens"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     provider_request_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("provider_requests.id", ondelete="RESTRICT"),
@@ -60,9 +52,7 @@ class ProviderResponse(Base):
     provider_response_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     finish_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    usage_metadata: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    usage_metadata: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     input_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

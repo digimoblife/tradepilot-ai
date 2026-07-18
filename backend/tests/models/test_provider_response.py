@@ -10,9 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -40,10 +38,7 @@ async def _make_request(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -145,9 +140,7 @@ async def test_raw_text_remains_auditable(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT raw_text FROM provider_responses WHERE provider_request_id = :rid"
-                ),
+                text("SELECT raw_text FROM provider_responses WHERE provider_request_id = :rid"),
                 {"rid": req_id},
             )
         ).first()
@@ -187,9 +180,7 @@ async def test_request_fk_works(db_url: str) -> None:
     _, req_id = await _make_request(engine, "rfw")
     async with engine.begin() as conn:
         result = await conn.execute(
-            text(
-                "SELECT id FROM provider_responses WHERE provider_request_id = :rid"
-            ),
+            text("SELECT id FROM provider_responses WHERE provider_request_id = :rid"),
             {"rid": req_id},
         )
         assert result.first() is None
@@ -294,9 +285,7 @@ async def test_raw_response_is_not_analysis(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT raw_text FROM provider_responses WHERE provider_request_id = :rid"
-                ),
+                text("SELECT raw_text FROM provider_responses WHERE provider_request_id = :rid"),
                 {"rid": req_id},
             )
         ).first()

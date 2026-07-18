@@ -10,9 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -40,10 +38,7 @@ async def _make_user_and_session(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -86,9 +81,7 @@ async def test_session_fk_works(db_url: str) -> None:
     _, sid = await _make_user_and_session(engine, "sfk")
     async with engine.begin() as conn:
         result = await conn.execute(
-            text(
-                "SELECT id FROM analysis_jobs WHERE session_id = :sid"
-            ),
+            text("SELECT id FROM analysis_jobs WHERE session_id = :sid"),
             {"sid": sid},
         )
         assert result.first() is None
@@ -102,10 +95,7 @@ async def test_invalid_session_rejected(db_url: str) -> None:
     async with engine.begin() as conn:
         with pytest.raises(Exception):
             await conn.execute(
-                text(
-                    "INSERT INTO analysis_jobs (session_id, analysis_type) "
-                    "VALUES (:sid, :at)"
-                ),
+                text("INSERT INTO analysis_jobs (session_id, analysis_type) VALUES (:sid, :at)"),
                 {"sid": uuid.uuid4(), "at": "INITIAL_ANALYSIS"},
             )
     await engine.dispose()
@@ -138,10 +128,7 @@ async def test_analysis_type_controlled(db_url: str) -> None:
     async with engine.begin() as conn:
         with pytest.raises(Exception):
             await conn.execute(
-                text(
-                    "INSERT INTO analysis_jobs (session_id, analysis_type) "
-                    "VALUES (:sid, :at)"
-                ),
+                text("INSERT INTO analysis_jobs (session_id, analysis_type) VALUES (:sid, :at)"),
                 {"sid": sid, "at": "INVALID_TYPE"},
             )
     await engine.dispose()
@@ -283,10 +270,7 @@ async def test_queue_order_deterministic(db_url: str) -> None:
         await conn.execute(text("DELETE FROM users"))
         ur1 = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"qo1_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -302,10 +286,7 @@ async def test_queue_order_deterministic(db_url: str) -> None:
         assert sr1 is not None
         ur2 = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"qo2_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -344,11 +325,7 @@ async def test_queue_order_deterministic(db_url: str) -> None:
         id1 = r1.first()[0]
         id2 = r2.first()[0]
         rows = (
-            await conn.execute(
-                text(
-                    "SELECT id FROM analysis_jobs ORDER BY requested_at, id"
-                )
-            )
+            await conn.execute(text("SELECT id FROM analysis_jobs ORDER BY requested_at, id"))
         ).all()
         # The earlier requested_at should come first
         assert rows[0][0] == id2

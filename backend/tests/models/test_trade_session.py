@@ -9,9 +9,7 @@ from app.database.session import create_async_engine_from_config
 from app.models.enums import TradeSessionStatus
 from app.models.trade_session import normalize_currency, normalize_ticker
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -65,10 +63,7 @@ async def test_session_can_be_inserted(db_url: str) -> None:
         assert user_row is not None
         uid = user_row[0]
         result = await conn.execute(
-            text(
-                "INSERT INTO trade_sessions (owner_id, ticker) "
-                "VALUES (:uid, :t) RETURNING id"
-            ),
+            text("INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING id"),
             {"uid": uid, "t": "BBRI"},
         )
         row = result.first()
@@ -121,8 +116,7 @@ async def test_ticker_whitespace_removed(db_url: str) -> None:
         assert normalized == "BBRI"
         result = await conn.execute(
             text(
-                "INSERT INTO trade_sessions (owner_id, ticker) "
-                "VALUES (:uid, :t) RETURNING ticker"
+                "INSERT INTO trade_sessions (owner_id, ticker) VALUES (:uid, :t) RETURNING ticker"
             ),
             {"uid": uid, "t": normalized},
         )

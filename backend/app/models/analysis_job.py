@@ -58,9 +58,7 @@ class AnalysisJob(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("trade_sessions.id", ondelete="RESTRICT"),
@@ -81,21 +79,15 @@ class AnalysisJob(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
-    previous_session_status: Mapped[str | None] = mapped_column(
-        String(32), nullable=True
-    )
+    previous_session_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     available_at: Mapped[datetime] = mapped_column(
         utc_datetime(), nullable=False, server_default=func.now()
     )
     lease_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    lease_acquired_at: Mapped[datetime | None] = mapped_column(
-        utc_datetime(), nullable=True
-    )
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        utc_datetime(), nullable=True
-    )
+    lease_acquired_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     last_error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     last_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

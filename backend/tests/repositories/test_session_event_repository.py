@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.models.session_event import SessionEvent
 from app.models.enums import SessionEventType
+from app.models.session_event import SessionEvent
 from app.repositories.session_event import SessionEventRepository
 
 
@@ -72,12 +72,16 @@ async def test_equal_timestamp_tie_breaker(session, data):
     repo = SessionEventRepository(session)
     ts = datetime(2026, 7, 18, 10, 0, 0, tzinfo=timezone.utc)
     e2 = SessionEvent(
-        id=uuid.uuid4(), session_id=data.session_a,
-        event_type=SessionEventType.ANALYSIS_REQUESTED, occurred_at=ts,
+        id=uuid.uuid4(),
+        session_id=data.session_a,
+        event_type=SessionEventType.ANALYSIS_REQUESTED,
+        occurred_at=ts,
     )
     e1 = SessionEvent(
-        id=uuid.uuid4(), session_id=data.session_a,
-        event_type=SessionEventType.EVIDENCE_UPLOADED, occurred_at=ts,
+        id=uuid.uuid4(),
+        session_id=data.session_a,
+        event_type=SessionEventType.EVIDENCE_UPLOADED,
+        occurred_at=ts,
     )
     await repo.add(e2)
     await repo.add(e1)

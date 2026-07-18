@@ -11,9 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -43,10 +41,7 @@ async def _make_session(
     async with engine.begin() as conn:
         ur = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"{label}_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -123,10 +118,7 @@ async def test_duplicate_version_rejected(db_url: str) -> None:
     sid = await _make_session(engine, "dvr")
     async with engine.begin() as conn:
         await conn.execute(
-            text(
-                "INSERT INTO context_summaries (session_id, context_version) "
-                "VALUES (:sid, :cv)"
-            ),
+            text("INSERT INTO context_summaries (session_id, context_version) VALUES (:sid, :cv)"),
             {"sid": sid, "cv": 1},
         )
         with pytest.raises(Exception):
@@ -159,10 +151,7 @@ async def test_same_version_different_session_succeeds(db_url: str) -> None:
         await conn.execute(text("DELETE FROM users"))
         ur1 = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"sv1_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -176,10 +165,7 @@ async def test_same_version_different_session_succeeds(db_url: str) -> None:
         ).first()
         ur2 = (
             await conn.execute(
-                text(
-                    "INSERT INTO users (email, password_hash) "
-                    "VALUES (:e, :p) RETURNING id"
-                ),
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
                 {"e": f"sv2_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
             )
         ).first()
@@ -192,17 +178,11 @@ async def test_same_version_different_session_succeeds(db_url: str) -> None:
             )
         ).first()
         await conn.execute(
-            text(
-                "INSERT INTO context_summaries (session_id, context_version) "
-                "VALUES (:sid, :cv)"
-            ),
+            text("INSERT INTO context_summaries (session_id, context_version) VALUES (:sid, :cv)"),
             {"sid": sr1[0], "cv": 1},
         )
         await conn.execute(
-            text(
-                "INSERT INTO context_summaries (session_id, context_version) "
-                "VALUES (:sid, :cv)"
-            ),
+            text("INSERT INTO context_summaries (session_id, context_version) VALUES (:sid, :cv)"),
             {"sid": sr2[0], "cv": 1},
         )
     await engine.dispose()
@@ -252,9 +232,7 @@ async def test_payload_jsonb_round_trip(db_url: str) -> None:
         )
         row = (
             await conn.execute(
-                text(
-                    "SELECT payload FROM context_summaries WHERE session_id = :sid"
-                ),
+                text("SELECT payload FROM context_summaries WHERE session_id = :sid"),
                 {"sid": sid},
             )
         ).first()

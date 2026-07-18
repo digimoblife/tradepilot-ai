@@ -9,9 +9,7 @@ from app.database.session import (
     create_async_session_factory,
 )
 
-_DEFAULT_TEST_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_TEST_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -89,9 +87,7 @@ async def test_exception_triggers_rollback(config: AppConfig) -> None:
     factory = create_async_session_factory(engine)
 
     async with factory() as session:
-        await session.execute(
-            text("CREATE TEMPORARY TABLE test_exc (id INT PRIMARY KEY)")
-        )
+        await session.execute(text("CREATE TEMPORARY TABLE test_exc (id INT PRIMARY KEY)"))
         await session.execute(text("INSERT INTO test_exc (id) VALUES (1)"))
         await session.rollback()
 

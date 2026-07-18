@@ -23,9 +23,7 @@ class ValidationAttempt(Base):
 
     __table_args__ = (CheckConstraint("attempt_number >= 1", name="attempt_number"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        pg_uuid(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
     analysis_job_id: Mapped[uuid.UUID] = mapped_column(
         pg_uuid(),
         ForeignKey("analysis_jobs.id", ondelete="RESTRICT"),
@@ -43,15 +41,9 @@ class ValidationAttempt(Base):
         nullable=False,
     )
     valid: Mapped[bool] = mapped_column(nullable=False)
-    issues: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True, default=dict
-    )
-    parsed_payload: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
-    validated_payload: Mapped[dict[str, object] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    issues: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True, default=dict)
+    parsed_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    validated_payload: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         utc_datetime(), nullable=False, server_default=func.now()
     )

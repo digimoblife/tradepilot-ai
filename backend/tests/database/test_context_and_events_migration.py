@@ -8,12 +8,8 @@ from app.config import AppConfig
 from app.database.session import create_async_engine_from_config
 
 ALEMBIC_CFG = "alembic.ini"
-_DEFAULT_SYNC = (
-    "postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
-_DEFAULT_ASYNC = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_SYNC = "postgresql+psycopg://tradepilot:change_me@localhost:5432/tradepilot_test"
+_DEFAULT_ASYNC = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 def _assert_safe_test_db(db_url: str) -> None:
@@ -73,10 +69,7 @@ async def test_enum_types_exist(async_db_url: str) -> None:
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
-                text(
-                    "SELECT t.typname FROM pg_type t "
-                    "WHERE t.typname = ANY(:enums)"
-                ),
+                text("SELECT t.typname FROM pg_type t WHERE t.typname = ANY(:enums)"),
                 {"enums": list(_TP0107_ENUMS)},
             )
         ).all()
@@ -268,10 +261,7 @@ async def test_downgrade_removes_enums(async_db_url: str) -> None:
     async with engine.connect() as conn:
         rows = (
             await conn.execute(
-                text(
-                    "SELECT t.typname FROM pg_type t "
-                    "WHERE t.typname = ANY(:enums)"
-                ),
+                text("SELECT t.typname FROM pg_type t WHERE t.typname = ANY(:enums)"),
                 {"enums": list(_TP0107_ENUMS)},
             )
         ).all()

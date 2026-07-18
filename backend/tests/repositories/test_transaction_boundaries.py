@@ -1,16 +1,16 @@
 import pytest
-from sqlalchemy import text, select, func
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
+from app.models.enums import SessionEventType
+from app.models.session_event import SessionEvent
+from app.models.trade_action import TradeAction
 from app.models.trade_session import TradeSession
 from app.models.trade_state import TradeState
-from app.models.trade_action import TradeAction
-from app.models.session_event import SessionEvent
-from app.models.enums import SessionEventType
-from app.repositories.trade_session import TradeSessionRepository
-from app.repositories.trade_state import TradeStateRepository
 from app.repositories.session_event import SessionEventRepository
 from app.repositories.trade_action import TradeActionRepository
+from app.repositories.trade_session import TradeSessionRepository
+from app.repositories.trade_state import TradeStateRepository
 
 
 @pytest.mark.database
@@ -108,13 +108,15 @@ async def test_integrity_error_propagates(session, engine):
     ts = TradeSession(owner_id=uid, ticker="IERR")
     await ts_repo.add(ts)
     a1 = TradeAction(
-        session_id=ts.id, action_type="POSITION_OPENED",
+        session_id=ts.id,
+        action_type="POSITION_OPENED",
         confirmed_at=__import__("datetime").datetime(2026, 7, 18, 10, 0, 0),
         idempotency_key="ierr",
     )
     await action_repo.add(a1)
     a2 = TradeAction(
-        session_id=ts.id, action_type="STOP_LOSS_CONFIRMED",
+        session_id=ts.id,
+        action_type="STOP_LOSS_CONFIRMED",
         confirmed_at=__import__("datetime").datetime(2026, 7, 18, 11, 0, 0),
         idempotency_key="ierr",
     )
@@ -125,7 +127,6 @@ async def test_integrity_error_propagates(session, engine):
 
 @pytest.mark.database
 async def test_no_hidden_commit(session, engine):
-    import uuid
 
     await _clean(engine)
     uid = await _make_user(engine)
@@ -161,6 +162,7 @@ async def _clean(engine):
 
 async def _make_user(engine):
     import uuid
+
     async with engine.begin() as c:
         r = (
             await c.execute(

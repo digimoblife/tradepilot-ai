@@ -9,9 +9,7 @@ from app.database.session import create_async_engine_from_config
 from app.models.enums import AccountStatus
 from app.models.user import User, normalize_email
 
-_DEFAULT_URL = (
-    "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
-)
+_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @pytest.fixture
@@ -37,10 +35,7 @@ async def test_user_can_be_inserted(db_url: str) -> None:
         await conn.execute(text("DELETE FROM users"))
     async with engine.begin() as conn:
         result = await conn.execute(
-            text(
-                "INSERT INTO users (email, password_hash) "
-                "VALUES (:email, :ph) RETURNING id"
-            ),
+            text("INSERT INTO users (email, password_hash) VALUES (:email, :ph) RETURNING id"),
             {"email": "test@example.com", "ph": "hashed_pw"},
         )
         row = result.first()

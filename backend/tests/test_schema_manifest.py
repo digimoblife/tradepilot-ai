@@ -1,23 +1,17 @@
 """TP-0203: Schema identity, version, manifest, and mapping audit tests."""
+
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import jsonschema
 import pytest
 from referencing import Registry, Resource
 
-PRODUCTION_DIR = (
-    Path(__file__).resolve().parent.parent / "schemas" / "production" / "v1"
-)
-VALID_DIR = (
-    Path(__file__).resolve().parent.parent / "schemas" / "fixtures" / "valid" / "v1"
-)
-INVALID_DIR = (
-    Path(__file__).resolve().parent.parent / "schemas" / "fixtures" / "invalid" / "v1"
-)
+PRODUCTION_DIR = Path(__file__).resolve().parent.parent / "schemas" / "production" / "v1"
+VALID_DIR = Path(__file__).resolve().parent.parent / "schemas" / "fixtures" / "valid" / "v1"
+INVALID_DIR = Path(__file__).resolve().parent.parent / "schemas" / "fixtures" / "invalid" / "v1"
 
 SCHEMA_FILES = sorted(PRODUCTION_DIR.glob("*.schema.json"))
 
@@ -40,8 +34,11 @@ REGISTRY = _build_registry()
 MANIFEST = _load(PRODUCTION_DIR / "manifest.json")
 # Map lowercased schema name for cross-schema fixture lookup
 ANALYSIS_SCHEMAS = {
-    "initial_analysis", "watching_update", "open_position_update",
-    "partial_exit_review", "closing_analysis",
+    "initial_analysis",
+    "watching_update",
+    "open_position_update",
+    "partial_exit_review",
+    "closing_analysis",
 }
 
 EXPECTED_SCHEMA_FILES = {
@@ -78,6 +75,7 @@ def _assert_diagnostic(cond: bool, msg: str, **ctx: object) -> None:
 # 1. Production file count
 # ---------------------------------------------------------------------------
 
+
 def test_exact_file_count() -> None:
     actual = {f.name for f in SCHEMA_FILES}
     assert actual == EXPECTED_SCHEMA_FILES, (
@@ -91,6 +89,7 @@ def test_exact_file_count() -> None:
 # 2. Exact file names
 # ---------------------------------------------------------------------------
 
+
 def test_exact_filenames() -> None:
     for name in EXPECTED_SCHEMA_FILES:
         assert (PRODUCTION_DIR / name).exists(), f"Missing schema: {name}"
@@ -99,6 +98,7 @@ def test_exact_filenames() -> None:
 # ---------------------------------------------------------------------------
 # 3. Manifest entry count
 # ---------------------------------------------------------------------------
+
 
 def test_manifest_entry_count() -> None:
     entries = MANIFEST["schemas"]
@@ -109,17 +109,16 @@ def test_manifest_entry_count() -> None:
 # 4. Unique $id
 # ---------------------------------------------------------------------------
 
+
 def test_unique_id() -> None:
     seen: dict[str, str] = {}
     for f in SCHEMA_FILES:
         schema = _load(f)
         sid = schema.get("$id", "")
-        _assert_diagnostic(
-            bool(sid), f"{f.name} missing $id", file=f.name, sid=sid
-        )
+        _assert_diagnostic(bool(sid), f"{f.name} missing $id", file=f.name, sid=sid)
         _assert_diagnostic(
             sid not in seen,
-            f"Duplicate $id",
+            "Duplicate $id",
             file=f.name,
             sid=sid,
             conflict=seen.get(sid, ""),
@@ -130,6 +129,7 @@ def test_unique_id() -> None:
 # ---------------------------------------------------------------------------
 # 5. Unique schema name
 # ---------------------------------------------------------------------------
+
 
 def test_unique_schema_names() -> None:
     names: dict[str, str] = {}
@@ -149,20 +149,20 @@ def test_unique_schema_names() -> None:
 # 6. Unique filename registration
 # ---------------------------------------------------------------------------
 
+
 def test_unique_filename_registration() -> None:
     filenames: dict[str, int] = {}
     for entry in MANIFEST["schemas"]:
         fn = entry["file"]
         filenames[fn] = filenames.get(fn, 0) + 1
     dupes = {k for k, v in filenames.items() if v > 1}
-    _assert_diagnostic(
-        not dupes, "Duplicate filename in manifest", duplicates=dupes
-    )
+    _assert_diagnostic(not dupes, "Duplicate filename in manifest", duplicates=dupes)
 
 
 # ---------------------------------------------------------------------------
 # 7. Unique (name, version) pair
 # ---------------------------------------------------------------------------
+
 
 def test_unique_name_version() -> None:
     pairs: dict[tuple[str, str], str] = {}
@@ -182,6 +182,7 @@ def test_unique_name_version() -> None:
 # ---------------------------------------------------------------------------
 # 8. Filename equals $id basename
 # ---------------------------------------------------------------------------
+
 
 def test_filename_equals_id_basename() -> None:
     for f in SCHEMA_FILES:
@@ -203,6 +204,7 @@ def test_filename_equals_id_basename() -> None:
 # 9. Version path equals package version
 # ---------------------------------------------------------------------------
 
+
 def test_version_path() -> None:
     for f in SCHEMA_FILES:
         schema = _load(f)
@@ -221,6 +223,7 @@ def test_version_path() -> None:
 # ---------------------------------------------------------------------------
 # 10. Manifest $id equals schema $id
 # ---------------------------------------------------------------------------
+
 
 def test_manifest_id_equals_schema_id() -> None:
     schema_ids: dict[str, str] = {}
@@ -245,6 +248,7 @@ def test_manifest_id_equals_schema_id() -> None:
 # ---------------------------------------------------------------------------
 # 11. Manifest version equals schema version
 # ---------------------------------------------------------------------------
+
 
 def test_manifest_version_matches_schema() -> None:
     for entry in MANIFEST["schemas"]:
@@ -272,6 +276,7 @@ def test_manifest_version_matches_schema() -> None:
 # 12. Analysis type maps correctly
 # ---------------------------------------------------------------------------
 
+
 def test_analysis_type_mapping() -> None:
     at_reg = MANIFEST.get("analysis_type_registry", {})
     for atype, expected_name in ANALYSIS_TYPE_MAP.items():
@@ -294,6 +299,7 @@ def test_analysis_type_mapping() -> None:
 # 13. Reverse analysis mapping complete
 # ---------------------------------------------------------------------------
 
+
 def test_reverse_analysis_mapping() -> None:
     at_reg = MANIFEST.get("analysis_type_registry", {})
     mapped_schemas = {e["schema"] for e in at_reg.values()}
@@ -309,6 +315,7 @@ def test_reverse_analysis_mapping() -> None:
 # ---------------------------------------------------------------------------
 # 14. Session status mappings target valid schemas
 # ---------------------------------------------------------------------------
+
 
 def test_session_status_mappings() -> None:
     ss_map = MANIFEST.get("session_status_schema_mapping", {})
@@ -334,6 +341,7 @@ def test_session_status_mappings() -> None:
 # ---------------------------------------------------------------------------
 # 15. Every dependency is registered
 # ---------------------------------------------------------------------------
+
 
 def _walk_refs(value: object) -> list[str]:
     refs: list[str] = []
@@ -362,9 +370,7 @@ def test_every_dependency_registered() -> None:
             if ref.startswith("#"):
                 continue
             uri_part = ref.split("#")[0]
-            if uri_part in (
-                "https://json-schema.org/draft/2020-12/schema",
-            ):
+            if uri_part in ("https://json-schema.org/draft/2020-12/schema",):
                 continue
             _assert_diagnostic(
                 uri_part in registered_sids,
@@ -378,6 +384,7 @@ def test_every_dependency_registered() -> None:
 # ---------------------------------------------------------------------------
 # 16. Load all schemas offline
 # ---------------------------------------------------------------------------
+
 
 def test_offline_package_load() -> None:
     for f in SCHEMA_FILES:
@@ -403,10 +410,14 @@ def test_offline_package_load() -> None:
 # 17. Valid fixture version matches manifest
 # ---------------------------------------------------------------------------
 
+
 def test_valid_fixture_versions() -> None:
     analysis_schemas = {
-        "initial_analysis", "watching_update", "open_position_update",
-        "partial_exit_review", "closing_analysis",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
     }
     for fixture in sorted(VALID_DIR.glob("*.json")):
         name_part = fixture.stem.split(".")[0]
@@ -432,9 +443,8 @@ def test_valid_fixture_versions() -> None:
 # 18. Cross-schema fixture rejection
 # ---------------------------------------------------------------------------
 
-def _resolve_and_validate(
-    instance: dict, schema: dict, registry: Registry
-) -> list[str]:
+
+def _resolve_and_validate(instance: dict, schema: dict, registry: Registry) -> list[str]:
     validator_cls = jsonschema.validators.validator_for(schema)
     validator = validator_cls(schema, registry=registry)
     return [e.message for e in validator.iter_errors(instance)]

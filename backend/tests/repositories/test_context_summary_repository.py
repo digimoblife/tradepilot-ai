@@ -1,7 +1,6 @@
 import pytest
 
 from app.models.context_summary import ContextSummary
-from app.models.enums import ContextQuality
 from app.repositories.context_summary import ContextSummaryRepository
 
 
