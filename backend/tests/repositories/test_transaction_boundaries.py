@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy import text, select, func
+from sqlalchemy.exc import IntegrityError
 
 from app.models.trade_session import TradeSession
 from app.models.trade_state import TradeState
@@ -12,29 +13,28 @@ from app.repositories.session_event import SessionEventRepository
 from app.repositories.trade_action import TradeActionRepository
 
 
-
 @pytest.mark.database
-async def test_rollback_removes_repo_writes(session):
-    await _clean_via_session(session)
+async def test_rollback_removes_repo_writes(session, engine):
+    await _clean(engine)
+    uid = await _make_user(engine)
     repo = TradeSessionRepository(session)
-    ts = TradeSession(owner_id=uid(), ticker="ROLLBACK")
+    ts = TradeSession(owner_id=uid, ticker="RBTEST")
     await repo.add(ts)
     await session.rollback()
-    # After rollback, row should not exist in a new connection
-    r = await session.execute(
-        select(TradeSession).where(TradeSession.ticker == "ROLLBACK")
-    )
-    assert r.first() is None, "Rolled-back row should not exist"
+    async with engine.begin() as c:
+        r = await c.execute(text("SELECT id FROM trade_sessions WHERE ticker = 'RBTEST'"))
+        assert r.first() is None
 
 
 @pytest.mark.database
-async def test_multi_repository_atomic_commit(session):
-    await _clean_via_session(session)
+async def test_multi_repository_atomic_commit(session, engine):
+    await _clean(engine)
+    uid = await _make_user(engine)
     ts_repo = TradeSessionRepository(session)
     state_repo = TradeStateRepository(session)
     event_repo = SessionEventRepository(session)
 
-    ts = TradeSession(owner_id=uid(), ticker="ATOMIC")
+    ts = TradeSession(owner_id=uid, ticker="ATOMIC")
     await ts_repo.add(ts)
     state = TradeState(session_id=ts.id)
     await state_repo.add(state)
@@ -46,53 +46,77 @@ async def test_multi_repository_atomic_commit(session):
     await event_repo.add(event)
     await session.commit()
 
-    # Add new session check separately
-    r = await session.execute(
-        select(TradeSession).where(TradeSession.ticker == "ATOMIC")
-    )
-    assert r.first() is not None, "Committed session should exist"
+    async with engine.begin() as c:
+        r = await c.execute(text("SELECT id FROM trade_sessions WHERE ticker = 'ATOMIC'"))
+        assert r.first() is not None
+        r = await c.execute(
+            text("SELECT session_id FROM trade_states WHERE session_id = :sid"), {"sid": ts.id}
+        )
+        assert r.first() is not None
+        r = await c.execute(
+            text("SELECT id FROM session_events WHERE session_id = :sid"), {"sid": ts.id}
+        )
+        assert r.first() is not None
 
 
 @pytest.mark.database
-async def test_multi_repository_rollback(session):
-    await _clean_via_session(session)
+async def test_multi_repository_database_failure_rollback(session, engine):
+    await _clean(engine)
+    uid = await _make_user(engine)
     ts_repo = TradeSessionRepository(session)
     state_repo = TradeStateRepository(session)
+    action_repo = TradeActionRepository(session)
 
-    ts = TradeSession(owner_id=uid(), ticker="ROLL_ALL")
+    ts = TradeSession(owner_id=uid, ticker="FAILROLL")
     await ts_repo.add(ts)
     state = TradeState(session_id=ts.id)
     await state_repo.add(state)
-    await session.rollback()
 
-    r = await session.execute(
-        select(TradeSession).where(TradeSession.ticker == "ROLL_ALL")
-    )
-    assert r.first() is None, "Rolled-back session should not exist"
-
-
-@pytest.mark.database
-async def test_integrity_error_propagates(session):
-    from sqlalchemy.exc import IntegrityError
-
-    await _clean_via_session(session)
-    u = uid()
-    ts_repo = TradeSessionRepository(session)
-    ts = TradeSession(owner_id=u, ticker="INTEG")
-    await ts_repo.add(ts)
-    action_repo = TradeActionRepository(session)
     a1 = TradeAction(
         session_id=ts.id,
         action_type="POSITION_OPENED",
         confirmed_at=__import__("datetime").datetime(2026, 7, 18, 10, 0, 0),
-        idempotency_key="int-err",
+        idempotency_key="fail-dup",
     )
     await action_repo.add(a1)
     a2 = TradeAction(
         session_id=ts.id,
         action_type="STOP_LOSS_CONFIRMED",
         confirmed_at=__import__("datetime").datetime(2026, 7, 18, 11, 0, 0),
-        idempotency_key="int-err",
+        idempotency_key="fail-dup",
+    )
+    with pytest.raises(IntegrityError):
+        await action_repo.add(a2)
+    await session.rollback()
+
+    async with engine.begin() as c:
+        r = await c.execute(text("SELECT id FROM trade_sessions WHERE ticker = 'FAILROLL'"))
+        assert r.first() is None
+        r = await c.execute(
+            text("SELECT id FROM trade_actions WHERE idempotency_key = 'fail-dup'")
+        )
+        assert r.first() is None
+
+
+@pytest.mark.database
+async def test_integrity_error_propagates(session, engine):
+    await _clean(engine)
+    uid = await _make_user(engine)
+    ts_repo = TradeSessionRepository(session)
+    action_repo = TradeActionRepository(session)
+
+    ts = TradeSession(owner_id=uid, ticker="IERR")
+    await ts_repo.add(ts)
+    a1 = TradeAction(
+        session_id=ts.id, action_type="POSITION_OPENED",
+        confirmed_at=__import__("datetime").datetime(2026, 7, 18, 10, 0, 0),
+        idempotency_key="ierr",
+    )
+    await action_repo.add(a1)
+    a2 = TradeAction(
+        session_id=ts.id, action_type="STOP_LOSS_CONFIRMED",
+        confirmed_at=__import__("datetime").datetime(2026, 7, 18, 11, 0, 0),
+        idempotency_key="ierr",
     )
     with pytest.raises(IntegrityError):
         await action_repo.add(a2)
@@ -100,42 +124,48 @@ async def test_integrity_error_propagates(session):
 
 
 @pytest.mark.database
-async def test_no_hidden_commit(session):
-    await _clean_via_session(session)
-    u = uid()
-    ts_repo = TradeSessionRepository(session)
-    ts = TradeSession(owner_id=u, ticker="NOCOMMIT")
-    await ts_repo.add(ts)
-    r = await session.execute(
-        select(func.count()).select_from(TradeSession).where(
-            TradeSession.ticker == "NOCOMMIT"
-        )
-    )
-    count = r.scalar_one()
-    assert count == 1, "Row should be visible in current transaction after flush"
-    await session.rollback()
-
-
-def uid():
+async def test_no_hidden_commit(session, engine):
     import uuid
-    return uuid.uuid4()
 
-
-async def _clean_via_session(s):
-    await s.execute(
-        text(
-            "DELETE FROM session_events; "
-            "DELETE FROM context_summaries; "
-            "DELETE FROM validation_attempts; "
-            "DELETE FROM provider_responses; "
-            "DELETE FROM provider_requests; "
-            "DELETE FROM trade_actions; "
-            "DELETE FROM analyses; "
-            "DELETE FROM analysis_jobs; "
-            "DELETE FROM evidence; "
-            "DELETE FROM trade_states; "
-            "DELETE FROM trade_sessions; "
-            "DELETE FROM users"
-        )
+    await _clean(engine)
+    uid = await _make_user(engine)
+    repo = TradeSessionRepository(session)
+    ts = TradeSession(owner_id=uid, ticker="NOCMT")
+    await repo.add(ts)
+    r = await session.execute(
+        select(func.count()).select_from(TradeSession).where(TradeSession.ticker == "NOCMT")
     )
-    await s.flush()
+    assert r.scalar_one() == 1
+    await session.rollback()
+    r = await session.execute(
+        select(func.count()).select_from(TradeSession).where(TradeSession.ticker == "NOCMT")
+    )
+    assert r.scalar_one() == 0
+
+
+async def _clean(engine):
+    async with engine.begin() as c:
+        await c.execute(text("DELETE FROM session_events"))
+        await c.execute(text("DELETE FROM context_summaries"))
+        await c.execute(text("DELETE FROM validation_attempts"))
+        await c.execute(text("DELETE FROM provider_responses"))
+        await c.execute(text("DELETE FROM provider_requests"))
+        await c.execute(text("DELETE FROM trade_actions"))
+        await c.execute(text("DELETE FROM analyses"))
+        await c.execute(text("DELETE FROM analysis_jobs"))
+        await c.execute(text("DELETE FROM evidence"))
+        await c.execute(text("DELETE FROM trade_states"))
+        await c.execute(text("DELETE FROM trade_sessions"))
+        await c.execute(text("DELETE FROM users"))
+
+
+async def _make_user(engine):
+    import uuid
+    async with engine.begin() as c:
+        r = (
+            await c.execute(
+                text("INSERT INTO users (email, password_hash) VALUES (:e, :p) RETURNING id"),
+                {"e": f"tx_{uuid.uuid4().hex[:8]}@t.com", "p": "pw"},
+            )
+        ).first()
+        return r[0]
