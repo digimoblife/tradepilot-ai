@@ -17,6 +17,7 @@ class ValidationCategory(StrEnum):
     ADDITIONAL_PROPERTY = "ADDITIONAL_PROPERTY"
     CONDITIONAL = "CONDITIONAL"
     REFERENCE = "REFERENCE"
+    DOMAIN = "DOMAIN"
 
 
 class ValidationSeverity(StrEnum):
