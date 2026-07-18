@@ -1,12 +1,11 @@
 """Typed manifest loading and validation for the TradePilot AI schema package."""
-# mypy: ignore-errors
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping
+from typing import Any, Mapping
 
 from app.schemas.errors import ManifestLoadError, ManifestValidationError
 
@@ -482,7 +481,7 @@ def _parse_manifest(raw: dict[str, object], path: Path) -> ProductionManifest:
         validation=validation_rules,
         narrative_rules=narrative_rules,
         provider_compatibility=provider_comp,
-        **indexes,  # type: ignore[arg-type]
+        **indexes,
     )
 
 
@@ -631,8 +630,12 @@ def _parse_narrative_rules(raw: object) -> ManifestNarrativeRules | None:
         user_facing_language=str(d.get("user_facing_language", "id")),
         technical_keys_language=str(d.get("technical_keys_language", "en")),
         enum_language=str(d.get("enum_language", "en")),
-        probabilities_are_estimates_not_guarantees=bool(d.get("probabilities_are_estimates_not_guarantees", True)),
-        confidence_is_not_probability=bool(d.get("confidence_is_not_probability", True)),
+        probabilities_are_estimates_not_guarantees=bool(
+            d.get("probabilities_are_estimates_not_guarantees", True)
+        ),
+        confidence_is_not_probability=bool(
+            d.get("confidence_is_not_probability", True)
+        ),
     )
 
 
