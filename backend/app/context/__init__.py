@@ -1,5 +1,12 @@
 """TradePilot AI context memory layer."""
 
+from app.context.builder import (
+    ContextSummaryBuildResult,
+    ContextSummaryBuilder,
+    ContextSummaryBuilderError,
+    ContextSummarySessionNotFoundError,
+    ContextSummaryValidationFailedError,
+)
 from app.context.history_selector import (
     HistoryEvent,
     MaterialHistoryError,
@@ -10,6 +17,11 @@ from app.context.history_selector import (
 )
 
 __all__ = [
+    "ContextSummaryBuildResult",
+    "ContextSummaryBuilder",
+    "ContextSummaryBuilderError",
+    "ContextSummarySessionNotFoundError",
+    "ContextSummaryValidationFailedError",
     "HistoryEvent",
     "MaterialHistoryError",
     "MaterialHistoryInvalidLimitError",
