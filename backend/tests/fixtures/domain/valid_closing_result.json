@@ -1,0 +1,30 @@
+{
+  "scenario": "valid_closing_result",
+  "previous_state": {
+    "entry_price": 2800,
+    "original_quantity": 100,
+    "remaining_quantity": 100,
+    "position_status": "OPEN",
+    "realized_pnl": null,
+    "average_exit_price": null,
+    "entry_timestamp": "2026-07-15T10:12:00+07:00"
+  },
+  "final_exit": {
+    "final_exit_quantity": 100,
+    "final_exit_price": 2910,
+    "exit_timestamp": "2026-07-17T15:12:00+07:00"
+  },
+  "resulting_state": {
+    "entry_price": 2800,
+    "original_quantity": 100,
+    "average_exit_price": 2910,
+    "gross_profit_loss": 11000,
+    "fees": null,
+    "taxes": null,
+    "net_profit_loss": 11000,
+    "remaining_quantity": 0,
+    "closed_at": "2026-07-17T15:30:00+07:00"
+  },
+  "closing_reason": "TAKE_PROFIT",
+  "resulting_session_status": "CLOSED_TAKE_PROFIT"
+}

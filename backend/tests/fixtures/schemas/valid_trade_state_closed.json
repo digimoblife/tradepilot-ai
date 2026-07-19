@@ -1,0 +1,28 @@
+{
+  "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "ticker": "BBRI",
+  "currency": "IDR",
+  "session_status": "CLOSED_TAKE_PROFIT",
+  "created_at": "2026-07-15T09:05:00+07:00",
+  "updated_at": "2026-07-17T15:12:00+07:00",
+  "position": {
+    "position_exists": true,
+    "position_status": "CLOSED",
+    "entry_price": 2800,
+    "entry_timestamp": "2026-07-15T10:12:00+07:00",
+    "original_quantity": 100,
+    "remaining_quantity": 0,
+    "average_exit_price": 2910,
+    "active_stop_loss": null,
+    "active_target": null,
+    "realized_profit_loss": "11000",
+    "realized_return_percentage": "3.93",
+    "unrealized_profit_loss": null,
+    "unrealized_return_percentage": null,
+    "distance_to_stop_percentage": null,
+    "distance_to_target_percentage": null,
+    "holding_duration_days": 2,
+    "last_confirmed_at": "2026-07-17T15:12:00+07:00"
+  },
+  "latest_market_price": null
+}

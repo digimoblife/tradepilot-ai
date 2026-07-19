@@ -1,0 +1,87 @@
+{
+  "scenario": "active_target_mismatch",
+  "expected_code": "STATE_ACTIVE_TARGET_MISMATCH",
+  "expected_path": "/position_assessment/active_target",
+  "payload": {
+    "metadata": {
+      "analysis_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "analysis_type": "OPEN_POSITION_UPDATE",
+      "ticker": "BBRI",
+      "company_name": "Bank Rakyat Indonesia",
+      "analysis_timestamp": "2026-07-18T10:00:00+07:00",
+      "language": "id",
+      "schema": {
+        "schema_name": "initial_analysis",
+        "schema_version": "1.0.0"
+      },
+      "prompt_version": "1.0.0",
+      "provider": "GEMINI",
+      "model": "gemini-2.0-flash"
+    },
+    "update_period": "MIDDAY",
+    "comparison": {},
+    "evidence_summary": {},
+    "market_snapshot": {
+      "trading_date": "2026-07-18",
+      "market_timestamp": "2026-07-18T09:30:00+07:00",
+      "update_period": "MORNING",
+      "currency": "IDR",
+      "data_available": true,
+      "open": 2800,
+      "high": 2850,
+      "low": 2780,
+      "last": 2830,
+      "close": null,
+      "previous_close": 2780,
+      "average": 2815,
+      "change": 50,
+      "change_percentage": "1.80",
+      "volume": 15000000,
+      "transaction_value": 42000000000,
+      "best_bid": 2820,
+      "best_offer": 2830,
+      "spread": 10,
+      "spread_percentage": "0.35",
+      "summary": "Pasar bergerak positif pada sesi pagi.",
+      "source": "MIXED",
+      "limitations": []
+    },
+    "today_summary": {},
+    "orderbook_analysis": {},
+    "chart_update": {},
+    "position_assessment": {
+      "entry_price": 2800,
+      "current_price": 2890,
+      "remaining_quantity": 100,
+      "active_stop_loss": 2840,
+      "active_target": 999,
+      "unrealized_profit_loss": 9000,
+      "unrealized_return_percentage": "3.21",
+      "distance_to_stop_percentage": "1.73",
+      "distance_to_target_percentage": "1.04",
+      "holding_duration_days": 2,
+      "health": "HEALTHY_WITH_CAUTION",
+      "summary": "Posisi profit."
+    },
+    "thesis_assessment": {},
+    "target_assessment": {},
+    "stop_loss_assessment": {},
+    "trading_plan": {},
+    "ai_assessment": {},
+    "changes_from_previous": [],
+    "warnings_and_missing_information": {}
+  },
+  "canonical_state": {
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "ticker": "BBRI",
+    "position": {
+      "entry_price": 2800,
+      "original_quantity": 100,
+      "remaining_quantity": 100,
+      "active_stop_loss": 2840,
+      "active_target": 2920,
+      "position_status": "OPEN"
+    }
+  }
+}

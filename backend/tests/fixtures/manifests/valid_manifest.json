@@ -1,0 +1,215 @@
+{
+  "manifest_version": "1.0.0",
+  "manifest_name": "test_phase1",
+  "base_uri": "https://schemas.tradepilot.local/production/v1/",
+  "schema_standard": "https://json-schema.org/draft/2020-12/schema",
+  "status": "ACTIVE",
+  "schemas": [
+    {
+      "name": "common",
+      "title": "TradePilot AI Common Definitions",
+      "version": "1.0.0",
+      "category": "SHARED",
+      "root_schema": false,
+      "active": true,
+      "file": "common.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/common.schema.json",
+      "description": "Shared primitive definitions, reusable objects, and compact enums used by all production schemas.",
+      "analysis_types": [],
+      "dependencies": [],
+      "used_by": [
+        "market_snapshot",
+        "trade_state",
+        "evidence",
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+        "context_summary"
+      ]
+    },
+    {
+      "name": "market_snapshot",
+      "title": "TradePilot AI Market Snapshot",
+      "version": "1.0.0",
+      "category": "SHARED",
+      "root_schema": false,
+      "active": true,
+      "file": "market_snapshot.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/market_snapshot.schema.json",
+      "description": "Latest available OHLC, average, volume, transaction value, bid, offer, and market-summary values used in an analysis.",
+      "analysis_types": [],
+      "dependencies": [
+        "common"
+      ],
+      "used_by": [
+        "initial_analysis",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review"
+      ]
+    },
+    {
+      "name": "trade_state",
+      "title": "TradePilot AI Trade State",
+      "version": "1.0.0",
+      "category": "CANONICAL_STATE",
+      "root_schema": true,
+      "active": true,
+      "file": "trade_state.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/trade_state.schema.json",
+      "description": "Canonical user-confirmed state of one Trade Session, including position, thesis, active plan, performance, and confirmed actions.",
+      "analysis_types": [],
+      "dependencies": [
+        "common"
+      ],
+      "used_by": [
+        "application_backend",
+        "context_summary",
+        "analysis_context_builder",
+        "session_lifecycle"
+      ]
+    },
+    {
+      "name": "open_position_update",
+      "title": "TradePilot AI Open Position Update",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "open_position_update.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/open_position_update.schema.json",
+      "description": "Primary analysis contract for an active swing-trading position, including daily summary, orderbook, position condition, thesis, target realism, stop-loss review, plan, and AI assessment.",
+      "analysis_types": [
+        "OPEN_POSITION_UPDATE"
+      ],
+      "valid_session_statuses": [
+        "OPEN_POSITION"
+      ],
+      "resulting_session_statuses": [
+        "OPEN_POSITION"
+      ],
+      "dependencies": [
+        "common",
+        "market_snapshot",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder",
+        "position_monitor"
+      ],
+      "priority": "HIGHEST"
+    },
+    {
+      "name": "closing_analysis",
+      "title": "TradePilot AI Closing Analysis",
+      "version": "1.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "closing_analysis.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/closing_analysis.schema.json",
+      "description": "Final analysis after the entire position has been closed, including trade result, timeline, thesis review, execution quality, mistakes, and lessons.",
+      "analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "valid_session_statuses": [
+        "CLOSED_TAKE_PROFIT",
+        "CLOSED_STOP_LOSS",
+        "CLOSED_MANUAL",
+        "CANCELLED"
+      ],
+      "resulting_session_statuses": [
+        "CLOSED_TAKE_PROFIT",
+        "CLOSED_STOP_LOSS",
+        "CLOSED_MANUAL",
+        "CANCELLED"
+      ],
+      "dependencies": [
+        "common",
+        "evidence"
+      ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder",
+        "trading_journal",
+        "reporting_engine"
+      ]
+    }
+  ],
+  "analysis_type_registry": {},
+  "session_status_registry": {},
+  "session_status_schema_mapping": {
+    "DRAFT": {
+      "allowed_analysis_types": [],
+      "canonical_schema": "trade_state"
+    },
+    "READY_FOR_ANALYSIS": {
+      "allowed_analysis_types": [
+        "INITIAL_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "ANALYZING": {
+      "allowed_analysis_types": [
+        "INITIAL_ANALYSIS",
+        "WATCHING_UPDATE",
+        "OPEN_POSITION_UPDATE",
+        "PARTIAL_EXIT_REVIEW",
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "WATCHING": {
+      "allowed_analysis_types": [
+        "WATCHING_UPDATE"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "OPEN_POSITION": {
+      "allowed_analysis_types": [
+        "OPEN_POSITION_UPDATE"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "PARTIALLY_CLOSED": {
+      "allowed_analysis_types": [
+        "OPEN_POSITION_UPDATE",
+        "PARTIAL_EXIT_REVIEW"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "CLOSED_TAKE_PROFIT": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "CLOSED_STOP_LOSS": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "CLOSED_MANUAL": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "CANCELLED": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+    "ARCHIVED": {
+      "allowed_analysis_types": [],
+      "canonical_schema": "trade_state"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "scenario": "valid_partial_exit",
+  "previous_state": {
+    "entry_price": 2800,
+    "remaining_quantity": 100,
+    "position_status": "OPEN",
+    "realized_pnl": null,
+    "average_exit_price": null
+  },
+  "partial_exit": {
+    "exit_quantity": 40,
+    "exit_price": 2920
+  },
+  "resulting_state": {
+    "remaining_quantity": 60,
+    "realized_pnl": 4800,
+    "average_exit_price": 2920,
+    "position_status": "PARTIALLY_CLOSED"
+  }
+}
