@@ -141,7 +141,97 @@
       ]
     }
   ],
-  "analysis_type_registry": {},
+  "analysis_type_registry": {
+    "INITIAL_ANALYSIS": {
+      "schema": "initial_analysis",
+      "schema_version": "1.0.0",
+      "requires_position": false,
+      "requires_user_confirmation_before_execution": true,
+      "required_evidence": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH"
+      ],
+      "optional_evidence": [
+        "MARKET_SCREENSHOT",
+        "USER_NOTE",
+        "CHART_OTHER"
+      ]
+    },
+    "WATCHING_UPDATE": {
+      "schema": "watching_update",
+      "schema_version": "1.0.0",
+      "requires_position": false,
+      "requires_previous_analysis": true,
+      "requires_user_confirmation_before_execution": true,
+      "required_evidence": [
+        "ORDERBOOK_SCREENSHOT"
+      ],
+      "optional_evidence": [
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE"
+      ]
+    },
+    "OPEN_POSITION_UPDATE": {
+      "schema": "open_position_update",
+      "schema_version": "1.0.0",
+      "requires_position": true,
+      "requires_previous_analysis": false,
+      "requires_canonical_trade_state": true,
+      "requires_user_confirmation_before_state_change": true,
+      "required_evidence": [
+        "ORDERBOOK_SCREENSHOT"
+      ],
+      "optional_evidence": [
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE"
+      ]
+    },
+    "PARTIAL_EXIT_REVIEW": {
+      "schema": "partial_exit_review",
+      "schema_version": "1.0.0",
+      "requires_position": true,
+      "requires_partial_position": true,
+      "requires_canonical_trade_state": true,
+      "requires_user_confirmation_before_state_change": true,
+      "required_evidence": [
+        "PARTIAL_EXIT_CONFIRMATION"
+      ],
+      "optional_evidence": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE"
+      ]
+    },
+    "CLOSING_ANALYSIS": {
+      "schema": "closing_analysis",
+      "schema_version": "1.0.0",
+      "requires_position": true,
+      "requires_closed_position": true,
+      "requires_canonical_trade_state": true,
+      "required_evidence": [
+        "EXIT_CONFIRMATION"
+      ],
+      "optional_evidence": [
+        "ORDERBOOK_SCREENSHOT",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "CHART_OTHER",
+        "MARKET_SCREENSHOT",
+        "USER_NOTE",
+        "PARTIAL_EXIT_CONFIRMATION"
+      ]
+    }
+  },
   "session_status_registry": {},
   "session_status_schema_mapping": {
     "DRAFT": {
