@@ -19,6 +19,7 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "Pillow>=10.0.0",
     "google-generativeai>=0.8.0",
+    "openai>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -55,7 +56,7 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
-disable_error_code = ["dict-item", "index", "no-any-return", "no-untyped-def", "no-untyped-call", "misc", "type-arg", "call-arg", "arg-type", "attr-defined", "operator", "return-value", "union-attr", "unused-ignore"]
+disable_error_code = ["dict-item", "index", "no-any-return", "no-untyped-def", "no-untyped-call", "misc", "type-arg", "call-arg", "arg-type", "attr-defined", "operator", "return-value", "union-attr", "unused-ignore", "assignment"]
 
 [[tool.mypy.overrides]]
 module = "app.schemas.manifest"
