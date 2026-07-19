@@ -23,3 +23,4 @@ class AppConfig(BaseSettings):
     db_echo: bool = False
     schema_package_root: str = "schemas/production/v1"
     storage_root: str = "storage/local"
+    max_upload_size_bytes: int = Field(default=10485760, ge=1)
