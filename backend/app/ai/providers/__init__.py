@@ -38,6 +38,15 @@ from app.ai.providers.models import (
     ProviderResponse,
     ProviderUsage,
 )
+from app.ai.providers.router import (
+    ProviderOrderEmptyError,
+    ProviderRouteAttempt,
+    ProviderRouter,
+    ProviderRouterError,
+    ProviderRoutingFailedError,
+    ProviderRoutingResult,
+    ProviderUnknownError,
+)
 
 __all__ = [
     "AIProvider",
@@ -63,9 +72,15 @@ __all__ = [
     "ProviderCapabilities",
     "ProviderCapabilityUnsupportedError",
     "ProviderImage",
+    "ProviderOrderEmptyError",
     "ProviderRequest",
     "ProviderRequestInvalidError",
-    "ProviderResponse",
+    "ProviderRouteAttempt",
+    "ProviderRouter",
+    "ProviderRouterError",
+    "ProviderRoutingFailedError",
+    "ProviderRoutingResult",
+    "ProviderUnknownError",
     "ProviderUsage",
     "ensure_request_supported",
 ]
