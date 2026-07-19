@@ -1,7 +1,6 @@
 # ruff: noqa: E501
 from __future__ import annotations
 
-import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -13,11 +12,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
 )
-from sqlalchemy.pool import NullPool
-
-_DEFAULT_URL = "postgresql+asyncpg://tradepilot:change_me@localhost:5432/tradepilot_test"
 
 
 @dataclass(frozen=True)
@@ -30,23 +25,6 @@ class RepositorySeedData:
     trade_action_a: uuid.UUID
     analysis_job_a: uuid.UUID
     analysis_a: uuid.UUID
-
-
-@pytest.fixture(scope="session")
-def db_url() -> str:
-    return os.environ.get("TEST_DATABASE_URL", _DEFAULT_URL)
-
-
-@pytest.fixture(scope="session")
-def engine(db_url: str) -> AsyncIterator[AsyncEngine]:
-    e = create_async_engine(db_url, poolclass=NullPool)
-    yield e
-    import asyncio
-
-    try:
-        asyncio.get_event_loop().run_until_complete(e.dispose())
-    except RuntimeError:
-        pass
 
 
 @pytest.fixture
