@@ -188,9 +188,7 @@ class TestFullExitFromOpen:
             from app.models.trade_action import TradeAction
 
             act = (
-                (await s.execute(
-                    select(TradeAction).where(TradeAction.idempotency_key == ik)
-                ))
+                (await s.execute(select(TradeAction).where(TradeAction.idempotency_key == ik)))
                 .unique()
                 .scalar_one_or_none()
             )
