@@ -9,14 +9,13 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.lifecycle.service import SessionLifecycleService
 from app.models.enums import (
     ActionType,
     ContextQuality,
     PositionStatus,
-    SessionEventType,
     TradeSessionStatus,
 )
-from app.models.trade_action import TradeAction
 from app.services.actions.open_position import (
     OpenPositionInvalidInputError,
     OpenPositionInvalidStateError,
@@ -24,7 +23,6 @@ from app.services.actions.open_position import (
     OpenPositionService,
 )
 from app.services.trade_session import TradeSessionService
-from app.lifecycle.service import SessionLifecycleService
 
 pytestmark = pytest.mark.database
 
@@ -105,25 +103,34 @@ class TestSuccessfulConfirmation:
         async with factory() as s:
             svc = OpenPositionService(s)
             result = await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"act_{uuid.uuid4().hex}",
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             assert result.action is not None
             assert result.action.id is not None
 
-    async def test_session_status_open_position(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
+    async def test_session_status_open_position(
+        self, engine: AsyncEngine, user_id: uuid.UUID
+    ) -> None:
         sid, uid = await _watching_session(engine, user_id)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
             svc = OpenPositionService(s)
             result = await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"st_{uuid.uuid4().hex}",
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             assert result.session_status == TradeSessionStatus.OPEN_POSITION
             from app.models.trade_session import TradeSession
+
             ts = await s.get(TradeSession, sid)
             assert ts.lifecycle_status == TradeSessionStatus.OPEN_POSITION
 
@@ -133,12 +140,17 @@ class TestSuccessfulConfirmation:
         async with factory() as s:
             svc = OpenPositionService(s)
             await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"ev_{uuid.uuid4().hex}",
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             result = await s.execute(
-                text("SELECT COUNT(*) FROM session_events WHERE session_id = :sid AND event_type = 'POSITION_OPENED'"),
+                text(
+                    "SELECT COUNT(*) FROM session_events WHERE session_id = :sid AND event_type = 'POSITION_OPENED'"
+                ),
                 {"sid": sid},
             )
             assert result.scalar_one() == 1
@@ -149,15 +161,21 @@ class TestSuccessfulConfirmation:
         async with factory() as s:
             # Create a context summary
             from app.models.context_summary import ContextSummary
-            cs = ContextSummary(session_id=sid, context_version=1, is_stale=False, quality=ContextQuality.HIGH)
+
+            cs = ContextSummary(
+                session_id=sid, context_version=1, is_stale=False, quality=ContextQuality.HIGH
+            )
             s.add(cs)
             await s.flush()
 
             svc = OpenPositionService(s)
             await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"cs_{uuid.uuid4().hex}",
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             # Refresh and check
             await s.refresh(cs)
@@ -165,20 +183,23 @@ class TestSuccessfulConfirmation:
 
 
 class TestProposalMismatch:
-    async def test_confirmed_differs_from_proposal(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
+    async def test_confirmed_differs_from_proposal(
+        self, engine: AsyncEngine, user_id: uuid.UUID
+    ) -> None:
         """User-confirmed values become canonical even if they differ from AI proposal."""
         sid, uid = await _watching_session(engine, user_id)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
             svc = OpenPositionService(s)
             result = await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"diff_{uuid.uuid4().hex}",
                 entry_price=3000,  # different from AI's 2800
-                quantity=50,       # different from AI's 100
+                quantity=50,  # different from AI's 100
                 execution_timestamp=NOW,
-                stop_loss=2900,    # different from AI's 2700
-                target=3100,       # different from AI's 2920
+                stop_loss=2900,  # different from AI's 2700
+                target=3100,  # different from AI's 2920
             )
             assert result.trade_state.entry_price == 3000
             assert result.trade_state.original_quantity == 50
@@ -192,9 +213,12 @@ class TestProposalMismatch:
         async with factory() as s:
             svc = OpenPositionService(s)
             result = await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"nop_{uuid.uuid4().hex}",
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             assert result.trade_state.position_status == PositionStatus.OPEN
 
@@ -207,15 +231,23 @@ class TestIdempotency:
         async with factory() as s:
             svc = OpenPositionService(s)
             r1 = await svc.confirm(
-                session_id=sid, owner_id=uid, idempotency_key=ik,
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                session_id=sid,
+                owner_id=uid,
+                idempotency_key=ik,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             await s.commit()
         async with factory() as s:
             svc = OpenPositionService(s)
             r2 = await svc.confirm(
-                session_id=sid, owner_id=uid, idempotency_key=ik,
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                session_id=sid,
+                owner_id=uid,
+                idempotency_key=ik,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             assert r2.action.id == r1.action.id
 
@@ -226,18 +258,28 @@ class TestIdempotency:
         async with factory() as s:
             svc = OpenPositionService(s)
             await svc.confirm(
-                session_id=sid, owner_id=uid, idempotency_key=ik,
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                session_id=sid,
+                owner_id=uid,
+                idempotency_key=ik,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             await s.commit()
         async with factory() as s:
             svc = OpenPositionService(s)
             await svc.confirm(
-                session_id=sid, owner_id=uid, idempotency_key=ik,
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                session_id=sid,
+                owner_id=uid,
+                idempotency_key=ik,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             result = await s.execute(
-                text("SELECT COUNT(*) FROM trade_actions WHERE session_id = :sid AND action_type = 'POSITION_OPENED'"),
+                text(
+                    "SELECT COUNT(*) FROM trade_actions WHERE session_id = :sid AND action_type = 'POSITION_OPENED'"
+                ),
                 {"sid": sid},
             )
             assert result.scalar_one() == 1
@@ -251,18 +293,24 @@ class TestInvalidState:
             # Open the position first
             svc = OpenPositionService(s)
             await svc.confirm(
-                session_id=sid, owner_id=uid,
+                session_id=sid,
+                owner_id=uid,
                 idempotency_key=f"first_{uuid.uuid4().hex}",
-                entry_price=2800, quantity=100, execution_timestamp=NOW,
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
             )
             await s.commit()
         async with factory() as s:
             svc = OpenPositionService(s)
             with pytest.raises(OpenPositionInvalidStateError):
                 await svc.confirm(
-                    session_id=sid, owner_id=uid,
+                    session_id=sid,
+                    owner_id=uid,
                     idempotency_key=f"second_{uuid.uuid4().hex}",
-                    entry_price=2800, quantity=100, execution_timestamp=NOW,
+                    entry_price=2800,
+                    quantity=100,
+                    execution_timestamp=NOW,
                 )
 
     async def test_terminal_state(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
@@ -272,7 +320,9 @@ class TestInvalidState:
         # Set to closed directly via SQL for speed
         async with factory() as s:
             await s.execute(
-                text("UPDATE trade_sessions SET lifecycle_status = 'CLOSED_TAKE_PROFIT', stable_status = 'CLOSED_TAKE_PROFIT' WHERE id = :sid"),
+                text(
+                    "UPDATE trade_sessions SET lifecycle_status = 'CLOSED_TAKE_PROFIT', stable_status = 'CLOSED_TAKE_PROFIT' WHERE id = :sid"
+                ),
                 {"sid": sid},
             )
             await s.commit()
@@ -280,9 +330,12 @@ class TestInvalidState:
             svc = OpenPositionService(s)
             with pytest.raises(OpenPositionInvalidStateError):
                 await svc.confirm(
-                    session_id=sid, owner_id=uid,
+                    session_id=sid,
+                    owner_id=uid,
                     idempotency_key=f"term_{uuid.uuid4().hex}",
-                    entry_price=2800, quantity=100, execution_timestamp=NOW,
+                    entry_price=2800,
+                    quantity=100,
+                    execution_timestamp=NOW,
                 )
 
 
@@ -294,9 +347,12 @@ class TestOwnership:
             svc = OpenPositionService(s)
             with pytest.raises(OpenPositionNotFoundError):
                 await svc.confirm(
-                    session_id=sid, owner_id=uuid.uuid4(),
+                    session_id=sid,
+                    owner_id=uuid.uuid4(),
                     idempotency_key=f"own_{uuid.uuid4().hex}",
-                    entry_price=2800, quantity=100, execution_timestamp=NOW,
+                    entry_price=2800,
+                    quantity=100,
+                    execution_timestamp=NOW,
                 )
 
 
@@ -308,21 +364,29 @@ class TestInputValidation:
             svc = OpenPositionService(s)
             with pytest.raises(OpenPositionInvalidInputError):
                 await svc.confirm(
-                    session_id=sid, owner_id=uid,
+                    session_id=sid,
+                    owner_id=uid,
                     idempotency_key=f"ie_{uuid.uuid4().hex}",
-                    entry_price=-100, quantity=100, execution_timestamp=NOW,
+                    entry_price=-100,
+                    quantity=100,
+                    execution_timestamp=NOW,
                 )
 
-    async def test_invalid_quantity_rejected(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
+    async def test_invalid_quantity_rejected(
+        self, engine: AsyncEngine, user_id: uuid.UUID
+    ) -> None:
         sid, uid = await _watching_session(engine, user_id)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
             svc = OpenPositionService(s)
             with pytest.raises(OpenPositionInvalidInputError):
                 await svc.confirm(
-                    session_id=sid, owner_id=uid,
+                    session_id=sid,
+                    owner_id=uid,
                     idempotency_key=f"iq_{uuid.uuid4().hex}",
-                    entry_price=2800, quantity=0, execution_timestamp=NOW,
+                    entry_price=2800,
+                    quantity=0,
+                    execution_timestamp=NOW,
                 )
 
     async def test_float_rejected(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
@@ -332,28 +396,37 @@ class TestInputValidation:
             svc = OpenPositionService(s)
             with pytest.raises(OpenPositionInvalidInputError):
                 await svc.confirm(
-                    session_id=sid, owner_id=uid,
+                    session_id=sid,
+                    owner_id=uid,
                     idempotency_key=f"fl_{uuid.uuid4().hex}",
-                    entry_price=2800.5, quantity=100, execution_timestamp=NOW,
+                    entry_price=2800.5,
+                    quantity=100,
+                    execution_timestamp=NOW,
                 )
 
 
 class TestAtomicRollback:
-    async def test_context_stale_failure_rollback(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
+    async def test_context_stale_failure_rollback(
+        self, engine: AsyncEngine, user_id: uuid.UUID
+    ) -> None:
         """If something fails after action creation, nothing is committed."""
         sid, uid = await _watching_session(engine, user_id)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
             from app.services.actions.open_position import OpenPositionService as OPS
+
             # Create the service
             svc = OPS(s)
             # Execute within a savepoint that will fail
             async with s.begin_nested():
                 try:
                     await svc.confirm(
-                        session_id=sid, owner_id=uid,
+                        session_id=sid,
+                        owner_id=uid,
                         idempotency_key=f"rb_{uuid.uuid4().hex}",
-                        entry_price=2800, quantity=100, execution_timestamp=NOW,
+                        entry_price=2800,
+                        quantity=100,
+                        execution_timestamp=NOW,
                     )
                     # Force a failure
                     raise RuntimeError("Simulated failure")

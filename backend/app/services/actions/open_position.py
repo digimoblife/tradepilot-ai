@@ -83,15 +83,11 @@ class OpenPositionService:
         # 1. Load session and state with row locks
         ts = await self._session_repo.get_by_id_for_user_for_update(session_id, owner_id)
         if ts is None:
-            raise OpenPositionNotFoundError(
-                f"Session {session_id} not found for user {owner_id}"
-            )
+            raise OpenPositionNotFoundError(f"Session {session_id} not found for user {owner_id}")
 
         tstate = await self._state_repo.get_for_user_for_update(session_id, owner_id)
         if tstate is None:
-            raise OpenPositionNotFoundError(
-                f"Trade state not found for session {session_id}"
-            )
+            raise OpenPositionNotFoundError(f"Trade state not found for session {session_id}")
 
         # 2. Check idempotency FIRST (before state validation)
         existing_action = await self._session.execute(
@@ -113,8 +109,7 @@ class OpenPositionService:
         # 3. Validate current state
         if ts.lifecycle_status != TradeSessionStatus.WATCHING:
             raise OpenPositionInvalidStateError(
-                f"Cannot open position: session is {ts.lifecycle_status.value}, "
-                f"expected WATCHING"
+                f"Cannot open position: session is {ts.lifecycle_status.value}, expected WATCHING"
             )
 
         # 4. Validate inputs
@@ -152,7 +147,10 @@ class OpenPositionService:
             quantity=d_qty,
             idempotency_key=idempotency_key,
             note=note,
-            payload={"confirmed_stop": str(d_stop) if d_stop else None, "confirmed_target": str(d_target) if d_target else None},
+            payload={
+                "confirmed_stop": str(d_stop) if d_stop else None,
+                "confirmed_target": str(d_target) if d_target else None,
+            },
         )
         self._session.add(action)
 

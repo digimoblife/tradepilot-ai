@@ -42,10 +42,12 @@ class TargetNotFoundError(TargetError):
     code = "TARGET_NOT_FOUND_OR_NOT_OWNED"
 
 
-_VALID_STATES = frozenset({
-    TradeSessionStatus.OPEN_POSITION,
-    TradeSessionStatus.PARTIALLY_CLOSED,
-})
+_VALID_STATES = frozenset(
+    {
+        TradeSessionStatus.OPEN_POSITION,
+        TradeSessionStatus.PARTIALLY_CLOSED,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +86,23 @@ class TargetActionService:
 
         # Idempotency first
         existing = (
-            await self._session.execute(
-                select(TradeAction).where(
-                    TradeAction.session_id == session_id,
-                    TradeAction.idempotency_key == idempotency_key,
+            (
+                await self._session.execute(
+                    select(TradeAction).where(
+                        TradeAction.session_id == session_id,
+                        TradeAction.idempotency_key == idempotency_key,
+                    )
                 )
             )
-        ).unique().scalar_one_or_none()
+            .unique()
+            .scalar_one_or_none()
+        )
         if existing is not None:
             return TargetActionResult(
-                session_id=session_id, action=existing,
-                active_target=tstate.active_target, action_type=existing.action_type,
+                session_id=session_id,
+                action=existing,
+                active_target=tstate.active_target,
+                action_type=existing.action_type,
             )
 
         # Validate state
@@ -129,7 +137,9 @@ class TargetActionService:
             price=d_target,
             idempotency_key=idempotency_key,
             note=note,
-            payload={"previous_target": str(tstate.active_target) if tstate.active_target else None},
+            payload={
+                "previous_target": str(tstate.active_target) if tstate.active_target else None
+            },
         )
         self._session.add(action)
 
@@ -158,6 +168,8 @@ class TargetActionService:
         await self._session.flush()
 
         return TargetActionResult(
-            session_id=session_id, action=action,
-            active_target=d_target, action_type=action_type,
+            session_id=session_id,
+            action=action,
+            active_target=d_target,
+            action_type=action_type,
         )

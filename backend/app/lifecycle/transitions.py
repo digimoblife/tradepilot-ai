@@ -69,21 +69,25 @@ _TRANSITION_MAP: dict[TradeSessionStatus, set[TradeSessionStatus]] = {
 # Terminal statuses
 # ---------------------------------------------------------------------------
 
-TERMINAL_STATUSES: frozenset[TradeSessionStatus] = frozenset({
-    TradeSessionStatus.CLOSED_TAKE_PROFIT,
-    TradeSessionStatus.CLOSED_STOP_LOSS,
-    TradeSessionStatus.CLOSED_MANUAL,
-    TradeSessionStatus.CANCELLED,
-})
+TERMINAL_STATUSES: frozenset[TradeSessionStatus] = frozenset(
+    {
+        TradeSessionStatus.CLOSED_TAKE_PROFIT,
+        TradeSessionStatus.CLOSED_STOP_LOSS,
+        TradeSessionStatus.CLOSED_MANUAL,
+        TradeSessionStatus.CANCELLED,
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Transient statuses (not stable business states)
 # ---------------------------------------------------------------------------
 
-TRANSIENT_STATUSES: frozenset[TradeSessionStatus] = frozenset({
-    TradeSessionStatus.ANALYZING,
-    TradeSessionStatus.ARCHIVED,
-})
+TRANSIENT_STATUSES: frozenset[TradeSessionStatus] = frozenset(
+    {
+        TradeSessionStatus.ANALYZING,
+        TradeSessionStatus.ARCHIVED,
+    }
+)
 
 
 # ---------------------------------------------------------------------------

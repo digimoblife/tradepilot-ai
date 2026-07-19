@@ -42,10 +42,12 @@ class StopLossNotFoundError(StopLossError):
     code = "STOP_LOSS_NOT_FOUND_OR_NOT_OWNED"
 
 
-_VALID_STATES = frozenset({
-    TradeSessionStatus.OPEN_POSITION,
-    TradeSessionStatus.PARTIALLY_CLOSED,
-})
+_VALID_STATES = frozenset(
+    {
+        TradeSessionStatus.OPEN_POSITION,
+        TradeSessionStatus.PARTIALLY_CLOSED,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +86,23 @@ class StopLossActionService:
 
         # Idempotency first
         existing = (
-            await self._session.execute(
-                select(TradeAction).where(
-                    TradeAction.session_id == session_id,
-                    TradeAction.idempotency_key == idempotency_key,
+            (
+                await self._session.execute(
+                    select(TradeAction).where(
+                        TradeAction.session_id == session_id,
+                        TradeAction.idempotency_key == idempotency_key,
+                    )
                 )
             )
-        ).unique().scalar_one_or_none()
+            .unique()
+            .scalar_one_or_none()
+        )
         if existing is not None:
             return StopLossActionResult(
-                session_id=session_id, action=existing,
-                active_stop_loss=tstate.active_stop_loss, action_type=existing.action_type,
+                session_id=session_id,
+                action=existing,
+                active_stop_loss=tstate.active_stop_loss,
+                action_type=existing.action_type,
             )
 
         # Validate state
@@ -119,7 +127,9 @@ class StopLossActionService:
 
         # Determine action type
         has_existing = tstate.active_stop_loss is not None
-        action_type = ActionType.STOP_LOSS_CHANGED if has_existing else ActionType.STOP_LOSS_CONFIRMED
+        action_type = (
+            ActionType.STOP_LOSS_CHANGED if has_existing else ActionType.STOP_LOSS_CONFIRMED
+        )
 
         # Create action
         action = TradeAction(
@@ -129,7 +139,9 @@ class StopLossActionService:
             price=d_stop,
             idempotency_key=idempotency_key,
             note=note,
-            payload={"previous_stop": str(tstate.active_stop_loss) if tstate.active_stop_loss else None},
+            payload={
+                "previous_stop": str(tstate.active_stop_loss) if tstate.active_stop_loss else None
+            },
         )
         self._session.add(action)
 
@@ -158,6 +170,8 @@ class StopLossActionService:
         await self._session.flush()
 
         return StopLossActionResult(
-            session_id=session_id, action=action,
-            active_stop_loss=d_stop, action_type=action_type,
+            session_id=session_id,
+            action=action,
+            active_stop_loss=d_stop,
+            action_type=action_type,
         )

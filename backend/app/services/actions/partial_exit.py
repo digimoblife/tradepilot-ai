@@ -47,15 +47,19 @@ class PartialExitNotFoundError(PartialExitError):
     code = "PARTIAL_EXIT_NOT_FOUND_OR_NOT_OWNED"
 
 
-_VALID_STATES = frozenset({
-    TradeSessionStatus.OPEN_POSITION,
-    TradeSessionStatus.PARTIALLY_CLOSED,
-})
+_VALID_STATES = frozenset(
+    {
+        TradeSessionStatus.OPEN_POSITION,
+        TradeSessionStatus.PARTIALLY_CLOSED,
+    }
+)
 
-_VALID_POSITION_STATES = frozenset({
-    PositionStatus.OPEN,
-    PositionStatus.PARTIALLY_CLOSED,
-})
+_VALID_POSITION_STATES = frozenset(
+    {
+        PositionStatus.OPEN,
+        PositionStatus.PARTIALLY_CLOSED,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,16 +102,21 @@ class PartialExitActionService:
 
         # Idempotency first
         existing = (
-            await self._session.execute(
-                select(TradeAction).where(
-                    TradeAction.session_id == session_id,
-                    TradeAction.idempotency_key == idempotency_key,
+            (
+                await self._session.execute(
+                    select(TradeAction).where(
+                        TradeAction.session_id == session_id,
+                        TradeAction.idempotency_key == idempotency_key,
+                    )
                 )
             )
-        ).unique().scalar_one_or_none()
+            .unique()
+            .scalar_one_or_none()
+        )
         if existing is not None:
             return PartialExitResult(
-                session_id=session_id, action=existing,
+                session_id=session_id,
+                action=existing,
                 remaining_quantity=tstate.remaining_quantity,
                 realized_pnl=tstate.realized_pnl,
                 average_exit_price=tstate.average_exit_price,
@@ -125,8 +134,8 @@ class PartialExitActionService:
 
         # Validate inputs
         try:
-            d_price = to_decimal(exit_price)
-            d_qty = to_decimal(exit_quantity)
+            d_price = to_decimal(exit_price)  # type: ignore[arg-type]
+            d_qty = to_decimal(exit_quantity)  # type: ignore[arg-type]
         except InvalidDecimalError as exc:
             raise PartialExitInvalidInputError(str(exc)) from exc
 
@@ -170,7 +179,7 @@ class PartialExitActionService:
         # it as one fill with the total previously exited quantity.
         prev_exited_qty = tstate.original_quantity - prev_rem if tstate.original_quantity else 0
         if prev_avg_exit is not None and prev_exited_qty > 0:
-            fills.append(ExitFill(price=prev_avg_exit, quantity=prev_exited_qty))
+            fills.append(ExitFill(price=prev_avg_exit, quantity=prev_exited_qty))  # type: ignore[arg-type]
         fills.append(ExitFill(price=d_price, quantity=d_qty))
         new_avg_exit = calculate_weighted_average_exit(tuple(fills))
 

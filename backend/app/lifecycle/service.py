@@ -95,10 +95,7 @@ class SessionLifecycleService:
         if target_status in TERMINAL_STATUSES and target_status != TradeSessionStatus.CANCELLED:
             ts.stable_status = target_status
 
-        if (
-            target_status == TradeSessionStatus.ANALYZING
-            or target_status in TERMINAL_STATUSES
-        ):
+        if target_status == TradeSessionStatus.ANALYZING or target_status in TERMINAL_STATUSES:
             ts.lifecycle_status = target_status
         else:
             ts.lifecycle_status = target_status
