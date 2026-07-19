@@ -141,9 +141,13 @@ def prompts_root(tmp_path: Path) -> Path:
     root = tmp_path / "prompts"
     root.mkdir(parents=True)
 
+    _WATCHING_SYSTEM = "You are TradePilot AI. You must use Bahasa Indonesia."
+    _WATCHING_USER = "TASK: WATCHING UPDATE\n{session_identity}\n{trade_state_json}"
+
     for stem, system, user in [
         ("initial_analysis", _INITIAL_ANALYSIS_SYSTEM, _INITIAL_ANALYSIS_USER),
         ("open_position_update", _OPEN_POSITION_SYSTEM, _OPEN_POSITION_USER),
+        ("watching_update", _WATCHING_SYSTEM, _WATCHING_USER),
     ]:
         (root / f"{stem}.system.md").write_text(system, encoding="utf-8")
         (root / f"{stem}.user.md").write_text(user, encoding="utf-8")

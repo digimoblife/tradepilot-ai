@@ -29,6 +29,7 @@ class CatalogEntry:
 
 _ANALYSIS_TYPE_SCHEMA: dict[str, tuple[str, str]] = {
     "INITIAL_ANALYSIS": ("initial_analysis", "1.0.0"),
+    "WATCHING_UPDATE": ("watching_update", "1.0.0"),
     "OPEN_POSITION_UPDATE": ("open_position_update", "1.0.0"),
 }
 

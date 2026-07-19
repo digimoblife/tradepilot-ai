@@ -1,5 +1,14 @@
 """TradePilot AI provider and analysis layer."""
 
+from app.ai.context_builder import (
+    ProviderContext,
+    ProviderContextBuilder,
+    ProviderContextError,
+    ProviderContextPromptRenderFailedError,
+    ProviderContextProviderIncompatibleError,
+    ProviderContextSessionNotFoundError,
+    ProviderContextStaleError,
+)
 from app.ai.providers import (
     AIProvider,
     AIProviderError,
@@ -18,6 +27,13 @@ __all__ = [
     "AIProviderError",
     "ProviderCapabilities",
     "ProviderCapabilityUnsupportedError",
+    "ProviderContext",
+    "ProviderContextBuilder",
+    "ProviderContextError",
+    "ProviderContextPromptRenderFailedError",
+    "ProviderContextProviderIncompatibleError",
+    "ProviderContextSessionNotFoundError",
+    "ProviderContextStaleError",
     "ProviderImage",
     "ProviderRequest",
     "ProviderRequestInvalidError",
