@@ -567,7 +567,7 @@ class TestAtomicRollback:
             svc = StopLossActionService(s)
             async with s.begin_nested():
                 try:
-                    r = await svc.confirm(
+                    await svc.confirm(
                         session_id=sid,
                         owner_id=uid,
                         idempotency_key=f"rb_{uuid.uuid4().hex}",
