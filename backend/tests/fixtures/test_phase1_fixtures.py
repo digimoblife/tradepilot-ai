@@ -37,8 +37,19 @@ def _registry() -> LocalSchemaRegistry:
     return LocalSchemaRegistry(load_production_manifest(pkg), pkg)
 
 
+def _check_schema(fixture_name: str, schema_name: str) -> None:
+    """Assert *fixture_name* passes its production JSON Schema."""
+    payload = _load(f"schemas/{fixture_name}")
+    reg = _registry()
+    validator = reg.get_validator(schema_name, "1.0.0")
+    errors = list(validator.iter_errors(payload))
+    assert not errors, (
+        f"{fixture_name}: {len(errors)} schema error(s): {[e.message for e in errors]}"
+    )
+
+
 # ===================================================================
-# 1. Valid manifest fixture — load actual valid_manifest.json
+# 1. Valid manifest fixture
 # ===================================================================
 
 
@@ -58,49 +69,46 @@ class TestValidManifest:
 
 
 # ===================================================================
-# 2. Valid Market Snapshot schema + domain
+# 2. Market Snapshot — schema + domain
 # ===================================================================
 
 
-class TestMarketSnapshotSchema:
+class TestMarketSnapshot:
     def test_production_schema(self) -> None:
-        payload = _load("schemas/valid_market_snapshot.json")
-        reg = _registry()
-        validator = reg.get_validator("market_snapshot", "1.0.0")
-        errors = list(validator.iter_errors(payload))
-        assert not errors, f"Schema errors: {[e.message for e in errors]}"
+        _check_schema("valid_market_snapshot.json", "market_snapshot")
 
-
-class TestMarketSnapshotDomain:
     def test_domain_valid(self) -> None:
-        result = validate_market_snapshot(_load("schemas/valid_market_snapshot.json"))
-        assert result.valid, f"Domain issues: {result.issues}"
+        assert validate_market_snapshot(_load("schemas/valid_market_snapshot.json")).valid
 
 
 # ===================================================================
-# 3-6. Trade State — domain validation
+# 3-6. Trade State — production schema + domain
 # ===================================================================
 
 
-class TestTradeStateDomain:
+class TestTradeState:
     def test_watching(self) -> None:
+        _check_schema("valid_trade_state_watching.json", "trade_state")
         p = _load("schemas/valid_trade_state_watching.json")
         assert p["position"]["position_status"] == "NOT_OPENED"
         assert validate_trade_state(p).valid
 
     def test_open(self) -> None:
+        _check_schema("valid_trade_state_open.json", "trade_state")
         p = _load("schemas/valid_trade_state_open.json")
         assert p["position"]["position_status"] == "OPEN"
         assert p["position"]["remaining_quantity"] == p["position"]["original_quantity"]
         assert validate_trade_state(p).valid
 
     def test_partial(self) -> None:
+        _check_schema("valid_trade_state_partial.json", "trade_state")
         p = _load("schemas/valid_trade_state_partial.json")
         assert p["position"]["position_status"] == "PARTIALLY_CLOSED"
         assert 0 < p["position"]["remaining_quantity"] < p["position"]["original_quantity"]
         assert validate_trade_state(p).valid
 
     def test_closed(self) -> None:
+        _check_schema("valid_trade_state_closed.json", "trade_state")
         p = _load("schemas/valid_trade_state_closed.json")
         assert p["position"]["position_status"] == "CLOSED"
         assert p["position"]["remaining_quantity"] == 0
@@ -110,20 +118,12 @@ class TestTradeStateDomain:
 
 
 # ===================================================================
-# 7. Open Position Update — unified validation
+# 7. Open Position Update — Unified Validation (must pass fully)
 # ===================================================================
 
 
 class TestOpenPositionUpdate:
     def test_unified_validation(self) -> None:
-        """Unified validation: schema + domain + state consistency.
-
-        The factory payload may not satisfy every schema-required nested
-        structure (placeholders like ``{}`` are used for domain testing).
-        The unified service returns schema issues for those; this test
-        verifies that at minimum the state-consistency layer runs and
-        does not produce false positives on valid data.
-        """
         from app.validation.service import UnifiedValidationService
 
         payload = _load("schemas/valid_open_position_update.json")
@@ -134,43 +134,12 @@ class TestOpenPositionUpdate:
             expected_analysis_type="OPEN_POSITION_UPDATE",
             trade_state=canonical,
         )
-        # Must not crash; must not produce state-consistency errors
-        state_codes = {i.code for i in result.issues if "STATE_" in i.code}
-        assert not state_codes, f"Unexpected state-consistency issues: {state_codes}"
-        # Schema errors may exist due to factory placeholder limitations
+        assert result.valid, f"Unified validation issues: {[i.message for i in result.issues]}"
+        assert result.errors == (), f"Unified validation errors: {result.errors}"
 
 
 # ===================================================================
-# 9-12. Domain validators (partial exit, closing)
-# ===================================================================
-
-
-class TestPartialExit:
-    def test_valid(self) -> None:
-        f = _load("domain/valid_partial_exit.json")
-        result = validate_partial_exit(
-            f["previous_state"],
-            f["partial_exit"],
-            f["resulting_state"],
-        )
-        assert result.valid, f"Partial exit issues: {result.issues}"
-
-
-class TestClosingResult:
-    def test_valid(self) -> None:
-        f = _load("domain/valid_closing_result.json")
-        result = validate_closing(
-            f["previous_state"],
-            f["final_exit"],
-            f["resulting_state"],
-            closing_reason=f["closing_reason"],
-            resulting_session_status=f["resulting_session_status"],
-        )
-        assert result.valid, f"Closing issues: {result.issues}"
-
-
-# ===================================================================
-# 8-11. Invalid domain fixtures — expected code and path
+# 8. Invalid domain fixtures (state-consistency failures)
 # ===================================================================
 
 
@@ -200,3 +169,32 @@ class TestInvalidDomain:
 
     def test_active_target_mismatch(self) -> None:
         self._check("active_target_mismatch")
+
+
+# ===================================================================
+# 9-10. Partial exit and closing result
+# ===================================================================
+
+
+class TestPartialExit:
+    def test_valid(self) -> None:
+        f = _load("domain/valid_partial_exit.json")
+        result = validate_partial_exit(
+            f["previous_state"],
+            f["partial_exit"],
+            f["resulting_state"],
+        )
+        assert result.valid, f"Partial exit issues: {result.issues}"
+
+
+class TestClosingResult:
+    def test_valid(self) -> None:
+        f = _load("domain/valid_closing_result.json")
+        result = validate_closing(
+            f["previous_state"],
+            f["final_exit"],
+            f["resulting_state"],
+            closing_reason=f["closing_reason"],
+            resulting_session_status=f["resulting_session_status"],
+        )
+        assert result.valid, f"Closing issues: {result.issues}"

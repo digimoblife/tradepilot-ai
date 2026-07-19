@@ -24,5 +24,27 @@
     "holding_duration_days": 2,
     "last_confirmed_at": "2026-07-17T14:05:00+07:00"
   },
-  "latest_market_price": 2910
+  "latest_market_price": 2910,
+  "company_name": "Bank Rakyat Indonesia",
+  "thesis": {
+    "status": "INTACT",
+    "original_summary": "Harga berpotensi melanjutkan rebound.",
+    "current_summary": "Thesis masih valid.",
+    "support_condition": "Harga bertahan di atas support.",
+    "invalidation_condition": "Harga menembus support.",
+    "invalidation_price": 2700,
+    "last_updated_at": "2026-07-18T10:00:00+07:00"
+  },
+  "active_plan": {
+    "current_action": "HOLD",
+    "action_summary": "Pertahankan posisi.",
+    "hold_condition": "Harga bertahan di atas support.",
+    "reduce_risk_condition": "Kurangi risiko jika harga melemah.",
+    "exit_condition": "Keluar jika harga menembus support.",
+    "next_checkpoint": "Periksa sesi berikutnya.",
+    "levels_to_monitor": [],
+    "last_updated_at": "2026-07-18T10:00:00+07:00"
+  },
+  "user_confirmed_actions": [],
+  "notes": []
 }

@@ -12,7 +12,7 @@
       "analysis_timestamp": "2026-07-18T10:00:00+07:00",
       "language": "id",
       "schema": {
-        "schema_name": "initial_analysis",
+        "schema_name": "open_position_update",
         "schema_version": "1.0.0"
       },
       "prompt_version": "1.0.0",
@@ -20,8 +20,25 @@
       "model": "gemini-2.0-flash"
     },
     "update_period": "MIDDAY",
-    "comparison": {},
-    "evidence_summary": {},
+    "comparison": {
+      "comparison_available": false,
+      "previous_analysis_id": null,
+      "previous_analysis_timestamp": null,
+      "previous_update_period": null,
+      "summary": "Tidak ada perbandingan."
+    },
+    "evidence_summary": {
+      "evidence_ids": [],
+      "orderbook_available": true,
+      "chart_3_month_available": true,
+      "chart_6_month_available": true,
+      "latest_orderbook_timestamp": "2026-07-18T09:30:00+07:00",
+      "latest_chart_timestamp": "2026-07-18T09:30:00+07:00",
+      "has_unreadable_evidence": false,
+      "has_stale_evidence": false,
+      "summary": "Analisa menggunakan data pasar terbaru.",
+      "limitations": []
+    },
     "market_snapshot": {
       "trading_date": "2026-07-18",
       "market_timestamp": "2026-07-18T09:30:00+07:00",
@@ -47,9 +64,69 @@
       "source": "MIXED",
       "limitations": []
     },
-    "today_summary": {},
-    "orderbook_analysis": {},
-    "chart_update": {},
+    "today_summary": {
+      "open": 2800,
+      "high": 2850,
+      "low": 2780,
+      "last_or_close": 2830,
+      "average": 2815,
+      "change_percentage": 1.8,
+      "position_in_daily_range": "UPPER_HALF",
+      "summary": "Harga di atas rata-rata hari ini."
+    },
+    "orderbook_analysis": {
+      "available": true,
+      "buyer_strength": "MODERATE",
+      "seller_pressure": "MODERATE",
+      "best_bid": 2820,
+      "best_offer": 2830,
+      "bid_support": {
+        "price": 2810,
+        "label": "Bid support",
+        "summary": "Area bid terdekat."
+      },
+      "offer_resistance": {
+        "price": 2840,
+        "label": "Offer resistance",
+        "summary": "Area offer terdekat."
+      },
+      "spread_observation": "Spread normal 10 poin.",
+      "buyer_observations": [
+        "Bid stabil di 2.820."
+      ],
+      "seller_observations": [
+        "Offer tipis di 2.830."
+      ],
+      "important_changes": [],
+      "supports_position": true,
+      "conclusion": "Orderbook mendukung posisi.",
+      "limitations": []
+    },
+    "chart_update": {
+      "updated_chart_available": false,
+      "using_historical_context": true,
+      "chart_context_timestamp": "2026-07-18T09:30:00+07:00",
+      "short_term_trend": "UP",
+      "medium_term_trend": "SIDEWAYS",
+      "structure_status": "IMPROVING",
+      "nearest_support": {
+        "price": 2780,
+        "label": "Support",
+        "summary": "Support terdekat."
+      },
+      "nearest_resistance": {
+        "price": 2850,
+        "label": "Resistance",
+        "summary": "Resistance terdekat."
+      },
+      "breakout_status": "POSSIBLE",
+      "breakdown_status": "NOT_PRESENT",
+      "supports_position": true,
+      "conclusion": "Chart mendukung posisi.",
+      "limitations": [
+        "Menggunakan konteks chart sebelumnya."
+      ]
+    },
     "position_assessment": {
       "entry_price": 2800,
       "current_price": 2890,
@@ -64,13 +141,66 @@
       "health": "HEALTHY_WITH_CAUTION",
       "summary": "Posisi profit."
     },
-    "thesis_assessment": {},
-    "target_assessment": {},
-    "stop_loss_assessment": {},
-    "trading_plan": {},
-    "ai_assessment": {},
+    "thesis_assessment": {
+      "status": "INTACT",
+      "remains_valid": true,
+      "summary": "Thesis masih valid.",
+      "strengthening_evidence": [
+        "Harga bertahan di atas support."
+      ],
+      "weakening_evidence": [],
+      "invalidation_condition": "Harga menembus 2.780.",
+      "invalidation_price": 2780,
+      "invalidation_triggered": false
+    },
+    "target_assessment": {
+      "target_price": 2920,
+      "still_realistic": true,
+      "realism": "REALISTIC",
+      "target_probability": 60,
+      "distance_to_target_percentage": 3.18,
+      "primary_obstacle": "Resistance 2.900.",
+      "required_condition": "Buyer tetap kuat.",
+      "revised_target_proposed": false,
+      "proposed_target": null,
+      "summary": "Target realistis."
+    },
+    "stop_loss_assessment": {
+      "stop_loss_price": 2840,
+      "still_appropriate": true,
+      "distance_to_stop_percentage": 0.35,
+      "approached": false,
+      "triggered": false,
+      "risk_if_unchanged": "LOW",
+      "revised_stop_proposed": false,
+      "proposed_stop_loss": null,
+      "summary": "Stop loss sesuai."
+    },
+    "trading_plan": {
+      "current_action": "HOLD",
+      "action_rationale": "Posisi masih menguntungkan.",
+      "plan_for_next_session": "Pantau pergerakan harga.",
+      "hold_condition": "Harga di atas stop loss.",
+      "reduce_risk_condition": "Kurangi jika harga mendekati stop.",
+      "exit_condition": "Keluar jika stop tersentuh.",
+      "add_position_condition": null,
+      "levels_to_monitor": [],
+      "requires_user_confirmation": false
+    },
+    "ai_assessment": {
+      "bias": "BULLISH",
+      "confidence": 70,
+      "bullish_probability": 65,
+      "target_probability": 58,
+      "downside_probability": 30,
+      "risk_level": "MODERATE",
+      "summary": "Bias bullish moderat."
+    },
     "changes_from_previous": [],
-    "warnings_and_missing_information": {},
+    "warnings_and_missing_information": {
+      "missing_information": [],
+      "warnings": []
+    },
     "original_quantity": 50
   },
   "canonical_state": {

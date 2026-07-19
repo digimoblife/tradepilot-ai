@@ -162,8 +162,8 @@ class UnifiedValidationService:
         # ----------------------------------------------------------
         # 3. Trade State validator (internal consistency)
         # ----------------------------------------------------------
-        # Run only when the payload has trade_state data or position data
-        if "position" in payload or "position_assessment" in payload:
+        # Run only when the payload has a root-level position dict (trade state)
+        if "position" in payload and isinstance(payload.get("position"), dict):
             try:
                 ts_result = validate_trade_state(payload)
                 all_issues.extend(_extract_issues(ts_result))
