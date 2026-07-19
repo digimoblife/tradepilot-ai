@@ -124,6 +124,23 @@ class TestTotalExitQuantity:
         r = validate_closing(OPEN_PREV, {**FULL_EXIT, "final_exit_quantity": 150}, CLOSED_RESULT)
         _expect(r, CLOSING_TOTAL_EXIT_QUANTITY_MISMATCH)
 
+    def test_altered_resulting_original_qty(self) -> None:
+        """Resulting state original_quantity must not affect total-exit check.
+
+        Previous original = 100, partial exits sum = 30, final exit = 50,
+        total = 80.  Resulting state claims original = 80, but canonical
+        previous original = 100, so total 80 != 100 → mismatch.
+        """
+        r = validate_closing(
+            OPEN_PREV,  # previous original = 100, remaining = 100
+            {"final_exit_quantity": 50, "final_exit_price": 2910},
+            {**CLOSED_RESULT, "original_quantity": 80,
+             "average_exit_price": Decimal("2900")},
+            previous_exits=[{"exit_quantity": 30, "exit_price": 2900}],
+        )
+        # previous original = 100, cum exits = 30+50 = 80, should equal 100 → mismatch
+        _expect(r, CLOSING_TOTAL_EXIT_QUANTITY_MISMATCH)
+
 
 class TestWeightedExit:
     def test_one_step(self) -> None:

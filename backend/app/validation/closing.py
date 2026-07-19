@@ -13,6 +13,8 @@ from app.calculations.decimal_utils import to_decimal
 from app.calculations.errors import InvalidDecimalError
 from app.calculations.exits import (
     ExitFill,
+    calculate_gross_closing_pnl,
+    calculate_net_closing_pnl,
     calculate_weighted_average_exit,
 )
 from app.validation.issues import ValidationCategory, ValidationIssue, ValidationSeverity
@@ -116,7 +118,6 @@ def validate_closing(
         ("exit_qty", "final_exit_quantity", final_exit),
         ("exit_price", "final_exit_price", final_exit),
         ("result_entry", "entry_price", resulting_state),
-        ("result_orig_qty", "original_quantity", resulting_state),
         ("result_avg_exit", "average_exit_price", resulting_state),
         ("result_gross", "gross_profit_loss", resulting_state),
         ("result_fees", "fees", resulting_state),
@@ -195,7 +196,7 @@ def validate_closing(
         except InvalidDecimalError:
             pass
 
-    # 4. Total exit quantity must equal original
+    # 4. Total exit quantity must equal original (canonical previous state)
     total_exit_qty = Decimal("0")
     if previous_exits:
         for pe in previous_exits:
@@ -210,18 +211,14 @@ def validate_closing(
     if exit_qty is not None:
         total_exit_qty += exit_qty
 
-    result_orig_qty = vals.get("result_orig_qty")
-    if result_orig_qty is not None and result_orig_qty > Decimal("0"):
-        if total_exit_qty != result_orig_qty:
+    if orig_qty is not None and orig_qty > Decimal("0"):
+        if total_exit_qty != orig_qty:
             issues.append(
                 _make_issue(
                     CLOSING_TOTAL_EXIT_QUANTITY_MISMATCH,
                     "/original_quantity",
-                    (
-                        "Total exit quantity ({total_exit_qty}) "
-                        "!= original quantity ({result_orig_qty})"
-                    ),
-                    expected=str(result_orig_qty),
+                    f"Total exit quantity ({total_exit_qty}) != original quantity ({orig_qty})",
+                    expected=str(orig_qty),
                     actual=str(total_exit_qty),
                 )
             )
@@ -254,11 +251,15 @@ def validate_closing(
                     )
                 )
 
-        # 6. Gross result
+        # 6. Gross result (via TP-0304 helper)
         result_gross = vals.get("result_gross")
         if result_gross is not None and orig_qty is not None and authoritative_avg is not None:
-            authoritative_gross = (authoritative_avg - entry_price) * orig_qty
-            if abs(authoritative_gross - result_gross) > Decimal("0.000001"):
+            authoritative_gross = calculate_gross_closing_pnl(
+                entry_price,
+                orig_qty,
+                authoritative_avg,
+            )
+            if authoritative_gross != result_gross:
                 issues.append(
                     _make_issue(
                         CLOSING_GROSS_RESULT_MISMATCH,
@@ -270,15 +271,15 @@ def validate_closing(
                     )
                 )
 
-        # 7. Net result
+        # 7. Net result (via TP-0304 helper)
         result_net = vals.get("result_net")
         result_fees = vals.get("result_fees")
+        result_taxes_d = vals.get("result_taxes")
         if result_net is not None and result_gross is not None:
-            net_fees = result_fees if result_fees is not None else Decimal("0")
-            result_taxes_d = vals.get("result_taxes")
-            net_taxes = result_taxes_d if result_taxes_d is not None else Decimal("0")
-            authoritative_net = result_gross - net_fees - net_taxes
-            if abs(authoritative_net - result_net) > Decimal("0.000001"):
+            fees = result_fees if result_fees is not None else Decimal("0")
+            taxes = result_taxes_d if result_taxes_d is not None else Decimal("0")
+            authoritative_net = calculate_net_closing_pnl(result_gross, fees, taxes)
+            if authoritative_net != result_net:
                 issues.append(
                     _make_issue(
                         CLOSING_NET_RESULT_MISMATCH,
