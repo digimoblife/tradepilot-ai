@@ -1,0 +1,1 @@
+"""TradePilot AI worker consumers."""
