@@ -24,3 +24,6 @@ class AppConfig(BaseSettings):
     schema_package_root: str = "schemas/production/v1"
     storage_root: str = "storage/local"
     max_upload_size_bytes: int = Field(default=10485760, ge=1)
+    gemini_api_key: str = ""
+    gemini_model: str = "models/gemini-2.0-flash"
+    gemini_timeout_seconds: int = Field(default=120, ge=1)

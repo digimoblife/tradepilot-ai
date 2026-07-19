@@ -10,6 +10,17 @@ from app.ai.providers.errors import (
     ProviderCapabilityUnsupportedError,
     ProviderRequestInvalidError,
 )
+from app.ai.providers.gemini import (
+    GeminiAuthenticationError,
+    GeminiConfigurationError,
+    GeminiError,
+    GeminiInvalidResponseError,
+    GeminiProvider,
+    GeminiRateLimitedError,
+    GeminiRefusedError,
+    GeminiRequestFailedError,
+    GeminiTimeoutError,
+)
 from app.ai.providers.models import (
     ProviderImage,
     ProviderRequest,
@@ -20,6 +31,15 @@ from app.ai.providers.models import (
 __all__ = [
     "AIProvider",
     "AIProviderError",
+    "GeminiAuthenticationError",
+    "GeminiConfigurationError",
+    "GeminiError",
+    "GeminiInvalidResponseError",
+    "GeminiProvider",
+    "GeminiRateLimitedError",
+    "GeminiRefusedError",
+    "GeminiRequestFailedError",
+    "GeminiTimeoutError",
     "ProviderCapabilities",
     "ProviderCapabilityUnsupportedError",
     "ProviderImage",
