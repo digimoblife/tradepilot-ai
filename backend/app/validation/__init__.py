@@ -1,5 +1,9 @@
 """TradePilot AI validation package."""
 
+from app.validation.closing import (
+    ClosingValidationResult,
+    validate_closing,
+)
 from app.validation.entry_plan import validate_entry_plan
 from app.validation.issues import (
     JsonSchemaValidationResult,
@@ -30,6 +34,7 @@ from app.validation.trade_state import (
 )
 
 __all__ = [
+    "ClosingValidationResult",
     "ConfirmedActionSnapshot",
     "JsonSchemaValidationResult",
     "JsonSchemaValidationService",
@@ -40,6 +45,7 @@ __all__ = [
     "ValidationCategory",
     "ValidationIssue",
     "ValidationSeverity",
+    "validate_closing",
     "validate_entry_plan",
     "validate_market_snapshot",
     "validate_partial_exit",
