@@ -4,6 +4,10 @@ from app.validation.closing import (
     ClosingValidationResult,
     validate_closing,
 )
+from app.validation.context_summary import (
+    ContextSummaryValidationResult,
+    validate_context_summary,
+)
 from app.validation.entry_plan import validate_entry_plan
 from app.validation.issues import (
     JsonSchemaValidationResult,
@@ -21,6 +25,7 @@ from app.validation.partial_exit import (
     validate_partial_exit,
 )
 from app.validation.risk_reward import validate_risk_reward
+from app.validation.service import UnifiedValidationResult, UnifiedValidationService
 from app.validation.state_consistency import (
     StateConsistencyValidationResult,
     validate_state_consistency,
@@ -36,6 +41,9 @@ from app.validation.trade_state import (
 __all__ = [
     "ClosingValidationResult",
     "ConfirmedActionSnapshot",
+    "ContextSummaryValidationResult",
+    "UnifiedValidationResult",
+    "UnifiedValidationService",
     "JsonSchemaValidationResult",
     "JsonSchemaValidationService",
     "MarketSnapshotValidationResult",
@@ -46,6 +54,7 @@ __all__ = [
     "ValidationIssue",
     "ValidationSeverity",
     "validate_closing",
+    "validate_context_summary",
     "validate_entry_plan",
     "validate_market_snapshot",
     "validate_partial_exit",
