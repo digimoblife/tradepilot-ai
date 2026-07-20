@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { publicEnv } from "@/lib/env";
+import { publicEnv, resolveApiBaseUrl } from "@/lib/env";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -10,18 +10,67 @@ beforeEach(() => {
 });
 
 // -------------------------------------------------------------------
-// Environment
+// Environment resolution
 // -------------------------------------------------------------------
-describe("environment", () => {
-  it("reads API base URL from env with fallback", () => {
+describe("environment resolution", () => {
+  it("provides localhost fallback in test env", () => {
+    // VITEST sets NODE_ENV=test which is non-production
     expect(publicEnv.apiBaseUrl).toBe("http://localhost:8000");
   });
 
   it("has no hardcoded production URL", () => {
-    // The default is localhost:8000 — not a production URL
     expect(publicEnv.apiBaseUrl).not.toContain("tradepilot");
     expect(publicEnv.apiBaseUrl).not.toContain(".com");
     expect(publicEnv.apiBaseUrl).not.toContain(".app");
+  });
+
+  it("uses explicit configured URL in any env", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.com");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(resolveApiBaseUrl()).toBe("https://api.example.com");
+    vi.unstubAllEnvs();
+  });
+
+  it("trims surrounding whitespace", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "  https://api.example.com  ");
+    expect(resolveApiBaseUrl()).toBe("https://api.example.com");
+    vi.unstubAllEnvs();
+  });
+});
+
+describe("production env", () => {
+  it("throws when variable is missing in production", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => resolveApiBaseUrl()).toThrow(
+      "NEXT_PUBLIC_API_BASE_URL is required in production.",
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("throws when variable is blank in production", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "   ");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => resolveApiBaseUrl()).toThrow(
+      "NEXT_PUBLIC_API_BASE_URL is required in production.",
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("throws when variable is whitespace-only in production", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "\t\n  ");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => resolveApiBaseUrl()).toThrow(
+      "NEXT_PUBLIC_API_BASE_URL is required in production.",
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("does not throw when production has valid variable", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.tradepilot.app");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(resolveApiBaseUrl()).toBe("https://api.tradepilot.app");
+    vi.unstubAllEnvs();
   });
 });
 
