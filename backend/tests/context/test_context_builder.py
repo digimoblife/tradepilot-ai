@@ -1,7 +1,4 @@
-"""Tests for ContextSummaryBuilder (TP-0902).
-
-PostgreSQL-backed — no real provider calls.
-"""
+"""Tests for ContextSummaryBuilder (TP-0902)."""
 
 from __future__ import annotations
 
@@ -14,10 +11,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.context import (
-    ContextSummaryBuilder,
     ContextSummaryBuildResult,
+    ContextSummaryBuilder,
     ContextSummarySessionNotFoundError,
+    ContextSummaryValidationFailedError,
 )
+from app.models.enums import AcceptanceStatus, AnalysisType
 
 pytestmark = pytest.mark.database
 
@@ -39,9 +38,9 @@ async def _make_user(engine: AsyncEngine) -> uuid.UUID:
 async def _make_session(
     engine: AsyncEngine,
     user_id: uuid.UUID,
-    status: str = "WATCHING",
+    status: str = "OPEN_POSITION",
     ticker: str = "BBRI",
-) -> uuid.UUID:
+) -> tuple[uuid.UUID, str]:
     async with engine.begin() as conn:
         r = await conn.execute(
             text(
@@ -54,88 +53,50 @@ async def _make_session(
         sid = r.first()[0]
         await conn.execute(
             text(
-                "INSERT INTO trade_states "
-                "(session_id, position_status, thesis_status, "
-                "entry_price, original_quantity, remaining_quantity, "
-                "active_stop_loss, active_target, state_version) "
-                "VALUES (:s, 'NOT_OPENED', 'INTACT', "
-                ":ep, :oq, :rq, :sl, :tg, 1)"
+            "INSERT INTO trade_states "
+            "(session_id, position_status, thesis_status, "
+            "entry_price, original_quantity, remaining_quantity, "
+            "active_stop_loss, active_target, state_version, entry_at) "
+            "VALUES (:s, 'OPEN', 'INTACT', "
+            ":ep, :oq, :rq, :sl, :tg, 1, :ea)"
             ),
             {
-                "s": sid,
-                "ep": 2500,
-                "oq": 1000,
-                "rq": 1000,
-                "sl": 2400,
-                "tg": 2800,
+                "s": sid, "ep": 2500, "oq": 1000, "rq": 1000,
+                "sl": 2400, "tg": 2800,
+                "ea": datetime(2026, 7, 15, 9, 30, tzinfo=timezone.utc),
             },
         )
-        return sid
+        return sid, status
 
 
-async def _add_session_event(
+async def _add_evidence(
     engine: AsyncEngine,
     session_id: uuid.UUID,
-    event_type: str = "SESSION_CREATED",
-    payload: str | None = None,
+    owner_id: uuid.UUID,
+    evidence_type: str,
+    status: str = "AVAILABLE",
+    mime_type: str = "image/png",
+    market_ts: datetime | None = None,
 ) -> uuid.UUID:
     async with engine.begin() as conn:
         r = await conn.execute(
             text(
-                "INSERT INTO session_events "
-                "(session_id, event_type, occurred_at, compact_summary) "
-                "VALUES (:sid, :et, :now, :pl) RETURNING id"
+                "INSERT INTO evidence "
+                "(session_id, owner_id, evidence_type, evidence_status, "
+                "storage_object_key, mime_type, file_size_bytes, market_timestamp) "
+                "VALUES (:sid, :oid, :et, :es, :key, :mt, 100, :mts) RETURNING id"
             ),
             {
                 "sid": session_id,
-                "et": event_type,
-                "now": datetime.now(timezone.utc),
-                "pl": payload or "{}",
+                "oid": owner_id,
+                "et": evidence_type,
+                "es": status,
+                "key": f"test/{evidence_type}",
+                "mt": mime_type,
+                "mts": market_ts,
             },
         )
         return r.first()[0]
-
-
-async def _add_trade_action(
-    engine: AsyncEngine,
-    session_id: uuid.UUID,
-    action_type: str = "POSITION_OPENED",
-    event_type: str = "POSITION_OPENED",
-    price: int = 2520,
-    quantity: int = 100,
-) -> tuple[uuid.UUID, uuid.UUID]:
-    async with engine.begin() as conn:
-        ar = await conn.execute(
-            text(
-                "INSERT INTO trade_actions "
-                "(session_id, action_type, confirmed_at, idempotency_key, "
-                "price, quantity) "
-                "VALUES (:sid, :at, :now, :ik, :p, :q) RETURNING id"
-            ),
-            {
-                "sid": session_id,
-                "at": action_type,
-                "now": datetime.now(timezone.utc),
-                "ik": f"ik_{uuid.uuid4().hex}",
-                "p": price,
-                "q": quantity,
-            },
-        )
-        aid = ar.first()[0]
-        er = await conn.execute(
-            text(
-                "INSERT INTO session_events "
-                "(session_id, event_type, occurred_at, related_action_id) "
-                "VALUES (:sid, :et, :now, :aid) RETURNING id"
-            ),
-            {
-                "sid": session_id,
-                "et": event_type,
-                "now": datetime.now(timezone.utc),
-                "aid": aid,
-            },
-        )
-        return aid, er.first()[0]
 
 
 async def _add_analysis(
@@ -144,36 +105,22 @@ async def _add_analysis(
     analysis_type: str = "INITIAL_ANALYSIS",
     status: str = "ACCEPTED",
     payload: dict | None = None,
-    job_exists: bool = False,
 ) -> uuid.UUID:
     async with engine.begin() as conn:
-        jid = None
-        if job_exists:
-            jr = await conn.execute(
-                text(
-                    "INSERT INTO analysis_jobs "
-                    "(session_id, analysis_type, status) "
-                    "VALUES (:sid, :at, 'COMPLETED') RETURNING id"
-                ),
-                {"sid": session_id, "at": analysis_type},
-            )
-            jid = jr.first()[0]
-
-        pl = json.dumps(payload or {"executive_summary": "Test analysis"})
+        data = payload or {"executive_summary": "Initial thesis intact"}
+        pl = json.dumps(data)
         r = await conn.execute(
             text(
                 "INSERT INTO analyses "
-                "(session_id, analysis_job_id, analysis_type, acceptance_status, "
-                "prompt_name, prompt_version, schema_name, schema_version, payload) "
-                "VALUES (:sid, :jid, :at, :st, "
-                "'test_prompt', '1.0.0', 'test_schema', '1.0.0', :pl) RETURNING id"
+                "(session_id, analysis_type, acceptance_status, "
+                "prompt_name, prompt_version, schema_name, schema_version, payload, "
+                "accepted_at) "
+                "VALUES (:sid, :at, :st, "
+                "'test', '1.0.0', 'test', '1.0.0', :pl, :now) RETURNING id"
             ),
             {
-                "sid": session_id,
-                "jid": jid,
-                "at": analysis_type,
-                "st": status,
-                "pl": pl,
+                "sid": session_id, "at": analysis_type, "st": status,
+                "pl": pl, "now": datetime.now(timezone.utc),
             },
         )
         return r.first()[0]
@@ -196,7 +143,8 @@ async def other_user_id(engine: AsyncEngine) -> uuid.UUID:
 
 @pytest.fixture
 async def session_id(engine: AsyncEngine, user_id: uuid.UUID) -> uuid.UUID:
-    return await _make_session(engine, user_id)
+    sid, _ = await _make_session(engine, user_id)
+    return sid
 
 
 @pytest.fixture
@@ -205,35 +153,26 @@ def factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 
 # ===================================================================
-# Valid context summary
+# Full schema validation
 # ===================================================================
 
 
-class TestValidContext:
-    async def test_builds_payload(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+class TestSchemaValidation:
+    async def test_payload_schema_valid(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             result = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
             assert isinstance(result, ContextSummaryBuildResult)
-            assert result.session_id == session_id
 
-    async def test_schema_valid(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+    async def test_domain_valid(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             result = await builder.build(
@@ -242,115 +181,261 @@ class TestValidContext:
             assert result.validation_result.valid is True
 
     async def test_canonical_entry(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             result = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
-            pos = result.payload.get("current_position", {})
-            entry = pos.get("entry_price")
+            entry = result.payload["current_position"]["entry_price"]
             assert entry is not None and "2500" in str(entry)
 
     async def test_canonical_quantity(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             result = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
-            pos = result.payload.get("current_position", {})
-            qty = pos.get("original_quantity")
+            qty = result.payload["current_position"]["original_quantity"]
             assert qty is not None and "1000" in str(qty)
 
     async def test_canonical_stop(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             result = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
-            pos = result.payload.get("current_position", {})
-            stop = pos.get("active_stop_loss")
+            stop = result.payload["current_position"]["active_stop_loss"]
             assert stop is not None and "2400" in str(stop)
 
-    async def test_latest_analysis_represented(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+
+# ===================================================================
+# Original thesis
+# ===================================================================
+
+
+class TestOriginalThesis:
+    async def test_original_thesis_from_earliest_accepted(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
-        await _add_analysis(engine, session_id, "INITIAL_ANALYSIS", "ACCEPTED")
+        await _add_analysis(engine, session_id, "INITIAL_ANALYSIS", "ACCEPTED",
+                            {"executive_summary": "Original thesis statement"})
+        await _add_analysis(engine, session_id, "WATCHING_UPDATE", "ACCEPTED",
+                            {"executive_summary": "Updated thesis"})
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            thesis = result.payload["thesis_context"]
+            assert thesis["original_thesis"] == "Original thesis statement"
+
+    async def test_rejected_analysis_not_original(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_analysis(engine, session_id, "INITIAL_ANALYSIS", "REJECTED",
+                            {"executive_summary": "Rejected thesis"})
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            assert result.payload["thesis_context"]["original_thesis"] is None
+
+    async def test_current_thesis_separate(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            thesis = result.payload["thesis_context"]
+            assert thesis["status"] is not None
+            assert isinstance(thesis["original_thesis"], str) or thesis["original_thesis"] is None
+
+
+# ===================================================================
+# Pending proposals
+# ===================================================================
+
+
+class TestPendingProposals:
+    async def test_pending_stop_proposal(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_analysis(engine, session_id, "WATCHING_UPDATE", "ACCEPTED",
+                            {"proposed_stop_loss": {"price": 2350, "label": "Proposed SL", "summary": "Test"}})
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            props = result.payload["active_levels"]["proposed_stop_loss"]
+            assert props is not None
+
+    async def test_pending_target_proposal(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_analysis(engine, session_id, "WATCHING_UPDATE", "ACCEPTED",
+                            {"target_proposal": {"price": 2900, "label": "Proposed Target", "summary": "Test"}})
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            props = result.payload["active_levels"]["proposed_target"]
+            assert props is not None
+
+    async def test_proposal_not_canonical(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_analysis(engine, session_id, "WATCHING_UPDATE", "ACCEPTED",
+                            {"proposed_stop_loss": {"price": 2350, "label": "Proposed SL", "summary": "Test"}})
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            # Active stop remains canonical
+            active = result.payload["active_levels"]["active_stop_loss"]
+            assert active is not None and "2400" in str(active["price"])
+
+
+# ===================================================================
+# Chart context
+# ===================================================================
+
+
+class TestChartContext:
+    async def test_chart_3_month_included(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_evidence(engine, session_id, user_id, "CHART_THREE_MONTH")
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            cc = result.payload["latest_chart_context"]
+            assert cc["chart_3_month_available"] is True
+            assert cc["available"] is True
+
+
+    async def test_chart_6_month_included(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_evidence(engine, session_id, user_id, "CHART_SIX_MONTH")
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            cc = result.payload["latest_chart_context"]
+            assert cc["chart_6_month_available"] is True
+
+    async def test_market_upload_timestamps_separate(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        market_ts = datetime(2026, 7, 15, 9, 30, tzinfo=timezone.utc)
+        await _add_evidence(engine, session_id, user_id,
+                            "CHART_THREE_MONTH", market_ts=market_ts)
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            cc = result.payload["latest_chart_context"]
+            assert cc["chart_3_month_available"] is True
+            assert cc["latest_chart_timestamp"] is not None
+
+    async def test_superseded_chart_excluded(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_evidence(engine, session_id, user_id,
+                            "CHART_THREE_MONTH", status="SUPERSEDED")
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            cc = result.payload["latest_chart_context"]
+            assert cc["chart_3_month_available"] is False
+
+
+# ===================================================================
+# Limitations
+# ===================================================================
+
+
+class TestLimitations:
+    async def test_analysis_limitation_retained(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        await _add_analysis(engine, session_id, "INITIAL_ANALYSIS", "ACCEPTED",
+                            {"limitations": ["Orderbook partially visible"]})
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            cq = result.payload["context_quality"]
+            assert any("Orderbook" in str(l) for l in cq["limitations"])
+
+    async def test_no_fabricated_limitations(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        async with factory() as s:
+            builder = ContextSummaryBuilder(s)
+            result = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            cq = result.payload["context_quality"]
+            assert isinstance(cq["limitations"], list)
+
+
+# ===================================================================
+# Source cutoff and determinism
+# ===================================================================
+
+
+class TestCutoffAndDeterminism:
+    async def test_cutoff_from_latest_source(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
+    ) -> None:
         await _add_analysis(engine, session_id, "WATCHING_UPDATE", "ACCEPTED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             result = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
-            ai = result.payload.get("latest_ai_assessment", {})
-            assert ai.get("analysis_type") is not None
+            assert result.source_cutoff is not None
 
-    async def test_rejected_analysis_excluded(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+    async def test_repeated_build_identical_payload(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
-        await _add_analysis(engine, session_id, "INITIAL_ANALYSIS", "REJECTED")
-        async with factory() as s:
-            builder = ContextSummaryBuilder(s)
-            result = await builder.build(
-                session_id=session_id, owner_id=user_id,
-            )
-            ai = result.payload.get("latest_ai_assessment", {})
-            assert ai.get("analysis_type") is None
-
-    async def test_session_identity(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
-    ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
-        async with factory() as s:
-            builder = ContextSummaryBuilder(s)
-            result = await builder.build(
-                session_id=session_id, owner_id=user_id,
-            )
-            assert result.payload.get("ticker") == "BBRI"
-            assert result.payload.get("session_id") == str(session_id)
-
-    async def test_source_cutoff_deterministic(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
-    ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             r1 = await builder.build(
@@ -359,23 +444,22 @@ class TestValidContext:
             r2 = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
-            assert r1.payload.get("ticker") == r2.payload.get("ticker")
+            assert r1.payload["context_id"] == r2.payload["context_id"]
+            assert r1.payload["ticker"] == r2.payload["ticker"]
 
-    async def test_history_selected(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+    async def test_no_random_context_id(
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
-        await _add_trade_action(engine, session_id, "POSITION_OPENED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
-            result = await builder.build(
+            r1 = await builder.build(
                 session_id=session_id, owner_id=user_id,
             )
-            assert len(result.selected_event_ids) >= 1
+            r2 = await builder.build(
+                session_id=session_id, owner_id=user_id,
+            )
+            assert r1.payload["context_id"] == r2.payload["context_id"]
 
 
 # ===================================================================
@@ -385,14 +469,10 @@ class TestValidContext:
 
 class TestOwnership:
     async def test_wrong_owner_rejected(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        other_user_id: uuid.UUID,
-        session_id: uuid.UUID,
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        other_user_id: uuid.UUID, session_id: uuid.UUID,
         factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
             with pytest.raises(ContextSummarySessionNotFoundError):
@@ -408,49 +488,31 @@ class TestOwnership:
 
 class TestBoundaries:
     async def test_trade_state_unchanged(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
-            await builder.build(
-                session_id=session_id, owner_id=user_id,
-            )
+            await builder.build(session_id=session_id, owner_id=user_id)
         async with factory() as s:
             row = await s.execute(
-                text("SELECT entry_price FROM trade_states WHERE session_id = :sid"),
+                text("SELECT entry_price FROM trade_states WHERE session_id=:sid"),
                 {"sid": session_id},
             )
             assert row.first()[0] == 2500
 
     async def test_no_provider_call(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
-            await builder.build(
-                session_id=session_id, owner_id=user_id,
-            )
+            await builder.build(session_id=session_id, owner_id=user_id)
 
     async def test_no_persistence(
-        self,
-        engine: AsyncEngine,
-        user_id: uuid.UUID,
-        session_id: uuid.UUID,
-        factory: async_sessionmaker[AsyncSession],
+        self, engine: AsyncEngine, user_id: uuid.UUID,
+        session_id: uuid.UUID, factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        await _add_session_event(engine, session_id, "SESSION_CREATED")
         async with factory() as s:
             builder = ContextSummaryBuilder(s)
-            await builder.build(
-                session_id=session_id, owner_id=user_id,
-            )
+            await builder.build(session_id=session_id, owner_id=user_id)

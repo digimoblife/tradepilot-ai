@@ -24,6 +24,10 @@ class AppConfig(BaseSettings):
     schema_package_root: str = "schemas/production/v1"
     storage_root: str = "storage/local"
     max_upload_size_bytes: int = Field(default=10485760, ge=1)
+    auth_cookie_name: str = "tradepilot_session"
+    auth_session_lifetime_seconds: int = Field(default=86400 * 7, ge=1)  # 7 days
+    auth_cookie_secure: bool = Field(default=False)
+
     gemini_api_key: str = ""
     gemini_model: str = "models/gemini-2.0-flash"
     gemini_timeout_seconds: int = Field(default=120, ge=1)

@@ -23,6 +23,7 @@ from app.models.trade_action import TradeAction
 from app.models.trade_state import TradeState
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
+from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
 
 
 class OpenPositionError(Exception):
@@ -180,7 +181,7 @@ class OpenPositionService:
         )
         self._session.add(event)
 
-        # 9. Mark Context Summary stale
+        # 9. Rebuild Context Summary
         await self._session.execute(
             update(ContextSummary)
             .where(
@@ -189,8 +190,15 @@ class OpenPositionService:
             )
             .values(is_stale=True)
         )
-
         await self._session.flush()
+
+        rebuild = ContextRebuildService(self._session)
+        await rebuild.rebuild_after_material_event(
+            session_id=session_id,
+            owner_id=owner_id,
+            reason=ContextRebuildReason.POSITION_OPENED,
+            source_id=action.id,
+        )
 
         return OpenPositionResult(
             session_id=session_id,

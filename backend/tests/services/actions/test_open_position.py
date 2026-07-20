@@ -159,11 +159,12 @@ class TestSuccessfulConfirmation:
         sid, uid = await _watching_session(engine, user_id)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
-            # Create a context summary
             from app.models.context_summary import ContextSummary
 
             cs = ContextSummary(
-                session_id=sid, context_version=1, is_stale=False, quality=ContextQuality.HIGH
+                session_id=sid, context_version=1, is_stale=False,
+                quality=ContextQuality.HIGH,
+                source_cutoff=datetime(2026, 7, 14, 10, 0, tzinfo=timezone.utc),
             )
             s.add(cs)
             await s.flush()
@@ -177,7 +178,6 @@ class TestSuccessfulConfirmation:
                 quantity=100,
                 execution_timestamp=NOW,
             )
-            # Refresh and check
             await s.refresh(cs)
             assert cs.is_stale is True
 

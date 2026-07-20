@@ -1,11 +1,26 @@
 """TradePilot AI context memory layer."""
 
 from app.context.builder import (
-    ContextSummaryBuildResult,
     ContextSummaryBuilder,
     ContextSummaryBuilderError,
+    ContextSummaryBuildResult,
     ContextSummarySessionNotFoundError,
     ContextSummaryValidationFailedError,
+)
+from app.context.freshness import (
+    ContextFreshnessEnsureResult,
+    ContextFreshnessError,
+    ContextFreshnessResult,
+    ContextFreshnessService,
+    ContextFreshnessSessionNotFoundError,
+    ContextRebuildError,
+    ContextRebuildPersistenceFailedError,
+    ContextRebuildStillStaleError,
+    ContextRebuildValidationFailedError,
+    ContextStaleReason,
+    ContextSummaryInvalidCutoffError,
+    ContextSummaryNotFoundError,
+    ContextSummarySessionMismatchError,
 )
 from app.context.history_selector import (
     HistoryEvent,
@@ -17,9 +32,22 @@ from app.context.history_selector import (
 )
 
 __all__ = [
+    "ContextFreshnessEnsureResult",
+    "ContextFreshnessError",
+    "ContextFreshnessResult",
+    "ContextFreshnessService",
+    "ContextFreshnessSessionNotFoundError",
+    "ContextRebuildError",
+    "ContextRebuildPersistenceFailedError",
+    "ContextRebuildStillStaleError",
+    "ContextRebuildValidationFailedError",
+    "ContextStaleReason",
     "ContextSummaryBuildResult",
     "ContextSummaryBuilder",
     "ContextSummaryBuilderError",
+    "ContextSummaryInvalidCutoffError",
+    "ContextSummaryNotFoundError",
+    "ContextSummarySessionMismatchError",
     "ContextSummarySessionNotFoundError",
     "ContextSummaryValidationFailedError",
     "HistoryEvent",

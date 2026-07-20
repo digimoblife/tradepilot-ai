@@ -21,6 +21,7 @@ from app.models.enums import AnalysisType, EvidenceStatus, EvidenceType
 from app.models.evidence import Evidence
 from app.repositories.evidence import EvidenceRepository
 from app.repositories.trade_session import TradeSessionRepository
+from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
 from app.storage import LocalFileStorage, StoredFile
 
 # ---------------------------------------------------------------------------
@@ -233,6 +234,14 @@ class EvidenceService:
             self._session.add(old)
 
         await self._session.flush()
+
+        rebuild = ContextRebuildService(self._session)
+        await rebuild.rebuild_after_material_event(
+            session_id=session_id,
+            owner_id=owner_id,
+            reason=ContextRebuildReason.EVIDENCE_REPLACED,
+            source_id=result.evidence.id,
+        )
 
         return result
 

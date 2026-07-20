@@ -25,6 +25,7 @@ from app.models.session_event import SessionEvent
 from app.models.trade_action import TradeAction
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
+from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
 
 
 class PartialExitError(Exception):
@@ -232,8 +233,15 @@ class PartialExitActionService:
             .where(ContextSummary.session_id == session_id, ContextSummary.is_stale == False)  # noqa: E712
             .values(is_stale=True)
         )
-
         await self._session.flush()
+
+        rebuild = ContextRebuildService(self._session)
+        await rebuild.rebuild_after_material_event(
+            session_id=session_id,
+            owner_id=owner_id,
+            reason=ContextRebuildReason.PARTIAL_EXIT,
+            source_id=action.id,
+        )
 
         return PartialExitResult(
             session_id=session_id,

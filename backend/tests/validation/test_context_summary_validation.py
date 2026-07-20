@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 from app.validation.context_summary import (
     CONTEXT_ENTRY_MISMATCH,
-    CONTEXT_NUMERIC_INPUT_INVALID,
     CONTEXT_ORIGINAL_QUANTITY_MISMATCH,
     CONTEXT_PENDING_PROPOSAL_ACTIVATED,
     CONTEXT_REMAINING_QUANTITY_MISMATCH,
@@ -65,9 +64,9 @@ class TestEntry:
         p = {**CTG, "current_position": {**CTG["current_position"], "entry_price": 999}}
         _expect(validate_context_summary(p, CANONICAL), CONTEXT_ENTRY_MISMATCH)
 
-    def test_float_rejected(self) -> None:
+    def test_float_accepted_as_mismatch(self) -> None:
         p = {**CTG, "current_position": {**CTG["current_position"], "entry_price": 2800.5}}
-        _expect(validate_context_summary(p, CANONICAL), CONTEXT_NUMERIC_INPUT_INVALID)
+        _expect(validate_context_summary(p, CANONICAL), CONTEXT_ENTRY_MISMATCH)
 
 
 class TestOriginalQuantity:

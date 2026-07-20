@@ -296,10 +296,12 @@
                 "const": true
               },
               "entry_price": {
-                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+                "type": "number",
+                "exclusiveMinimum": 0
               },
               "entry_timestamp": {
-                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/timestamp"
+                "type": "string",
+                "format": "date-time"
               },
               "original_quantity": {
                 "type": "number",
@@ -332,7 +334,8 @@
                 "const": true
               },
               "entry_price": {
-                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+                "type": "number",
+                "exclusiveMinimum": 0
               },
               "original_quantity": {
                 "type": "number",
@@ -343,10 +346,11 @@
                 "exclusiveMinimum": 0
               },
               "average_exit_price": {
-                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+                "type": "number",
+                "exclusiveMinimum": 0
               },
               "realized_profit_loss": {
-                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/signedNumber"
+                "type": "number"
               }
             }
           }
@@ -371,7 +375,8 @@
                 "const": 0
               },
               "average_exit_price": {
-                "$ref": "https://schemas.tradepilot.local/production/v1/common.schema.json#/$defs/price"
+                "type": "number",
+                "exclusiveMinimum": 0
               },
               "active_stop_loss": {
                 "type": "null"

@@ -40,6 +40,7 @@ from app.models.enums import (
 from app.models.provider_request import ProviderRequest as DBProviderRequest
 from app.models.provider_response import ProviderResponse as DBProviderResponse
 from app.models.trade_session import TradeSession
+from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
 from app.validation import ValidationIssue
 
 # ---------------------------------------------------------------------------
@@ -283,6 +284,14 @@ class AnalysisProcessor:
                 pass
 
         await self._session.flush()
+
+        rebuild = ContextRebuildService(self._session)
+        await rebuild.rebuild_after_material_event(
+            session_id=job.session_id,
+            owner_id=ts.owner_id,
+            reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
+            source_id=analysis_id,
+        )
 
         return AnalysisProcessingResult(
             job_id=job_id,

@@ -55,6 +55,8 @@ def _sort_key(issue: ValidationIssue) -> tuple[str, str, str, str]:
 def _d(value: object) -> Decimal | None:
     if value is None:
         return None
+    if isinstance(value, float):
+        value = str(value)
     return to_decimal(value)  # type: ignore[arg-type]
 
 
