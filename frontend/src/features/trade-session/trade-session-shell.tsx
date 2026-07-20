@@ -8,6 +8,7 @@ import type { TradeSessionDetail } from "@/types/trade-session";
 import { SessionHeader } from "./session-header";
 import { LifecycleStatus } from "./lifecycle-status";
 import { CanonicalPositionSummary } from "./canonical-position-summary";
+import { EvidenceSection } from "@/features/evidence/evidence-section";
 import { SectionPlaceholder } from "./section-placeholder";
 import { actionLabel } from "./helpers";
 
@@ -93,8 +94,11 @@ export function TradeSessionShell({ sessionId }: Props) {
         <CanonicalPositionSummary tradeState={trade_state} />
       </div>
 
+      <div className="mt-6 space-y-4">
+        <EvidenceSection sessionId={sessionId} />
+      </div>
+
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <SectionPlaceholder title="Evidence" message="Evidence sesi akan ditampilkan di sini." />
         <SectionPlaceholder title="Analisis Terbaru" message="Belum ada analisis yang ditampilkan." />
         <SectionPlaceholder title="Rencana Trading" message="Belum tersedia." />
         <SectionPlaceholder title="Probabilitas" message="Belum tersedia." />
