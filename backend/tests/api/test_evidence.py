@@ -135,27 +135,10 @@ async def db_session(engine: AsyncEngine) -> AsyncSession:
 def _build_app(db_session: AsyncSession) -> FastAPI:
     app = FastAPI()
 
-    from app.auth.errors import AuthenticationError
+    from app.api.exception_handlers import register_handlers
     from app.database.session import get_db_session
 
-    @app.exception_handler(AuthenticationError)
-    async def auth_error_handler(request, exc: AuthenticationError):
-        from fastapi.responses import JSONResponse
-
-        from app.auth.errors import AUTHENTICATION_INACTIVE
-
-        if exc.code == AUTHENTICATION_INACTIVE:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "Account is not active", "code": exc.code},
-            )
-        return JSONResponse(
-            status_code=401,
-            content={
-                "detail": exc.message or "Authentication failed",
-                "code": exc.code,
-            },
-        )
+    register_handlers(app)
 
     app.include_router(auth_router)
     app.include_router(evidence_session_router)
@@ -460,9 +443,9 @@ class TestIndonesianMessages:
         )
         assert resp.status_code == 422
         body = resp.json()
-        detail = body.get("detail", "")
-        # Must be an Indonesian message (any of the defined error messages)
-        assert detail and len(detail) > 5  # non-trivial Indonesian message
+        error_obj = body.get("error", {})
+        msg = error_obj.get("message", "")
+        assert len(msg) > 5  # non-trivial Indonesian message
 
 
 # ===================================================================

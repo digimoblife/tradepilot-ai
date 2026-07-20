@@ -24,7 +24,9 @@ from app.repositories.session_event import SessionEventRepository
 router = APIRouter(prefix="/api/trade-sessions", tags=["timeline"])
 
 
-async def _load_action(db_session: AsyncSession, action_id: uuid.UUID, owner_id: uuid.UUID, session_id: uuid.UUID) -> Any:
+async def _load_action(
+    db_session: AsyncSession, action_id: uuid.UUID, owner_id: uuid.UUID, session_id: uuid.UUID
+) -> Any:
     """Load a Trade Action by ID, verifying ownership."""
     from app.repositories.trade_session import TradeSessionRepository
 
@@ -39,7 +41,9 @@ async def _load_action(db_session: AsyncSession, action_id: uuid.UUID, owner_id:
     return result
 
 
-async def _load_analysis(db_session: AsyncSession, analysis_id: uuid.UUID, owner_id: uuid.UUID, session_id: uuid.UUID) -> Any:
+async def _load_analysis(
+    db_session: AsyncSession, analysis_id: uuid.UUID, owner_id: uuid.UUID, session_id: uuid.UUID
+) -> Any:
     """Load an Analysis by ID, verifying ownership and acceptance."""
     from app.repositories.trade_session import TradeSessionRepository
 

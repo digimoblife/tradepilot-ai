@@ -1,10 +1,10 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.api.auth import router as auth_router
+from app.api.exception_handlers import register_handlers
 from app.api.health import router as health_router
 from app.api.routes.analyses import analysis_router
 from app.api.routes.analyses import session_router as analysis_session_router
@@ -15,10 +15,6 @@ from app.api.routes.evidence import session_router as evidence_session_router
 from app.api.routes.timeline import router as timeline_router
 from app.api.routes.trade_actions import router as trade_actions_router
 from app.api.routes.trade_sessions import router as trade_sessions_router
-from app.auth.errors import (
-    AUTHENTICATION_INACTIVE,
-    AuthenticationError,
-)
 from app.config import AppConfig
 from app.logging import configure_logging
 from app.schemas.manifest import load_production_manifest
@@ -41,17 +37,8 @@ def create_application() -> FastAPI:
     app.state.schema_manifest = manifest
     app.state.schema_registry = registry
 
-    @app.exception_handler(AuthenticationError)
-    async def auth_error_handler(request, exc: AuthenticationError) -> JSONResponse:
-        if exc.code == AUTHENTICATION_INACTIVE:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "Account is not active", "code": exc.code},
-            )
-        return JSONResponse(
-            status_code=401,
-            content={"detail": exc.message or "Authentication failed", "code": exc.code},
-        )
+    # Register centralized exception handlers (TP-1007)
+    register_handlers(app)
 
     app.include_router(health_router)
     app.include_router(auth_router)

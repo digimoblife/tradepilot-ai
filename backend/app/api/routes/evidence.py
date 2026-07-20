@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import NoReturn
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
-from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -46,12 +46,11 @@ _INVALID_FILE_MESSAGES: dict[str, str] = {
 }
 
 
-def _evidence_error(code: str, status: int = 422) -> JSONResponse:
+def _evidence_error(code: str, status: int = 422) -> NoReturn:
+    from fastapi import HTTPException
+
     msg = _INVALID_FILE_MESSAGES.get(code, "Terjadi kesalahan saat memproses berkas.")
-    return JSONResponse(
-        status_code=status,
-        content={"code": code, "detail": msg},
-    )
+    raise HTTPException(status_code=status, detail={"code": code, "message": msg})
 
 
 def _evidence_to_response(ev: EvidenceModel) -> EvidenceResponse:
@@ -86,7 +85,7 @@ async def upload_evidence(
     market_timestamp: str | None = Form(None),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-) -> EvidenceResponse | JSONResponse:
+) -> EvidenceResponse:
     content = await file.read()
     filename = file.filename or "upload"
 
@@ -240,7 +239,7 @@ async def replace_evidence(
     market_timestamp: str | None = Form(None),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-) -> EvidenceResponse | JSONResponse:
+) -> EvidenceResponse:
     from app.repositories.evidence import EvidenceRepository
 
     repo = EvidenceRepository(db_session)

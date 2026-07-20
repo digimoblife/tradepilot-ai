@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,6 @@ from app.api.schemas.trade_actions import (
 )
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
-from typing import Any
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
 
