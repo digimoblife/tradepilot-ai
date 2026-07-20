@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { TradeSessionSummary } from "@/types/trade-session";
 import { formatTimestamp, statusLabel } from "./helpers";
 
@@ -10,7 +11,7 @@ export function SessionCard({ session }: Props) {
     session.company_name ?? `Saham ${session.ticker}`;
 
   return (
-    <a
+    <Link
       href={`/sessions/${session.id}`}
       className="block rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
     >
@@ -36,6 +37,6 @@ export function SessionCard({ session }: Props) {
           {statusLabel(session.lifecycle_status)}
         </span>
       </div>
-    </a>
+    </Link>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSession } from "@/lib/api/trade-sessions";
@@ -146,12 +147,12 @@ export function CreateSessionForm() {
         >
           {pending ? "Membuat sesi…" : "Buat Sesi"}
         </button>
-        <a
+        <Link
           href="/sessions"
           className="text-sm text-zinc-500 underline hover:text-zinc-700"
         >
           Kembali ke Daftar Sesi
-        </a>
+        </Link>
       </div>
     </form>
   );

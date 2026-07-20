@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listSessions } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
@@ -83,12 +84,12 @@ export function SessionList() {
     return (
       <div className="py-12 text-center">
         <p className="text-lg text-zinc-500">Belum ada sesi trading.</p>
-        <a
+        <Link
           href="/sessions/new"
           className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           Buat Sesi Baru
-        </a>
+        </Link>
       </div>
     );
   }
