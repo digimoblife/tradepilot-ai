@@ -6,8 +6,14 @@ from fastapi.responses import JSONResponse
 from app import __version__
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.routes.analyses import analysis_router
+from app.api.routes.analyses import session_router as analysis_session_router
+from app.api.routes.analysis_jobs import router as analysis_jobs_router
+from app.api.routes.context import router as context_router
 from app.api.routes.evidence import evidence_router
 from app.api.routes.evidence import session_router as evidence_session_router
+from app.api.routes.timeline import router as timeline_router
+from app.api.routes.trade_actions import router as trade_actions_router
 from app.api.routes.trade_sessions import router as trade_sessions_router
 from app.auth.errors import (
     AUTHENTICATION_INACTIVE,
@@ -51,6 +57,12 @@ def create_application() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(evidence_session_router)
     app.include_router(evidence_router)
+    app.include_router(analysis_session_router)
+    app.include_router(analysis_router)
+    app.include_router(analysis_jobs_router)
+    app.include_router(context_router)
+    app.include_router(timeline_router)
+    app.include_router(trade_actions_router)
     app.include_router(trade_sessions_router)
 
     return app
