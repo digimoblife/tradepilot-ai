@@ -22,6 +22,7 @@ import { TargetModal } from "@/features/trade-actions/target-modal";
 import { PartialExitModal } from "@/features/trade-actions/partial-exit-modal";
 import { FullExitModal } from "@/features/trade-actions/full-exit-modal";
 import { RequestAnalysis } from "@/features/analysis/request-analysis";
+import { JobStatus } from "@/features/jobs/job-status";
 import { actionLabel } from "./helpers";
 
 interface Props {
@@ -33,10 +34,48 @@ type LoadState =
   | { status: "error"; message: string }
   | { status: "loaded"; data: TradeSessionDetail };
 
+const STORAGE_KEY = "tp-active-job";
+
+interface ActiveJob {
+  jobId: string;
+  analysisType: string;
+}
+
+function loadActiveJob(): ActiveJob | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as ActiveJob;
+  } catch { return null; }
+}
+
+function saveActiveJob(job: ActiveJob | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (job) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(job));
+    else sessionStorage.removeItem(STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
 export function TradeSessionShell({ sessionId }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [retryKey, setRetryKey] = useState(0);
   const [actionModal, setActionModal] = useState<string | null>(null);
+  const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
+
+  // Restore active job on mount
+  useEffect(() => {
+    const restored = loadActiveJob();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored) setActiveJob(restored);
+  }, []);
+
+  // Persist active job changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    saveActiveJob(activeJob);
+  }, [activeJob]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +111,15 @@ export function TradeSessionShell({ sessionId }: Props) {
   }, [sessionId, retryKey]);
 
   const handleActionSuccess = useCallback(() => {
+    setRetryKey((k) => k + 1);
+  }, []);
+
+  const handleJobCreated = useCallback((job: { job_id: string; analysis_type: string }) => {
+    setActiveJob({ jobId: job.job_id, analysisType: job.analysis_type });
+  }, []);
+
+  const handleJobCompleted = useCallback(() => {
+    setActiveJob(null);
     setRetryKey((k) => k + 1);
   }, []);
 
@@ -184,9 +232,21 @@ export function TradeSessionShell({ sessionId }: Props) {
         <RequestAnalysis
           sessionId={sessionId}
           analysisType={actionModal.replace("REQUEST_", "")}
-          onSuccess={() => setActionModal(null)}
+          onSuccess={(job) => { handleJobCreated(job); setActionModal(null); }}
           onClose={() => setActionModal(null)}
         />
+      )}
+
+      {activeJob && (
+        <div className="mt-4">
+          <JobStatus
+            jobId={activeJob.jobId}
+            sessionId={sessionId}
+            onCompleted={handleJobCompleted}
+            onFailed={handleJobCompleted}
+            onClear={handleJobCompleted}
+          />
+        </div>
       )}
     </div>
   );
