@@ -21,6 +21,7 @@ import { StopLossModal } from "@/features/trade-actions/stop-loss-modal";
 import { TargetModal } from "@/features/trade-actions/target-modal";
 import { PartialExitModal } from "@/features/trade-actions/partial-exit-modal";
 import { FullExitModal } from "@/features/trade-actions/full-exit-modal";
+import { RequestAnalysis } from "@/features/analysis/request-analysis";
 import { actionLabel } from "./helpers";
 
 interface Props {
@@ -179,12 +180,27 @@ export function TradeSessionShell({ sessionId }: Props) {
           activeTarget={trade_state.active_target}
         />
       )}
+      {actionModal?.startsWith("REQUEST_") && (
+        <RequestAnalysis
+          sessionId={sessionId}
+          analysisType={actionModal.replace("REQUEST_", "")}
+          onSuccess={() => setActionModal(null)}
+          onClose={() => setActionModal(null)}
+        />
+      )}
     </div>
   );
 }
 
 function PendingActionsSection({ actions, onActionClick }: { actions: string[]; onActionClick?: (action: string) => void }) {
   const interactive = new Set(["OPEN_POSITION", "CONFIRM_STOP", "CHANGE_STOP", "CONFIRM_TARGET", "CHANGE_TARGET", "PARTIAL_EXIT", "FULL_EXIT"]);
+
+  function isInteractive(action: string): boolean {
+    if (interactive.has(action)) return true;
+    if (action.startsWith("REQUEST_")) return true;
+    return false;
+  }
+
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-4">
       <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
@@ -196,7 +212,7 @@ function PendingActionsSection({ actions, onActionClick }: { actions: string[]; 
         <ul className="space-y-1">
           {actions.map((a) => (
             <li key={a}>
-              {interactive.has(a) ? (
+              {isInteractive(a) ? (
                 <button
                   type="button"
                   onClick={() => onActionClick?.(a)}

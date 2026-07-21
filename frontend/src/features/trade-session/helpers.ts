@@ -29,8 +29,21 @@ const ACTION_MAP: Record<string, string> = {
   ARCHIVE: "Arsipkan",
 };
 
+const REQUEST_LABEL: Record<string, string> = {
+  INITIAL_ANALYSIS: "Minta Analisis Awal",
+  WATCHING_UPDATE: "Minta Update Pemantauan",
+  OPEN_POSITION_UPDATE: "Minta Update Posisi",
+  PARTIAL_EXIT_REVIEW: "Minta Review Partial Exit",
+  CLOSING_ANALYSIS: "Minta Closing Analysis",
+};
+
 export function actionLabel(action: string): string {
-  return ACTION_MAP[action] ?? action;
+  if (ACTION_MAP[action]) return ACTION_MAP[action];
+  if (action.startsWith("REQUEST_")) {
+    const type = action.replace("REQUEST_", "");
+    return REQUEST_LABEL[type] ?? action;
+  }
+  return action;
 }
 
 export function formatTimestamp(iso: string | null | undefined): string {
