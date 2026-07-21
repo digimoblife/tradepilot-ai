@@ -17,6 +17,8 @@ import { ClosingAnalysisView } from "@/features/analysis/closing-analysis-view";
 import { SectionPlaceholder } from "./section-placeholder";
 import { AnalysisHistory } from "@/features/analysis/history/analysis-history";
 import { OpenPositionModal } from "@/features/trade-actions/open-position-modal";
+import { StopLossModal } from "@/features/trade-actions/stop-loss-modal";
+import { TargetModal } from "@/features/trade-actions/target-modal";
 import { actionLabel } from "./helpers";
 
 interface Props {
@@ -134,12 +136,32 @@ export function TradeSessionShell({ sessionId }: Props) {
           onSuccess={handleActionSuccess}
         />
       )}
+      {(actionModal === "CONFIRM_STOP" || actionModal === "CHANGE_STOP") && (
+        <StopLossModal
+          sessionId={sessionId}
+          isOpen={true}
+          onClose={() => setActionModal(null)}
+          onSuccess={handleActionSuccess}
+          action={actionModal}
+          activeStopLoss={trade_state.active_stop_loss}
+        />
+      )}
+      {(actionModal === "CONFIRM_TARGET" || actionModal === "CHANGE_TARGET") && (
+        <TargetModal
+          sessionId={sessionId}
+          isOpen={true}
+          onClose={() => setActionModal(null)}
+          onSuccess={handleActionSuccess}
+          action={actionModal}
+          activeTarget={trade_state.active_target}
+        />
+      )}
     </div>
   );
 }
 
 function PendingActionsSection({ actions, onActionClick }: { actions: string[]; onActionClick?: (action: string) => void }) {
-  const interactive = new Set(["OPEN_POSITION"]);
+  const interactive = new Set(["OPEN_POSITION", "CONFIRM_STOP", "CHANGE_STOP", "CONFIRM_TARGET", "CHANGE_TARGET"]);
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-4">
       <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
