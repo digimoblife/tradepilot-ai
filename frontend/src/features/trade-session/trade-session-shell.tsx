@@ -9,7 +9,13 @@ import { SessionHeader } from "./session-header";
 import { LifecycleStatus } from "./lifecycle-status";
 import { CanonicalPositionSummary } from "./canonical-position-summary";
 import { EvidenceSection } from "@/features/evidence/evidence-section";
+import { InitialAnalysisView } from "@/features/analysis/initial-analysis-view";
+import { WatchingUpdateView } from "@/features/analysis/watching-update-view";
+import { OpenPositionUpdateView } from "@/features/analysis/open-position-update-view";
+import { PartialExitReviewView } from "@/features/analysis/partial-exit-review-view";
+import { ClosingAnalysisView } from "@/features/analysis/closing-analysis-view";
 import { SectionPlaceholder } from "./section-placeholder";
+import { AnalysisHistory } from "@/features/analysis/history/analysis-history";
 import { actionLabel } from "./helpers";
 
 interface Props {
@@ -98,17 +104,17 @@ export function TradeSessionShell({ sessionId }: Props) {
         <EvidenceSection sessionId={sessionId} />
       </div>
 
+      <div className="mt-6">
+        <AnalysisSwitcher sessionId={sessionId} />
+      </div>
+
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <SectionPlaceholder title="Analisis Terbaru" message="Belum ada analisis yang ditampilkan." />
-        <SectionPlaceholder title="Rencana Trading" message="Belum tersedia." />
-        <SectionPlaceholder title="Probabilitas" message="Belum tersedia." />
         <SectionPlaceholder title="Timeline" message="Riwayat sesi akan ditampilkan di sini." />
-        <SectionPlaceholder title="Riwayat Analisis" message="Riwayat analisis akan ditampilkan di sini." />
+        <AnalysisHistory sessionId={sessionId} />
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <PendingActionsSection actions={allowed_actions} />
-        <SectionPlaceholder title="Peringatan" message="Tidak ada peringatan." />
       </div>
     </div>
   );
@@ -132,5 +138,56 @@ function PendingActionsSection({ actions }: { actions: string[] }) {
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * Analysis lifecycle precedence:
+ * 1. ClosingAnalysisView (closed session final review)
+ * 2. PartialExitReviewView (after partial exit)
+ * 3. OpenPositionUpdateView (active position monitoring)
+ * 4. WatchingUpdateView (pre-entry setup changes)
+ * 5. InitialAnalysisView (initial setup)
+ */
+function AnalysisSwitcher({ sessionId }: { sessionId: string }) {
+  const [show, setShow] = useState<"ca" | "per" | "opu" | "wu" | "ia" | null>(null);
+
+  return (
+    <>
+      {show !== "per" && show !== "opu" && show !== "wu" && show !== "ia" && (
+        <ClosingAnalysisView
+          sessionId={sessionId}
+          onEmpty={() => setShow("per")}
+          onLoaded={() => setShow("ca")}
+        />
+      )}
+      {show === "per" && (
+        <PartialExitReviewView
+          sessionId={sessionId}
+          onEmpty={() => setShow("opu")}
+          onLoaded={() => setShow("per")}
+        />
+      )}
+      {show === "opu" && (
+        <OpenPositionUpdateView
+          sessionId={sessionId}
+          onEmpty={() => setShow("wu")}
+          onLoaded={() => setShow("opu")}
+        />
+      )}
+      {show === "wu" && (
+        <WatchingUpdateView
+          sessionId={sessionId}
+          onEmpty={() => setShow("ia")}
+          onLoaded={() => setShow("wu")}
+        />
+      )}
+      {show === "ia" && <InitialAnalysisView sessionId={sessionId} />}
+      {show === null && (
+        <section className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-sm text-zinc-500">Memuat closing analysis…</p>
+        </section>
+      )}
+    </>
   );
 }

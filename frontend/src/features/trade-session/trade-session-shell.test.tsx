@@ -6,6 +6,11 @@ vi.mock("@/lib/api/trade-sessions", () => ({
   getSession: vi.fn(),
 }));
 
+vi.mock("@/lib/api/analyses", () => ({
+  listAnalyses: vi.fn(),
+  getAnalysis: vi.fn(),
+}));
+
 import { TradeSessionShell } from "./trade-session-shell";
 
 function makeSession(overrides: Record<string, unknown> = {}) {
@@ -41,8 +46,10 @@ function makeSession(overrides: Record<string, unknown> = {}) {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  const mod = await import("@/lib/api/analyses");
+  vi.mocked(mod.listAnalyses).mockResolvedValue({ analyses: [], total: 0 });
 });
 
 // -------------------------------------------------------------------
@@ -191,22 +198,12 @@ describe("required sections", () => {
     expect(await screen.findByText("Evidence")).toBeTruthy();
   });
 
-  it("has Analisis Terbaru section", async () => {
+  it("has analysis section showing loading state", async () => {
     vi.mocked(getSession).mockResolvedValue(makeSession());
     render(<TradeSessionShell sessionId="sess-1" />);
-    expect(await screen.findByText("Analisis Terbaru")).toBeTruthy();
-  });
-
-  it("has Rencana Trading section", async () => {
-    vi.mocked(getSession).mockResolvedValue(makeSession());
-    render(<TradeSessionShell sessionId="sess-1" />);
-    expect(await screen.findByText("Rencana Trading")).toBeTruthy();
-  });
-
-  it("has Probabilitas section", async () => {
-    vi.mocked(getSession).mockResolvedValue(makeSession());
-    render(<TradeSessionShell sessionId="sess-1" />);
-    expect(await screen.findByText("Probabilitas")).toBeTruthy();
+    expect(
+      await screen.findByText("Memuat closing analysis…"),
+    ).toBeTruthy();
   });
 
   it("has Timeline section", async () => {
@@ -225,12 +222,6 @@ describe("required sections", () => {
     vi.mocked(getSession).mockResolvedValue(makeSession());
     render(<TradeSessionShell sessionId="sess-1" />);
     expect(await screen.findByText("Tindakan Tersedia")).toBeTruthy();
-  });
-
-  it("has Peringatan section", async () => {
-    vi.mocked(getSession).mockResolvedValue(makeSession());
-    render(<TradeSessionShell sessionId="sess-1" />);
-    expect(await screen.findByText("Peringatan")).toBeTruthy();
   });
 });
 
