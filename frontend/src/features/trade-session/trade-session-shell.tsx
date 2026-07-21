@@ -245,6 +245,7 @@ export function TradeSessionShell({ sessionId }: Props) {
             onCompleted={handleJobCompleted}
             onFailed={handleJobCompleted}
             onClear={handleJobCompleted}
+            onRetry={handleJobCompleted}
           />
         </div>
       )}

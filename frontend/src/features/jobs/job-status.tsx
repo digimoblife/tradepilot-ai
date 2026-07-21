@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getJobStatus } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
+import { AnalysisFailure } from "./analysis-failure";
 import type { AnalysisJobStatus } from "@/types/analysis-job";
 
 const POLL_INTERVAL_MS = 3000;
@@ -41,9 +42,10 @@ interface Props {
   onCompleted?: (analysisId: string) => void;
   onFailed?: () => void;
   onClear?: () => void;
+  onRetry?: (jobId: string) => void;
 }
 
-export function JobStatus({ jobId, sessionId, onCompleted, onFailed, onClear }: Props) {
+export function JobStatus({ jobId, sessionId, onCompleted, onFailed, onClear, onRetry }: Props) {
   const [status, setStatus] = useState<AnalysisJobStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,16 @@ export function JobStatus({ jobId, sessionId, onCompleted, onFailed, onClear }: 
   // Keep pollRef updated
   useEffect(() => { pollRef.current = poll; }, [poll]);
 
+  // Handle retry by re-polling
+  const handleRetry = useCallback((id: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    cancelledRef.current = false;
+    setLoading(true);
+    setError(null);
+    poll();
+    onRetry?.(id);
+  }, [poll, onRetry]);
+
   useEffect(() => {
     cancelledRef.current = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -130,41 +142,47 @@ export function JobStatus({ jobId, sessionId, onCompleted, onFailed, onClear }: 
 
   return (
     <section className={`rounded-lg border p-4 ${failed ? "border-red-200 bg-red-50" : terminal ? "border-green-200 bg-green-50" : "border-blue-100 bg-blue-50"}`}>
-      <div className="flex items-center justify-between">
-        <div className="min-w-0 flex-1">
-          <p className={`text-sm font-medium ${failed ? "text-red-800" : terminal ? "text-green-800" : "text-blue-800"}`}>
-            {label}
-          </p>
-          {!terminal && (
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-blue-200">
-              <div
-                className="h-full rounded-full bg-blue-600 transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          )}
-          {status.attempt_count > 0 && (
-            <p className="mt-1 text-xs text-zinc-500">
-              Attempt: {status.attempt_count}/{status.max_attempts}
+      {failed ? (
+        <AnalysisFailure
+          jobStatus={status}
+          sessionId={sessionId}
+          onRetry={handleRetry}
+          onClear={onClear}
+        />
+      ) : (
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <p className={`text-sm font-medium ${terminal ? "text-green-800" : "text-blue-800"}`}>
+              {label}
             </p>
-          )}
-          {failed && status.last_error_message && (
-            <p className="mt-1 text-xs text-red-700">{status.last_error_message}</p>
-          )}
-          {terminal && onClear && (
-            <button
-              type="button"
-              onClick={onClear}
-              className="mt-2 text-xs text-zinc-500 underline hover:text-zinc-700 focus:outline-none"
-            >
-              Tutup
-            </button>
+            {!terminal && (
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-blue-200">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            )}
+            {status.attempt_count > 0 && (
+              <p className="mt-1 text-xs text-zinc-500">
+                Attempt: {status.attempt_count}/{status.max_attempts}
+              </p>
+            )}
+            {terminal && onClear && (
+              <button
+                type="button"
+                onClick={onClear}
+                className="mt-2 text-xs text-zinc-500 underline hover:text-zinc-700 focus:outline-none"
+              >
+                Tutup
+              </button>
+            )}
+          </div>
+          {!terminal && (
+            <div className="ml-3 h-5 w-5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
           )}
         </div>
-        {!terminal && (
-          <div className="ml-3 h-5 w-5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
-        )}
-      </div>
+      )}
     </section>
   );
 }

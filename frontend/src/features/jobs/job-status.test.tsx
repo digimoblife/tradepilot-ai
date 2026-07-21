@@ -51,7 +51,7 @@ describe("display states", () => {
     { status: "REPAIRING", label: "Memperbaiki Hasil" },
     { status: "FALLBACK", label: "Mencoba Provider Cadangan" },
     { status: "COMPLETED", label: "Selesai" },
-    { status: "FAILED", label: "Gagal" },
+    { status: "FAILED", label: "Analisis Gagal" },
   ];
 
   states.forEach(({ status, label }) => {
