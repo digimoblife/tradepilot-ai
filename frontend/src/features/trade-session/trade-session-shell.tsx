@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getSession } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { TradeSessionDetail } from "@/types/trade-session";
@@ -16,6 +16,7 @@ import { PartialExitReviewView } from "@/features/analysis/partial-exit-review-v
 import { ClosingAnalysisView } from "@/features/analysis/closing-analysis-view";
 import { SectionPlaceholder } from "./section-placeholder";
 import { AnalysisHistory } from "@/features/analysis/history/analysis-history";
+import { OpenPositionModal } from "@/features/trade-actions/open-position-modal";
 import { actionLabel } from "./helpers";
 
 interface Props {
@@ -30,6 +31,7 @@ type LoadState =
 export function TradeSessionShell({ sessionId }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [retryKey, setRetryKey] = useState(0);
+  const [actionModal, setActionModal] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +65,10 @@ export function TradeSessionShell({ sessionId }: Props) {
     load();
     return () => { cancelled = true; };
   }, [sessionId, retryKey]);
+
+  const handleActionSuccess = useCallback(() => {
+    setRetryKey((k) => k + 1);
+  }, []);
 
   if (state.status === "loading") {
     return (
@@ -114,13 +120,26 @@ export function TradeSessionShell({ sessionId }: Props) {
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <PendingActionsSection actions={allowed_actions} />
+        <PendingActionsSection
+          actions={allowed_actions}
+          onActionClick={setActionModal}
+        />
       </div>
+
+      {actionModal === "OPEN_POSITION" && (
+        <OpenPositionModal
+          sessionId={sessionId}
+          isOpen={true}
+          onClose={() => setActionModal(null)}
+          onSuccess={handleActionSuccess}
+        />
+      )}
     </div>
   );
 }
 
-function PendingActionsSection({ actions }: { actions: string[] }) {
+function PendingActionsSection({ actions, onActionClick }: { actions: string[]; onActionClick?: (action: string) => void }) {
+  const interactive = new Set(["OPEN_POSITION"]);
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-4">
       <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
@@ -131,8 +150,18 @@ function PendingActionsSection({ actions }: { actions: string[] }) {
       ) : (
         <ul className="space-y-1">
           {actions.map((a) => (
-            <li key={a} className="text-sm text-zinc-700">
-              {actionLabel(a)}
+            <li key={a}>
+              {interactive.has(a) ? (
+                <button
+                  type="button"
+                  onClick={() => onActionClick?.(a)}
+                  className="w-full rounded px-2 py-1 text-left text-sm text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                >
+                  {actionLabel(a)}
+                </button>
+              ) : (
+                <span className="text-sm text-zinc-700">{actionLabel(a)}</span>
+              )}
             </li>
           ))}
         </ul>

@@ -18,6 +18,13 @@ export function statusLabel(status: string): string {
 
 const ACTION_MAP: Record<string, string> = {
   MARK_READY: "Tandai Siap",
+  OPEN_POSITION: "Buka Posisi",
+  CONFIRM_STOP: "Konfirmasi Stop Loss",
+  CHANGE_STOP: "Ubah Stop Loss",
+  CONFIRM_TARGET: "Konfirmasi Target",
+  CHANGE_TARGET: "Ubah Target",
+  PARTIAL_EXIT: "Partial Exit",
+  FULL_EXIT: "Tutup Posisi",
   CANCEL: "Batalkan",
   ARCHIVE: "Arsipkan",
 };
