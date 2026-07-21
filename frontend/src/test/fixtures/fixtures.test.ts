@@ -19,15 +19,15 @@ const FIXTURES = [
 // Structure: all five fixtures
 // -------------------------------------------------------------------
 describe("fixture structure", () => {
-  for (const [name, fixture] of FIXTURES) {
+  for (const [name, fixture, expType] of FIXTURES) {
     describe(name, () => {
       it("is a non-null object", () => {
         expect(fixture).toBeTypeOf("object");
         expect(fixture).not.toBeNull();
       });
 
-      it(`has analysis_type ${expectedType}`, () => {
-        expect(fixture.metadata.analysis_type).toBe(expectedType);
+      it(`has analysis_type ${expType}`, () => {
+        expect(fixture.metadata.analysis_type).toBe(expType);
       });
 
       it("has metadata and type-specific sections", () => {
@@ -124,12 +124,12 @@ describe("canonical consistency", () => {
   });
 
   it("partial exit remaining quantity reconciles", () => {
-    expect(partialExitReviewFixture.partial_exit_confirmation.exit_quantity).toBe(40);
+    expect(partialExitReviewFixture.partial_exit_confirmation.exited_quantity).toBe(40);
     expect(partialExitReviewFixture.partial_exit_confirmation.remaining_quantity).toBe(60);
   });
 
-  it("closing analysis remaining quantity is 0", () => {
-    expect(closingAnalysisFixture.closing_confirmation.remaining_quantity).toBe(0);
+  it("closing analysis final exit quantity is 60", () => {
+    expect(closingAnalysisFixture.closing_confirmation.final_exit_quantity).toBe(60);
   });
 });
 
@@ -149,7 +149,7 @@ describe("no undefined values", () => {
     return results;
   }
 
-  for (const [name, fixture] of FIXTURES) {
+  for (const [name, fixture, expType] of FIXTURES) {
     it(`${name} has no undefined values`, () => {
       const undefs = findUndefined(fixture);
       expect(undefs).toEqual([]);
