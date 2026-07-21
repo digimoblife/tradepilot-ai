@@ -19,6 +19,7 @@ import { AnalysisHistory } from "@/features/analysis/history/analysis-history";
 import { OpenPositionModal } from "@/features/trade-actions/open-position-modal";
 import { StopLossModal } from "@/features/trade-actions/stop-loss-modal";
 import { TargetModal } from "@/features/trade-actions/target-modal";
+import { PartialExitModal } from "@/features/trade-actions/partial-exit-modal";
 import { actionLabel } from "./helpers";
 
 interface Props {
@@ -156,12 +157,21 @@ export function TradeSessionShell({ sessionId }: Props) {
           activeTarget={trade_state.active_target}
         />
       )}
+      {actionModal === "PARTIAL_EXIT" && (
+        <PartialExitModal
+          sessionId={sessionId}
+          isOpen={true}
+          onClose={() => setActionModal(null)}
+          onSuccess={handleActionSuccess}
+          remainingQuantity={trade_state.remaining_quantity}
+        />
+      )}
     </div>
   );
 }
 
 function PendingActionsSection({ actions, onActionClick }: { actions: string[]; onActionClick?: (action: string) => void }) {
-  const interactive = new Set(["OPEN_POSITION", "CONFIRM_STOP", "CHANGE_STOP", "CONFIRM_TARGET", "CHANGE_TARGET"]);
+  const interactive = new Set(["OPEN_POSITION", "CONFIRM_STOP", "CHANGE_STOP", "CONFIRM_TARGET", "CHANGE_TARGET", "PARTIAL_EXIT"]);
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-4">
       <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
