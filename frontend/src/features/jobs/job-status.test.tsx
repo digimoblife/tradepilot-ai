@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { getJobStatus } from "@/lib/api/analyses";
+import userEvent from "@testing-library/user-event";
+import { getJobStatus, retryJob } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { AnalysisJobStatus } from "@/types/analysis-job";
 
 vi.mock("@/lib/api/analyses", () => ({
   getJobStatus: vi.fn(),
+  retryJob: vi.fn(),
 }));
 
 import { JobStatus } from "./job-status";
@@ -163,6 +165,60 @@ describe("error states", () => {
     vi.mocked(getJobStatus).mockRejectedValue(new AuthenticationError(401, "AUTH", "Auth"));
     render(<JobStatus jobId="job-1" sessionId="sess-a" />);
     expect(await screen.findByText("Silakan masuk terlebih dahulu.")).toBeTruthy();
+  });
+});
+
+// -------------------------------------------------------------------
+// Failed-state persistence
+// -------------------------------------------------------------------
+describe("failed-state persistence", () => {
+  it("keeps failure UI mounted after FAILED response", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "FAILED" }));
+    render(<JobStatus jobId="job-1" sessionId="sess-a" />);
+    expect(await screen.findByText("Analisis Gagal")).toBeTruthy();
+    // Failure UI remains mounted (component not unmounted)
+    expect(screen.getByText("Analisis Gagal")).toBeTruthy();
+  });
+
+  it("does not call onCompleted on FAILED", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "FAILED" }));
+    const onCompleted = vi.fn();
+    render(<JobStatus jobId="job-1" sessionId="sess-a" onCompleted={onCompleted} />);
+    await screen.findByText("Analisis Gagal");
+    expect(onCompleted).not.toHaveBeenCalled();
+  });
+
+  it("shows retry and tutup buttons on FAILED with attempts remaining", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "FAILED", attempt_count: 1, max_attempts: 3 }));
+    render(<JobStatus jobId="job-1" sessionId="sess-a" />);
+    await screen.findByText("Analisis Gagal");
+    expect(screen.getByText("Coba Lagi")).toBeTruthy();
+    expect(screen.getByText("Tutup")).toBeTruthy();
+  });
+
+  it("tutup calls onClear callback", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "FAILED" }));
+    const onClear = vi.fn();
+    render(<JobStatus jobId="job-1" sessionId="sess-a" onClear={onClear} />);
+    await screen.findByText("Analisis Gagal");
+    await userEvent.click(screen.getByText("Tutup"));
+    expect(onClear).toHaveBeenCalled();
+  });
+
+  it("retry calls retryJob and onRetry", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "FAILED", attempt_count: 1, max_attempts: 3 }));
+    vi.mocked(retryJob).mockResolvedValue({
+      job_id: "job-1", status: "PENDING", attempt_count: 2, max_attempts: 3,
+    });
+    const onRetry = vi.fn();
+    // Need to import retryJob mock
+    render(<JobStatus jobId="job-1" sessionId="sess-a" onRetry={onRetry} />);
+    await screen.findByText("Analisis Gagal");
+    await userEvent.click(screen.getByText("Coba Lagi"));
+    await waitFor(() => {
+      expect(retryJob).toHaveBeenCalledWith("job-1");
+    });
+    expect(onRetry).toHaveBeenCalledWith("job-1");
   });
 });
 

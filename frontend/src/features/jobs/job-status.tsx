@@ -139,6 +139,7 @@ export function JobStatus({ jobId, sessionId, onCompleted, onFailed, onClear, on
   const progressPct = MAX_STEPS > 0 ? Math.round((step / MAX_STEPS) * 100) : 0;
   const terminal = isTerminal(status.status);
   const failed = status.status === "FAILED";
+  const handleClose = onClear ?? (() => {});
 
   return (
     <section className={`rounded-lg border p-4 ${failed ? "border-red-200 bg-red-50" : terminal ? "border-green-200 bg-green-50" : "border-blue-100 bg-blue-50"}`}>
@@ -147,7 +148,7 @@ export function JobStatus({ jobId, sessionId, onCompleted, onFailed, onClear, on
           jobStatus={status}
           sessionId={sessionId}
           onRetry={handleRetry}
-          onClear={onClear}
+          onClear={handleClose}
         />
       ) : (
         <div className="flex items-center justify-between">
