@@ -504,6 +504,52 @@ describe("metadata", () => {
 });
 
 // -------------------------------------------------------------------
+// Callbacks
+// -------------------------------------------------------------------
+describe("callbacks", () => {
+  it("notifies onEmpty when no accepted record exists", async () => {
+    vi.mocked(listAnalyses).mockResolvedValue({ analyses: [], total: 0 });
+    const onEmpty = vi.fn();
+    render(<InitialAnalysisView sessionId="sess-a" onEmpty={onEmpty} />);
+    await waitFor(() => { expect(onEmpty).toHaveBeenCalled(); });
+  });
+
+  it("notifies onLoaded when data is available", async () => {
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAcceptedSummary()], total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeAnalysisDetail());
+    const onLoaded = vi.fn();
+    render(<InitialAnalysisView sessionId="sess-a" onLoaded={onLoaded} />);
+    await waitFor(() => { expect(onLoaded).toHaveBeenCalled(); });
+  });
+});
+
+// -------------------------------------------------------------------
+// Session isolation
+// -------------------------------------------------------------------
+describe("session isolation", () => {
+  it("stale A response cannot overwrite B", async () => {
+    const listSpy = vi.mocked(listAnalyses);
+    const getSpy = vi.mocked(getAnalysis);
+    let resolveA: (v: unknown) => void;
+    const promiseA = new Promise((r) => { resolveA = r; });
+    listSpy.mockImplementationOnce(
+      () => promiseA as Promise<{ analyses: AnalysisSummary[]; total: number }>,
+    );
+    const { unmount } = render(<InitialAnalysisView sessionId="sess-a" />);
+    unmount();
+    listSpy.mockResolvedValue({ analyses: [], total: 0 });
+    const onEmptyB = vi.fn();
+    render(<InitialAnalysisView sessionId="sess-b" onEmpty={onEmptyB} />);
+    await waitFor(() => { expect(onEmptyB).toHaveBeenCalled(); });
+    resolveA!({ analyses: [makeAcceptedSummary({ id: "stale-a" })], total: 1 });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(getSpy).not.toHaveBeenCalledWith("stale-a");
+  });
+});
+
+// -------------------------------------------------------------------
 // Boundaries
 // -------------------------------------------------------------------
 describe("boundaries", () => {

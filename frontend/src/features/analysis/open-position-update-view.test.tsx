@@ -433,4 +433,52 @@ describe("safety and boundaries", () => {
     expect(body).not.toContain("Minta Analisis");
     expect(body).not.toContain("Request Analysis");
   });
+
+  it("does not expose runtime internals", () => {
+    const src = OpenPositionUpdateView.toString();
+    expect(src).not.toContain("stack");
+    expect(src).not.toContain("rawProvider");
+  });
+
+  it("renders section heading for context", async () => {
+    mockAccepted();
+    render(<OpenPositionUpdateView sessionId="sess-a" />);
+    expect(await screen.findByText("Ringkasan Hari Ini")).toBeTruthy();
+  });
+
+  it("handles null payload as empty", async () => {
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAcceptedSummary()], total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeDetail({ payload: null }));
+    const onEmpty = vi.fn();
+    render(<OpenPositionUpdateView sessionId="sess-a" onEmpty={onEmpty} />);
+    await waitFor(() => { expect(onEmpty).toHaveBeenCalled(); });
+  });
+
+  it("renders proposed stop loss when revised_stop_proposed is true", async () => {
+    const detail = makeDetail();
+    const payload = JSON.parse(JSON.stringify(openPositionUpdateFixture));
+    payload.stop_loss_assessment.revised_stop_proposed = true;
+    payload.stop_loss_assessment.proposed_stop_loss = 2800;
+    detail.payload = payload as Record<string, unknown>;
+    vi.mocked(listAnalyses).mockResolvedValue({ analyses: [makeAcceptedSummary()], total: 1 });
+    vi.mocked(getAnalysis).mockResolvedValue(detail);
+    render(<OpenPositionUpdateView sessionId="sess-a" />);
+    expect(await screen.findByText(/Usulan Stop Loss Baru/)).toBeTruthy();
+    expect(await screen.findByText(/Usulan AI — belum terkonfirmasi./)).toBeTruthy();
+  });
+
+  it("renders proposed target when revised_target_proposed is true", async () => {
+    const detail = makeDetail();
+    const payload = JSON.parse(JSON.stringify(openPositionUpdateFixture));
+    payload.target_assessment.revised_target_proposed = true;
+    payload.target_assessment.proposed_target = 3100;
+    detail.payload = payload as Record<string, unknown>;
+    vi.mocked(listAnalyses).mockResolvedValue({ analyses: [makeAcceptedSummary()], total: 1 });
+    vi.mocked(getAnalysis).mockResolvedValue(detail);
+    render(<OpenPositionUpdateView sessionId="sess-a" />);
+    expect(await screen.findByText(/Usulan Target Baru/)).toBeTruthy();
+    expect(await screen.findByText(/Usulan AI — belum terkonfirmasi./)).toBeTruthy();
+  });
 });

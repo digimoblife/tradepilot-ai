@@ -496,4 +496,26 @@ describe("safety and boundaries", () => {
     expect(body).not.toContain("Minta Analisis");
     expect(body).not.toContain("Request Analysis");
   });
+
+  it("does not expose runtime internals", () => {
+    const src = PartialExitReviewView.toString();
+    expect(src).not.toContain("stack");
+    expect(src).not.toContain("rawProvider");
+  });
+
+  it("renders section heading for context", async () => {
+    mockAccepted();
+    render(<PartialExitReviewView sessionId="sess-a" />);
+    expect(await screen.findByText("Ringkasan Hari Ini")).toBeTruthy();
+  });
+
+  it("handles null payload as empty", async () => {
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAcceptedSummary()], total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeDetail({ payload: null }));
+    const onEmpty = vi.fn();
+    render(<PartialExitReviewView sessionId="sess-a" onEmpty={onEmpty} />);
+    await waitFor(() => { expect(onEmpty).toHaveBeenCalled(); });
+  });
 });

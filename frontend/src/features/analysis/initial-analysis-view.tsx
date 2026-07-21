@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { listAnalyses, getAnalysis } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { AnalysisDetail } from "@/types/analysis";
@@ -22,17 +22,22 @@ type LoadState =
 
 interface Props {
   sessionId: string;
+  onEmpty?: () => void;
+  onLoaded?: () => void;
 }
 
-export function InitialAnalysisView({ sessionId }: Props) {
+export function InitialAnalysisView({ sessionId, onEmpty, onLoaded }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const cancelledRef = useRef(false);
 
   const load = useCallback(async function loadFn() {
+    cancelledRef.current = false;
     setState({ status: "loading" });
     try {
       const list = await listAnalyses(sessionId, {
         analysis_type: "INITIAL_ANALYSIS",
       });
+      if (cancelledRef.current) return;
 
       const accepted = list.analyses
         .filter((a) => a.acceptance_status === "ACCEPTED")
@@ -43,24 +48,28 @@ export function InitialAnalysisView({ sessionId }: Props) {
         );
 
       if (accepted.length === 0) {
-        setState({ status: "empty" });
+        if (!cancelledRef.current) setState({ status: "empty" });
         return;
       }
 
       const latest = accepted[0];
       const detail = await getAnalysis(latest.id);
+      if (cancelledRef.current) return;
 
       if (!detail.payload) {
-        setState({ status: "empty" });
+        if (!cancelledRef.current) setState({ status: "empty" });
         return;
       }
 
-      setState({
-        status: "loaded",
-        payload: detail.payload as unknown as InitialAnalysisPayload,
-        detail,
-      });
+      if (!cancelledRef.current) {
+        setState({
+          status: "loaded",
+          payload: detail.payload as unknown as InitialAnalysisPayload,
+          detail,
+        });
+      }
     } catch (e: unknown) {
+      if (cancelledRef.current) return;
       if (e instanceof AuthenticationError) {
         setState({
           status: "error",
@@ -86,8 +95,15 @@ export function InitialAnalysisView({ sessionId }: Props) {
   }, [sessionId]);
 
   useEffect(() => {
+    cancelledRef.current = false;
     load();
+    return () => { cancelledRef.current = true; };
   }, [load]);
+
+  useEffect(() => {
+    if (state.status === "empty" && onEmpty) onEmpty();
+    if (state.status === "loaded" && onLoaded) onLoaded();
+  }, [state.status, onEmpty, onLoaded]);
 
   if (state.status === "loading") {
     return (

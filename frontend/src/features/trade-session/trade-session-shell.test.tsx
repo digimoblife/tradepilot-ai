@@ -292,6 +292,43 @@ describe("error states", () => {
 });
 
 // -------------------------------------------------------------------
+// Allowed actions
+// -------------------------------------------------------------------
+describe("allowed actions", () => {
+  it("renders clickable button for OPEN_POSITION action", async () => {
+    vi.mocked(getSession).mockResolvedValue(
+      makeSession({ allowed_actions: ["OPEN_POSITION"] }),
+    );
+    render(<TradeSessionShell sessionId="sess-1" />);
+    expect(await screen.findByText("Buka Posisi")).toBeTruthy();
+  });
+
+  it("renders clickable button for CONFIRM_STOP action", async () => {
+    vi.mocked(getSession).mockResolvedValue(
+      makeSession({ allowed_actions: ["CONFIRM_STOP"] }),
+    );
+    render(<TradeSessionShell sessionId="sess-1" />);
+    expect(await screen.findByText("Konfirmasi Stop Loss")).toBeTruthy();
+  });
+
+  it("renders clickable button for FULL_EXIT action", async () => {
+    vi.mocked(getSession).mockResolvedValue(
+      makeSession({ allowed_actions: ["FULL_EXIT"] }),
+    );
+    render(<TradeSessionShell sessionId="sess-1" />);
+    expect(await screen.findByText("Tutup Posisi")).toBeTruthy();
+  });
+
+  it("renders non-interactive action as plain text", async () => {
+    vi.mocked(getSession).mockResolvedValue(
+      makeSession({ allowed_actions: ["MARK_READY"] }),
+    );
+    render(<TradeSessionShell sessionId="sess-1" />);
+    expect(await screen.findByText("Tandai Siap")).toBeTruthy();
+  });
+});
+
+// -------------------------------------------------------------------
 // Boundaries
 // -------------------------------------------------------------------
 describe("boundaries", () => {

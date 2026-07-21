@@ -468,4 +468,16 @@ describe("safety and boundaries", () => {
       expect(onEmpty).toHaveBeenCalled();
     });
   });
+
+  it("does not expose runtime internals", () => {
+    const src = WatchingUpdateView.toString();
+    expect(src).not.toContain("stack");
+    expect(src).not.toContain("rawProvider");
+  });
+
+  it("renders estimate disclaimer", async () => {
+    mockAccepted();
+    render(<WatchingUpdateView sessionId="sess-a" />);
+    expect(await screen.findByText("Estimasi AI, bukan kepastian.")).toBeTruthy();
+  });
 });
