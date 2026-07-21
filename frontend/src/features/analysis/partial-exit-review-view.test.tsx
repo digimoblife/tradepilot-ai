@@ -302,7 +302,8 @@ describe("BBRI-style display", () => {
 
   it("renders realized profit value", async () => {
     render(<PartialExitReviewView sessionId="sess-a" />);
-    expect(await screen.findByText("4.800")).toBeTruthy();
+    const els = await screen.findAllByText("4.800");
+    expect(els.length).toBe(2);
   });
 
   it("renders remaining quantity", async () => {
@@ -369,9 +370,10 @@ describe("active versus proposed", () => {
 describe("schema-shaped fixture tests", () => {
   beforeEach(mockAccepted);
 
-  it("renders entry price from result summary", async () => {
+  it("renders entry price from result summary and position assessment", async () => {
     render(<PartialExitReviewView sessionId="sess-a" />);
-    expect(await screen.findByText("2.800")).toBeTruthy();
+    const els = await screen.findAllByText("2.800");
+    expect(els.length).toBe(2);
   });
 
   it("renders exit price", async () => {
@@ -382,7 +384,8 @@ describe("schema-shaped fixture tests", () => {
 
   it("renders realized profit loss from result summary", async () => {
     render(<PartialExitReviewView sessionId="sess-a" />);
-    expect(await screen.findByText("4.800")).toBeTruthy();
+    const els = await screen.findAllByText("4.800");
+    expect(els.length).toBe(2);
   });
 
   it("renders remaining position summary narrative", async () => {

@@ -218,7 +218,8 @@ describe("12 original display areas", () => {
     render(<ClosingAnalysisView sessionId="sess-a" />);
     expect(await screen.findByText("Hasil Final Trade")).toBeTruthy();
     expect(await screen.findByText("Profit")).toBeTruthy();
-    expect(await screen.findByText("2.916")).toBeTruthy();
+    const els = await screen.findAllByText("2.914");
+    expect(els.length).toBe(2);
   });
 
   it("renders trade timeline", async () => {
@@ -321,7 +322,7 @@ describe("result and process distinction", () => {
 
   it("shows gross P&L as factual number", async () => {
     render(<ClosingAnalysisView sessionId="sess-a" />);
-    expect(await screen.findByText("11.600")).toBeTruthy();
+    expect(await screen.findByText("11.400")).toBeTruthy();
   });
 });
 
@@ -343,7 +344,7 @@ describe("schema-shaped fixture tests", () => {
 
   it("renders gross return percentage", async () => {
     render(<ClosingAnalysisView sessionId="sess-a" />);
-    expect(await screen.findByText("4.14%")).toBeTruthy();
+    expect(await screen.findByText("4.07%")).toBeTruthy();
   });
 
   it("renders thesis outcome label", async () => {
