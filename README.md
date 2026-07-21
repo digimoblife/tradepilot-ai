@@ -47,10 +47,45 @@ tradepilot-ai/
 
 ## Implementation Status
 
-**Foundation stage — no services configured yet.**
+**Frontend actively developed — 505 tests passing across 17 test files.**
 
-- TP-0001: Repository structure initialized
-- TP-0002+: Not started
+### Frontend (Next.js / TypeScript)
+
+| Task | Status | Tests |
+|------|--------|-------|
+| TP-1101 Core API client & typed errors | Complete | 21 |
+| TP-1102 Auth UI | Complete | — |
+| TP-1103 New Trade Session Page | Complete | 27 |
+| TP-1104 Trade Session Page Shell | Complete | 27 |
+| TP-1105 Evidence Upload UI | Complete | 16 |
+| TP-1201 Golden test fixtures (5 types, schema-valid) | Complete | 67 + 9 |
+| TP-1202 Initial Analysis View (41 tests) | Complete | 41 |
+| TP-1203 Watching Update View (37 tests) | Complete | 37 |
+| TP-1204 Open Position Update View (43 tests) | Complete | 43 |
+| TP-1205 Partial Exit Review View (48 tests) | Complete | 48 |
+| TP-1206 Closing Analysis View (45 tests) | Complete | 45 |
+| TP-1207 Analysis History & Comparison (38 tests) | Complete | 38 |
+| TP-1301 Position Open Confirmation Modal (22 tests) | Complete | 22 |
+| TP-1302 Stop & Target Modals (30 tests) | Complete | 30 |
+| TP-1303 Partial Exit Modal (15 tests) | Complete | 15 |
+
+### Backend / Worker / Schema
+
+| Task | Status |
+|------|--------|
+| Production JSON Schema package (11 schemas) | Complete |
+| Schema registry & validation service | Reserved |
+| FastAPI backend | Reserved |
+| Python background worker | Reserved |
+| PostgreSQL-backed job queue | Reserved |
+
+### Stacks Completed
+
+- Frontend: 505 tests, 0 errors (TypeScript, ESLint)
+- 5 golden fixtures validated against all 11 production schemas
+- 5 analysis views: Initial Analysis, Watching Update, Open Position Update, Partial Exit Review, Closing Analysis
+- Analysis History with per-type payload viewers, period badges, material-change rendering
+- 6 interactive modals: Open Position, Confirm Stop, Change Stop, Confirm Target, Change Target, Partial Exit
 
 ## Language
 
