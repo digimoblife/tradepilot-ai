@@ -77,16 +77,13 @@ services:
       backend:
         condition: service_started
 
-  nginx:
+  gateway:
     image: nginx:alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:${TRADEPILOT_GATEWAY_PORT:-8181}:80"
     volumes:
       - ./infra/nginx/tradepilot.conf:/etc/nginx/conf.d/tradepilot.conf:ro
-      - ./infra/nginx/tradepilot.crt:/etc/nginx/certs/tradepilot.crt:ro
-      - ./infra/nginx/tradepilot.key:/etc/nginx/certs/tradepilot.key:ro
     command: >
       sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
     depends_on:
