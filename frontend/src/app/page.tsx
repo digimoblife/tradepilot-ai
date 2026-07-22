@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4">
@@ -17,9 +19,14 @@ export default function Home() {
             riwayat lengkap: tesis awal, evidence, analisis AI, posisi,
             dan jurnal akhir.
           </p>
-          <p className="text-sm text-zinc-400">
-            Fondasi aplikasi sedang disiapkan.
-          </p>
+        </div>
+        <div className="mt-8">
+          <Link
+            href="/login"
+            className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Masuk ke TradePilot
+          </Link>
         </div>
       </main>
     </div>

@@ -256,3 +256,39 @@ The deployment scripts **never**:
 - Use the TP-1702 self-signed certificate in production
 
 Host Nginx configuration and TLS certificate management remain manual operational tasks.
+
+---
+
+## Creating the Initial User
+
+After the first deployment, the database has zero users.  Create the first
+user from the backend container:
+
+```bash
+docker compose \
+  -p tradepilot-ai \
+  --env-file /opt/tradepilot-ai/env/production.env \
+  -f docker-compose.production.yml \
+  run --rm --no-deps backend \
+  python -m app.cli.create_user --email admin@example.com
+```
+
+The script will prompt for a password interactively (hidden input).
+
+To reset an existing user's password:
+
+```bash
+docker compose \
+  -p tradepilot-ai \
+  --env-file /opt/tradepilot-ai/env/production.env \
+  -f docker-compose.production.yml \
+  run --rm --no-deps backend \
+  python -m app.cli.create_user --email admin@example.com --reset-password
+```
+
+The CLI:
+- Creates the user as `ACTIVE`
+- Normalises email to lowercase
+- Refuses to create a duplicate user unless `--reset-password` is given
+- Never prints passwords or password hashes
+- Exits non-zero on failure
