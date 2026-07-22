@@ -15,6 +15,7 @@ from app.auth import (
     AuthenticatedUser,
     AuthenticationService,
 )
+from app.config import AppConfig
 from app.database.session import get_db_session
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -70,7 +71,8 @@ async def logout(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, str]:
     """Revoke the current session and clear the cookie."""
-    raw_token: str | None = request.cookies.get("tradepilot_session")
+    _cfg = AppConfig()
+    raw_token: str | None = request.cookies.get(_cfg.auth_cookie_name)
     if raw_token:
         svc = AuthenticationService(db_session)
         await svc.revoke_session(raw_token=raw_token)
