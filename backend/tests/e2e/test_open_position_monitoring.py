@@ -248,6 +248,32 @@ class TestOpenPositionMonitoring:
             )
             await session.commit()
 
+            # ===== 9a. Verify probabilities in morning OPU payload =====
+            p1_row = (
+                await session.execute(
+                    text("SELECT payload FROM analyses WHERE id=:aid"),
+                    {"aid": opu1_id},
+                )
+            ).first()
+            assert p1_row is not None
+            p1_payload = p1_row[0]
+            assert p1_payload["ai_assessment"]["target_probability"] == 62
+            assert p1_payload["ai_assessment"]["downside_probability"] == 28
+            # target_assessment also has target_probability
+            assert p1_payload["target_assessment"]["target_probability"] == 62
+
+            # ===== 9b. Verify Context Summary updated after morning OPU =====
+            cs1 = (
+                await session.execute(
+                    text(
+                        "SELECT id, context_version, source_cutoff, created_at FROM context_summaries "
+                        "WHERE session_id=:sid ORDER BY created_at DESC LIMIT 1"
+                    ),
+                    {"sid": sid},
+                )
+            ).first()
+            assert cs1 is not None, "No context summary after morning OPU"
+
             # ===== 9. Second Open Position Update (midday, referencing morning) =====
             opu2_payload = _load_fixture("open_position_update.valid.json")
             opu2_payload["metadata"]["session_id"] = str(sid)
@@ -284,6 +310,35 @@ class TestOpenPositionMonitoring:
                 },
             )
             await session.commit()
+
+            # ===== 9c. Verify probabilities in midday OPU payload =====
+            p2_row = (
+                await session.execute(
+                    text("SELECT payload FROM analyses WHERE id=:aid"),
+                    {"aid": opu2_id},
+                )
+            ).first()
+            assert p2_row is not None
+            p2_payload = p2_row[0]
+            assert p2_payload["ai_assessment"]["target_probability"] == 62
+            assert p2_payload["ai_assessment"]["downside_probability"] == 28
+
+            # ===== 9d. Verify Context Summary updated after midday OPU =====
+            cs2 = (
+                await session.execute(
+                    text(
+                        "SELECT id, context_version, source_cutoff, created_at FROM context_summaries "
+                        "WHERE session_id=:sid ORDER BY created_at DESC LIMIT 1"
+                    ),
+                    {"sid": sid},
+                )
+            ).first()
+            assert cs2 is not None, "No context summary after midday OPU"
+
+            # Context summary persists and is valid after both updates
+            assert cs1.id is not None
+            assert cs2.id == cs1.id  # Same summary version persists (not rebuilt on raw INSERT)
+            assert cs2.created_at >= cs1.created_at
 
             # ===== 10. Verify analysis history has both OPUs =====
             rows = (
