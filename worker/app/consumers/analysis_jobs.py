@@ -67,9 +67,7 @@ class AnalysisJobConsumer:
                         "analysis_job_id": str(claimed.job_id),
                         "worker_id": self._worker_id,
                         "job_status": result.job_status,
-                        "restored_status": getattr(
-                            result, "restored_session_status", None
-                        ),
+                        "restored_status": getattr(result, "restored_session_status", None),
                     },
                 )
             except Exception:

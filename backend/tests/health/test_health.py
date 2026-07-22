@@ -274,6 +274,38 @@ class TestWorkerHeartbeat:
         assert body["status"] == "stale"
         assert body["worker_id"] == "test-worker-stale"
 
+    async def test_stopped_heartbeat_is_stale(
+        self, engine: AsyncEngine, db_session: AsyncSession
+    ) -> None:
+        """A STOPPED heartbeat must not be reported as healthy."""
+        await _ensure_worker_heartbeats_table(engine)
+        async with engine.begin() as conn:
+            await conn.execute(text("DELETE FROM worker_heartbeats"))
+        now = datetime.now(timezone.utc)
+        hb_id = uuid.uuid4()
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO worker_heartbeats "
+                    "(id, worker_id, started_at, last_seen_at, status) "
+                    "VALUES (:id, :wid, :started, :seen, 'STOPPED')"
+                ),
+                {
+                    "id": hb_id,
+                    "wid": "test-worker-stopped",
+                    "started": now - timedelta(minutes=30),
+                    "seen": now - timedelta(seconds=10),
+                },
+            )
+        app = _build_app(db_session)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.get("/health/worker")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "stale"
+        assert body["running_status"] == "STOPPED"
+        assert "stopped" in body.get("detail", "").lower()
+
 
 # ===================================================================
 # 5. Provider outage not affecting readiness

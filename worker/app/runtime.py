@@ -1,7 +1,10 @@
-"""Worker runtime loop (TP-0805).
+"""Worker runtime loop (TP-0805 / TP-1703 fix).
 
 Coordinates polling, consumer, and heartbeat lifecycle.
 Uses dependency injection — no direct backend imports.
+
+One ``WorkerHeartbeat`` instance is created at startup and reused for
+all heartbeat operations throughout the worker's lifetime.
 """
 
 from __future__ import annotations
@@ -30,6 +33,8 @@ async def run_worker(
     """Start the worker polling loop.
 
     Accepts optional injected dependencies for testing.
+    When *heartbeat* is provided it is used directly; otherwise a new
+    ``WorkerHeartbeat`` is created from the session factory.
     """
     from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -55,14 +60,13 @@ async def run_worker(
         },
     )
 
-    # Heartbeat
-    async with factory() as hb_session:
-        hb = heartbeat or WorkerHeartbeat(hb_session, worker_id)
-        try:
-            await hb.initialize()
-        except Exception:
-            log.exception("Failed to initialize heartbeat", extra={"worker_id": worker_id})
-            raise
+    # Create one heartbeat instance for the entire worker lifecycle
+    hb = heartbeat or WorkerHeartbeat(factory, worker_id)
+    try:
+        await hb.initialize()
+    except Exception:
+        log.exception("Failed to initialize heartbeat", extra={"worker_id": worker_id})
+        raise
 
     # Consumer
     default_consumer = consumer or _create_consumer(factory, worker_id)
@@ -71,15 +75,7 @@ async def run_worker(
 
     while not shutdown_requested and not shutdown_event.is_set():
         try:
-            async with factory() as hb_session:
-                hb_refresh = heartbeat or WorkerHeartbeat(hb_session, worker_id)
-                try:
-                    await hb_refresh.refresh()
-                except Exception:
-                    log.warning(
-                        "Heartbeat refresh failed",
-                        extra={"worker_id": worker_id},
-                    )
+            await hb.refresh()
 
             await default_consumer.run_once()
 
@@ -102,9 +98,7 @@ async def run_worker(
     # Finalize
     log.info("Worker shutting down", extra={"worker_id": worker_id})
     try:
-        async with factory() as hb_session:
-            hb_final = heartbeat or WorkerHeartbeat(hb_session, worker_id)
-            await hb_final.finalize("STOPPED")
+        await hb.finalize("STOPPED")
     except Exception:
         log.exception("Failed to finalize heartbeat", extra={"worker_id": worker_id})
 

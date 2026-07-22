@@ -186,11 +186,22 @@ for attempt in $(seq 1 "${RETRY_ATTEMPTS}"); do
 
     LIVES=$(curl -sf "${HEALTH_URL}/health" 2>/dev/null || echo "FAIL")
     READY=$(curl -sf "${HEALTH_URL}/health/ready" 2>/dev/null || echo "FAIL")
+    WORKER=$(curl -sf "${HEALTH_URL}/health/worker" 2>/dev/null || echo "FAIL")
 
-    if [[ "${LIVES}" != "FAIL" && "${READY}" != "FAIL" ]]; then
+    # Check that all three endpoints respond and worker reports healthy
+    WORKER_HEALTHY=false
+    if [[ "${WORKER}" != "FAIL" ]]; then
+        WS=$(echo "${WORKER}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+        if [[ "${WS}" == "healthy" ]]; then
+            WORKER_HEALTHY=true
+        fi
+    fi
+
+    if [[ "${LIVES}" != "FAIL" && "${READY}" != "FAIL" && "${WORKER_HEALTHY}" == "true" ]]; then
         HEALTHY=true
         echo "  /health:    ${LIVES}"
         echo "  /ready:     ${READY}"
+        echo "  /worker:    ${WORKER}"
         break
     fi
 

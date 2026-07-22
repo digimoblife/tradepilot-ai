@@ -63,6 +63,9 @@ class WorkerHeartbeatStatus(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+# A heartbeat older than this threshold is considered stale/unhealthy
+# regardless of its database status.  Default: 5 minutes ( ~ 2× the
+# default worker poll interval of 5 s × 60 polling cycles).
 _STALE_THRESHOLD_MINUTES = 5
 
 
@@ -198,6 +201,18 @@ async def health_worker(
     worker_id, started_at, last_seen_at, running_status = row
     now = datetime.now(timezone.utc)
 
+    # 1. A ST stopped heartbeat is never healthy
+    if running_status is not None and running_status.upper() == "STOPPED":
+        return WorkerHeartbeatStatus(
+            status="stale",
+            worker_id=worker_id,
+            started_at=started_at.isoformat() if started_at else None,
+            last_seen_at=last_seen_at.isoformat() if last_seen_at else None,
+            running_status=running_status,
+            detail="worker has stopped",
+        )
+
+    # 2. Check staleness by age
     if last_seen_at is None or (now - last_seen_at) > timedelta(minutes=_STALE_THRESHOLD_MINUTES):
         status_label = "stale"
         detail = (
