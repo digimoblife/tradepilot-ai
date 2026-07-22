@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tradepilot}
+      POSTGRES_USER: ${POSTGRES_USER:-tradepilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tradepilot} -d ${POSTGRES_DB:-tradepilot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../infra/docker/backend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      STORAGE_ROOT: /data/evidence
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      PROVIDER_ORDER: ${PROVIDER_ORDER:-gemini,deepseek}
+    volumes:
+      - evidence_data:/data/evidence
+      - ./schemas:/app/schemas:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      WORKER_NAME: ${WORKER_NAME:-tradepilot-worker}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-5}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
+    volumes:
+      - evidence_data:/data/evidence
+      - ./schemas:/app/schemas:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../infra/docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  pgdata:
+  evidence_data:

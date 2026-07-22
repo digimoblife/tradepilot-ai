@@ -1,6 +1,9 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app import __version__
 from app.api.auth import router as auth_router
@@ -15,11 +18,15 @@ from app.api.routes.evidence import session_router as evidence_session_router
 from app.api.routes.timeline import router as timeline_router
 from app.api.routes.trade_actions import router as trade_actions_router
 from app.api.routes.trade_sessions import router as trade_sessions_router
+from app.api.security import (
+    CSRFProtectionMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.config import AppConfig
 from app.logging import configure_logging, get_logger
 from app.schemas.manifest import load_production_manifest
 from app.schemas.registry import LocalSchemaRegistry
-
 
 log = get_logger(__name__)
 
@@ -27,12 +34,46 @@ log = get_logger(__name__)
 def create_application() -> FastAPI:
     config = AppConfig()
     configure_logging(config.log_level)
-    log.info("Backend application starting", extra={"env": config.app_env, "log_level": config.log_level})
+    log.info(
+        "Backend application starting",
+        extra={"env": config.app_env, "log_level": config.log_level},
+    )
 
     app = FastAPI(
         title="TradePilot AI",
         version=__version__,
+        max_body_size=config.max_upload_size_bytes,
     )
+
+    # ---- Security middleware (TP-1604) ----
+
+    # Trusted hosts
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=config.allowed_hosts,
+    )
+
+    # CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Security headers (always applied)
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # CSRF protection (conditionally enabled via config)
+    app.add_middleware(CSRFProtectionMiddleware, config=config)
+
+    # Rate limiting (conditionally enabled via config)
+    app.add_middleware(RateLimitMiddleware, config=config)
+
+    # HTTPS redirect (production only)
+    if config.enable_https_redirect:
+        app.add_middleware(HTTPSRedirectMiddleware)
 
     # Load and validate production schema manifest + registry on startup
     package_root = Path(config.schema_package_root)

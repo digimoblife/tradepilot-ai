@@ -25,7 +25,7 @@ class AppConfig(BaseSettings):
     storage_root: str = "storage/local"
     max_upload_size_bytes: int = Field(default=10485760, ge=1)
     auth_cookie_name: str = "tradepilot_session"
-    auth_session_lifetime_seconds: int = Field(default=86400 * 7, ge=1)  # 7 days
+    auth_session_lifetime_seconds: int = Field(default=86400 * 7, ge=1)
     auth_cookie_secure: bool = Field(default=False)
 
     gemini_api_key: str = ""
@@ -36,3 +36,25 @@ class AppConfig(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_timeout_seconds: int = Field(default=120, ge=1)
     provider_order: str = "gemini,deepseek"
+
+    # ---- Security (TP-1604) ----
+    allowed_hosts: list[str] = Field(default=["*"])
+    cors_origins: list[str] = Field(default=["*"])
+    enable_https_redirect: bool = False
+
+    rate_limit_enabled: bool = False
+    rate_limit_requests: int = Field(default=60, ge=1)
+    rate_limit_window_seconds: int = Field(default=60, ge=1)
+    login_rate_limit_requests: int = Field(default=5, ge=1)
+    login_rate_limit_window_seconds: int = Field(default=60, ge=1)
+
+    csrf_enabled: bool = False
+    csrf_exclude_paths: list[str] = Field(
+        default=[
+            "/health",
+            "/health/ready",
+            "/health/schema-registry",
+            "/health/worker",
+            "/api/auth/login",
+        ]
+    )

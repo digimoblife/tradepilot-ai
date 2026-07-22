@@ -222,6 +222,7 @@ async def get_evidence_file(
         media_type=ev.mime_type or "application/octet-stream",
         headers={
             "Content-Disposition": f'inline; filename="{ev.original_filename or "evidence"}"',
+            "X-Content-Type-Options": "nosniff",
         },
     )
 
