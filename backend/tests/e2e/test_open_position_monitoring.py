@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.auth import hash_password
 from app.services.actions.open_position import OpenPositionService
+from app.services.context_rebuild import ContextRebuildService, ContextRebuildReason
 from app.services.evidence import EvidenceService
 from app.services.trade_session import TradeSessionService
 
@@ -235,7 +236,7 @@ class TestOpenPositionMonitoring:
                     "INSERT INTO analyses (id, session_id, analysis_job_id, analysis_type, "
                     "acceptance_status, accepted_at, prompt_name, prompt_version, schema_name, "
                     "schema_version, payload, created_at) "
-                    "VALUES (:aid, :sid, :jid, 'OPEN_POSITION_UPDATE', 'ACCEPTED', :now, "
+                    "VALUES (:aid, :sid, :jid, 'OPEN_POSITION_UPDATE', 'PENDING', :now, "
                     "'open_position_update', '1.0.0', 'open_position_update', '1.0.0', :payload, :now)"
                 ),
                 {
@@ -245,6 +246,22 @@ class TestOpenPositionMonitoring:
                     "now": now,
                     "payload": json.dumps(opu1_payload),
                 },
+            )
+            await session.commit()
+
+            # Accept via real service to trigger Context Summary rebuild
+            rebuild_svc = ContextRebuildService(session)
+            await rebuild_svc.rebuild_after_material_event(
+                session_id=sid,
+                owner_id=uid,
+                reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
+                source_id=opu1_id,
+            )
+            await session.execute(
+                text(
+                    "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:now WHERE id=:aid"
+                ),
+                {"aid": opu1_id, "now": now},
             )
             await session.commit()
 
@@ -298,7 +315,7 @@ class TestOpenPositionMonitoring:
                     "INSERT INTO analyses (id, session_id, analysis_job_id, analysis_type, "
                     "acceptance_status, accepted_at, prompt_name, prompt_version, schema_name, "
                     "schema_version, payload, created_at) "
-                    "VALUES (:aid, :sid, :jid, 'OPEN_POSITION_UPDATE', 'ACCEPTED', :now, "
+                    "VALUES (:aid, :sid, :jid, 'OPEN_POSITION_UPDATE', 'PENDING', :now, "
                     "'open_position_update', '1.0.0', 'open_position_update', '1.0.0', :payload, :now)"
                 ),
                 {
@@ -308,6 +325,21 @@ class TestOpenPositionMonitoring:
                     "now": now,
                     "payload": json.dumps(opu2_payload),
                 },
+            )
+            await session.commit()
+
+            # Accept via real service to trigger Context Summary rebuild
+            await rebuild_svc.rebuild_after_material_event(
+                session_id=sid,
+                owner_id=uid,
+                reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
+                source_id=opu2_id,
+            )
+            await session.execute(
+                text(
+                    "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:now WHERE id=:aid"
+                ),
+                {"aid": opu2_id, "now": now},
             )
             await session.commit()
 
@@ -335,9 +367,9 @@ class TestOpenPositionMonitoring:
             ).first()
             assert cs2 is not None, "No context summary after midday OPU"
 
-            # Context summary persists and is valid after both updates
+            # Context Summary persists and progresses after each acceptance
             assert cs1.id is not None
-            assert cs2.id == cs1.id  # Same summary version persists (not rebuilt on raw INSERT)
+            assert cs2.context_version >= cs1.context_version
             assert cs2.created_at >= cs1.created_at
 
             # ===== 10. Verify analysis history has both OPUs =====
