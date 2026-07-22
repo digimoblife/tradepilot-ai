@@ -21,7 +21,6 @@ from app.auth.passwords import verify_password
 from app.auth.sessions import AuthSession, SessionStore
 from app.config import AppConfig
 from app.models.enums import AccountStatus
-from app.repositories.auth_session import AuthSessionRepository
 from app.repositories.user import UserRepository
 
 
@@ -46,6 +45,8 @@ class AuthenticationService:
     """Handles login, session resolution, and logout."""
 
     def __init__(self, session: AsyncSession, config: AppConfig | None = None) -> None:
+        from app.repositories.auth_session import AuthSessionRepository
+
         self._session = session
         self._config = config or AppConfig()
         self._user_repo = UserRepository(session)
