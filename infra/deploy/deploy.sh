@@ -130,18 +130,22 @@ _info "Building production images"
 ${COMPOSE_CMD} build 2>&1 || _fail "Image build failed"
 
 # ---------------------------------------------------------------------------
-# Run database migrations
+# Run database migrations (containerized)
 # ---------------------------------------------------------------------------
 
+_info "Waiting for PostgreSQL to be healthy"
+POSTGRES_HEALTHY=false
+for attempt in $(seq 1 12); do
+    if ${COMPOSE_CMD} exec -T postgres pg_isready -U "${POSTGRES_USER:-tradepilot}" 2>/dev/null; then
+        POSTGRES_HEALTHY=true
+        break
+    fi
+    sleep 5
+done
+${POSTGRES_HEALTHY} || _fail "PostgreSQL did not become healthy"
+
 _info "Running database migrations"
-if [[ -d "${DEPLOY_DIR}/backend" ]]; then
-    cd "${DEPLOY_DIR}/backend"
-    pip install alembic 2>&1 >/dev/null || true
-    alembic upgrade head 2>&1 || _fail "Database migration failed"
-    cd "${DEPLOY_DIR}"
-else
-    _info "No backend directory found; skipping database migrations"
-fi
+${COMPOSE_CMD} run --rm --no-deps backend alembic upgrade head 2>&1 || _fail "Database migration failed"
 
 # ---------------------------------------------------------------------------
 # Start / recreate services

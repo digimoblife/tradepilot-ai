@@ -98,20 +98,24 @@ _info "Building production images for rollback revision"
 ${COMPOSE_CMD} build 2>&1 || _fail "Image build failed during rollback"
 
 # ---------------------------------------------------------------------------
-# Run database migrations (forward-only; if schema changed, we run migrations
-# on the rolled-back code.  Database downgrade is not supported — the database
-# must remain backward-compatible).
+# Run database migrations (containerized, forward-only; if schema changed,
+# we run migrations on the rolled-back code.  Database downgrade is not
+# supported — the database must remain backward-compatible).
 # ---------------------------------------------------------------------------
 
+_info "Waiting for PostgreSQL to be healthy"
+POSTGRES_HEALTHY=false
+for attempt in $(seq 1 12); do
+    if ${COMPOSE_CMD} exec -T postgres pg_isready -U "${POSTGRES_USER:-tradepilot}" 2>/dev/null; then
+        POSTGRES_HEALTHY=true
+        break
+    fi
+    sleep 5
+done
+${POSTGRES_HEALTHY} || _fail "PostgreSQL did not become healthy"
+
 _info "Running database migrations for rollback revision"
-if [[ -d "${DEPLOY_DIR}/backend" ]]; then
-    cd "${DEPLOY_DIR}/backend"
-    pip install alembic 2>&1 >/dev/null || true
-    alembic upgrade head 2>&1 || _fail "Database migration failed during rollback"
-    cd "${DEPLOY_DIR}"
-else
-    _info "No backend directory found; skipping database migrations"
-fi
+${COMPOSE_CMD} run --rm --no-deps backend alembic upgrade head 2>&1 || _fail "Database migration failed during rollback"
 
 # ---------------------------------------------------------------------------
 # Restart services

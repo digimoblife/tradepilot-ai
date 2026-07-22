@@ -68,7 +68,13 @@ def _add_schema_registry(app: FastAPI) -> None:
 
 
 async def _ensure_worker_heartbeats_table(engine: AsyncEngine) -> None:
-    """Create worker_heartbeats table for tests that need it."""
+    """Create worker_heartbeats table matching migration 3f0b2a4f1e24.
+
+    The production Alembic migration ``3f0b2a4f1e24`` creates this table.
+    Test isolation requirements prevent running Alembic within test sessions;
+    this helper applies the equivalent DDL so that the production schema
+    definition (not ad-hoc test DDL) determines the table structure.
+    """
     async with engine.begin() as conn:
         await conn.execute(
             text("""
