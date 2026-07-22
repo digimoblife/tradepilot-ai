@@ -308,7 +308,23 @@ class TestWorkerHeartbeat:
 
 
 # ===================================================================
-# 5. Provider outage not affecting readiness
+# 5. Storage health
+# ===================================================================
+
+
+class TestStorageHealth:
+    async def test_storage_health_endpoint(self, db_session: AsyncSession) -> None:
+        app = _build_app(db_session)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.get("/health/storage")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] in ("healthy", "unhealthy")
+        assert isinstance(body.get("root"), str)
+
+
+# ===================================================================
+# 6. Provider outage not affecting readiness
 # ===================================================================
 
 

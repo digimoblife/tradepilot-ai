@@ -60,6 +60,56 @@ class WorkerHeartbeatStatus(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# GET /health/storage
+# ---------------------------------------------------------------------------
+
+
+class StorageHealthResponse(BaseModel):
+    status: str
+    root: str
+    detail: str | None = None
+
+
+@router.get("/health/storage", response_model=StorageHealthResponse)
+async def health_storage() -> StorageHealthResponse:
+    """Verify the configured storage root is writable and readable."""
+    from app.storage import create_file_storage
+
+    try:
+        storage = create_file_storage()
+        root = storage._root  # type: ignore[attr-defined]
+        import uuid
+
+        probe = f".health_{uuid.uuid4().hex}.tmp"
+        data = b"ok"
+        reference = await storage.write(
+            user_id=uuid.UUID(int=0),
+            session_id=uuid.UUID(int=0),
+            original_filename=probe,
+            content=data,
+        )
+        stored = await storage.read(reference)
+        await storage.delete(reference)
+        if stored == data:
+            return StorageHealthResponse(
+                status="healthy",
+                root=str(root),
+                detail="write/read/delete succeeded",
+            )
+        return StorageHealthResponse(
+            status="unhealthy",
+            root=str(root),
+            detail="readback mismatch",
+        )
+    except Exception as exc:
+        return StorageHealthResponse(
+            status="unhealthy",
+            root="unknown",
+            detail=str(exc),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

@@ -479,17 +479,27 @@ class TestNoHostNginx:
 
 
 class TestMiddlewareBackendURL:
+    _repo_root = Path(__file__).resolve().parent.parent.parent.parent
+
     def test_middleware_uses_internal_url(self) -> None:
         """Middleware must use INTERNAL_API_BASE_URL, not request.url."""
-        middleware_path = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "src" / "middleware.ts"
-        content = middleware_path.read_text()
+        content = (self._repo_root / "frontend" / "src" / "middleware.ts").read_text()
         assert "INTERNAL_API_BASE_URL" in content
         assert "request.url" not in content.split("new URL")[0] if "new URL" in content else True
         assert "NEXT_PUBLIC_API_BASE_URL" not in content
 
     def test_compose_has_internal_api_url(self) -> None:
         """Compose file must pass INTERNAL_API_BASE_URL to frontend."""
-        compose_path = Path(__file__).resolve().parent.parent.parent.parent / "docker-compose.production.yml"
-        content = compose_path.read_text()
+        content = (self._repo_root / "docker-compose.production.yml").read_text()
         assert "INTERNAL_API_BASE_URL" in content
         assert "${INTERNAL_API_BASE_URL:-http://backend:8000}" in content
+
+    def test_compose_storage_root_worker(self) -> None:
+        """Worker must receive STORAGE_ROOT matching backend."""
+        content = (self._repo_root / "docker-compose.production.yml").read_text()
+        assert "STORAGE_ROOT: ${STORAGE_ROOT:-/data/evidence}" in content
+
+    def test_compose_storage_volume_mounts(self) -> None:
+        """Both backend and worker must mount evidence_data:/data/evidence."""
+        content = (self._repo_root / "docker-compose.production.yml").read_text()
+        assert "evidence_data:/data/evidence" in content

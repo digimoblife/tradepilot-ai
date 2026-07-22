@@ -70,6 +70,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
       DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
+      STORAGE_ROOT: ${STORAGE_ROOT:-/data/evidence}
     volumes:
       - evidence_data:/data/evidence
       - ./schemas:/app/schemas:ro

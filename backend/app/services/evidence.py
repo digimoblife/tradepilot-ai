@@ -120,15 +120,23 @@ class EvidenceService:
         self,
         session: AsyncSession,
         storage_root: Path | None = None,
-        max_upload_size_bytes: int = 10485760,
+        max_upload_size_bytes: int | None = None,
     ) -> None:
+        from app.config import AppConfig
+
+        config = AppConfig()
         self._session = session
         self._session_repo = TradeSessionRepository(session)
         self._evidence_repo = EvidenceRepository(session)
-        self._validator = EvidenceUploadValidator(
-            max_upload_size_bytes=max_upload_size_bytes,
+        effective_max_size = (
+            max_upload_size_bytes
+            if max_upload_size_bytes is not None
+            else config.max_upload_size_bytes
         )
-        root = storage_root or Path("storage/local")
+        self._validator = EvidenceUploadValidator(
+            max_upload_size_bytes=effective_max_size,
+        )
+        root = storage_root if storage_root is not None else Path(config.storage_root)
         self._storage = LocalFileStorage(root=root)
 
     # ------------------------------------------------------------------

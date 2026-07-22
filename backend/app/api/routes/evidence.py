@@ -200,13 +200,9 @@ async def get_evidence_file(
 
         raise HTTPException(status_code=404, detail="Evidence not found")
 
-    from pathlib import Path
+    from app.storage import create_file_storage
 
-    from app.config import AppConfig
-    from app.storage import LocalFileStorage
-
-    config = AppConfig()
-    storage = LocalFileStorage(root=Path(config.storage_root))
+    storage = create_file_storage()
 
     try:
         file_bytes = storage.read(file_reference=ev.storage_object_key)
