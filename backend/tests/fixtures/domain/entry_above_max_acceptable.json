@@ -1,0 +1,35 @@
+{
+  "scenario": "entry_above_max_acceptable",
+  "expected_code": "ENTRY_ABOVE_MAXIMUM_ACCEPTABLE",
+  "expected_path": "/entry_plan/entry_price",
+  "payload": {
+    "metadata": { "analysis_id": "a0000000-0000-4000-8000-000000000001", "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "analysis_type": "INITIAL_ANALYSIS", "ticker": "BBRI", "company_name": "Bank Rakyat Indonesia", "analysis_timestamp": "2026-07-18T10:00:00+07:00", "language": "id", "schema": { "schema_name": "initial_analysis", "schema_version": "1.0.0" }, "prompt_version": "1.0.0", "provider": "GEMINI", "model": "gemini-2.0-flash" },
+    "evidence_summary": { "evidence_ids": [], "orderbook_available": true, "chart_3_month_available": true, "chart_6_month_available": true, "latest_orderbook_timestamp": "2026-07-18T09:30:00+07:00", "latest_chart_timestamp": "2026-07-18T09:30:00+07:00", "has_unreadable_evidence": false, "has_stale_evidence": false, "summary": "Menggunakan data pasar terbaru.", "limitations": [] },
+    "market_snapshot": { "trading_date": "2026-07-18", "market_timestamp": "2026-07-18T09:30:00+07:00", "update_period": "MORNING", "currency": "IDR", "data_available": true, "open": 2480, "high": 2520, "low": 2460, "last": 2500, "close": null, "previous_close": 2470, "average": 2490, "change": 30, "change_percentage": 1.21, "volume": 10000000, "transaction_value": 25000000000, "best_bid": 2495, "best_offer": 2505, "spread": 10, "spread_percentage": 0.4, "summary": "Pasar dibuka dengan sentimen positif.", "source": "MIXED", "limitations": [] },
+    "executive_summary": { "headline": "Prospek positif", "main_opportunity": "Momentum", "main_risk": "Risiko", "setup_status": "WAITING_FOR_CONFIRMATION", "recommended_action": "WAIT", "summary": "Prospek positif." },
+    "orderbook_analysis": { "market_timestamp": "2026-07-18T09:30:00+07:00", "available": true, "buyer_strength": "MODERATE", "seller_pressure": "LOW", "best_bid": 2495, "best_offer": 2505, "bid_support": { "price": 2470, "label": "Support Bid", "summary": "Area bid terkuat." }, "offer_resistance": { "price": 2520, "label": "Resistance Offer", "summary": "Area offer terdekat." }, "positive_signals": [], "risk_signals": [], "buyer_observations": [], "seller_observations": [], "supports_entry": true, "conclusion": "Orderbook mendukung entry.", "limitations": [] },
+    "chart_3_month_analysis": { "timeframe": "THREE_MONTH", "chart_timestamp": "2026-07-18T09:30:00+07:00", "available": true, "momentum": "STRONG", "volume_condition": "NORMAL", "breakout_status": "NOT_PRESENT", "breakdown_status": "NOT_PRESENT", "positive_signals": [], "risk_signals": [], "supports_setup": true, "trend": "UP", "structure_status": "IMPROVING", "nearest_support": { "price": 2400, "label": "Support 3B", "summary": "Support 3 bulan." }, "nearest_resistance": { "price": 2600, "label": "Resistance 3B", "summary": "Resistance 3 bulan." }, "conclusion": "Tren naik.", "limitations": [] },
+    "chart_6_month_analysis": { "timeframe": "SIX_MONTH", "chart_timestamp": "2026-07-18T09:30:00+07:00", "available": true, "momentum": "STRONG", "volume_condition": "NORMAL", "breakout_status": "NOT_PRESENT", "breakdown_status": "NOT_PRESENT", "positive_signals": [], "risk_signals": [], "trend": "UP", "structure_status": "IMPROVING", "nearest_support": { "price": 2300, "label": "Support 6B", "summary": "Support 6 bulan." }, "nearest_resistance": { "price": 2700, "label": "Resistance 6B", "summary": "Resistance 6 bulan." }, "supports_setup": true, "conclusion": "Tren naik.", "limitations": [] },
+    "combined_chart_analysis": { "multi_timeframe_alignment": "ALIGNED", "short_term_trend": "UP", "dominant_structure": "INTACT", "setup_supported": true, "medium_term_trend": "UP", "main_confirmation": "BREAKOUT", "main_conflict": "NONE", "conclusion": "Konfirmasi tren naik." },
+    "price_levels": { "entry_reference": { "price": 2550, "label": "Entry", "summary": "Harga entry." }, "invalidation_level": { "price": 2400, "label": "Invalidation", "summary": "Level invalidasi." }, "stop_loss_level": { "price": 2470, "label": "Stop loss", "summary": "Level stop loss." }, "target_level": { "price": 3000, "label": "Target", "summary": "Level target." }, "summary": "Level harga mendukung setup.", "supports": [], "resistances": [] },
+    "entry_plan": {
+      "entry_recommended": true,
+      "entry_type": "EXACT_PRICE",
+      "entry_price": 2700,
+      "entry_zone_low": null,
+      "entry_zone_high": null,
+      "confirmation_required": true,
+      "confirmation_condition": "Konfirmasi breakout",
+      "chase_risk": "MODERATE",
+      "maximum_acceptable_entry": 2600,
+      "cancel_entry_condition": "Cancel if price drops.",
+      "summary": "Rencana entry."
+    },
+    "stop_loss_plan": { "stop_loss_recommended": true, "stop_loss_price": 2420, "risk_from_reference_entry_percentage": 3.2, "invalidation_condition": "Invalidate jika turun.", "reason": "Melindungi modal.", "maximum_risk_respected": true, "summary": "Stop loss." },
+    "target_plan": { "target_recommended": true, "target_price": 3000, "reward_from_reference_entry_percentage": 5.88, "target_basis": "Resistance", "primary_obstacle": "Resistance 2.700", "required_condition": "Volume tinggi", "risk_reward_ratio": 2.5, "summary": "Target." },
+    "initial_thesis": { "status": "INTACT", "setup_reason": "Breakout", "supporting_factors": [], "risk_factors": [], "support_condition": "Support di 2.470", "invalidation_price": 2400, "expected_holding_period": "MEDIUM_TERM", "review_conditions": [], "invalidation_condition": "Harga menembus 2.400.", "summary": "Thesis bullish." },
+    "trading_plan": { "current_action": "ENTER_IF_CONFIRMED", "action_rationale": "Menunggu konfirmasi.", "entry_condition": "Entry pada area support.", "wait_condition": "Tunggu breakout", "cancel_setup_condition": "Batalkan jika turun.", "post_entry_hold_condition": null, "post_entry_exit_condition": null, "levels_to_monitor": [], "next_checkpoint": "2600", "requires_user_confirmation": true },
+    "ai_assessment": { "setup_quality": "GOOD", "setup_valid": true, "bias": "BULLISH", "confidence": 75, "bullish_probability": 70, "target_probability": 60, "downside_probability": 25, "risk_level": "MODERATE", "summary": "Setup menguntungkan." },
+    "warnings_and_missing_information": { "missing_information": [], "warnings": [] }
+  }
+}
