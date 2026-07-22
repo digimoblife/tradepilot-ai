@@ -249,19 +249,22 @@ class TestOpenPositionMonitoring:
             )
             await session.commit()
 
-            # Accept via real service to trigger Context Summary rebuild
+            # Accept first, THEN rebuild (matching production flow)
+            accept_time = _now()
+            await session.execute(
+                text(
+                    "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:at WHERE id=:aid"
+                ),
+                {"aid": opu1_id, "at": accept_time},
+            )
+            await session.commit()
+
             rebuild_svc = ContextRebuildService(session)
             await rebuild_svc.rebuild_after_material_event(
                 session_id=sid,
                 owner_id=uid,
                 reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
                 source_id=opu1_id,
-            )
-            await session.execute(
-                text(
-                    "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:now WHERE id=:aid"
-                ),
-                {"aid": opu1_id, "now": now},
             )
             await session.commit()
 
@@ -328,18 +331,21 @@ class TestOpenPositionMonitoring:
             )
             await session.commit()
 
-            # Accept via real service to trigger Context Summary rebuild
+            # Accept first (with later timestamp), THEN rebuild
+            midday_accept = _now()
+            await session.execute(
+                text(
+                    "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:at WHERE id=:aid"
+                ),
+                {"aid": opu2_id, "at": midday_accept},
+            )
+            await session.commit()
+
             await rebuild_svc.rebuild_after_material_event(
                 session_id=sid,
                 owner_id=uid,
                 reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
                 source_id=opu2_id,
-            )
-            await session.execute(
-                text(
-                    "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:now WHERE id=:aid"
-                ),
-                {"aid": opu2_id, "now": now},
             )
             await session.commit()
 
@@ -367,10 +373,15 @@ class TestOpenPositionMonitoring:
             ).first()
             assert cs2 is not None, "No context summary after midday OPU"
 
-            # Context Summary persists and progresses after each acceptance
+            # Context Summary was rebuilt after midday acceptance (strict progression)
             assert cs1.id is not None
-            assert cs2.context_version >= cs1.context_version
-            assert cs2.created_at >= cs1.created_at
+            assert cs2.id != cs1.id, (
+                f"Expected new context summary after midday OPU, got same id={cs2.id}"
+            )
+            assert cs2.context_version > cs1.context_version, (
+                f"Expected version increase {cs1.context_version} -> {cs2.context_version}"
+            )
+            assert cs2.created_at > cs1.created_at, "Midday summary should be newer"
 
             # ===== 10. Verify analysis history has both OPUs =====
             rows = (
