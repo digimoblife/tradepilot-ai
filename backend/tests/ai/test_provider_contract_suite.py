@@ -11,38 +11,44 @@ No real provider APIs are called.  No network access occurs.
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 import uuid
-from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.providers.base import AIProvider
-from app.ai.providers.capabilities import ensure_request_supported, ProviderCapabilities
 from app.ai.parsing.json_extractor import (
-    extract_json_object,
     ExtractionError,
-    ExtractionObjectNotFoundError,
+    extract_json_object,
 )
-from app.ai.parsing.json_parser import extract_and_parse_json, ParseError, ParseSyntaxError
-from app.ai.providers.gemini import GeminiProvider
+from app.ai.parsing.json_parser import ParseError, extract_and_parse_json
+from app.ai.providers.base import AIProvider
 from app.ai.providers.deepseek import DeepSeekProvider
-from app.ai.providers.models import ProviderImage, ProviderRequest, ProviderResponse, ProviderUsage
-from app.validation.json_schema import JsonSchemaValidationService
-from app.schemas.registry import LocalSchemaRegistry
+from app.ai.providers.gemini import GeminiProvider
+from app.ai.providers.models import ProviderImage, ProviderRequest, ProviderResponse
 from app.schemas.manifest import load_production_manifest
-
+from app.schemas.registry import LocalSchemaRegistry
+from app.validation.json_schema import JsonSchemaValidationService
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-from pathlib import Path
 
-FASTAPI_SCHEMAS = str(
-    (Path(__file__).resolve().parent.parent.parent / "schemas" / "production" / "v1").resolve()
-)
+def _schema_service() -> JsonSchemaValidationService:
+    """Build a JsonSchemaValidationService from production schemas."""
+    pkg = Path(tempfile.mkdtemp()) / "production" / "v1"
+    pkg.mkdir(parents=True, exist_ok=True)
+    prod = Path(__file__).resolve().parent.parent.parent / "schemas" / "production" / "v1"
+    for f in prod.iterdir():
+        if f.is_file():
+            shutil.copy2(f, pkg / f.name)
+    manifest = load_production_manifest(pkg)
+    registry = LocalSchemaRegistry(manifest, pkg)
+    return JsonSchemaValidationService(registry)
 
 
 def make_request(
@@ -263,17 +269,21 @@ class TestCommentaryResponse:
 
 
 class TestMissingProperty:
-    """Provider response missing required schema fields — validation fails."""
+    """Provider response missing required schema fields — schema validation fails."""
 
     @pytest.mark.parametrize("builder", PROVIDER_BUILDERS)
     async def test_missing_required_field_rejected(self, builder, text_request):
         missing = '{"metadata": {"analysis_id": "abc"}}'
         provider = builder(missing)
         resp = await provider.generate(text_request)
-        # The JSON is valid but doesn't match the schema — verify parsing works
         parsed = extract_and_parse_json(resp.raw_output)
         assert "metadata" in parsed
-        assert parsed["metadata"]["analysis_id"] == "abc"
+        # Schema validation should reject this as incomplete
+        svc = _schema_service()
+        result = svc.validate_by_name(parsed, "initial_analysis", "1.0.0")
+        assert not result.valid
+        codes = {i.code for i in result.issues}
+        assert "SCHEMA_REQUIRED_FIELD_MISSING" in codes
 
 
 # ===================================================================
@@ -282,7 +292,7 @@ class TestMissingProperty:
 
 
 class TestInvalidEnum:
-    """Provider returns unsupported enum values — validation fails."""
+    """Provider returns unsupported enum values — schema validation fails."""
 
     @pytest.mark.parametrize("builder", PROVIDER_BUILDERS)
     async def test_invalid_enum_rejected(self, builder, text_request):
@@ -299,8 +309,12 @@ class TestInvalidEnum:
         provider = builder(invalid)
         resp = await provider.generate(text_request)
         parsed = extract_and_parse_json(resp.raw_output)
-        # Invalid enum is schema-level, verify parsing still works
-        assert parsed["metadata"]["analysis_type"] == "INVALID_TYPE"
+        # Schema validation should reject the invalid enum
+        svc = _schema_service()
+        result = svc.validate_by_name(parsed, "initial_analysis", "1.0.0")
+        assert not result.valid
+        codes = {i.code for i in result.issues}
+        assert "SCHEMA_ENUM_INVALID" in codes
 
 
 # ===================================================================
@@ -328,6 +342,12 @@ class TestExtraProperty:
         resp = await provider.generate(text_request)
         parsed = extract_and_parse_json(resp.raw_output)
         assert parsed["unexpected_field"] == "should not exist"
+        # Schema validation should reject extra property
+        svc = _schema_service()
+        result = svc.validate_by_name(parsed, "initial_analysis", "1.0.0")
+        assert not result.valid
+        codes = {i.code for i in result.issues}
+        assert "SCHEMA_UNKNOWN_PROPERTY" in codes
 
 
 # ===================================================================
@@ -433,14 +453,17 @@ class TestRepair:
     """Invalid provider output can be processed through the repair flow."""
 
     @pytest.mark.parametrize("builder", PROVIDER_BUILDERS)
-    async def test_repair_flow_parses_provider_output(
-        self, builder, text_request
-    ):
-        """Provider output can be parsed; repair is a downstream concern."""
-        provider = builder('{"key": "valid_json"}')
+    async def test_repair_flow_uses_same_provider_contract(self, builder, text_request):
+        """Repair reuses the same provider interface and response model."""
+
+        provider = builder('{"reasoning": "analysis here", "result": "valid"}')
         resp = await provider.generate(text_request)
         parsed = extract_and_parse_json(resp.raw_output)
-        assert parsed["key"] == "valid_json"
+
+        # Verify the parsed output matches the contract shape
+        assert isinstance(parsed, dict)
+        assert "result" in parsed
+        assert parsed["result"] == "valid"
 
 
 # ===================================================================
@@ -452,13 +475,20 @@ class TestFallback:
     """Primary provider failure leads to fallback — same contract applied."""
 
     @pytest.mark.parametrize("builder", PROVIDER_BUILDERS)
-    async def test_both_providers_use_same_response_model(
-        self, builder, text_request
-    ):
+    async def test_both_providers_use_same_response_model(self, builder, text_request):
         provider = builder()
         resp = await provider.generate(text_request)
         assert isinstance(resp, ProviderResponse)
         assert resp.raw_output is not None
+
+    def test_both_are_valid_ai_provider_subclasses(self):
+        """Both GeminiProvider and DeepSeekProvider implement AIProvider."""
+        from app.ai.providers.base import AIProvider
+
+        gemini = _gemini()
+        deepseek = _deepseek()
+        assert isinstance(gemini, AIProvider)
+        assert isinstance(deepseek, AIProvider)
 
 
 # ===================================================================
@@ -475,21 +505,25 @@ class TestProviderErrorMapping:
         assert provider.name in ("gemini", "deepseek")
 
     def test_gemini_error_codes_match_deepseek(self):
-        from app.ai.providers.gemini import (
-            GeminiAuthenticationError,
-            GeminiRateLimitedError,
-            GeminiTimeoutError,
-            GeminiRefusedError,
-        )
         from app.ai.providers.deepseek import (
             DeepSeekAuthenticationError,
             DeepSeekRateLimitedError,
-            DeepSeekTimeoutError,
             DeepSeekRefusedError,
+            DeepSeekTimeoutError,
+        )
+        from app.ai.providers.gemini import (
+            GeminiAuthenticationError,
+            GeminiRateLimitedError,
+            GeminiRefusedError,
+            GeminiTimeoutError,
         )
 
         mapping = [
-            (GeminiAuthenticationError, DeepSeekAuthenticationError, "AI_PROVIDER_AUTHENTICATION_FAILED"),
+            (
+                GeminiAuthenticationError,
+                DeepSeekAuthenticationError,
+                "AI_PROVIDER_AUTHENTICATION_FAILED",
+            ),
             (GeminiRateLimitedError, DeepSeekRateLimitedError, "AI_PROVIDER_RATE_LIMITED"),
             (GeminiTimeoutError, DeepSeekTimeoutError, "AI_PROVIDER_TIMEOUT"),
             (GeminiRefusedError, DeepSeekRefusedError, "AI_PROVIDER_CONTENT_FILTERED"),
