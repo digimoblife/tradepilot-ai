@@ -154,6 +154,13 @@ ${COMPOSE_CMD} run --rm --no-deps backend alembic upgrade head 2>&1 || _fail "Da
 _info "Starting TradePilot services"
 ${COMPOSE_CMD} up -d 2>&1 || _fail "docker compose up failed"
 
+# Force-recreate the gateway so it resolves the current backend container
+# IP.  Docker reassigns IPs when containers are recreated; the gateway
+# Nginx caches upstream DNS and would otherwise 502 until manually
+# restarted.
+_info "Refreshing gateway to pick up current backend IP"
+${COMPOSE_CMD} up -d --force-recreate gateway 2>&1 || _fail "gateway refresh failed"
+
 # ---------------------------------------------------------------------------
 # Verify runtime state
 # ---------------------------------------------------------------------------

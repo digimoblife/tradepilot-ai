@@ -405,3 +405,69 @@ class TestNoSecrets:
         rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
         for name, content in [("deploy.sh", deploy), ("rollback.sh", rollback)]:
             assert "PGPASSWORD=" not in content, f"{name} has embedded password"
+
+
+# ===================================================================
+# 11. Gateway refresh
+# ===================================================================
+
+
+class TestGatewayRefresh:
+    def test_deploy_refreshes_gateway(self, tmp_home: Path) -> None:
+        """Deploy script must force-recreate the gateway after backend start."""
+        deploy = (_SCRIPTS_DIR / "deploy.sh").read_text()
+        assert "--force-recreate gateway" in deploy
+
+    def test_rollback_refreshes_gateway(self, tmp_home: Path) -> None:
+        """Rollback script must force-recreate the gateway after backend restart."""
+        rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
+        assert "--force-recreate gateway" in rollback
+
+    def test_gateway_refresh_before_health(self, tmp_home: Path) -> None:
+        """Gateway refresh must happen before health checks."""
+        deploy = (_SCRIPTS_DIR / "deploy.sh").read_text()
+        gw_idx = deploy.index("--force-recreate gateway")
+        health_idx = deploy.index("/health")
+        assert gw_idx < health_idx, "gateway refresh must come before health checks"
+
+    def test_gateway_refresh_before_health_rollback(self, tmp_home: Path) -> None:
+        """Rollback must also refresh gateway before health checks."""
+        rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
+        gw_idx = rollback.index("--force-recreate gateway")
+        health_idx = rollback.index("/health")
+        assert gw_idx < health_idx, "gateway refresh must come before health checks"
+
+
+# ===================================================================
+# 12. Worker health check in rollback
+# ===================================================================
+
+
+class TestRollbackWorkerHealth:
+    def test_rollback_checks_worker_health(self, tmp_home: Path) -> None:
+        """Rollback must verify /health/worker returns healthy."""
+        rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
+        assert "/health/worker" in rollback
+
+
+# ===================================================================
+# 13. No host Nginx management
+# ===================================================================
+
+
+class TestNoHostNginx:
+    def test_no_nginx_reload(self, tmp_home: Path) -> None:
+        """Scripts must not restart host Nginx."""
+        deploy = (_SCRIPTS_DIR / "deploy.sh").read_text()
+        rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
+        for name, content in [("deploy.sh", deploy), ("rollback.sh", rollback)]:
+            assert "nginx" not in content.lower() or "gateway" in content.lower(), (
+                f"{name} references host nginx"
+            )
+
+    def test_no_systemctl_nginx(self, tmp_home: Path) -> None:
+        """Scripts must not use systemctl for nginx."""
+        deploy = (_SCRIPTS_DIR / "deploy.sh").read_text()
+        rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
+        for name, content in [("deploy.sh", deploy), ("rollback.sh", rollback)]:
+            assert "systemctl" not in content, f"{name} uses systemctl"

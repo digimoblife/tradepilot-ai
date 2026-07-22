@@ -124,6 +124,11 @@ ${COMPOSE_CMD} run --rm --no-deps backend alembic upgrade head 2>&1 || _fail "Da
 _info "Restarting TradePilot services"
 ${COMPOSE_CMD} up -d 2>&1 || _fail "docker compose up failed during rollback"
 
+# Force-recreate the gateway so it resolves the current backend IP
+# after a rollback (backend container may have a new Docker-assigned IP).
+_info "Refreshing gateway to pick up current backend IP"
+${COMPOSE_CMD} up -d --force-recreate gateway 2>&1 || _fail "gateway refresh failed during rollback"
+
 # ---------------------------------------------------------------------------
 # Health checks
 # ---------------------------------------------------------------------------
@@ -137,11 +142,21 @@ for attempt in $(seq 1 "${RETRY_ATTEMPTS}"); do
 
     LIVES=$(curl -sf "${HEALTH_URL}/health" 2>/dev/null || echo "FAIL")
     READY=$(curl -sf "${HEALTH_URL}/health/ready" 2>/dev/null || echo "FAIL")
+    WORKER=$(curl -sf "${HEALTH_URL}/health/worker" 2>/dev/null || echo "FAIL")
 
-    if [[ "${LIVES}" != "FAIL" && "${READY}" != "FAIL" ]]; then
+    WORKER_HEALTHY=false
+    if [[ "${WORKER}" != "FAIL" ]]; then
+        WS=$(echo "${WORKER}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+        if [[ "${WS}" == "healthy" ]]; then
+            WORKER_HEALTHY=true
+        fi
+    fi
+
+    if [[ "${LIVES}" != "FAIL" && "${READY}" != "FAIL" && "${WORKER_HEALTHY}" == "true" ]]; then
         HEALTHY=true
         echo "  /health:    ${LIVES}"
         echo "  /ready:     ${READY}"
+        echo "  /worker:    ${WORKER}"
         break
     fi
 
