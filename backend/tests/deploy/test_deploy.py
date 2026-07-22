@@ -471,3 +471,25 @@ class TestNoHostNginx:
         rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
         for name, content in [("deploy.sh", deploy), ("rollback.sh", rollback)]:
             assert "systemctl" not in content, f"{name} uses systemctl"
+
+
+# ===================================================================
+# 14. Frontend middleware and compose config
+# ===================================================================
+
+
+class TestMiddlewareBackendURL:
+    def test_middleware_uses_internal_url(self) -> None:
+        """Middleware must use INTERNAL_API_BASE_URL, not request.url."""
+        middleware_path = Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "src" / "middleware.ts"
+        content = middleware_path.read_text()
+        assert "INTERNAL_API_BASE_URL" in content
+        assert "request.url" not in content.split("new URL")[0] if "new URL" in content else True
+        assert "NEXT_PUBLIC_API_BASE_URL" not in content
+
+    def test_compose_has_internal_api_url(self) -> None:
+        """Compose file must pass INTERNAL_API_BASE_URL to frontend."""
+        compose_path = Path(__file__).resolve().parent.parent.parent.parent / "docker-compose.production.yml"
+        content = compose_path.read_text()
+        assert "INTERNAL_API_BASE_URL" in content
+        assert "${INTERNAL_API_BASE_URL:-http://backend:8000}" in content
