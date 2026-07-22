@@ -1,12 +1,11 @@
 import asyncio
-import logging
 import signal
 
 from app.config import WorkerConfig
-from app.logging import configure_logging
+from app.logging import configure_logging, get_logger
 from app.runtime import run_worker
 
-logger = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def register_shutdown_handlers(
@@ -29,11 +28,11 @@ async def main() -> None:
     loop = asyncio.get_running_loop()
     register_shutdown_handlers(loop, shutdown_event)
 
-    logger.info("Initialising worker %s", config.worker_name)
+    log.info("Initialising worker", extra={"worker_name": config.worker_name})
 
     await run_worker(config, shutdown_event)
 
-    logger.info("Worker %s shut down complete", config.worker_name)
+    log.info("Worker shut down complete", extra={"worker_name": config.worker_name})
 
 
 if __name__ == "__main__":

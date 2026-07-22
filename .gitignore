@@ -83,3 +83,6 @@ temp/
 test-results/
 playwright-report/
 backend/schemas
+
+# --- Local storage (test evidence uploads) ---
+backend/storage/local/

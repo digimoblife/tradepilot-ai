@@ -18,6 +18,7 @@ from app.ai.repair import (
     RepairExhaustedError,
 )
 from app.ai.repair.service import RepairInvalidAttemptLimitError
+from app.logging import get_logger
 from app.validation import ValidationCategory, ValidationIssue, ValidationSeverity
 
 # ---------------------------------------------------------------------------
@@ -95,6 +96,7 @@ class ProviderRouter:
 
     def __init__(self) -> None:
         self._repair_service = ProviderRepairService()
+        self._log = get_logger(__name__)
 
     async def generate_validated(
         self,
@@ -201,6 +203,16 @@ class ProviderRouter:
             )
 
             if is_valid:
+                self._log.info(
+                    "Provider routing succeeded",
+                    extra={
+                        "provider": provider_obj.name,
+                        "model": provider_obj.model,
+                        "schema": request.expected_schema_name,
+                        "request_id": str(request.request_id),
+                        "fallback_used": is_fallback,
+                    },
+                )
                 return ProviderRoutingResult(
                     provider=provider_name,
                     response=provider_response,

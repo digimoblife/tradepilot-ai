@@ -7,7 +7,6 @@ Uses dependency injection — no direct backend imports.
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -15,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import WorkerConfig
 from app.consumers.analysis_jobs import AnalysisJobConsumer
 from app.heartbeat import WorkerHeartbeat
+from app.logging import get_logger
 
-logger = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 async def run_worker(
@@ -46,11 +46,13 @@ async def run_worker(
             expire_on_commit=False,
         )
 
-    logger.info(
-        "Worker %s started (env=%s, poll=%ss)",
-        worker_id,
-        config.app_env,
-        config.worker_poll_interval_seconds,
+    log.info(
+        "Worker started",
+        extra={
+            "worker_id": worker_id,
+            "env": config.app_env,
+            "poll_interval": config.worker_poll_interval_seconds,
+        },
     )
 
     # Heartbeat
@@ -59,7 +61,7 @@ async def run_worker(
         try:
             await hb.initialize()
         except Exception:
-            logger.exception("Failed to initialize heartbeat for %s", worker_id)
+            log.exception("Failed to initialize heartbeat", extra={"worker_id": worker_id})
             raise
 
     # Consumer
@@ -74,16 +76,19 @@ async def run_worker(
                 try:
                     await hb_refresh.refresh()
                 except Exception:
-                    logger.warning("Heartbeat refresh failed for %s", worker_id)
+                    log.warning(
+                        "Heartbeat refresh failed",
+                        extra={"worker_id": worker_id},
+                    )
 
             await default_consumer.run_once()
 
         except asyncio.CancelledError:
-            logger.info("Worker %s cancelled", worker_id)
+            log.info("Worker cancelled", extra={"worker_id": worker_id})
             shutdown_requested = True
             break
         except Exception:
-            logger.exception("Worker %s iteration failed", worker_id)
+            log.exception("Worker iteration failed", extra={"worker_id": worker_id})
 
         if not shutdown_requested and not shutdown_event.is_set():
             try:
@@ -95,17 +100,17 @@ async def run_worker(
                 pass
 
     # Finalize
-    logger.info("Worker %s shutting down", worker_id)
+    log.info("Worker shutting down", extra={"worker_id": worker_id})
     try:
         async with factory() as hb_session:
             hb_final = heartbeat or WorkerHeartbeat(hb_session, worker_id)
             await hb_final.finalize("STOPPED")
     except Exception:
-        logger.exception("Failed to finalize heartbeat for %s", worker_id)
+        log.exception("Failed to finalize heartbeat", extra={"worker_id": worker_id})
 
     if engine is not None:
         await engine.dispose()
-    logger.info("Worker %s shut down complete", worker_id)
+    log.info("Worker shut down complete", extra={"worker_id": worker_id})
 
 
 def _create_consumer(

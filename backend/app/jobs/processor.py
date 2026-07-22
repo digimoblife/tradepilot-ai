@@ -41,6 +41,7 @@ from app.models.provider_request import ProviderRequest as DBProviderRequest
 from app.models.provider_response import ProviderResponse as DBProviderResponse
 from app.models.trade_session import TradeSession
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
+from app.logging import get_logger
 from app.validation import ValidationIssue
 
 # ---------------------------------------------------------------------------
@@ -123,6 +124,7 @@ class AnalysisProcessor:
         provider_order: Sequence[str] | None = None,
         max_repair_attempts: int = 2,
     ) -> None:
+        self._log = get_logger(__name__)
         self._session = session
         self._context_builder = context_builder or ProviderContextBuilder(session)
         self._router = router or ProviderRouter()
@@ -291,6 +293,17 @@ class AnalysisProcessor:
             owner_id=ts.owner_id,
             reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
             source_id=analysis_id,
+        )
+
+        self._log.info(
+            "Analysis job processed successfully",
+            extra={
+                "analysis_job_id": str(job_id),
+                "session_id": str(job.session_id),
+                "schema": ctx.expected_schema_name,
+                "provider": route_result.provider,
+                "model": getattr(route_result.response, "model", None),
+            },
         )
 
         return AnalysisProcessingResult(

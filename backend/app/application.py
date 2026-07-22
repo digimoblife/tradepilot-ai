@@ -16,14 +16,18 @@ from app.api.routes.timeline import router as timeline_router
 from app.api.routes.trade_actions import router as trade_actions_router
 from app.api.routes.trade_sessions import router as trade_sessions_router
 from app.config import AppConfig
-from app.logging import configure_logging
+from app.logging import configure_logging, get_logger
 from app.schemas.manifest import load_production_manifest
 from app.schemas.registry import LocalSchemaRegistry
+
+
+log = get_logger(__name__)
 
 
 def create_application() -> FastAPI:
     config = AppConfig()
     configure_logging(config.log_level)
+    log.info("Backend application starting", extra={"env": config.app_env, "log_level": config.log_level})
 
     app = FastAPI(
         title="TradePilot AI",

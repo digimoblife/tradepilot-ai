@@ -25,6 +25,11 @@ def _get_engine(config: AppConfig) -> Any:
     return _engine
 
 
+def get_engine() -> Any:
+    """Return the shared async engine, creating it on first call."""
+    return _get_engine(AppConfig())
+
+
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that yields an async database session."""
     global _session_factory

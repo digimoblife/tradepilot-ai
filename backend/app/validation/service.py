@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, Sequence
 
+from app.logging import get_logger
 from app.schemas.errors import SchemaRegistryError
 from app.schemas.manifest import load_production_manifest
 from app.schemas.registry import LocalSchemaRegistry
@@ -94,6 +95,7 @@ class UnifiedValidationService:
     ) -> None:
         from pathlib import Path
 
+        self._log = get_logger(__name__)
         pkg_root = (
             Path(schema_package_root) if schema_package_root else Path("schemas/production/v1")
         )
@@ -200,7 +202,19 @@ class UnifiedValidationService:
             except Exception:  # noqa: BLE001
                 pass
 
-        return self._build_result(all_issues)
+        result = self._build_result(all_issues)
+
+        self._log.info(
+            "Validation result",
+            extra={
+                "schema": expected_analysis_type,
+                "validation_result": "VALID" if result.valid else "INVALID",
+                "error_count": len(result.errors),
+                "warning_count": len(result.warnings),
+            },
+        )
+
+        return result
 
     # ------------------------------------------------------------------
     # Internal

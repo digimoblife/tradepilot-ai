@@ -6,11 +6,12 @@ Uses injected queue and processor — no direct backend imports.
 
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from app.logging import get_logger
+
+log = get_logger(__name__)
 
 
 class AnalysisJobConsumer:
@@ -60,19 +61,25 @@ class AnalysisJobConsumer:
                     worker_id=self._worker_id,
                 )
                 await process_session.commit()
-                logger.info(
-                    "Job %s processed by %s: status=%s restored=%s",
-                    claimed.job_id,
-                    self._worker_id,
-                    result.job_status,
-                    getattr(result, "restored_session_status", None),
+                log.info(
+                    "Job processed",
+                    extra={
+                        "analysis_job_id": str(claimed.job_id),
+                        "worker_id": self._worker_id,
+                        "job_status": result.job_status,
+                        "restored_status": getattr(
+                            result, "restored_session_status", None
+                        ),
+                    },
                 )
             except Exception:
                 await process_session.rollback()
-                logger.exception(
-                    "Job %s processing failed for worker %s",
-                    claimed.job_id,
-                    self._worker_id,
+                log.exception(
+                    "Job processing failed",
+                    extra={
+                        "analysis_job_id": str(claimed.job_id),
+                        "worker_id": self._worker_id,
+                    },
                 )
                 raise
 
