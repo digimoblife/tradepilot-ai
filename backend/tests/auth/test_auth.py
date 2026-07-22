@@ -27,6 +27,7 @@ pytestmark = pytest.mark.database
 
 
 async def _ensure_user_sessions_table(engine: AsyncEngine) -> None:
+    """Create user_sessions matching migration 4a2b6c8d0e1f."""
     """Create the user_sessions table if it does not exist."""
     async with engine.begin() as conn:
         await conn.execute(
