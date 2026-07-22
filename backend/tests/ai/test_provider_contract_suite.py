@@ -450,37 +450,79 @@ class TestStateConflict:
 
 
 class TestRepair:
-    """Actual repair flow: invalid output → repair → valid output."""
+    """Actual repair flow via ProviderRepairService."""
 
     @pytest.mark.parametrize("builder", PROVIDER_BUILDERS)
-    async def test_repair_rejects_then_fixes_schema(self, builder, text_request):
-        """Invalid schema output is rejected; repair can produce valid output."""
+    async def test_repair_service_invoked_and_succeeds(self, builder, text_request):
+        """ProviderRepairService is called, provider fixes output, schema passes."""
         import json
+
+        from app.ai.repair import ProviderRepairService
 
         svc = _schema_service()
 
-        # Load a valid fixture to use as the "repaired" output
-        fixture_path = Path(__file__).resolve().parent.parent.parent
-        fixture_path = fixture_path / "schemas" / "fixtures" / "valid" / "v1"
-        valid_fixture_file = fixture_path / "initial_analysis.valid.json"
-        assert valid_fixture_file.exists(), "Valid fixture not found"
+        # Load a valid fixture to use as the repair provider response
+        fdir = Path(__file__).resolve().parent.parent.parent
+        fixt_path = fdir / "schemas" / "fixtures" / "valid" / "v1" / "initial_analysis.valid.json"
+        valid_raw = fixt_path.read_text()
+        valid_payload = json.loads(valid_raw)
+        assert svc.validate_by_name(valid_payload, "initial_analysis", "1.0.0").valid
 
-        valid_payload = json.loads(valid_fixture_file.read_text())
+        # --- Step 1: provider returns invalid output ---
+        # Use a provider configured with the INVALID output for the first call.
+        # The repair service will call provider.generate() again with a repair prompt.
+        # Our mock always returns the same raw_output, so we configure it with valid data
+        # but the ORIGINAL response that we PASS IN to repair() will be the invalid one.
 
-        # Verify the valid fixture passes schema
-        result = svc.validate_by_name(valid_payload, "initial_analysis", "1.0.0")
-        assert result.valid, f"Valid fixture should pass: {[i.code for i in result.issues]}"
+        provider = builder(valid_raw)
+        original_resp = ProviderResponse(
+            provider=provider.name,
+            model=provider.model,
+            raw_output='{"metadata": {"analysis_id": "bad"}}',
+            request_id=text_request.request_id,
+        )
 
-        # Use a minimal payload that fails schema
-        provider = builder('{"metadata": {"analysis_id": "bad"}}')
-        original_resp = await provider.generate(text_request)
+        # Parse the original invalid output — it's structurally valid JSON
         original_parsed = extract_and_parse_json(original_resp.raw_output)
 
-        # Schema validation rejects it
+        # Schema validation rejects the original
         schema_result = svc.validate_by_name(original_parsed, "initial_analysis", "1.0.0")
         assert not schema_result.valid
         codes = {i.code for i in schema_result.issues}
         assert "SCHEMA_REQUIRED_FIELD_MISSING" in codes
+
+        validation_errors = schema_result.issues
+        canonical_facts = {"ticker": "BBRI", "session_id": "test"}
+
+        def validate_fn(p: dict[str, object]) -> tuple[bool, tuple]:
+            result = svc.validate_by_name(p, "initial_analysis", "1.0.0")
+            return result.valid, tuple(result.issues)
+
+        # --- Step 2: invoke ProviderRepairService ---
+        repair_svc = ProviderRepairService()
+        repair_result = await repair_svc.repair(
+            provider=provider,
+            original_request=text_request,
+            original_response=original_resp,
+            validation_errors=validation_errors,
+            canonical_facts=canonical_facts,
+            validate=validate_fn,
+            max_attempts=3,
+        )
+
+        # --- Step 3: verify repair result ---
+        assert repair_result is not None
+        assert len(repair_result.attempts) == 1
+        assert repair_result.attempts[0].attempt_number == 1
+
+        # The repaired payload passes schema
+        assert svc.validate_by_name(dict(repair_result.payload), "initial_analysis", "1.0.0").valid
+
+        # The repaired output is what the mock provider returned (the valid fixture)
+        assert repair_result.payload.get("metadata", {}).get("ticker") == "BBRI"
+
+        # Canonical facts remain unchanged
+        assert canonical_facts == {"ticker": "BBRI", "session_id": "test"}
 
 
 # ===================================================================
