@@ -52,6 +52,7 @@ class ContextSummaryBuildResult:
 
 class ContextSummaryBuilderError(Exception):
     code: str = "CONTEXT_SUMMARY_BUILDER_ERROR"
+
     def __init__(self, code: str | None = None, message: str = "") -> None:
         self.code = code or self.code
         self.message = message
@@ -97,7 +98,8 @@ class ContextSummaryBuilder:
         # 1. Load history
         history_inputs = await self._load_history_events(session_id, owner_id)
         selection = self._history_selector.select(
-            events=history_inputs, maximum_events=maximum_events,
+            events=history_inputs,
+            maximum_events=maximum_events,
         )
 
         # 2. Load analyses — original + latest
@@ -106,29 +108,45 @@ class ContextSummaryBuilder:
 
         # 3. Load active evidence
         all_active = await self._evidence_repo.list_active_for_session_for_user(
-            session_id, owner_id,
+            session_id,
+            owner_id,
         )
-        chart_evidence = [e for e in all_active if e.evidence_type in (
-            EvidenceType.CHART_THREE_MONTH, EvidenceType.CHART_SIX_MONTH,
-        )]
+        chart_evidence = [
+            e
+            for e in all_active
+            if e.evidence_type
+            in (
+                EvidenceType.CHART_THREE_MONTH,
+                EvidenceType.CHART_SIX_MONTH,
+            )
+        ]
 
         # 4. Derive source cutoff from included sources
         cutoff = _derive_cutoff(
-            source_cutoff, ts, trade_state, latest_analysis, chart_evidence,
+            source_cutoff,
+            ts,
+            trade_state,
+            latest_analysis,
+            chart_evidence,
         )
 
         # 5. Build payload
         payload = _build_payload(
-            session=ts, trade_state=trade_state,
-            latest_analysis=latest_analysis, orig_analysis=orig_analysis,
-            chart_evidence=chart_evidence, source_cutoff=cutoff,
+            session=ts,
+            trade_state=trade_state,
+            latest_analysis=latest_analysis,
+            orig_analysis=orig_analysis,
+            chart_evidence=chart_evidence,
+            source_cutoff=cutoff,
         )
 
         # 6. JSON Schema validation
         registry = _load_schema_registry()
         schema_validator = JsonSchemaValidationService(registry)
         schema_result = schema_validator.validate_by_name(
-            payload, "context_summary", "1.0.0",
+            payload,
+            "context_summary",
+            "1.0.0",
         )
 
         # 7. Domain validation
@@ -142,35 +160,48 @@ class ContextSummaryBuilder:
                 message=f"Validation failed: {len(all_issues)} issue(s) [{details}]",
             )
         return ContextSummaryBuildResult(
-            session_id=session_id, source_cutoff=cutoff, payload=payload,
+            session_id=session_id,
+            source_cutoff=cutoff,
+            payload=payload,
             validation_result=ContextSummaryValidationResult(
-                valid=True, issues=tuple(domain_result.issues),
+                valid=True,
+                issues=tuple(domain_result.issues),
             ),
             selected_event_ids=tuple(e.event_id for e in selection.selected_events),
             schema_issues=tuple(schema_result.issues),
         )
 
     async def _find_original_analysis(
-        self, session_id: uuid.UUID, owner_id: uuid.UUID,
+        self,
+        session_id: uuid.UUID,
+        owner_id: uuid.UUID,
     ) -> Analysis | None:
         return await self._analysis_repo.get_latest_accepted_by_type_for_user(
-            session_id, owner_id, AnalysisType.INITIAL_ANALYSIS.value,
+            session_id,
+            owner_id,
+            AnalysisType.INITIAL_ANALYSIS.value,
         )
 
     async def _find_latest_accepted(
-        self, session_id: uuid.UUID, owner_id: uuid.UUID,
+        self,
+        session_id: uuid.UUID,
+        owner_id: uuid.UUID,
     ) -> Analysis | None:
         result: Analysis | None = None
         for at in AnalysisType:
             a = await self._analysis_repo.get_latest_accepted_by_type_for_user(
-                session_id, owner_id, at.value,
+                session_id,
+                owner_id,
+                at.value,
             )
             if a is not None and (result is None or a.created_at > result.created_at):
                 result = a
         return result
 
     async def _load_history_events(
-        self, session_id: uuid.UUID, owner_id: uuid.UUID,
+        self,
+        session_id: uuid.UUID,
+        owner_id: uuid.UUID,
     ) -> list[HistoryEvent]:
         query = await self._session.execute(
             select(SessionEvent)
@@ -194,18 +225,23 @@ class ContextSummaryBuilder:
                 if analysis is not None:
                     analysis_type = _ev(analysis.analysis_type)
                     is_accepted = analysis.acceptance_status == AcceptanceStatus.ACCEPTED
-            events.append(HistoryEvent(
-                event_id=se.id,
-                event_type=_ev(se.event_type),
-                occurred_at=se.occurred_at, created_at=se.created_at,
-                related_action_id=se.related_action_id,
-                related_analysis_id=se.related_analysis_id,
-                analysis_type=analysis_type, action_type=action_type,
-                payload={},
-                price=float(se.price) if se.price is not None else None,
-                quantity=float(se.quantity) if se.quantity is not None else None,
-                is_confirmed_action=is_confirmed, is_accepted_analysis=is_accepted,
-            ))
+            events.append(
+                HistoryEvent(
+                    event_id=se.id,
+                    event_type=_ev(se.event_type),
+                    occurred_at=se.occurred_at,
+                    created_at=se.created_at,
+                    related_action_id=se.related_action_id,
+                    related_analysis_id=se.related_analysis_id,
+                    analysis_type=analysis_type,
+                    action_type=action_type,
+                    payload={},
+                    price=float(se.price) if se.price is not None else None,
+                    quantity=float(se.quantity) if se.quantity is not None else None,
+                    is_confirmed_action=is_confirmed,
+                    is_accepted_analysis=is_accepted,
+                )
+            )
         return events
 
 
@@ -215,9 +251,12 @@ class ContextSummaryBuilder:
 
 
 def _build_payload(
-    session: TradeSession, trade_state: TradeState | None,
-    latest_analysis: Analysis | None, orig_analysis: Analysis | None,
-    chart_evidence: Sequence[Evidence], source_cutoff: datetime,
+    session: TradeSession,
+    trade_state: TradeState | None,
+    latest_analysis: Analysis | None,
+    orig_analysis: Analysis | None,
+    chart_evidence: Sequence[Evidence],
+    source_cutoff: datetime,
 ) -> dict[str, Any]:
     pos_status = _ps(trade_state)
     is_closed = _is_closed_status(session)
@@ -236,21 +275,36 @@ def _build_payload(
         "context_version": "1.0.0",
         "current_position": _build_current_position(trade_state),
         "thesis_context": _build_thesis_context(
-            trade_state, latest_analysis, orig_analysis,
+            trade_state,
+            latest_analysis,
+            orig_analysis,
         ),
         "active_levels": _build_active_levels(trade_state, latest_analysis),
         "latest_market_context": {
-            "available": False, "trading_date": None, "market_timestamp": None,
-            "update_period": None, "open": None, "high": None, "low": None,
-            "last_or_close": None, "average": None, "change_percentage": None,
-            "best_bid": None, "best_offer": None,
+            "available": False,
+            "trading_date": None,
+            "market_timestamp": None,
+            "update_period": None,
+            "open": None,
+            "high": None,
+            "low": None,
+            "last_or_close": None,
+            "average": None,
+            "change_percentage": None,
+            "best_bid": None,
+            "best_offer": None,
             "summary": "Not available",
         },
         "latest_orderbook_context": {
-            "available": False, "evidence_id": None, "market_timestamp": None,
-            "buyer_strength": "UNKNOWN", "seller_pressure": "UNKNOWN",
-            "best_bid": None, "best_offer": None,
-            "bid_support": None, "offer_resistance": None,
+            "available": False,
+            "evidence_id": None,
+            "market_timestamp": None,
+            "buyer_strength": "UNKNOWN",
+            "seller_pressure": "UNKNOWN",
+            "best_bid": None,
+            "best_offer": None,
+            "bid_support": None,
+            "offer_resistance": None,
             "supports_current_plan": None,
             "key_observations": [],
             "conclusion": "Not available",
@@ -270,19 +324,33 @@ def _build_payload(
 
 def _build_current_position(ts: TradeState | None) -> dict[str, Any]:
     if ts is None:
-        return {k: None for k in (
-            "position_exists", "position_status", "entry_price", "entry_timestamp",
-            "original_quantity", "remaining_quantity", "average_exit_price",
-            "current_price", "active_stop_loss", "active_target",
-            "realized_profit_loss", "realized_return_percentage",
-            "unrealized_profit_loss", "unrealized_return_percentage",
-            "holding_duration_days", "last_confirmed_at",
-        )} | {"position_exists": False, "position_status": "NOT_OPENED"}
+        return {
+            k: None
+            for k in (
+                "position_exists",
+                "position_status",
+                "entry_price",
+                "entry_timestamp",
+                "original_quantity",
+                "remaining_quantity",
+                "average_exit_price",
+                "current_price",
+                "active_stop_loss",
+                "active_target",
+                "realized_profit_loss",
+                "realized_return_percentage",
+                "unrealized_profit_loss",
+                "unrealized_return_percentage",
+                "holding_duration_days",
+                "last_confirmed_at",
+            )
+        } | {"position_exists": False, "position_status": "NOT_OPENED"}
     ps = _ev(ts.position_status)
     return {
         "position_exists": ps != "NOT_OPENED",
         "position_status": ps,
-        "entry_price": _d(ts.entry_price), "entry_timestamp": _ts(ts.entry_at),
+        "entry_price": _d(ts.entry_price),
+        "entry_timestamp": _ts(ts.entry_at),
         "original_quantity": _d(ts.original_quantity),
         "remaining_quantity": _d(ts.remaining_quantity),
         "average_exit_price": _d(ts.average_exit_price),
@@ -291,20 +359,51 @@ def _build_current_position(ts: TradeState | None) -> dict[str, Any]:
         "active_target": _d(ts.active_target),
         "realized_profit_loss": _d(ts.realized_pnl),
         "realized_return_percentage": None,
-        "unrealized_profit_loss": None, "unrealized_return_percentage": None,
-        "holding_duration_days": None, "last_confirmed_at": None,
+        "unrealized_profit_loss": None,
+        "unrealized_return_percentage": None,
+        "holding_duration_days": None,
+        "last_confirmed_at": None,
     }
 
 
+def _extract_thesis_text(payload: dict[str, object] | None) -> str | None:
+    """Extract a thesis narrative string from an analysis payload."""
+    if not payload:
+        return None
+    # Check various thesis-related fields across analysis types
+    es = payload.get("executive_summary")
+    if isinstance(es, str):
+        return es
+    it = payload.get("initial_thesis")
+    if isinstance(it, dict):
+        val = it.get("summary")
+        if isinstance(val, str):
+            return val
+    sa = payload.get("setup_assessment")
+    if isinstance(sa, dict):
+        for key in ("current_thesis_summary", "original_thesis_summary"):
+            val = sa.get(key)
+            if isinstance(val, str):
+                return val
+    ta = payload.get("thesis_assessment")
+    if isinstance(ta, dict):
+        val = ta.get("summary")
+        if isinstance(val, str):
+            return val
+    if isinstance(es, dict):
+        val = es.get("summary")
+        if isinstance(val, str):
+            return val
+    return None
+
+
 def _build_thesis_context(
-    ts: TradeState | None, latest: Analysis | None, orig: Analysis | None,
+    ts: TradeState | None,
+    latest: Analysis | None,
+    orig: Analysis | None,
 ) -> dict[str, Any]:
-    original_thesis = None
-    current_thesis = None
-    if orig and orig.payload:
-        original_thesis = orig.payload.get("executive_summary")
-    if latest and latest.payload:
-        current_thesis = latest.payload.get("executive_summary")
+    original_thesis = _extract_thesis_text(orig.payload if orig else None)
+    current_thesis = _extract_thesis_text(latest.payload if latest else None)
     return {
         "original_thesis": original_thesis,
         "current_thesis": current_thesis,
@@ -319,12 +418,15 @@ def _build_thesis_context(
     }
 
 
-def _price_level(price: object, label: str = "Active level", summary: str = "Not available") -> dict[str, object]:
+def _price_level(
+    price: object, label: str = "Active level", summary: str = "Not available"
+) -> dict[str, object]:
     return {"price": price, "label": label, "summary": summary}
 
 
 def _build_active_levels(
-    ts: TradeState | None, latest: Analysis | None,
+    ts: TradeState | None,
+    latest: Analysis | None,
 ) -> dict[str, Any]:
     last_updated = _ts(datetime.now(timezone.utc))
     pending_sl = None
@@ -334,30 +436,47 @@ def _build_active_levels(
         pending_sl = p.get("proposed_stop_loss") or p.get("stop_loss_proposal")
         pending_tg = p.get("proposed_target") or p.get("target_proposal")
     return {
-        "supports": [], "resistances": [],
-        "entry_reference": _price_level(_d(ts.entry_price)) if ts and ts.entry_price is not None else None,
+        "supports": [],
+        "resistances": [],
+        "entry_reference": _price_level(_d(ts.entry_price))
+        if ts and ts.entry_price is not None
+        else None,
         "maximum_acceptable_entry": None,
-        "active_stop_loss": _price_level(_d(ts.active_stop_loss)) if ts and ts.active_stop_loss is not None else None,
-        "active_target": _price_level(_d(ts.active_target)) if ts and ts.active_target is not None else None,
-        "proposed_stop_loss": pending_sl, "proposed_target": pending_tg,
-        "invalidation_level": None, "last_updated_at": last_updated,
+        "active_stop_loss": _price_level(_d(ts.active_stop_loss))
+        if ts and ts.active_stop_loss is not None
+        else None,
+        "active_target": _price_level(_d(ts.active_target))
+        if ts and ts.active_target is not None
+        else None,
+        "proposed_stop_loss": pending_sl,
+        "proposed_target": pending_tg,
+        "invalidation_level": None,
+        "last_updated_at": last_updated,
     }
 
 
 def _build_chart_context(charts: Sequence[Evidence]) -> dict[str, Any]:
     has_3m = any(_ev(e.evidence_type) == "CHART_THREE_MONTH" for e in charts)
     has_6m = any(_ev(e.evidence_type) == "CHART_SIX_MONTH" for e in charts)
-    ts_3m = next((_ts(e.uploaded_at) for e in charts if _ev(e.evidence_type) == "CHART_THREE_MONTH"), None)
-    ts_6m = next((_ts(e.uploaded_at) for e in charts if _ev(e.evidence_type) == "CHART_SIX_MONTH"), None)
+    ts_3m = next(
+        (_ts(e.uploaded_at) for e in charts if _ev(e.evidence_type) == "CHART_THREE_MONTH"), None
+    )
+    ts_6m = next(
+        (_ts(e.uploaded_at) for e in charts if _ev(e.evidence_type) == "CHART_SIX_MONTH"), None
+    )
     return {
         "available": len(charts) > 0,
-        "chart_3_month_available": has_3m, "chart_6_month_available": has_6m,
+        "chart_3_month_available": has_3m,
+        "chart_6_month_available": has_6m,
         "using_historical_context": False,
         "latest_chart_timestamp": ts_3m or ts_6m,
-        "short_term_trend": "UNKNOWN", "medium_term_trend": "UNKNOWN",
+        "short_term_trend": "UNKNOWN",
+        "medium_term_trend": "UNKNOWN",
         "structure_status": "UNKNOWN",
-        "nearest_support": None, "nearest_resistance": None,
-        "breakout_status": "UNKNOWN", "breakdown_status": "UNKNOWN",
+        "nearest_support": None,
+        "nearest_resistance": None,
+        "breakout_status": "UNKNOWN",
+        "breakdown_status": "UNKNOWN",
         "supports_current_plan": None,
         "conclusion": "Not available",
         "limitations": ["Not available"],
@@ -377,13 +496,18 @@ def _n(val: Any, fallback: str = "Not available") -> str:
 def _build_ai_assessment(analysis: Analysis | None) -> dict[str, Any]:
     if analysis is None:
         return {
-            "analysis_id": None, "analysis_type": None,
+            "analysis_id": None,
+            "analysis_type": None,
             "analysis_timestamp": None,
-            "bias": "NEUTRAL", "confidence": None,
-            "setup_quality": None, "position_health": None,
-            "bullish_probability": None, "target_probability": None,
+            "bias": "NEUTRAL",
+            "confidence": None,
+            "setup_quality": None,
+            "position_health": None,
+            "bullish_probability": None,
+            "target_probability": None,
             "downside_probability": None,
-            "risk_level": "UNKNOWN", "recommended_action": "NO_ACTION",
+            "risk_level": "UNKNOWN",
+            "recommended_action": "NO_ACTION",
             "summary": "Not available",
         }
     p = analysis.payload or {}
@@ -414,7 +538,8 @@ def _build_trading_plan(analysis: Analysis | None) -> dict[str, Any]:
         "exit_condition": "Not available",
         "cancel_setup_condition": "Not available",
         "next_checkpoint": "Not available",
-        "levels_to_monitor": [], "requires_user_confirmation": False,
+        "levels_to_monitor": [],
+        "requires_user_confirmation": False,
         "last_updated_at": datetime.now(timezone.utc).isoformat(),
     }
     if analysis and analysis.payload:
@@ -439,7 +564,8 @@ def _build_unresolved(analysis: Analysis | None) -> dict[str, Any]:
 
 
 def _build_closing_context(
-    session: TradeSession, ts: TradeState | None,
+    session: TradeSession,
+    ts: TradeState | None,
 ) -> dict[str, Any]:
     is_closed = _is_closed_status(session)
     if not is_closed:
@@ -450,25 +576,34 @@ def _build_closing_context(
             "average_exit_price": None,
             "gross_profit_loss": None,
             "gross_return_percentage": None,
-            "net_profit_loss": None, "net_return_percentage": None,
-            "trade_grade": None, "main_lesson": None, "summary": None,
+            "net_profit_loss": None,
+            "net_return_percentage": None,
+            "trade_grade": None,
+            "main_lesson": None,
+            "summary": None,
         }
     avg_exit = _d(ts.average_exit_price) if ts and ts.average_exit_price is not None else None
     gross_pnl = _d(ts.realized_pnl) if ts and ts.realized_pnl is not None else 0
     return {
         "available": True,
         "closing_reason": _closing_reason(session) or "MANUAL_EXIT",
-        "closed_at": _ts(ts.entry_at) if ts and ts.entry_at else datetime.now(timezone.utc).isoformat(),
+        "closed_at": _ts(ts.entry_at)
+        if ts and ts.entry_at
+        else datetime.now(timezone.utc).isoformat(),
         "average_exit_price": avg_exit or _d(ts.entry_price) if ts else 0,
         "gross_profit_loss": gross_pnl,
         "gross_return_percentage": 0,
-        "net_profit_loss": None, "net_return_percentage": None,
-        "trade_grade": "C", "main_lesson": "Not available", "summary": "Not available",
+        "net_profit_loss": None,
+        "net_return_percentage": None,
+        "trade_grade": "C",
+        "main_lesson": "Not available",
+        "summary": "Not available",
     }
 
 
 def _build_quality(
-    latest: Analysis | None, charts: Sequence[Evidence],
+    latest: Analysis | None,
+    charts: Sequence[Evidence],
 ) -> dict[str, Any]:
     limitations: list[str] = []
     if latest and latest.payload:
@@ -504,8 +639,10 @@ def _deterministic_id(session_id: uuid.UUID, cutoff: datetime) -> str:
 
 
 def _derive_cutoff(
-    explicit: datetime | None, session: TradeSession,
-    trade_state: TradeState | None, latest_analysis: Analysis | None,
+    explicit: datetime | None,
+    session: TradeSession,
+    trade_state: TradeState | None,
+    latest_analysis: Analysis | None,
     charts: Sequence[Evidence],
 ) -> datetime:
     if explicit is not None:
@@ -599,5 +736,6 @@ def _canonical_state_dict(trade_state: TradeState | None) -> dict[str, object]:
 
 def _load_schema_registry() -> LocalSchemaRegistry:
     from app.schemas.manifest import load_production_manifest
+
     manifest = load_production_manifest(_SCHEMAS_ROOT)
     return LocalSchemaRegistry(manifest, _SCHEMAS_ROOT)
