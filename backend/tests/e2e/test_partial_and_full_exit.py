@@ -23,7 +23,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.auth import hash_password
+from app.schemas.manifest import load_production_manifest
+from app.schemas.registry import LocalSchemaRegistry
 from app.services.actions.open_position import OpenPositionService
+from app.validation.json_schema import JsonSchemaValidationService
 from app.services.actions.partial_exit import PartialExitActionService
 from app.services.actions.full_exit import FullExitActionService
 from app.services.context_rebuild import ContextRebuildService, ContextRebuildReason
@@ -45,6 +48,22 @@ def _load(name: str) -> dict:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _schema_service() -> JsonSchemaValidationService:
+    """Build a JsonSchemaValidationService from production schemas."""
+    import shutil
+    import tempfile
+
+    pkg = Path(tempfile.mkdtemp()) / "production" / "v1"
+    pkg.mkdir(parents=True, exist_ok=True)
+    prod = FIXTURE_DIR.parent.parent.parent / "production" / "v1"
+    for f in prod.iterdir():
+        if f.is_file():
+            shutil.copy2(f, pkg / f.name)
+    manifest = load_production_manifest(pkg)
+    registry = LocalSchemaRegistry(manifest, pkg)
+    return JsonSchemaValidationService(registry)
 
 
 class TestPartialAndFullExit:
@@ -221,7 +240,16 @@ class TestPartialAndFullExit:
                 {"a": per_id, "s": sid, "j": per_j, "n": _now(), "p": json.dumps(per_p)},
             )
             await session.commit()
-            # accept + rebuild
+            # validate PER payload through production schema
+            pv = _schema_service()
+            pv_result = pv.validate_by_name(per_p, "partial_exit_review", "1.0.0")
+            assert pv_result.valid, (
+                f"PER schema validation failed: {[(i.code, i.path, i.message) for i in pv_result.issues]}"
+            )
+            assert per_p["partial_exit_confirmation"]["exited_quantity"] == PE_QTY
+            assert per_p["partial_exit_confirmation"]["remaining_quantity"] == FE_QTY
+
+            # accept + rebuild (only after successful validation)
             await session.execute(
                 text(
                     "UPDATE analyses SET acceptance_status='ACCEPTED', accepted_at=:n WHERE id=:a"
