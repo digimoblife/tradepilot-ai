@@ -1,7 +1,7 @@
 {
   "scenario": "stop_loss_mismatch",
   "expected_code": "STATE_ACTIVE_STOP_MISMATCH",
-  "expected_path": "/stop_loss_assessment/stop_loss_price",
+  "expected_path": "/position_assessment/active_stop_loss",
   "payload": {
     "metadata": {
       "analysis_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -11,7 +11,10 @@
       "company_name": "Bank Rakyat Indonesia",
       "analysis_timestamp": "2026-07-18T10:00:00+07:00",
       "language": "id",
-      "schema": { "schema_name": "open_position_update", "schema_version": "1.0.0" },
+      "schema": {
+        "schema_name": "open_position_update",
+        "schema_version": "1.0.0"
+      },
       "prompt_version": "1.0.0",
       "provider": "GEMINI",
       "model": "gemini-2.0-flash"
@@ -77,11 +80,23 @@
       "seller_pressure": "MODERATE",
       "best_bid": 2820,
       "best_offer": 2830,
-      "bid_support": { "price": 2810, "label": "Bid support", "summary": "Area bid terdekat." },
-      "offer_resistance": { "price": 2840, "label": "Offer resistance", "summary": "Area offer terdekat." },
+      "bid_support": {
+        "price": 2810,
+        "label": "Bid support",
+        "summary": "Area bid terdekat."
+      },
+      "offer_resistance": {
+        "price": 2840,
+        "label": "Offer resistance",
+        "summary": "Area offer terdekat."
+      },
       "spread_observation": "Spread normal 10 poin.",
-      "buyer_observations": ["Bid stabil di 2.820."],
-      "seller_observations": ["Offer tipis di 2.830."],
+      "buyer_observations": [
+        "Bid stabil di 2.820."
+      ],
+      "seller_observations": [
+        "Offer tipis di 2.830."
+      ],
       "important_changes": [],
       "supports_position": true,
       "conclusion": "Orderbook mendukung posisi.",
@@ -94,8 +109,16 @@
       "short_term_trend": "UP",
       "medium_term_trend": "SIDEWAYS",
       "structure_status": "IMPROVING",
-      "nearest_support": { "price": 2780, "label": "Support", "summary": "Support terdekat." },
-      "nearest_resistance": { "price": 2850, "label": "Resistance", "summary": "Resistance terdekat." },
+      "nearest_support": {
+        "price": 2780,
+        "label": "Support",
+        "summary": "Support terdekat."
+      },
+      "nearest_resistance": {
+        "price": 2850,
+        "label": "Resistance",
+        "summary": "Resistance terdekat."
+      },
       "breakout_status": "POSSIBLE",
       "breakdown_status": "NOT_PRESENT",
       "supports_position": true,
@@ -106,7 +129,7 @@
       "entry_price": 2800,
       "current_price": 2890,
       "remaining_quantity": 100,
-      "active_stop_loss": 2840,
+      "active_stop_loss": 9999,
       "active_target": 2920,
       "unrealized_profit_loss": 9000,
       "unrealized_return_percentage": 3.21,
@@ -120,7 +143,9 @@
       "status": "INTACT",
       "remains_valid": true,
       "summary": "Thesis masih valid.",
-      "strengthening_evidence": ["Harga bertahan di atas support."],
+      "strengthening_evidence": [
+        "Harga bertahan di atas support."
+      ],
       "weakening_evidence": [],
       "invalidation_condition": "Harga menembus 2.780.",
       "invalidation_price": 2780,
@@ -173,6 +198,18 @@
     "warnings_and_missing_information": {
       "missing_information": [],
       "warnings": []
+    }
+  },
+  "canonical_state": {
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "ticker": "BBRI",
+    "position": {
+      "position_status": "OPEN",
+      "entry_price": "2800",
+      "original_quantity": "100",
+      "remaining_quantity": "100",
+      "active_stop_loss": "2840",
+      "active_target": "2920"
     }
   }
 }
