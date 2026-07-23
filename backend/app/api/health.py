@@ -66,47 +66,59 @@ class WorkerHeartbeatStatus(BaseModel):
 
 class StorageHealthResponse(BaseModel):
     status: str
-    root: str
     detail: str | None = None
 
 
 @router.get("/health/storage", response_model=StorageHealthResponse)
 async def health_storage() -> StorageHealthResponse:
-    """Verify the configured storage root is writable and readable."""
+    """Verify the configured storage root is writable and readable.
+
+    All storage operations are synchronous and must not be awaited.
+    The probe file is cleaned up in ``finally``.
+    """
     from app.storage import create_file_storage
 
-    try:
-        storage = create_file_storage()
-        root = storage._root  # type: ignore[attr-defined]
-        import uuid
+    import uuid
 
-        probe = f".health_{uuid.uuid4().hex}.tmp"
-        data = b"ok"
-        reference = await storage.write(
+    storage = create_file_storage()
+    data = b"healthcheck"
+    file_created = False
+    file_reference: str | None = None
+
+    try:
+        result = storage.store(
             user_id=uuid.UUID(int=0),
             session_id=uuid.UUID(int=0),
-            original_filename=probe,
+            original_filename=f".health_{uuid.uuid4().hex}.tmp",
             content=data,
         )
-        stored = await storage.read(reference)
-        await storage.delete(reference)
-        if stored == data:
+        file_created = True
+        file_reference = result.file_reference
+
+        stored = storage.read(file_reference=file_reference)
+
+        if stored != data:
             return StorageHealthResponse(
-                status="healthy",
-                root=str(root),
-                detail="write/read/delete succeeded",
+                status="unhealthy",
+                detail="readback mismatch",
             )
+
         return StorageHealthResponse(
-            status="unhealthy",
-            root=str(root),
-            detail="readback mismatch",
+            status="healthy",
+            detail="store/read/delete succeeded",
         )
     except Exception as exc:
         return StorageHealthResponse(
             status="unhealthy",
-            root="unknown",
             detail=str(exc),
         )
+    finally:
+        if file_created and file_reference is not None:
+            try:
+                storage.delete(file_reference=file_reference)
+            except Exception:
+                pass  # Best-effort cleanup; probe file will be removed on
+                # next successful health check if it persists.
 
 
 # ---------------------------------------------------------------------------

@@ -320,7 +320,6 @@ class TestStorageHealth:
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] in ("healthy", "unhealthy")
-        assert isinstance(body.get("root"), str)
 
 
 # ===================================================================
