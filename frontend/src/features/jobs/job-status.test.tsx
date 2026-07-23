@@ -46,6 +46,9 @@ function renderJob(overrides: Partial<AnalysisJobStatus> = {}) {
 // -------------------------------------------------------------------
 describe("display states", () => {
   const states: Array<{ status: string; label: string }> = [
+    { status: "QUEUED", label: "Dalam Antrian" },
+    { status: "PROCESSING", label: "Sedang Diproses" },
+    { status: "RETRYING", label: "Mencoba Lagi" },
     { status: "PENDING", label: "Dalam Antrian" },
     { status: "BUILDING_CONTEXT", label: "Membangun Konteks" },
     { status: "CALLING_PROVIDER", label: "Menghubungi AI Provider" },

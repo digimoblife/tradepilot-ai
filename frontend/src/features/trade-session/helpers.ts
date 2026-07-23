@@ -30,7 +30,7 @@ const ACTION_MAP: Record<string, string> = {
 };
 
 const REQUEST_LABEL: Record<string, string> = {
-  INITIAL_ANALYSIS: "Minta Analisis Awal",
+  INITIAL_ANALYSIS: "Jalankan Analisis Awal",
   WATCHING_UPDATE: "Minta Update Pemantauan",
   OPEN_POSITION_UPDATE: "Minta Update Posisi",
   PARTIAL_EXIT_REVIEW: "Minta Review Partial Exit",

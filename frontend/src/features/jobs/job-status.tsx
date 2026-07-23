@@ -9,6 +9,10 @@ import type { AnalysisJobStatus } from "@/types/analysis-job";
 const POLL_INTERVAL_MS = 3000;
 
 const STATUS_LABEL: Record<string, string> = {
+  CREATED: "Dibuat",
+  QUEUED: "Dalam Antrian",
+  PROCESSING: "Sedang Diproses",
+  RETRYING: "Mencoba Lagi",
   PENDING: "Dalam Antrian",
   BUILDING_CONTEXT: "Membangun Konteks",
   CALLING_PROVIDER: "Menghubungi AI Provider",
@@ -17,9 +21,14 @@ const STATUS_LABEL: Record<string, string> = {
   FALLBACK: "Mencoba Provider Cadangan",
   COMPLETED: "Selesai",
   FAILED: "Gagal",
+  CANCELLED: "Dibatalkan",
 };
 
 const STATUS_STEPS: Record<string, number> = {
+  CREATED: 1,
+  QUEUED: 1,
+  PROCESSING: 3,
+  RETRYING: 4,
   PENDING: 1,
   BUILDING_CONTEXT: 2,
   CALLING_PROVIDER: 3,
@@ -33,7 +42,7 @@ const STATUS_STEPS: Record<string, number> = {
 const MAX_STEPS = 7;
 
 function isTerminal(status: string): boolean {
-  return status === "COMPLETED" || status === "FAILED";
+  return status === "COMPLETED" || status === "FAILED" || status === "CANCELLED";
 }
 
 interface Props {

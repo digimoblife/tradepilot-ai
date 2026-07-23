@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
 import { cancelSession } from "@/lib/api/trade-actions";
 import { listEvidence } from "@/lib/api/evidence";
+import { getTimeline } from "@/lib/api/timeline";
+import { getJobStatus, requestAnalysis } from "@/lib/api/analyses";
 
 vi.mock("@/lib/api/trade-sessions", () => ({
   getSession: vi.fn(),
@@ -17,14 +19,27 @@ vi.mock("@/lib/api/trade-actions", () => ({
 
 vi.mock("@/lib/api/evidence", () => ({
   listEvidence: vi.fn(),
+  downloadEvidenceFile: vi.fn().mockResolvedValue(new Blob(["test"], { type: "image/png" })),
 }));
 
 vi.mock("@/lib/api/analyses", () => ({
+  requestAnalysis: vi.fn(),
   listAnalyses: vi.fn(),
   getAnalysis: vi.fn(),
+  getJobStatus: vi.fn(),
+  retryJob: vi.fn(),
+}));
+
+vi.mock("@/lib/api/timeline", () => ({
+  getTimeline: vi.fn(),
 }));
 
 import { TradeSessionShell } from "./trade-session-shell";
+
+beforeAll(() => {
+  globalThis.URL.createObjectURL = vi.fn(() => "blob:test");
+  globalThis.URL.revokeObjectURL = vi.fn();
+});
 
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,11 +74,96 @@ function makeSession(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeReadySession(overrides: Record<string, unknown> = {}) {
+  return makeSession({
+    session: {
+      id: "sess-1",
+      ticker: "BBRI",
+      company_name: "PT Bank Rakyat Indonesia Tbk",
+      exchange: "IDX",
+      currency: "IDR",
+      title: null,
+      lifecycle_status: "READY_FOR_ANALYSIS",
+      created_at: "2026-07-15T09:00:00Z",
+      updated_at: "2026-07-20T12:00:00Z",
+      archived_at: null,
+    },
+    trade_state: {
+      position_status: "NOT_OPENED",
+      thesis_status: "INTACT",
+      entry_price: null,
+      entry_at: null,
+      original_quantity: null,
+      remaining_quantity: null,
+      active_stop_loss: null,
+      active_target: null,
+      average_exit_price: null,
+      realized_pnl: null,
+      realized_return: null,
+      state_version: 1,
+    },
+    allowed_actions: ["CANCEL", "ARCHIVE"],
+    ...overrides,
+  });
+}
+
+function mockEvidenceComplete() {
+  vi.mocked(listEvidence).mockResolvedValue({
+    evidence: [
+      { id: "e1", session_id: "sess-1", evidence_type: "ORDERBOOK_SCREENSHOT", status: "AVAILABLE", original_filename: null, mime_type: null, file_size_bytes: null, checksum_sha256: null, market_timestamp: null, uploaded_at: "", caption: null, supersedes_evidence_id: null },
+      { id: "e2", session_id: "sess-1", evidence_type: "CHART_THREE_MONTH", status: "AVAILABLE", original_filename: null, mime_type: null, file_size_bytes: null, checksum_sha256: null, market_timestamp: null, uploaded_at: "", caption: null, supersedes_evidence_id: null },
+      { id: "e3", session_id: "sess-1", evidence_type: "CHART_SIX_MONTH", status: "AVAILABLE", original_filename: null, mime_type: null, file_size_bytes: null, checksum_sha256: null, market_timestamp: null, uploaded_at: "", caption: null, supersedes_evidence_id: null },
+    ],
+    total: 3,
+  });
+}
+
+async function clickInitialAnalysisAction(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Jalankan Analisis Awal" }));
+}
+
+async function clickInitialAnalysisSubmit(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() => {
+    expect(screen.getAllByRole("button", { name: "Jalankan Analisis Awal" }).length).toBeGreaterThan(1);
+  });
+  const buttons = screen.getAllByRole("button", { name: "Jalankan Analisis Awal" });
+  await user.click(buttons[buttons.length - 1]);
+}
+
 beforeEach(async () => {
   vi.clearAllMocks();
+  window.sessionStorage.clear();
   const mod = await import("@/lib/api/analyses");
   vi.mocked(mod.listAnalyses).mockResolvedValue({ analyses: [], total: 0 });
   vi.mocked(listEvidence).mockResolvedValue({ evidence: [], total: 0 });
+  vi.mocked(getTimeline).mockResolvedValue({ events: [], total: 0 });
+  vi.mocked(requestAnalysis).mockResolvedValue({
+    job_id: "job-1",
+    session_id: "sess-1",
+    analysis_type: "INITIAL_ANALYSIS",
+    status: "QUEUED",
+    attempt_count: 0,
+    max_attempts: 3,
+    available_at: "2026-07-20T12:00:00Z",
+    created_at: "2026-07-20T12:00:00Z",
+    previous_session_status: "READY_FOR_ANALYSIS",
+  });
+  vi.mocked(getJobStatus).mockResolvedValue({
+    job_id: "job-1",
+    session_id: "sess-1",
+    analysis_type: "INITIAL_ANALYSIS",
+    status: "QUEUED",
+    attempt_count: 0,
+    max_attempts: 3,
+    available_at: "2026-07-20T12:00:00Z",
+    started_at: null,
+    completed_at: null,
+    last_error_code: null,
+    last_error_message: null,
+    analysis_id: null,
+    created_at: "2026-07-20T12:00:00Z",
+    updated_at: "2026-07-20T12:00:00Z",
+  });
   vi.mocked(markReady).mockResolvedValue({ id: "sess-1", lifecycle_status: "READY_FOR_ANALYSIS" });
   vi.mocked(archiveSession).mockResolvedValue({
     id: "sess-1",
@@ -563,6 +663,206 @@ describe("allowed actions", () => {
 
     resolveReady?.({ id: "sess-1", lifecycle_status: "READY_FOR_ANALYSIS" });
     await waitFor(() => { expect(getSession).toHaveBeenCalledTimes(2); });
+  });
+});
+
+// -------------------------------------------------------------------
+// Initial analysis trigger
+// -------------------------------------------------------------------
+describe("initial analysis trigger", () => {
+  it("shows Jalankan Analisis Awal for READY_FOR_ANALYSIS sessions", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    expect(await screen.findByRole("button", { name: "Jalankan Analisis Awal" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Batalkan" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Arsipkan" })).toBeTruthy();
+  });
+
+  it("blocks the initial analysis request when required evidence is incomplete", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
+    vi.mocked(listEvidence).mockResolvedValue({ evidence: [], total: 0 });
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Jalankan Analisis Awal" }).length).toBeGreaterThan(1);
+    });
+    const submit = screen.getAllByRole("button", { name: "Jalankan Analisis Awal" }).at(-1)!;
+    expect(submit).toBeDisabled();
+    expect(await screen.findByText(/Unggah evidence yang diperlukan/)).toBeTruthy();
+    expect(requestAnalysis).not.toHaveBeenCalled();
+  });
+
+  it("calls the authenticated initial analysis endpoint from READY_FOR_ANALYSIS", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
+    mockEvidenceComplete();
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+    await clickInitialAnalysisSubmit(user);
+
+    await waitFor(() => {
+      expect(requestAnalysis).toHaveBeenCalledWith("sess-1", { analysis_type: "INITIAL_ANALYSIS" });
+    });
+    expect(await screen.findByText("Dalam Antrian")).toBeTruthy();
+  });
+
+  it("prevents duplicate initial analysis submits", async () => {
+    const user = userEvent.setup();
+    let resolveRequest: ((value: Awaited<ReturnType<typeof requestAnalysis>>) => void) | null = null;
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
+    mockEvidenceComplete();
+    vi.mocked(requestAnalysis).mockImplementation(
+      () => new Promise((resolve) => { resolveRequest = resolve; }),
+    );
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Jalankan Analisis Awal" }).length).toBeGreaterThan(1);
+    });
+    const submit = screen.getAllByRole("button", { name: "Jalankan Analisis Awal" }).at(-1)!;
+    await user.dblClick(submit);
+
+    expect(requestAnalysis).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("button", { name: "Mengirim…" })).toBeDisabled();
+
+    resolveRequest?.({
+      job_id: "job-1",
+      session_id: "sess-1",
+      analysis_type: "INITIAL_ANALYSIS",
+      status: "QUEUED",
+      attempt_count: 0,
+      max_attempts: 3,
+      available_at: "2026-07-20T12:00:00Z",
+      created_at: "2026-07-20T12:00:00Z",
+      previous_session_status: "READY_FOR_ANALYSIS",
+    });
+    await screen.findByText("Dalam Antrian");
+  });
+
+  it("shows failed job state from the initial analysis request", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
+    mockEvidenceComplete();
+    vi.mocked(getJobStatus).mockResolvedValue({
+      job_id: "job-1",
+      session_id: "sess-1",
+      analysis_type: "INITIAL_ANALYSIS",
+      status: "FAILED",
+      attempt_count: 1,
+      max_attempts: 3,
+      available_at: null,
+      started_at: "2026-07-20T12:01:00Z",
+      completed_at: "2026-07-20T12:02:00Z",
+      last_error_code: "PROVIDER_ERROR",
+      last_error_message: "Provider gagal.",
+      analysis_id: null,
+      created_at: "2026-07-20T12:00:00Z",
+      updated_at: "2026-07-20T12:02:00Z",
+    });
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+    await clickInitialAnalysisSubmit(user);
+
+    expect(await screen.findByText("Analisis Gagal")).toBeTruthy();
+  });
+
+  it("refreshes session, timeline, and analysis history after successful analysis", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeReadySession())
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["OPEN_POSITION"] }));
+    mockEvidenceComplete();
+    const analysesMod = await import("@/lib/api/analyses");
+    vi.mocked(analysesMod.listAnalyses)
+      .mockResolvedValueOnce({ analyses: [], total: 0 })
+      .mockResolvedValue({
+        analyses: [{
+          id: "analysis-1",
+          session_id: "sess-1",
+          analysis_type: "INITIAL_ANALYSIS",
+          acceptance_status: "ACCEPTED",
+          accepted_at: "2026-07-20T12:02:00Z",
+          created_at: "2026-07-20T12:02:00Z",
+          prompt_version: "1.0.0",
+          schema_name: "initial_analysis",
+          schema_version: "1.0.0",
+          supersedes_analysis_id: null,
+        }],
+        total: 1,
+      });
+    vi.mocked(getTimeline)
+      .mockResolvedValueOnce({ events: [], total: 0 })
+      .mockResolvedValue({
+        events: [{
+          id: "event-1",
+          session_id: "sess-1",
+          event_type: "ANALYSIS_ACCEPTED",
+          occurred_at: "2026-07-20T12:02:00Z",
+          created_at: "2026-07-20T12:02:00Z",
+          summary: "Initial analysis generated",
+          price: null,
+          quantity: null,
+          related_action: null,
+          related_analysis: {
+            id: "analysis-1",
+            analysis_type: "INITIAL_ANALYSIS",
+            accepted_at: "2026-07-20T12:02:00Z",
+            schema_name: "initial_analysis",
+            schema_version: "1.0.0",
+          },
+        }],
+        total: 1,
+      });
+    vi.mocked(getJobStatus).mockResolvedValue({
+      job_id: "job-1",
+      session_id: "sess-1",
+      analysis_type: "INITIAL_ANALYSIS",
+      status: "COMPLETED",
+      attempt_count: 1,
+      max_attempts: 3,
+      available_at: null,
+      started_at: "2026-07-20T12:01:00Z",
+      completed_at: "2026-07-20T12:02:00Z",
+      last_error_code: null,
+      last_error_message: null,
+      analysis_id: "analysis-1",
+      created_at: "2026-07-20T12:00:00Z",
+      updated_at: "2026-07-20T12:02:00Z",
+    });
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+    await clickInitialAnalysisSubmit(user);
+
+    await waitFor(() => { expect(getSession).toHaveBeenCalledTimes(2); });
+    expect(await screen.findByText("Initial analysis generated")).toBeTruthy();
+    expect(await screen.findByText("Analisis Awal")).toBeTruthy();
+  });
+
+  it("shows Indonesian error feedback for backend request rejection", async () => {
+    const user = userEvent.setup();
+    const { ApiError } = await import("@/lib/api/errors");
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
+    mockEvidenceComplete();
+    vi.mocked(requestAnalysis).mockRejectedValue(
+      new ApiError(422, "ANALYSIS_REQUIRED_EVIDENCE_MISSING", "Missing required evidence: CHART_SIX_MONTH"),
+    );
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+    await clickInitialAnalysisSubmit(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Gagal menjalankan analisis awal: Missing required evidence: CHART_SIX_MONTH",
+    );
   });
 });
 

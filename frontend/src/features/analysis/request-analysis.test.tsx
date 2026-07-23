@@ -125,7 +125,8 @@ describe("submission", () => {
     vi.mocked(requestAnalysis).mockImplementation(() => new Promise(() => {}));
     render(<RequestAnalysis sessionId="sess-a" analysisType="INITIAL_ANALYSIS" />);
     const btn = await screen.findByText("Jalankan Analisis Awal");
-    await userEvent.click(btn);
+    await userEvent.dblClick(btn);
+    expect(requestAnalysis).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Mengirim…")).toBeTruthy();
     expect(screen.getByText("Mengirim…")).toBeDisabled();
   });
@@ -158,7 +159,9 @@ describe("error states", () => {
     render(<RequestAnalysis sessionId="sess-a" analysisType="INITIAL_ANALYSIS" />);
     const btn = await screen.findByText("Jalankan Analisis Awal");
     await userEvent.click(btn);
-    expect(await screen.findByText("Gagal.")).toBeTruthy();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Gagal menjalankan analisis awal: Gagal.",
+    );
   });
 
   it("shows auth error", async () => {

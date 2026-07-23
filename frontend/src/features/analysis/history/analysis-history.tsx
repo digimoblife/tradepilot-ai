@@ -316,9 +316,10 @@ type LoadState =
 
 interface Props {
   sessionId: string;
+  refreshKey?: number;
 }
 
-export function AnalysisHistory({ sessionId }: Props) {
+export function AnalysisHistory({ sessionId, refreshKey = 0 }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [openId, setOpenId] = useState<string | null>(null);
   const [detailMap, setDetailMap] = useState<Record<string, AnalysisDetail | "loading" | "error">>({});
@@ -374,7 +375,7 @@ export function AnalysisHistory({ sessionId }: Props) {
     cancelledRef.current = false;
     load();
     return () => { cancelledRef.current = true; };
-  }, [load]);
+  }, [load, refreshKey]);
 
   const handleToggle = useCallback((id: string) => {
     if (cancelledRef.current) return;

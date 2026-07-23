@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
 import { cancelSession } from "@/lib/api/trade-actions";
+import { getTimeline } from "@/lib/api/timeline";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { TradeSessionDetail } from "@/types/trade-session";
+import type { TimelineEvent } from "@/types/timeline";
 import { SessionHeader } from "./session-header";
 import { LifecycleStatus } from "./lifecycle-status";
 import { CanonicalPositionSummary } from "./canonical-position-summary";
@@ -15,7 +17,6 @@ import { WatchingUpdateView } from "@/features/analysis/watching-update-view";
 import { OpenPositionUpdateView } from "@/features/analysis/open-position-update-view";
 import { PartialExitReviewView } from "@/features/analysis/partial-exit-review-view";
 import { ClosingAnalysisView } from "@/features/analysis/closing-analysis-view";
-import { SectionPlaceholder } from "./section-placeholder";
 import { AnalysisHistory } from "@/features/analysis/history/analysis-history";
 import { OpenPositionModal } from "@/features/trade-actions/open-position-modal";
 import { StopLossModal } from "@/features/trade-actions/stop-loss-modal";
@@ -230,6 +231,11 @@ export function TradeSessionShell({ sessionId }: Props) {
   }
 
   const { session, trade_state, allowed_actions } = state.data;
+  const availableActions =
+    session.lifecycle_status === "READY_FOR_ANALYSIS" &&
+    !allowed_actions.includes("REQUEST_INITIAL_ANALYSIS")
+      ? ["REQUEST_INITIAL_ANALYSIS", ...allowed_actions]
+      : allowed_actions;
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -248,13 +254,13 @@ export function TradeSessionShell({ sessionId }: Props) {
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <SectionPlaceholder title="Timeline" message="Riwayat sesi akan ditampilkan di sini." />
-        <AnalysisHistory sessionId={sessionId} />
+        <SessionTimeline sessionId={sessionId} refreshKey={retryKey} />
+        <AnalysisHistory sessionId={sessionId} refreshKey={retryKey} />
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <PendingActionsSection
-          actions={allowed_actions}
+          actions={availableActions}
           onActionClick={setActionModal}
           onLifecycleAction={handleLifecycleAction}
           pendingAction={lifecycleAction.status === "submitting" ? lifecycleAction.action : null}
@@ -315,7 +321,7 @@ export function TradeSessionShell({ sessionId }: Props) {
         <RequestAnalysis
           sessionId={sessionId}
           analysisType={actionModal.replace("REQUEST_", "")}
-          onSuccess={(job) => { handleJobCreated(job); setActionModal(null); }}
+          onSuccess={(job) => { handleJobCreated(job); setActionModal(null); handleActionSuccess(); }}
           onClose={() => setActionModal(null)}
         />
       )}
@@ -332,6 +338,90 @@ export function TradeSessionShell({ sessionId }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+type TimelineState =
+  | { status: "loading" }
+  | { status: "empty" }
+  | { status: "error"; message: string }
+  | { status: "loaded"; events: TimelineEvent[] };
+
+function formatTimelineTimestamp(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("id-ID", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function SessionTimeline({ sessionId, refreshKey }: { sessionId: string; refreshKey: number }) {
+  const [state, setState] = useState<TimelineState>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setState({ status: "loading" });
+      try {
+        const result = await getTimeline(sessionId);
+        if (cancelled) return;
+        setState(
+          result.events.length === 0
+            ? { status: "empty" }
+            : { status: "loaded", events: result.events },
+        );
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (e instanceof AuthenticationError) {
+          setState({ status: "error", message: "Silakan masuk terlebih dahulu untuk melihat timeline." });
+        } else if (e instanceof ApiError) {
+          setState({ status: "error", message: e.message });
+        } else {
+          setState({ status: "error", message: "Gagal memuat timeline. Silakan coba lagi." });
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [sessionId, refreshKey]);
+
+  return (
+    <section className="rounded-lg border border-zinc-200 bg-white p-4">
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        Timeline
+      </h3>
+      {state.status === "loading" && (
+        <p className="text-sm text-zinc-500">Memuat timeline…</p>
+      )}
+      {state.status === "empty" && (
+        <p className="text-sm text-zinc-400">Belum ada riwayat sesi.</p>
+      )}
+      {state.status === "error" && (
+        <p className="text-sm text-red-700" role="alert">{state.message}</p>
+      )}
+      {state.status === "loaded" && (
+        <ol className="space-y-2">
+          {state.events.map((event) => (
+            <li key={event.id} className="border-l-2 border-zinc-200 pl-3">
+              <p className="text-sm font-medium text-zinc-800">
+                {event.summary ?? event.event_type}
+              </p>
+              <p className="text-xs text-zinc-400">
+                {formatTimelineTimestamp(event.occurred_at)}
+              </p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 

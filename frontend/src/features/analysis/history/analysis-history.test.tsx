@@ -177,6 +177,23 @@ describe("history list", () => {
     expect(await screen.findByText(/2 analisis/)).toBeTruthy();
   });
 
+  it("reloads and shows a successful initial analysis when refreshKey changes", async () => {
+    vi.mocked(listAnalyses)
+      .mockResolvedValueOnce({ analyses: [], total: 0 })
+      .mockResolvedValueOnce({
+        analyses: [makeSummary("INITIAL_ANALYSIS")],
+        total: 1,
+      });
+
+    const { rerender } = render(<AnalysisHistory sessionId="sess-a" refreshKey={0} />);
+    expect(await screen.findByText("Belum ada analisis yang diterima.")).toBeTruthy();
+
+    rerender(<AnalysisHistory sessionId="sess-a" refreshKey={1} />);
+
+    expect(await screen.findByText("Analisis Awal")).toBeTruthy();
+    expect(listAnalyses).toHaveBeenCalledTimes(2);
+  });
+
   it("shows accepted badge", async () => {
     vi.mocked(listAnalyses).mockResolvedValue({
       analyses: [makeSummary("INITIAL_ANALYSIS")],

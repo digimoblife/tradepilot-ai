@@ -28,6 +28,7 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
   const [submitState, setSubmitState] = useState<"idle" | "pending" | { type: "error"; message: string }>("idle");
   const [jobResult, setJobResult] = useState<AnalysisJobCreated | null>(null);
   const cancelledRef = useRef(false);
+  const submittingRef = useRef(false);
 
   const typeLabel = ANALYSIS_TYPE_LABEL[analysisType] ?? analysisType;
 
@@ -54,7 +55,8 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
   const missingItems = evidenceItems.filter((e) => !e.active);
 
   const handleSubmit = useCallback(async () => {
-    if (submitState === "pending") return;
+    if (submittingRef.current || submitState === "pending") return;
+    submittingRef.current = true;
     setSubmitState("pending");
     try {
       const job = await requestAnalysis(sessionId, { analysis_type: analysisType });
@@ -70,13 +72,15 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
         if (e.status === 409) {
           setSubmitState({ type: "error", message: "Analisis sedang diproses. Tunggu hingga selesai." });
         } else {
-          setSubmitState({ type: "error", message: e.message });
+          setSubmitState({ type: "error", message: `Gagal menjalankan ${typeLabel.toLowerCase()}: ${e.message}` });
         }
       } else {
         setSubmitState({ type: "error", message: "Gagal mengirim permintaan analisis. Silakan coba lagi." });
       }
+    } finally {
+      submittingRef.current = false;
     }
-  }, [sessionId, analysisType, submitState, onSuccess]);
+  }, [sessionId, analysisType, submitState, onSuccess, typeLabel]);
 
   const submitError = typeof submitState === "object" && "type" in submitState ? submitState.message : null;
 
@@ -126,7 +130,7 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
       )}
 
       {submitError && (
-        <div className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+        <div className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700" role="alert">
           {submitError}
         </div>
       )}
