@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.jobs.models import ClaimedJob, JobLease
 from app.models.analysis_job import AnalysisJob
-from app.models.enums import AnalysisJobStatus
+from app.models.enums import AnalysisJobStatus, TradeSessionStatus
+from app.models.trade_session import TradeSession
 
 _QUEUED = AnalysisJobStatus.QUEUED
 _PROCESSING = AnalysisJobStatus.PROCESSING
+_RETRYING = AnalysisJobStatus.RETRYING
 _COMPLETED = AnalysisJobStatus.COMPLETED
 _FAILED = AnalysisJobStatus.FAILED
 _CANCELLED = AnalysisJobStatus.CANCELLED
@@ -83,11 +85,16 @@ class PostgreSQLJobQueue:
 
         # Eligible jobs:
         # 1. QUEUED status with available_at <= now
-        # 2. PROCESSING status with expired lease and attempt_count < max_attempts
+        # 2. RETRYING status with available_at <= now
+        # 3. PROCESSING status with expired lease and attempt_count < max_attempts
         now_ts = now
         eligible = or_(
             and_(
                 AnalysisJob.status == _QUEUED,
+                AnalysisJob.available_at <= now_ts,
+            ),
+            and_(
+                AnalysisJob.status == _RETRYING,
                 AnalysisJob.available_at <= now_ts,
             ),
             and_(
@@ -202,6 +209,53 @@ class PostgreSQLJobQueue:
         job.available_at = now
         await self._session.flush()
 
+    async def record_processing_error(
+        self,
+        *,
+        job_id: uuid.UUID,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> None:
+        """Record an exception from a claimed job and release it per retry policy."""
+        now = now or datetime.now(timezone.utc)
+
+        result = await self._session.execute(
+            select(AnalysisJob)
+            .where(
+                AnalysisJob.id == job_id,
+                AnalysisJob.status == _PROCESSING,
+            )
+            .with_for_update()
+        )
+        job = result.unique().scalar_one_or_none()
+
+        if job is None:
+            return
+
+        if job.lease_owner != worker_id:
+            raise JobLeaseNotOwnedError(
+                message=f"Worker {worker_id!r} does not own lease for job {job_id}",
+            )
+
+        attempts_remain = job.attempt_count < job.max_attempts
+        job.lease_owner = None
+        job.lease_acquired_at = None
+        job.lease_expires_at = None
+        job.last_error_code = error_code[:100]
+        job.last_error_message = error_message
+
+        if attempts_remain:
+            job.status = _RETRYING
+            job.available_at = now
+        else:
+            job.status = _FAILED
+            job.completed_at = now
+            await self._restore_previous_session_status(job)
+
+        await self._session.flush()
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
@@ -245,3 +299,23 @@ class PostgreSQLJobQueue:
             attempt_number=job.attempt_count,
             lease=lease,
         )
+
+    async def _restore_previous_session_status(self, job: AnalysisJob) -> None:
+        prev = job.previous_session_status
+        if not prev:
+            return
+
+        try:
+            restored = TradeSessionStatus(prev)
+        except ValueError:
+            return
+
+        result = await self._session.execute(
+            select(TradeSession).where(TradeSession.id == job.session_id).with_for_update()
+        )
+        trade_session = result.unique().scalar_one_or_none()
+        if trade_session is None:
+            return
+
+        trade_session.lifecycle_status = restored
+        trade_session.stable_status = restored

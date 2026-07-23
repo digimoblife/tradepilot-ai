@@ -51,11 +51,10 @@ class AnalysisJobConsumer:
             await claim_session.commit()
 
         async with self._session_factory() as process_session:
-            process_processor = self._processor_cls(
-                session=process_session,
-            )
-
             try:
+                process_processor = self._processor_cls(
+                    session=process_session,
+                )
                 result = await process_processor.process(
                     job_id=claimed.job_id,
                     worker_id=self._worker_id,
@@ -70,8 +69,9 @@ class AnalysisJobConsumer:
                         "restored_status": getattr(result, "restored_session_status", None),
                     },
                 )
-            except Exception:
+            except Exception as exc:
                 await process_session.rollback()
+                await self._record_processing_error(process_session, claimed.job_id, exc)
                 log.exception(
                     "Job processing failed",
                     extra={
@@ -82,3 +82,35 @@ class AnalysisJobConsumer:
                 raise
 
         return True
+
+    async def _record_processing_error(
+        self,
+        session: Any,
+        job_id: Any,
+        exc: Exception,
+    ) -> None:
+        queue = self._queue_cls(session)
+        record_error = getattr(queue, "record_processing_error", None)
+        if record_error is None:
+            return
+
+        error_code = str(getattr(exc, "code", "") or "ANALYSIS_JOB_PROCESSING_FAILED")
+        error_message = str(exc) or exc.__class__.__name__
+        try:
+            await record_error(
+                job_id=job_id,
+                worker_id=self._worker_id,
+                error_code=error_code,
+                error_message=error_message,
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            log.exception(
+                "Failed to record job processing error",
+                extra={
+                    "analysis_job_id": str(job_id),
+                    "worker_id": self._worker_id,
+                    "error_code": error_code,
+                },
+            )

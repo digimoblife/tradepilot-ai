@@ -141,13 +141,13 @@ def prompts_root(tmp_path: Path) -> Path:
     root = tmp_path / "prompts"
     root.mkdir(parents=True)
 
-    _WATCHING_SYSTEM = "You are TradePilot AI. You must use Bahasa Indonesia."
-    _WATCHING_USER = "TASK: WATCHING UPDATE\n{session_identity}\n{trade_state_json}"
+    watching_system = "You are TradePilot AI. You must use Bahasa Indonesia."
+    watching_user = "TASK: WATCHING UPDATE\n{session_identity}\n{trade_state_json}"
 
     for stem, system, user in [
         ("initial_analysis", _INITIAL_ANALYSIS_SYSTEM, _INITIAL_ANALYSIS_USER),
         ("open_position_update", _OPEN_POSITION_SYSTEM, _OPEN_POSITION_USER),
-        ("watching_update", _WATCHING_SYSTEM, _WATCHING_USER),
+        ("watching_update", watching_system, watching_user),
     ]:
         (root / f"{stem}.system.md").write_text(system, encoding="utf-8")
         (root / f"{stem}.user.md").write_text(user, encoding="utf-8")
@@ -447,3 +447,23 @@ class TestOffline:
             PromptRegistry(prompts_root=prompts_root)
             after = sha256(f.read_bytes()).hexdigest()
             assert before == after
+
+
+class TestProductionPromptCatalog:
+    def test_production_prompt_files_are_loadable(self) -> None:
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        prompts_root = repo_root / "prompts" / "production" / "v1"
+
+        registry = PromptRegistry(prompts_root=prompts_root)
+
+        for analysis_type in (
+            "INITIAL_ANALYSIS",
+            "WATCHING_UPDATE",
+            "OPEN_POSITION_UPDATE",
+        ):
+            key = analysis_type.lower()
+            definition = registry.get(analysis_type=analysis_type)
+            assert (prompts_root / f"{key}.system.md").is_file()
+            assert (prompts_root / f"{key}.user.md").is_file()
+            assert definition.system_prompt.strip()
+            assert definition.user_prompt_template.strip()

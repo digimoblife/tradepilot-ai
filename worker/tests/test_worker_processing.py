@@ -16,6 +16,11 @@ from app.config import WorkerConfig
 from app.consumers.analysis_jobs import AnalysisJobConsumer
 from app.runtime import run_worker
 
+
+def _skip_startup_validation(config: WorkerConfig) -> None:
+    return None
+
+
 # ===================================================================
 # Fake queue
 # ===================================================================
@@ -26,6 +31,7 @@ class FakeQueue:
         self.session = session
         self.call_count = 0
         self.last_worker_id: str | None = None
+        self.recorded_errors: list[dict[str, Any]] = []
 
     async def claim_next(
         self,
@@ -37,6 +43,23 @@ class FakeQueue:
         self.call_count += 1
         self.last_worker_id = worker_id
         return None  # no job by default
+
+    async def record_processing_error(
+        self,
+        *,
+        job_id: uuid.UUID,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+    ) -> None:
+        self.recorded_errors.append(
+            {
+                "job_id": job_id,
+                "worker_id": worker_id,
+                "error_code": error_code,
+                "error_message": error_message,
+            }
+        )
 
 
 class FakeQueueWithJob(FakeQueue):
@@ -279,6 +302,53 @@ class TestConsumer:
         with pytest.raises(RuntimeError, match="Processor failure"):
             await consumer.run_once()
 
+    async def test_constructor_error_records_processing_error(self) -> None:
+        expected_job_id = uuid.uuid4()
+        errors: list[dict[str, Any]] = []
+
+        class _Q(FakeQueueWithJob):
+            def __init__(self, session: Any = None) -> None:
+                super().__init__(session, job_id=expected_job_id)
+
+            async def record_processing_error(
+                self,
+                *,
+                job_id: uuid.UUID,
+                worker_id: str,
+                error_code: str,
+                error_message: str,
+            ) -> None:
+                errors.append(
+                    {
+                        "job_id": job_id,
+                        "worker_id": worker_id,
+                        "error_code": error_code,
+                        "error_message": error_message,
+                    }
+                )
+
+        class _BrokenProcessor:
+            def __init__(self, session: Any = None) -> None:
+                raise FileNotFoundError("/app/prompts/production/v1/initial_analysis.system.md")
+
+        consumer = AnalysisJobConsumer(
+            session_factory=FakeSessionFactory(),
+            queue=_Q,
+            processor=_BrokenProcessor,
+            worker_id="w1",
+        )
+        with pytest.raises(FileNotFoundError):
+            await consumer.run_once()
+
+        assert errors == [
+            {
+                "job_id": expected_job_id,
+                "worker_id": "w1",
+                "error_code": "ANALYSIS_JOB_PROCESSING_FAILED",
+                "error_message": "/app/prompts/production/v1/initial_analysis.system.md",
+            }
+        ]
+
 
 # ===================================================================
 # Heartbeat tests
@@ -333,6 +403,7 @@ class TestRuntimeLoop:
                     worker_id="test-worker",
                 ),
                 heartbeat=hb,
+                startup_validator=_skip_startup_validation,
             ),
             trigger(),
         )
@@ -367,6 +438,7 @@ class TestRuntimeLoop:
                 session_factory=FakeSessionFactory(),
                 consumer=consumer,
                 heartbeat=hb,
+                startup_validator=_skip_startup_validation,
             ),
             trigger(),
         )
@@ -392,6 +464,7 @@ class TestRuntimeLoop:
                 worker_id="test-worker",
             ),
             heartbeat=FakeHeartbeat(),
+            startup_validator=_skip_startup_validation,
         )
         elapsed = asyncio.get_event_loop().time() - start
         assert elapsed < 2.0, f"Runtime took {elapsed:.3f}s — may have busy-spun"

@@ -115,6 +115,24 @@ async def _get_job_row(
 async def clean_jobs(engine: AsyncEngine) -> None:
     """Remove leftover jobs between tests."""
     async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM validation_attempts"))
+        await conn.execute(
+            text(
+                "UPDATE session_events "
+                "SET related_analysis_id = NULL "
+                "WHERE related_analysis_id IS NOT NULL"
+            )
+        )
+        await conn.execute(
+            text(
+                "UPDATE trade_actions "
+                "SET related_analysis_id = NULL "
+                "WHERE related_analysis_id IS NOT NULL"
+            )
+        )
+        await conn.execute(text("DELETE FROM analyses"))
+        await conn.execute(text("DELETE FROM provider_responses"))
+        await conn.execute(text("DELETE FROM provider_requests"))
         await conn.execute(text("DELETE FROM analysis_jobs"))
 
 
@@ -233,6 +251,23 @@ class TestBasicClaim:
             q = PostgreSQLJobQueue(s)
             result = await q.claim_next(worker_id="w1", lease_duration=_LEASE_1S)
             assert result is None
+
+    async def test_retrying_job_is_claimable(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _insert_job(engine, session_id, status="RETRYING", attempt_count=1)
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            result = await q.claim_next(worker_id="w1", lease_duration=_LEASE_1S)
+            await s.commit()
+
+        assert result is not None
+        assert result.job_id == jid
+        assert result.attempt_number == 2
 
 
 # ===================================================================
@@ -636,6 +671,158 @@ class TestLeaseRelease:
             q = PostgreSQLJobQueue(s)
             with pytest.raises(JobLeaseNotOwnedError):
                 await q.release(job_id=jid, worker_id="w1")
+
+
+# ===================================================================
+# Processing error recording
+# ===================================================================
+
+
+class TestRecordProcessingError:
+    async def test_retryable_error_releases_job_for_retry(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=1,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            await q.record_processing_error(
+                job_id=jid,
+                worker_id="w1",
+                error_code="PROVIDER_CONTEXT_PROMPT_RENDER_FAILED",
+                error_message="prompt missing",
+            )
+            await s.commit()
+
+        async with engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT status, lease_owner, lease_expires_at, attempt_count, "
+                        "max_attempts, last_error_code, last_error_message "
+                        "FROM analysis_jobs WHERE id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert row is not None
+        assert row[0] == "RETRYING"
+        assert row[1] is None
+        assert row[2] is None
+        assert row[3] == 1
+        assert row[4] == 3
+        assert row[5] == "PROVIDER_CONTEXT_PROMPT_RENDER_FAILED"
+        assert row[6] == "prompt missing"
+
+    async def test_exhausted_error_fails_job_and_restores_session(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "UPDATE trade_sessions "
+                    "SET lifecycle_status = 'ANALYZING', stable_status = 'ANALYZING' "
+                    "WHERE id = :sid"
+                ),
+                {"sid": session_id},
+            )
+
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=3,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "UPDATE analysis_jobs "
+                    "SET previous_session_status = 'READY_FOR_ANALYSIS' "
+                    "WHERE id = :jid"
+                ),
+                {"jid": jid},
+            )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            await q.record_processing_error(
+                job_id=jid,
+                worker_id="w1",
+                error_code="ANALYSIS_JOB_PROCESSING_FAILED",
+                error_message="processor constructor failed",
+            )
+            await s.commit()
+
+        async with engine.begin() as conn:
+            job_row = (
+                await conn.execute(
+                    text(
+                        "SELECT status, lease_owner, completed_at, last_error_code "
+                        "FROM analysis_jobs WHERE id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+            session_row = (
+                await conn.execute(
+                    text(
+                        "SELECT lifecycle_status, stable_status "
+                        "FROM trade_sessions WHERE id = :sid"
+                    ),
+                    {"sid": session_id},
+                )
+            ).first()
+
+        assert job_row is not None
+        assert job_row[0] == "FAILED"
+        assert job_row[1] is None
+        assert job_row[2] is not None
+        assert job_row[3] == "ANALYSIS_JOB_PROCESSING_FAILED"
+        assert session_row == ("READY_FOR_ANALYSIS", "READY_FOR_ANALYSIS")
+
+    async def test_error_wrong_worker_rejected(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=1,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            with pytest.raises(JobLeaseNotOwnedError):
+                await q.record_processing_error(
+                    job_id=jid,
+                    worker_id="w2",
+                    error_code="ANALYSIS_JOB_PROCESSING_FAILED",
+                    error_message="wrong worker",
+                )
 
 
 # ===================================================================

@@ -10,6 +10,7 @@ all heartbeat operations throughout the worker's lifetime.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -29,6 +30,7 @@ async def run_worker(
     session_factory: async_sessionmaker[AsyncSession] | None = None,
     consumer: AnalysisJobConsumer | None = None,
     heartbeat: WorkerHeartbeat | None = None,
+    startup_validator: Callable[[WorkerConfig], None] | None = None,
 ) -> None:
     """Start the worker polling loop.
 
@@ -39,6 +41,11 @@ async def run_worker(
     from sqlalchemy.ext.asyncio import create_async_engine
 
     worker_id = config.worker_name
+    if startup_validator is None:
+        from app.startup_validation import validate_worker_startup
+
+        startup_validator = validate_worker_startup
+    startup_validator(config)
 
     if session_factory is not None:
         factory = session_factory

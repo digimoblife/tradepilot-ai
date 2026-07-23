@@ -503,3 +503,11 @@ class TestMiddlewareBackendURL:
         """Both backend and worker must mount evidence_data:/data/evidence."""
         content = (self._repo_root / "docker-compose.production.yml").read_text()
         assert "evidence_data:/data/evidence" in content
+
+    def test_worker_prompts_packaged_and_mounted(self) -> None:
+        """Production worker image and compose runtime must include prompts."""
+        compose = (self._repo_root / "docker-compose.production.yml").read_text()
+        dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
+        worker_section = compose.split("  worker:", 1)[1].split("  frontend:", 1)[0]
+        assert "COPY prompts prompts/" in dockerfile
+        assert "./prompts:/app/prompts:ro" in worker_section

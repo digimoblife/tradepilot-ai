@@ -92,6 +92,11 @@ class FakeRouter(ProviderRouter):
         )
 
 
+class FailingContextBuilder:
+    async def build(self, **kwargs: Any) -> Any:
+        raise FileNotFoundError("/app/prompts/production/v1/initial_analysis.system.md")
+
+
 # ===================================================================
 # Helpers
 # ===================================================================
@@ -316,6 +321,33 @@ class TestSuccessfulProcessing:
                 {"jid": jid},
             )
             assert reqs.first() is not None
+
+    async def test_context_failure_does_not_call_provider(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id)
+        router = FakeRouter()
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FailingContextBuilder(),
+                router=router,
+                validate=_always_valid,
+            )
+            with pytest.raises(FileNotFoundError):
+                await proc.process(job_id=jid, worker_id="w1")
+            reqs = await s.execute(
+                text("SELECT id FROM provider_requests WHERE analysis_job_id = :jid"),
+                {"jid": jid},
+            )
+
+        assert router.call_count == 0
+        assert reqs.first() is None
 
     async def test_lease_cleared(
         self,

@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -e worker
 # Copy source code
 COPY backend/app backend/app/
 COPY worker/app worker/app/
+COPY prompts prompts/
 
 # Symlink backend shared modules into the worker's app package so that
 # both the worker's own modules and backend shared modules (e.g. app.jobs)
