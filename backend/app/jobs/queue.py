@@ -82,6 +82,7 @@ class PostgreSQLJobQueue:
             )
 
         now = now or datetime.now(timezone.utc)
+        await self.terminalize_expired_exhausted_processing(now=now)
 
         # Eligible jobs:
         # 1. QUEUED status with available_at <= now
@@ -172,6 +173,45 @@ class PostgreSQLJobQueue:
             expires_at=new_expires,
             attempt_number=job.attempt_count,
         )
+
+    async def terminalize_expired_exhausted_processing(
+        self,
+        *,
+        job_id: uuid.UUID | None = None,
+        now: datetime | None = None,
+    ) -> int:
+        """Fail expired PROCESSING jobs that cannot be retried by the queue."""
+        now = now or datetime.now(timezone.utc)
+        conditions = [
+            AnalysisJob.status == _PROCESSING,
+            AnalysisJob.lease_expires_at <= now,
+            AnalysisJob.attempt_count >= AnalysisJob.max_attempts,
+        ]
+        if job_id is not None:
+            conditions.append(AnalysisJob.id == job_id)
+
+        result = await self._session.execute(
+            select(AnalysisJob).where(and_(*conditions)).with_for_update(skip_locked=True)
+        )
+        jobs = result.unique().scalars().all()
+
+        for job in jobs:
+            job.status = _FAILED
+            job.completed_at = now
+            job.lease_owner = None
+            job.lease_acquired_at = None
+            job.lease_expires_at = None
+            job.last_error_code = job.last_error_code or "JOB_ATTEMPTS_EXHAUSTED"
+            job.last_error_message = (
+                job.last_error_message
+                or "Job expired after exhausting all retry attempts before provider invocation."
+            )
+            await self._restore_previous_session_status(job)
+
+        if jobs:
+            await self._session.flush()
+
+        return len(jobs)
 
     async def release(
         self,

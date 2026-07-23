@@ -17,6 +17,8 @@ const ERROR_SUMMARY: Record<string, string> = {
   STATE_CONSISTENCY_ERROR: "Hasil analisis tidak konsisten dengan data posisi.",
   LIFECYCLE_ERROR: "Analisis tidak sesuai dengan tahapan sesi saat ini.",
   INTERNAL_ERROR: "Terjadi kesalahan internal sistem. Silakan coba lagi.",
+  JOB_ATTEMPTS_EXHAUSTED:
+    "Analisis berhenti karena percobaan otomatis habis. Coba lagi setelah kendala sistem diperbaiki.",
 };
 
 const ERROR_CATEGORY_LABEL: Record<string, string> = {
@@ -31,6 +33,7 @@ const ERROR_CATEGORY_LABEL: Record<string, string> = {
   STATE_CONSISTENCY_ERROR: "Konsistensi Data",
   LIFECYCLE_ERROR: "Kesalahan Lifecycle",
   INTERNAL_ERROR: "Kesalahan Internal",
+  JOB_ATTEMPTS_EXHAUSTED: "Percobaan Habis",
 };
 
 function errorCategoryLabel(code: string | null): string {
@@ -47,7 +50,7 @@ function errorSummary(code: string | null, message: string | null): string {
 }
 
 function canRetry(status: AnalysisJobStatus): boolean {
-  return status.attempt_count < status.max_attempts;
+  return status.status === "FAILED";
 }
 
 interface Props {
@@ -57,7 +60,7 @@ interface Props {
   onClear?: () => void;
 }
 
-export function AnalysisFailure({ jobStatus, sessionId, onRetry, onClear }: Props) {
+export function AnalysisFailure({ jobStatus, onRetry, onClear }: Props) {
   const [retryState, setRetryState] = useState<"idle" | "pending" | { type: "error"; message: string }>("idle");
   const cancelledRef = useRef(false);
 

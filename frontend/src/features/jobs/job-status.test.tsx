@@ -199,6 +199,21 @@ describe("failed-state persistence", () => {
     expect(screen.getByText("Tutup")).toBeTruthy();
   });
 
+  it("shows retry on exhausted FAILED job", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(
+      makeStatus({
+        status: "FAILED",
+        attempt_count: 3,
+        max_attempts: 3,
+        last_error_code: "JOB_ATTEMPTS_EXHAUSTED",
+      }),
+    );
+    render(<JobStatus jobId="job-1" sessionId="sess-a" />);
+    await screen.findByText("Analisis Gagal");
+    expect(screen.getByText("Coba Lagi")).toBeTruthy();
+    expect(screen.getByText("Percobaan Habis")).toBeTruthy();
+  });
+
   it("tutup calls onClear callback", async () => {
     vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "FAILED" }));
     const onClear = vi.fn();

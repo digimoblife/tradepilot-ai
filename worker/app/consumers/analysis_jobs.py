@@ -46,9 +46,9 @@ class AnalysisJobConsumer:
                 worker_id=self._worker_id,
                 lease_duration=lease_duration,
             )
+            await claim_session.commit()
             if claimed is None:
                 return False
-            await claim_session.commit()
 
         async with self._session_factory() as process_session:
             try:

@@ -31,7 +31,8 @@ async def _ensure_user_sessions_table(engine: AsyncEngine) -> None:
         await conn.execute(
             text(
                 "CREATE TABLE IF NOT EXISTS user_sessions ("
-                "id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+                "id UUID PRIMARY KEY, "
+                "user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
                 "token_hash VARCHAR(64) NOT NULL UNIQUE, expires_at TIMESTAMPTZ NOT NULL, "
                 "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_used_at TIMESTAMPTZ, "
                 "revoked_at TIMESTAMPTZ)"
@@ -39,7 +40,8 @@ async def _ensure_user_sessions_table(engine: AsyncEngine) -> None:
         )
         await conn.execute(
             text(
-                "CREATE INDEX IF NOT EXISTS ix_user_sessions_token_hash ON user_sessions(token_hash)"
+                "CREATE INDEX IF NOT EXISTS ix_user_sessions_token_hash "
+                "ON user_sessions(token_hash)"
             )
         )
         await conn.execute(
@@ -72,14 +74,16 @@ async def _make_ready_session(engine: AsyncEngine, uid: uuid.UUID) -> uuid.UUID:
     async with engine.begin() as conn:
         await conn.execute(
             text(
-                "INSERT INTO trade_sessions (id, owner_id, ticker, lifecycle_status, stable_status) "
+                "INSERT INTO trade_sessions "
+                "(id, owner_id, ticker, lifecycle_status, stable_status) "
                 "VALUES (:id, :oid, 'BBRI', 'READY_FOR_ANALYSIS', 'READY_FOR_ANALYSIS')"
             ),
             {"id": sid, "oid": uid},
         )
         await conn.execute(
             text(
-                "INSERT INTO trade_states (session_id, position_status, thesis_status, state_version) "
+                "INSERT INTO trade_states "
+                "(session_id, position_status, thesis_status, state_version) "
                 "VALUES (:sid, 'NOT_OPENED', 'INTACT', 1)"
             ),
             {"sid": sid},
@@ -88,7 +92,8 @@ async def _make_ready_session(engine: AsyncEngine, uid: uuid.UUID) -> uuid.UUID:
         for etype in ("ORDERBOOK_SCREENSHOT", "CHART_THREE_MONTH", "CHART_SIX_MONTH"):
             await conn.execute(
                 text(
-                    "INSERT INTO evidence (id, session_id, owner_id, evidence_type, evidence_status, "
+                    "INSERT INTO evidence "
+                    "(id, session_id, owner_id, evidence_type, evidence_status, "
                     "storage_object_key, mime_type, file_size_bytes) "
                     "VALUES (:eid, :sid, :oid, :et, 'AVAILABLE', :key, 'image/png', 100)"
                 ),
@@ -416,6 +421,37 @@ class TestJobStatus:
         )
         assert resp.status_code == 404
 
+    async def test_status_terminalizes_expired_exhausted_processing(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_ready_session(engine, uid)
+        jid = uuid.uuid4()
+        past = datetime.now(timezone.utc).replace(microsecond=0)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
+                    "attempt_count, max_attempts, lease_owner, lease_expires_at, "
+                    "requested_at, available_at) "
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'PROCESSING', "
+                    "3, 3, 'old-worker', :past, :past, :past)"
+                ),
+                {"jid": jid, "sid": sid, "past": past},
+            )
+
+        cookie = await _login_user(client, email)
+        resp = await client.get(
+            f"/api/analysis-jobs/{jid}",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "FAILED"
+        assert data["last_error_code"] == "JOB_ATTEMPTS_EXHAUSTED"
+
 
 # ===================================================================
 # Retry
@@ -446,6 +482,39 @@ class TestRetry:
         assert resp.status_code == 202
         data = resp.json()
         assert data["status"] == "QUEUED"
+        assert data["attempt_count"] == 0
+
+    async def test_exhausted_failed_job_retried(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_ready_session(engine, uid)
+        jid = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
+                    "attempt_count, max_attempts, requested_at, available_at, completed_at, "
+                    "last_error_code) "
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', "
+                    "3, 3, :now, :now, :now, 'JOB_ATTEMPTS_EXHAUSTED')"
+                ),
+                {"jid": jid, "sid": sid, "now": now},
+            )
+
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/analysis-jobs/{jid}/retry",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["job_id"] == str(jid)
+        assert data["status"] == "QUEUED"
+        assert data["attempt_count"] == 0
 
     async def test_completed_retry_rejected(
         self, engine: AsyncEngine, client: AsyncClient
@@ -483,3 +552,114 @@ class TestRetry:
             cookies={"tradepilot_session": cookie},
         )
         assert resp.status_code == 404
+
+    async def test_retry_is_idempotent_after_requeue(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_ready_session(engine, uid)
+        jid = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
+                    "attempt_count, max_attempts, requested_at, available_at) "
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 3, 3, :now, :now)"
+                ),
+                {"jid": jid, "sid": sid, "now": now},
+            )
+
+        cookie = await _login_user(client, email)
+        first = await client.post(
+            f"/api/analysis-jobs/{jid}/retry",
+            cookies={"tradepilot_session": cookie},
+        )
+        second = await client.post(
+            f"/api/analysis-jobs/{jid}/retry",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert first.status_code == 202
+        assert second.status_code == 202
+        assert second.json()["job_id"] == str(jid)
+        assert second.json()["status"] == "QUEUED"
+
+        async with engine.begin() as conn:
+            count = (
+                await conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM analysis_jobs "
+                        "WHERE session_id = :sid AND analysis_type = 'INITIAL_ANALYSIS'"
+                    ),
+                    {"sid": sid},
+                )
+            ).scalar_one()
+
+        assert count == 1
+
+    async def test_retry_prevents_duplicate_active_jobs(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_ready_session(engine, uid)
+        failed_jid = uuid.uuid4()
+        active_jid = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
+                    "attempt_count, max_attempts, requested_at, available_at) "
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 3, 3, :now, :now)"
+                ),
+                {"jid": failed_jid, "sid": sid, "now": now},
+            )
+            await conn.execute(
+                text(
+                    "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
+                    "attempt_count, max_attempts, requested_at, available_at) "
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'QUEUED', 0, 3, :now, :now)"
+                ),
+                {"jid": active_jid, "sid": sid, "now": now},
+            )
+
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/analysis-jobs/{failed_jid}/retry",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"]["code"] == "ANALYSIS_JOB_ALREADY_ACTIVE"
+
+    async def test_retry_terminalizes_expired_exhausted_processing_first(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_ready_session(engine, uid)
+        jid = uuid.uuid4()
+        past = datetime.now(timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
+                    "attempt_count, max_attempts, lease_owner, lease_expires_at, "
+                    "requested_at, available_at) "
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'PROCESSING', "
+                    "3, 3, 'old-worker', :past, :past, :past)"
+                ),
+                {"jid": jid, "sid": sid, "past": past},
+            )
+
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/analysis-jobs/{jid}/retry",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 202
+        assert resp.json()["status"] == "QUEUED"

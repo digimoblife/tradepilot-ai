@@ -374,6 +374,136 @@ class TestConcurrentClaim:
             assert result is not None
             assert result.job_id == jid
 
+    async def test_expired_exhausted_processing_becomes_failed(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=3,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=past,
+            available_at=past,
+        )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            result = await q.claim_next(
+                worker_id="w2",
+                lease_duration=_LEASE_1S,
+                now=datetime.now(timezone.utc),
+            )
+            await s.commit()
+
+        assert result is None
+        async with engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT status, lease_owner, lease_expires_at, completed_at, "
+                        "last_error_code, attempt_count, max_attempts "
+                        "FROM analysis_jobs WHERE id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert row is not None
+        assert row[0] == "FAILED"
+        assert row[1] is None
+        assert row[2] is None
+        assert row[3] is not None
+        assert row[4] == "JOB_ATTEMPTS_EXHAUSTED"
+        assert row[5] == 3
+        assert row[6] == 3
+
+    async def test_exhausted_terminalization_preserves_existing_error(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=3,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=past,
+            available_at=past,
+        )
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "UPDATE analysis_jobs "
+                    "SET last_error_code = 'PROVIDER_CONTEXT_PROMPT_RENDER_FAILED', "
+                    "last_error_message = 'Prompt missing' "
+                    "WHERE id = :jid"
+                ),
+                {"jid": jid},
+            )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            count = await q.terminalize_expired_exhausted_processing(
+                job_id=jid,
+                now=datetime.now(timezone.utc),
+            )
+            await s.commit()
+
+        assert count == 1
+        async with engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT status, last_error_code, last_error_message "
+                        "FROM analysis_jobs WHERE id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert row == ("FAILED", "PROVIDER_CONTEXT_PROMPT_RENDER_FAILED", "Prompt missing")
+
+    async def test_retry_reset_can_be_claimed_after_infrastructure_fixed(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="QUEUED",
+            attempt_count=0,
+            max_attempts=3,
+            lease_owner=None,
+            lease_expires_at=None,
+            available_at=now,
+        )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            result = await q.claim_next(
+                worker_id="w-fixed",
+                lease_duration=_LEASE_1S,
+                now=now,
+            )
+            await s.commit()
+
+        assert result is not None
+        assert result.job_id == jid
+        assert result.attempt_number == 1
+
     async def test_reclaim_transfers_ownership(
         self,
         engine: AsyncEngine,

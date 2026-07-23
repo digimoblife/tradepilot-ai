@@ -65,9 +65,25 @@ describe("rendering", () => {
     expect(screen.getByText("Coba Lagi")).toBeTruthy();
   });
 
-  it("hides retry button when max attempts reached", () => {
+  it("shows retry button when max attempts reached", () => {
     render(<AnalysisFailure jobStatus={makeStatus({ attempt_count: 3, max_attempts: 3 })} sessionId="sess-a" />);
-    expect(screen.queryByText("Coba Lagi")).toBeNull();
+    expect(screen.getByText("Coba Lagi")).toBeTruthy();
+  });
+
+  it("shows Indonesian exhausted-attempts feedback", () => {
+    render(
+      <AnalysisFailure
+        jobStatus={makeStatus({
+          attempt_count: 3,
+          max_attempts: 3,
+          last_error_code: "JOB_ATTEMPTS_EXHAUSTED",
+          last_error_message: "raw backend detail",
+        })}
+        sessionId="sess-a"
+      />,
+    );
+    expect(screen.getByText("Percobaan Habis")).toBeTruthy();
+    expect(screen.getByText(/percobaan otomatis habis/i)).toBeTruthy();
   });
 
   it("shows technical details only in expandable section", () => {
