@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
-import { getSession } from "@/lib/api/trade-sessions";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
+import { cancelSession } from "@/lib/api/trade-actions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { TradeSessionDetail } from "@/types/trade-session";
 import { SessionHeader } from "./session-header";
@@ -34,6 +35,10 @@ type LoadState =
   | { status: "error"; message: string }
   | { status: "loaded"; data: TradeSessionDetail };
 
+type LifecycleActionState =
+  | { status: "idle"; error: string }
+  | { status: "submitting"; action: string; error: string };
+
 const STORAGE_KEY = "tp-active-job";
 
 interface ActiveJob {
@@ -58,11 +63,45 @@ function saveActiveJob(job: ActiveJob | null): void {
   } catch { /* ignore */ }
 }
 
+function makeIdempotencyKey(action: string, sessionId: string): string {
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `ui_${action.toLowerCase()}_${sessionId}_${random}`;
+}
+
+function lifecycleErrorMessage(action: string, error: unknown): string {
+  if (error instanceof AuthenticationError) {
+    return "Silakan masuk terlebih dahulu untuk menjalankan tindakan ini.";
+  }
+
+  const prefix =
+    action === "MARK_READY"
+      ? "Belum bisa menandai sesi siap"
+      : action === "CANCEL"
+        ? "Belum bisa membatalkan sesi"
+        : action === "ARCHIVE"
+          ? "Belum bisa mengarsipkan sesi"
+          : "Tindakan gagal";
+
+  if (error instanceof ApiError) {
+    return `${prefix}: ${error.message}`;
+  }
+
+  return `${prefix}. Silakan coba lagi.`;
+}
+
 export function TradeSessionShell({ sessionId }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [retryKey, setRetryKey] = useState(0);
   const [actionModal, setActionModal] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
+  const [lifecycleAction, setLifecycleAction] = useState<LifecycleActionState>({
+    status: "idle",
+    error: "",
+  });
+  const lifecycleSubmittingRef = useRef(false);
 
   // Restore active job on mount
   useEffect(() => {
@@ -73,7 +112,6 @@ export function TradeSessionShell({ sessionId }: Props) {
 
   // Persist active job changes
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     saveActiveJob(activeJob);
   }, [activeJob]);
 
@@ -113,6 +151,48 @@ export function TradeSessionShell({ sessionId }: Props) {
   const handleActionSuccess = useCallback(() => {
     setRetryKey((k) => k + 1);
   }, []);
+
+  const handleLifecycleAction = useCallback(async (action: string) => {
+    if (lifecycleSubmittingRef.current) return;
+
+    if (
+      action === "CANCEL" &&
+      !window.confirm("Batalkan sesi trading ini? Tindakan ini tidak dapat dibatalkan.")
+    ) {
+      return;
+    }
+    if (
+      action === "ARCHIVE" &&
+      !window.confirm("Arsipkan sesi trading ini? Sesi yang diarsipkan tidak lagi aktif.")
+    ) {
+      return;
+    }
+
+    lifecycleSubmittingRef.current = true;
+    setLifecycleAction({ status: "submitting", action, error: "" });
+
+    try {
+      if (action === "MARK_READY") {
+        await markReady(sessionId);
+      } else if (action === "CANCEL") {
+        await cancelSession({
+          session_id: sessionId,
+          idempotency_key: makeIdempotencyKey(action, sessionId),
+          cancelled_at: new Date().toISOString(),
+          reason: "USER_CANCELLED_SESSION",
+        });
+      } else if (action === "ARCHIVE") {
+        await archiveSession(sessionId);
+      }
+
+      setLifecycleAction({ status: "idle", error: "" });
+      handleActionSuccess();
+    } catch (e: unknown) {
+      setLifecycleAction({ status: "idle", error: lifecycleErrorMessage(action, e) });
+    } finally {
+      lifecycleSubmittingRef.current = false;
+    }
+  }, [handleActionSuccess, sessionId]);
 
   const handleJobCreated = useCallback((job: { job_id: string; analysis_type: string }) => {
     setActiveJob({ jobId: job.job_id, analysisType: job.analysis_type });
@@ -176,6 +256,9 @@ export function TradeSessionShell({ sessionId }: Props) {
         <PendingActionsSection
           actions={allowed_actions}
           onActionClick={setActionModal}
+          onLifecycleAction={handleLifecycleAction}
+          pendingAction={lifecycleAction.status === "submitting" ? lifecycleAction.action : null}
+          error={lifecycleAction.error}
         />
       </div>
 
@@ -252,13 +335,35 @@ export function TradeSessionShell({ sessionId }: Props) {
   );
 }
 
-function PendingActionsSection({ actions, onActionClick }: { actions: string[]; onActionClick?: (action: string) => void }) {
+function PendingActionsSection({
+  actions,
+  onActionClick,
+  onLifecycleAction,
+  pendingAction,
+  error,
+}: {
+  actions: string[];
+  onActionClick?: (action: string) => void;
+  onLifecycleAction?: (action: string) => void;
+  pendingAction?: string | null;
+  error?: string;
+}) {
   const interactive = new Set(["OPEN_POSITION", "CONFIRM_STOP", "CHANGE_STOP", "CONFIRM_TARGET", "CHANGE_TARGET", "PARTIAL_EXIT", "FULL_EXIT"]);
+  const lifecycleActions = new Set(["MARK_READY", "CANCEL", "ARCHIVE"]);
 
   function isInteractive(action: string): boolean {
     if (interactive.has(action)) return true;
+    if (lifecycleActions.has(action)) return true;
     if (action.startsWith("REQUEST_")) return true;
     return false;
+  }
+
+  function handleClick(action: string): void {
+    if (lifecycleActions.has(action)) {
+      onLifecycleAction?.(action);
+      return;
+    }
+    onActionClick?.(action);
   }
 
   return (
@@ -275,10 +380,11 @@ function PendingActionsSection({ actions, onActionClick }: { actions: string[]; 
               {isInteractive(a) ? (
                 <button
                   type="button"
-                  onClick={() => onActionClick?.(a)}
-                  className="w-full rounded px-2 py-1 text-left text-sm text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                  onClick={() => handleClick(a)}
+                  disabled={pendingAction !== null && pendingAction !== undefined}
+                  className="w-full rounded px-2 py-1 text-left text-sm font-medium text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 disabled:cursor-not-allowed disabled:text-zinc-400 disabled:hover:bg-transparent"
                 >
-                  {actionLabel(a)}
+                  {pendingAction === a ? "Memproses…" : actionLabel(a)}
                 </button>
               ) : (
                 <span className="text-sm text-zinc-700">{actionLabel(a)}</span>
@@ -287,6 +393,11 @@ function PendingActionsSection({ actions, onActionClick }: { actions: string[]; 
           ))}
         </ul>
       )}
+      {error ? (
+        <p className="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700" role="alert" aria-live="polite">
+          {error}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -1,9 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { getSession } from "@/lib/api/trade-sessions";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
+import { cancelSession } from "@/lib/api/trade-actions";
+import { listEvidence } from "@/lib/api/evidence";
 
 vi.mock("@/lib/api/trade-sessions", () => ({
   getSession: vi.fn(),
+  markReady: vi.fn(),
+  archiveSession: vi.fn(),
+}));
+
+vi.mock("@/lib/api/trade-actions", () => ({
+  cancelSession: vi.fn(),
+}));
+
+vi.mock("@/lib/api/evidence", () => ({
+  listEvidence: vi.fn(),
 }));
 
 vi.mock("@/lib/api/analyses", () => ({
@@ -50,6 +63,35 @@ beforeEach(async () => {
   vi.clearAllMocks();
   const mod = await import("@/lib/api/analyses");
   vi.mocked(mod.listAnalyses).mockResolvedValue({ analyses: [], total: 0 });
+  vi.mocked(listEvidence).mockResolvedValue({ evidence: [], total: 0 });
+  vi.mocked(markReady).mockResolvedValue({ id: "sess-1", lifecycle_status: "READY_FOR_ANALYSIS" });
+  vi.mocked(archiveSession).mockResolvedValue({
+    id: "sess-1",
+    lifecycle_status: "ARCHIVED",
+    archived_at: "2026-07-20T12:00:00Z",
+  });
+  vi.mocked(cancelSession).mockResolvedValue({
+    action: {
+      id: "action-1",
+      session_id: "sess-1",
+      action_type: "SESSION_CANCELLED",
+      confirmed_at: "2026-07-20T12:00:00Z",
+      price: null,
+      quantity: null,
+    },
+    session_status: "CANCELLED",
+    trade_state: {
+      position_status: "NOT_OPENED",
+      entry_price: null,
+      original_quantity: null,
+      remaining_quantity: null,
+      active_stop_loss: null,
+      active_target: null,
+      average_exit_price: null,
+      realized_pnl: null,
+      state_version: 1,
+    },
+  });
 });
 
 // -------------------------------------------------------------------
@@ -319,12 +361,208 @@ describe("allowed actions", () => {
     expect(await screen.findByText("Tutup Posisi")).toBeTruthy();
   });
 
-  it("renders non-interactive action as plain text", async () => {
+  it("renders lifecycle actions as semantic buttons", async () => {
     vi.mocked(getSession).mockResolvedValue(
-      makeSession({ allowed_actions: ["MARK_READY"] }),
+      makeSession({ allowed_actions: ["MARK_READY", "CANCEL", "ARCHIVE"] }),
     );
     render(<TradeSessionShell sessionId="sess-1" />);
-    expect(await screen.findByText("Tandai Siap")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Tandai Siap" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Batalkan" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Arsipkan" })).toBeTruthy();
+  });
+
+  it("supports keyboard activation for Tandai Siap", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["MARK_READY"] }))
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "READY_FOR_ANALYSIS",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: null,
+        },
+        allowed_actions: ["CANCEL", "ARCHIVE"],
+      }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    const button = await screen.findByRole("button", { name: "Tandai Siap" });
+    button.focus();
+    expect(button).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => { expect(markReady).toHaveBeenCalledWith("sess-1"); });
+    await screen.findByText("Siap Dianalisis");
+  });
+
+  it("shows backend incomplete-evidence feedback without inventing frontend rules", async () => {
+    const user = userEvent.setup();
+    const { ApiError } = await import("@/lib/api/errors");
+    vi.mocked(getSession).mockResolvedValue(makeSession({ allowed_actions: ["MARK_READY"] }));
+    vi.mocked(markReady).mockRejectedValue(
+      new ApiError(
+        422,
+        "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
+        "Missing required evidence: CHART_THREE_MONTH, ORDERBOOK_SCREENSHOT",
+      ),
+    );
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Tandai Siap" }));
+
+    expect(
+      await screen.findByRole("alert"),
+    ).toHaveTextContent(
+      "Belum bisa menandai sesi siap: Missing required evidence: CHART_THREE_MONTH, ORDERBOOK_SCREENSHOT",
+    );
+  });
+
+  it("marks ready and refreshes authoritative session data after success", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["MARK_READY"] }))
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "READY_FOR_ANALYSIS",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: null,
+        },
+        allowed_actions: ["CANCEL", "ARCHIVE"],
+      }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Tandai Siap" }));
+
+    await waitFor(() => { expect(markReady).toHaveBeenCalledWith("sess-1"); });
+    await waitFor(() => { expect(getSession).toHaveBeenCalledTimes(2); });
+    expect(await screen.findByText("Siap Dianalisis")).toBeTruthy();
+  });
+
+  it("confirms cancel and calls the cancel endpoint", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["CANCEL"] }))
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "CANCELLED",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: null,
+        },
+        allowed_actions: ["ARCHIVE"],
+      }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Batalkan" }));
+
+    await waitFor(() => { expect(cancelSession).toHaveBeenCalledTimes(1); });
+    expect(cancelSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: "sess-1",
+        reason: "USER_CANCELLED_SESSION",
+        cancelled_at: expect.any(String),
+        idempotency_key: expect.stringContaining("ui_cancel_sess-1_"),
+      }),
+    );
+  });
+
+  it("does not cancel when confirmation is rejected", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.mocked(getSession).mockResolvedValue(makeSession({ allowed_actions: ["CANCEL"] }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Batalkan" }));
+
+    expect(cancelSession).not.toHaveBeenCalled();
+  });
+
+  it("confirms archive and calls the archive endpoint", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["ARCHIVE"] }))
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "ARCHIVED",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: "2026-07-20T12:00:00Z",
+        },
+        allowed_actions: [],
+      }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Arsipkan" }));
+
+    await waitFor(() => { expect(archiveSession).toHaveBeenCalledWith("sess-1"); });
+  });
+
+  it("shows backend errors safely", async () => {
+    const user = userEvent.setup();
+    const { ApiError } = await import("@/lib/api/errors");
+    vi.mocked(getSession).mockResolvedValue(makeSession({ allowed_actions: ["MARK_READY"] }));
+    vi.mocked(markReady).mockRejectedValue(
+      new ApiError(422, "SESSION_TRANSITION_INVALID", "<script>alert('x')</script>"),
+    );
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Tandai Siap" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Belum bisa menandai sesi siap: <script>alert('x')</script>",
+    );
+    expect(document.querySelector("script")).toBeNull();
+  });
+
+  it("prevents duplicate lifecycle submits", async () => {
+    const user = userEvent.setup();
+    let resolveReady: ((value: { id: string; lifecycle_status: string }) => void) | null = null;
+    vi.mocked(markReady).mockImplementation(
+      () => new Promise((resolve) => { resolveReady = resolve; }),
+    );
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["MARK_READY", "CANCEL"] }))
+      .mockResolvedValue(makeSession({ allowed_actions: ["CANCEL", "ARCHIVE"] }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    const button = await screen.findByRole("button", { name: "Tandai Siap" });
+
+    await user.dblClick(button);
+
+    expect(markReady).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Memproses…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Batalkan" })).toBeDisabled();
+
+    resolveReady?.({ id: "sess-1", lifecycle_status: "READY_FOR_ANALYSIS" });
+    await waitFor(() => { expect(getSession).toHaveBeenCalledTimes(2); });
   });
 });
 

@@ -5,7 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
-  useRef,
+  useEffect,
   type ReactNode,
 } from "react";
 import { getMe, login as apiLogin, logout as apiLogout } from "@/lib/api/auth";
@@ -24,15 +24,22 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthState["user"]>(null);
   const [loading, setLoading] = useState(true);
-  const initialized = useRef(false);
 
-  if (!initialized.current) {
-    initialized.current = true;
+  useEffect(() => {
+    let cancelled = false;
     getMe()
-      .then((me) => setUser({ id: me.id, email: me.email }))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
-  }
+      .then((me) => {
+        if (!cancelled) setUser({ id: me.id, email: me.email });
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   const check = useCallback(async () => {
     try {
