@@ -535,6 +535,32 @@ class TestAllFail:
         assert exc.value.root_cause_message == "request failed api_key=[REDACTED]"
         assert exc.value.retryable is True
 
+    async def test_final_error_uses_safe_fallback_when_str_is_empty(self) -> None:
+        class _GeminiInvalidRequestError(Exception):
+            code = "AI_PROVIDER_INVALID_REQUEST"
+
+            def __init__(self) -> None:
+                self.message = "model missing token=secret-token"
+
+            def __str__(self) -> str:
+                return ""
+
+        gemini = FakeProvider("gemini", responses=[_GeminiInvalidRequestError()])
+        router = ProviderRouter()
+
+        with pytest.raises(ProviderRoutingFailedError) as exc:
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini},
+                provider_order=["gemini"],
+                validate=_always_valid,
+                canonical_facts={},
+                max_repair_attempts=2,
+            )
+
+        assert exc.value.root_cause_code == "AI_PROVIDER_INVALID_REQUEST"
+        assert exc.value.root_cause_message == "model missing token=[REDACTED]"
+
     async def test_no_invalid_payload_returned(self) -> None:
         router = ProviderRouter()
         try:

@@ -532,6 +532,50 @@ class TestErrors:
         with pytest.raises(GeminiError):
             await provider.generate(text_req)
 
+    async def test_sdk_error_prefers_message_over_details_and_empty_str(
+        self,
+        fake_model: FakeGeminiModel,
+        text_req: ProviderRequest,
+    ) -> None:
+        class _SdkStyleError(Exception):
+            def __init__(self) -> None:
+                self.message = "request failed api_key=secret-token"
+                self.details = ["detail that should not win"]
+                self.errors = [{"reason": "detail fallback"}]
+
+            def __str__(self) -> str:
+                return ""
+
+        fake_model._response = _SdkStyleError()  # type: ignore[assignment]
+        provider = GeminiProvider(api_key="k", model=fake_model)
+
+        with pytest.raises(GeminiRequestFailedError) as exc:
+            await provider.generate(text_req)
+
+        assert exc.value.message == "request failed api_key=[REDACTED]"
+
+    async def test_sdk_error_uses_details_when_message_is_empty(
+        self,
+        fake_model: FakeGeminiModel,
+        text_req: ProviderRequest,
+    ) -> None:
+        class _SdkStyleError(Exception):
+            def __init__(self) -> None:
+                self.message = ""
+                self.details = ["detail token=secret-token", {"reason": "model missing"}]
+                self.errors = [{"reason": "unused fallback"}]
+
+            def __str__(self) -> str:
+                return ""
+
+        fake_model._response = _SdkStyleError()  # type: ignore[assignment]
+        provider = GeminiProvider(api_key="k", model=fake_model)
+
+        with pytest.raises(GeminiRequestFailedError) as exc:
+            await provider.generate(text_req)
+
+        assert exc.value.message == "detail token=[REDACTED]; {'reason': 'model missing'}"
+
 
 # ===================================================================
 # Immutability and boundaries

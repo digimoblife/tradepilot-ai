@@ -144,7 +144,7 @@ class ProviderRouter:
                         provider=provider_name,
                         phase="CAPABILITY_CHECK",
                         failure_code=code,
-                        failure_message=_sanitize_failure_message(str(exc)),
+                        failure_message=_safe_exception_message(exc),
                     )
                 )
                 continue
@@ -161,7 +161,7 @@ class ProviderRouter:
                         provider=provider_name,
                         phase="PRIMARY",
                         failure_code=code,
-                        failure_message=_sanitize_failure_message(str(exc)),
+                        failure_message=_safe_exception_message(exc),
                     )
                 )
                 continue
@@ -178,7 +178,7 @@ class ProviderRouter:
                         phase="PRIMARY",
                         response=provider_response,
                         failure_code=code,
-                        failure_message=_sanitize_failure_message(str(exc)),
+                        failure_message=_safe_exception_message(exc),
                     )
                 )
                 # Try repair
@@ -299,14 +299,14 @@ class ProviderRouter:
             code = getattr(exc, "code", "REPAIR_PROVIDER_FAILED")
             seq += 1
             history.append(
-                ProviderRouteAttempt(
-                    sequence=seq,
-                    provider=provider_name,
-                    phase="REPAIR",
-                    failure_code=code,
-                    failure_message=_sanitize_failure_message(str(exc)),
+                    ProviderRouteAttempt(
+                        sequence=seq,
+                        provider=provider_name,
+                        phase="REPAIR",
+                        failure_code=code,
+                        failure_message=_safe_exception_message(exc),
+                    )
                 )
-            )
             return None
 
         # Repair succeeded
@@ -421,3 +421,17 @@ def _root_cause_message(attempts: Sequence[ProviderRouteAttempt]) -> str | None:
 def _sanitize_failure_message(message: str) -> str:
     cleaned = _SENSITIVE_VALUE_PATTERN.sub(r"\1=[REDACTED]", message)
     return cleaned[:500] if len(cleaned) > 500 else cleaned
+
+
+def _safe_exception_message(exc: Exception) -> str:
+    message = _sanitize_failure_message(str(exc))
+    if message:
+        return message
+
+    fallback = getattr(exc, "message", "")
+    if isinstance(fallback, str):
+        fallback_message = _sanitize_failure_message(fallback.strip())
+        if fallback_message:
+            return fallback_message
+
+    return _sanitize_failure_message(repr(exc))

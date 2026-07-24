@@ -5,6 +5,7 @@ Implements the ``AIProvider`` contract for Google Gemini.
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Callable, Protocol
 
@@ -92,6 +93,10 @@ _FINISH_REASON_MAP: dict[int, str] = {
     4: "RECITATION",
     5: "OTHER",
 }
+
+_SENSITIVE_VALUE_PATTERN = re.compile(
+    r"(?i)\b(api[_ -]?key|authorization|bearer|token)\b\s*[:=]\s*([^\s,;]+)"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -289,27 +294,72 @@ def _default_image_loader(image: ProviderImage) -> bytes:
 def _map_exception(exc: Exception) -> GeminiError:
     import google.api_core.exceptions as api_exc
 
+    message = _extract_safe_exception_text(exc)
+
     if isinstance(exc, api_exc.DeadlineExceeded):
-        return GeminiTimeoutError(message=str(exc))
+        return GeminiTimeoutError(message=message)
     if isinstance(exc, api_exc.Unauthenticated):
-        return GeminiAuthenticationError(message=str(exc))
+        return GeminiAuthenticationError(message=message)
     if isinstance(exc, api_exc.PermissionDenied):
-        return GeminiAuthenticationError(message=str(exc))
+        return GeminiAuthenticationError(message=message)
     if isinstance(exc, api_exc.ResourceExhausted):
-        return GeminiRateLimitedError(message=str(exc))
+        return GeminiRateLimitedError(message=message)
     if isinstance(exc, api_exc.InvalidArgument):
-        return GeminiRequestFailedError(message=str(exc))
+        return GeminiRequestFailedError(message=message)
     if isinstance(exc, api_exc.NotFound):
-        return GeminiConfigurationError(message=f"Model not found: {exc}")
+        return GeminiConfigurationError(message=f"Model not found: {message}")
 
     # Check for blocked/safety responses
-    exc_str = str(exc).lower()
+    exc_str = message.lower()
     if "safety" in exc_str or "blocked" in exc_str or "finish_reason" in exc_str:
-        return GeminiRefusedError(message=str(exc))
+        return GeminiRefusedError(message=message)
     if "timed out" in exc_str or "timeout" in exc_str or "deadline" in exc_str:
-        return GeminiTimeoutError(message=str(exc))
+        return GeminiTimeoutError(message=message)
 
-    return GeminiRequestFailedError(message=str(exc))
+    return GeminiRequestFailedError(message=message)
+
+
+def _extract_safe_exception_text(exc: Exception) -> str:
+    message = _sanitize_exception_text(getattr(exc, "message", ""))
+    if message:
+        return message
+
+    details = _stringify_exception_value(getattr(exc, "details", None))
+    details = _sanitize_exception_text(details)
+    if details:
+        return details
+
+    errors = _stringify_exception_value(getattr(exc, "errors", None))
+    errors = _sanitize_exception_text(errors)
+    if errors:
+        return errors
+
+    text = _sanitize_exception_text(str(exc))
+    if text:
+        return text
+
+    return _sanitize_exception_text(repr(exc))
+
+
+def _stringify_exception_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        parts = [_stringify_exception_value(item) for item in value]
+        return "; ".join(part for part in parts if part)
+    if isinstance(value, dict):
+        rendered = _safe_metadata(value)
+        return str(rendered)
+    return str(_safe_metadata(value))
+
+
+def _sanitize_exception_text(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = _SENSITIVE_VALUE_PATTERN.sub(r"\1=[REDACTED]", text.strip())
+    return cleaned[:500] if len(cleaned) > 500 else cleaned
 
 
 def _safe_metadata(obj: Any) -> Any:
