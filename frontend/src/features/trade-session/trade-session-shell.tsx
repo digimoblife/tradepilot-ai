@@ -52,6 +52,7 @@ const STORAGE_KEY = "tp-active-job";
 interface ActiveJob {
   jobId: string;
   analysisType: string;
+  source?: "restored" | "current";
 }
 
 function loadActiveJob(): ActiveJob | null {
@@ -116,7 +117,7 @@ export function TradeSessionShell({ sessionId }: Props) {
   useEffect(() => {
     const restored = loadActiveJob();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (restored) setActiveJob(restored);
+    if (restored) setActiveJob({ ...restored, source: "restored" });
   }, []);
 
   // Persist active job changes
@@ -236,7 +237,7 @@ export function TradeSessionShell({ sessionId }: Props) {
   }, [handleActionSuccess, sessionId]);
 
   const handleJobCreated = useCallback((job: { job_id: string; analysis_type: string }) => {
-    setActiveJob({ jobId: job.job_id, analysisType: job.analysis_type });
+    setActiveJob({ jobId: job.job_id, analysisType: job.analysis_type, source: "current" });
   }, []);
 
   const handleJobCompleted = useCallback(() => {
@@ -245,7 +246,12 @@ export function TradeSessionShell({ sessionId }: Props) {
   }, []);
 
   const handleJobFailed = useCallback(() => {
-    setRetryKey((k) => k + 1);
+    setActiveJob((current) => {
+      if (current?.source === "restored") {
+        return null;
+      }
+      return current;
+    });
   }, []);
 
   if (state.status === "loading") {

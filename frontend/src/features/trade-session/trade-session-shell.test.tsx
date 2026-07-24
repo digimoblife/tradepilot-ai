@@ -894,11 +894,9 @@ describe("initial analysis trigger", () => {
     expect(await screen.findByText("Analisis Gagal")).toBeTruthy();
   });
 
-  it("refreshes session state after a terminal failed job response", async () => {
+  it("does not trigger an extra refresh loop after a terminal failed job response", async () => {
     const user = userEvent.setup();
-    vi.mocked(getSession)
-      .mockResolvedValueOnce(makeReadySession())
-      .mockResolvedValueOnce(makeReadySession({ session: { ...makeReadySession().session, lifecycle_status: "READY_FOR_ANALYSIS" } }));
+    vi.mocked(getSession).mockResolvedValue(makeReadySession());
     mockEvidenceComplete();
     vi.mocked(getJobStatus).mockResolvedValue({
       job_id: "job-1",
@@ -922,9 +920,94 @@ describe("initial analysis trigger", () => {
     await clickInitialAnalysisSubmit(user);
 
     expect(await screen.findByText("Analisis Gagal")).toBeTruthy();
-    await waitFor(() => {
-      expect(getSession).toHaveBeenCalledTimes(3);
+    expect(getSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears a restored failed job once without triggering a reload loop", async () => {
+    window.sessionStorage.setItem(
+      "tp-active-job",
+      JSON.stringify({ jobId: "job-restore-failed", analysisType: "INITIAL_ANALYSIS" }),
+    );
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listEvidence).mockResolvedValue({ evidence: [], total: 0 });
+    vi.mocked(getTimeline).mockResolvedValue({ events: [], total: 0 });
+    vi.mocked(listAnalyses).mockResolvedValue({ analyses: [], total: 0 });
+    vi.mocked(getJobStatus).mockResolvedValue({
+      job_id: "job-restore-failed",
+      session_id: "sess-1",
+      analysis_type: "INITIAL_ANALYSIS",
+      status: "FAILED",
+      attempt_count: 1,
+      max_attempts: 3,
+      available_at: null,
+      started_at: "2026-07-20T12:01:00Z",
+      completed_at: "2026-07-20T12:02:00Z",
+      last_error_code: "PROVIDER_ERROR",
+      last_error_message: "Provider gagal.",
+      analysis_id: null,
+      created_at: "2026-07-20T12:00:00Z",
+      updated_at: "2026-07-20T12:02:00Z",
     });
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    await waitFor(() => {
+      expect(getJobStatus).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem("tp-active-job")).toBeNull();
+    });
+
+    expect(getSession).toHaveBeenCalledTimes(1);
+    expect(listEvidence).toHaveBeenCalledTimes(1);
+    expect(getTimeline).toHaveBeenCalledTimes(1);
+    expect(listAnalyses).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes a restored completed job at most once", async () => {
+    window.sessionStorage.setItem(
+      "tp-active-job",
+      JSON.stringify({ jobId: "job-restore-complete", analysisType: "INITIAL_ANALYSIS" }),
+    );
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listEvidence).mockResolvedValue({ evidence: [], total: 0 });
+    vi.mocked(getTimeline).mockResolvedValue({ events: [], total: 0 });
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAnalysisSummary("INITIAL_ANALYSIS", { id: "ia-1" })],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(
+      makeAnalysisDetail("INITIAL_ANALYSIS", { id: "ia-1" }),
+    );
+    vi.mocked(getJobStatus).mockResolvedValue({
+      job_id: "job-restore-complete",
+      session_id: "sess-1",
+      analysis_type: "INITIAL_ANALYSIS",
+      status: "COMPLETED",
+      attempt_count: 1,
+      max_attempts: 3,
+      available_at: null,
+      started_at: "2026-07-20T12:01:00Z",
+      completed_at: "2026-07-20T12:02:00Z",
+      last_error_code: null,
+      last_error_message: null,
+      analysis_id: "ia-1",
+      created_at: "2026-07-20T12:00:00Z",
+      updated_at: "2026-07-20T12:02:00Z",
+    });
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    await screen.findByText("Ringkasan Eksekutif");
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem("tp-active-job")).toBeNull();
+    });
+
+    expect(getJobStatus).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(listAnalyses).toHaveBeenCalledTimes(2);
+    expect(getTimeline).toHaveBeenCalledTimes(2);
+    expect(listEvidence).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes session, timeline, and analysis history after successful analysis", async () => {

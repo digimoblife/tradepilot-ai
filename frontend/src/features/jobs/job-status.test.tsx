@@ -89,6 +89,16 @@ describe("polling", () => {
     expect(getJobStatus).toHaveBeenCalledTimes(2);
   }, 10000);
 
+  it("keeps polling for PROCESSING jobs", async () => {
+    vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "PROCESSING" }));
+    render(<JobStatus jobId="job-1" sessionId="sess-a" />);
+    await waitFor(() => {
+      expect(getJobStatus).toHaveBeenCalledTimes(1);
+    });
+    await new Promise((r) => setTimeout(r, 3200));
+    expect(getJobStatus).toHaveBeenCalledTimes(2);
+  }, 10000);
+
   it("stops polling after COMPLETED", async () => {
     vi.mocked(getJobStatus).mockResolvedValue(makeStatus({ status: "COMPLETED", analysis_id: "analysis-1" }));
     render(<JobStatus jobId="job-1" sessionId="sess-a" />);
