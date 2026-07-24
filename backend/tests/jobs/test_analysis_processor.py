@@ -28,7 +28,6 @@ from app.jobs import (
     AnalysisProcessingResult,
     AnalysisProcessor,
     AnalysisProcessorAlreadyTerminalError,
-    AnalysisProcessorError,
     AnalysisProcessorJobNotClaimedError,
     AnalysisProcessorLeaseExpiredError,
     AnalysisProcessorLeaseNotOwnedError,
@@ -532,7 +531,7 @@ class TestIdempotency:
 
 
 class TestRoutingFailure:
-    async def test_router_failure_sets_retry(
+    async def test_transient_router_failure_sets_retry(
         self,
         engine: AsyncEngine,
         user_id: uuid.UUID,
@@ -544,18 +543,62 @@ class TestRoutingFailure:
         async with factory() as s:
             proc = AnalysisProcessor(
                 session=s,
-                router=FakeRouter(result=ProviderRoutingFailedError("All failed")),
+                router=FakeRouter(
+                    result=ProviderRoutingFailedError(
+                        "All failed",
+                        root_cause_code="AI_PROVIDER_TIMEOUT",
+                        root_cause_message="Gemini timed out",
+                        retryable=True,
+                    )
+                ),
                 validate=_always_valid,
             )
-            with pytest.raises(AnalysisProcessorError):
-                await proc.process(job_id=jid, worker_id="w1")
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.RETRYING.value
             await s.commit()
         async with factory() as s:
             job = await s.get(AnalysisJob, jid)
             assert job is not None
             assert job.status == AnalysisJobStatus.RETRYING
+            assert job.last_error_code == "AI_PROVIDER_TIMEOUT"
+            assert job.last_error_message == "Gemini timed out"
 
-    async def test_router_exhaustion_sets_failed(
+    async def test_deterministic_router_failure_sets_failed_without_repeated_retry(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=3)
+        await _add_context_summary(engine, session_id)
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                router=FakeRouter(
+                    result=ProviderRoutingFailedError(
+                        "All failed",
+                        root_cause_code="AI_PROVIDER_INVALID_REQUEST",
+                        root_cause_message="Model not found: gemini-3.5-flash",
+                        retryable=False,
+                    )
+                ),
+                validate=_always_valid,
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+        async with factory() as s:
+            job = await s.get(AnalysisJob, jid)
+            session = await s.get(TradeSession, session_id)
+            assert job is not None
+            assert session is not None
+            assert job.status == AnalysisJobStatus.FAILED
+            assert job.last_error_code == "AI_PROVIDER_INVALID_REQUEST"
+            assert job.last_error_message == "Model not found: gemini-3.5-flash"
+            assert session.lifecycle_status.value == "WATCHING"
+
+    async def test_router_exhaustion_sets_failed_atomically(
         self,
         engine: AsyncEngine,
         user_id: uuid.UUID,
@@ -567,16 +610,28 @@ class TestRoutingFailure:
         async with factory() as s:
             proc = AnalysisProcessor(
                 session=s,
-                router=FakeRouter(result=ProviderRoutingFailedError("All failed")),
+                router=FakeRouter(
+                    result=ProviderRoutingFailedError(
+                        "All failed",
+                        root_cause_code="AI_PROVIDER_TIMEOUT",
+                        root_cause_message="Gemini timed out after 120s",
+                        retryable=True,
+                    )
+                ),
                 validate=_always_valid,
             )
-            with pytest.raises(AnalysisProcessorError):
-                await proc.process(job_id=jid, worker_id="w1")
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
             await s.commit()
         async with factory() as s:
             job = await s.get(AnalysisJob, jid)
+            session = await s.get(TradeSession, session_id)
             assert job is not None
+            assert session is not None
             assert job.status == AnalysisJobStatus.FAILED
+            assert job.last_error_code == "AI_PROVIDER_TIMEOUT"
+            assert job.last_error_message == "Gemini timed out after 120s"
+            assert session.lifecycle_status.value == "WATCHING"
 
     async def test_no_analysis_on_failure(
         self,
@@ -590,11 +645,17 @@ class TestRoutingFailure:
         async with factory() as s:
             proc = AnalysisProcessor(
                 session=s,
-                router=FakeRouter(result=ProviderRoutingFailedError("All failed")),
+                router=FakeRouter(
+                    result=ProviderRoutingFailedError(
+                        "All failed",
+                        root_cause_code="AI_PROVIDER_INVALID_REQUEST",
+                        root_cause_message="Model not found: gemini-3.5-flash",
+                        retryable=False,
+                    )
+                ),
                 validate=_always_valid,
             )
-            with pytest.raises(AnalysisProcessorError):
-                await proc.process(job_id=jid, worker_id="w1")
+            await proc.process(job_id=jid, worker_id="w1")
         async with factory() as s:
             count = await s.execute(
                 text("SELECT COUNT(*) FROM analyses WHERE analysis_job_id = :jid"),

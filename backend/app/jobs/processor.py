@@ -60,6 +60,8 @@ class AnalysisProcessingResult:
     restored_session_status: str | None
     provider: str | None
     fallback_used: bool
+    error_code: str | None = None
+    error_message: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -241,12 +243,33 @@ class AnalysisProcessor:
                 max_repair_attempts=self._max_repair,
             )
         except ProviderRoutingFailedError as exc:
-            await self._fail_job(job, exc.attempts, ts, atype, now)
+            await self._fail_job(job, exc, ts, now)
             await self._session.flush()
-            raise AnalysisProcessorError(
-                code="PROVIDER_ROUTING_FAILED",
-                message=f"Provider routing failed for job {job_id}",
-            ) from exc
+            self._log.warning(
+                "Analysis routing failed",
+                extra={
+                    "analysis_job_id": str(job_id),
+                    "session_id": str(job.session_id),
+                    "job_status": job.status.value,
+                    "root_cause_code": job.last_error_code,
+                    "root_cause_message": job.last_error_message,
+                },
+            )
+            return AnalysisProcessingResult(
+                job_id=job_id,
+                session_id=job.session_id,
+                analysis_id=None,
+                job_status=job.status.value,
+                restored_session_status=(
+                    job.previous_session_status
+                    if job.status == AnalysisJobStatus.FAILED
+                    else None
+                ),
+                provider=None,
+                fallback_used=False,
+                error_code=job.last_error_code,
+                error_message=job.last_error_message,
+            )
         except Exception:
             await self._fail_job(job, [], ts, atype, now)
             await self._session.flush()
@@ -418,20 +441,21 @@ class AnalysisProcessor:
     async def _fail_job(
         self,
         job: AnalysisJob,
-        route_attempts: Any,
+        routing_error: ProviderRoutingFailedError,
         ts: TradeSession,
-        analysis_type: str,
         now: datetime,
     ) -> None:
-        attempts_remain = job.attempt_count < job.max_attempts
+        error_code = routing_error.root_cause_code or routing_error.code
+        error_message = routing_error.root_cause_message or routing_error.message
+        attempts_remain = routing_error.retryable and job.attempt_count < job.max_attempts
 
         if attempts_remain:
             job.status = AnalysisJobStatus.RETRYING
             job.lease_owner = None
             job.lease_acquired_at = None
             job.lease_expires_at = None
-            job.last_error_code = "PROVIDER_ROUTING_FAILED"
-            job.last_error_message = "Provider routing failed, will retry"
+            job.last_error_code = error_code
+            job.last_error_message = error_message
             job.available_at = now
         else:
             job.status = AnalysisJobStatus.FAILED
@@ -439,8 +463,8 @@ class AnalysisProcessor:
             job.lease_owner = None
             job.lease_acquired_at = None
             job.lease_expires_at = None
-            job.last_error_code = "PROVIDER_ROUTING_FAILED"
-            job.last_error_message = "Provider routing exhausted"
+            job.last_error_code = error_code
+            job.last_error_message = error_message
 
             prev = job.previous_session_status
             if prev:

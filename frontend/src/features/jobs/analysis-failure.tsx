@@ -6,6 +6,16 @@ import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { AnalysisJobStatus } from "@/types/analysis-job";
 
 const ERROR_SUMMARY: Record<string, string> = {
+  AI_PROVIDER_AUTHENTICATION_FAILED:
+    "Konfigurasi atau kredensial Gemini tidak valid. Periksa model dan autentikasi provider.",
+  AI_PROVIDER_INVALID_REQUEST:
+    "Permintaan ke Gemini tidak valid untuk model atau format yang digunakan.",
+  AI_PROVIDER_RATE_LIMITED:
+    "Batas permintaan Gemini tercapai. Tunggu beberapa saat lalu coba lagi.",
+  AI_PROVIDER_TIMEOUT: "Gemini tidak merespons tepat waktu.",
+  AI_PROVIDER_CONTENT_FILTERED: "Gemini menolak permintaan atau hasil karena kebijakan konten.",
+  AI_RESPONSE_EMPTY: "Gemini tidak mengembalikan teks analisis yang bisa diproses.",
+  JSON_PARSE_ERROR: "Respons Gemini tidak bisa dibaca sebagai hasil analisis yang valid.",
   PROVIDER_ERROR: "AI Provider mengalami kendala saat memproses permintaan.",
   PROVIDER_TIMEOUT: "AI Provider tidak merespons tepat waktu.",
   PROVIDER_RATE_LIMIT: "Batas permintaan AI Provider tercapai. Tunggu beberapa saat.",
@@ -22,6 +32,13 @@ const ERROR_SUMMARY: Record<string, string> = {
 };
 
 const ERROR_CATEGORY_LABEL: Record<string, string> = {
+  AI_PROVIDER_AUTHENTICATION_FAILED: "Autentikasi Provider",
+  AI_PROVIDER_INVALID_REQUEST: "Permintaan Provider Tidak Valid",
+  AI_PROVIDER_RATE_LIMITED: "Batas Permintaan Provider",
+  AI_PROVIDER_TIMEOUT: "Waktu Habis Provider",
+  AI_PROVIDER_CONTENT_FILTERED: "Konten Ditolak Provider",
+  AI_RESPONSE_EMPTY: "Respons Kosong Provider",
+  JSON_PARSE_ERROR: "Kesalahan Parsing Provider",
   PROVIDER_ERROR: "Kesalahan Provider",
   PROVIDER_TIMEOUT: "Waktu Habis",
   PROVIDER_RATE_LIMIT: "Batas Permintaan",

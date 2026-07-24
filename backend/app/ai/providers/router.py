@@ -6,6 +6,7 @@ the current provider before falling back to the next provider.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
@@ -37,6 +38,7 @@ class ProviderRouteAttempt:
     payload: Mapping[str, object] | None = None
     validation_errors: tuple[ValidationIssue, ...] = ()
     failure_code: str | None = None
+    failure_message: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,8 +83,14 @@ class ProviderRoutingFailedError(ProviderRouterError):
         message: str = "",
         *,
         attempts: tuple[ProviderRouteAttempt, ...] = (),
+        root_cause_code: str | None = None,
+        root_cause_message: str | None = None,
+        retryable: bool = True,
     ) -> None:
         self.attempts = attempts
+        self.root_cause_code = root_cause_code
+        self.root_cause_message = root_cause_message
+        self.retryable = retryable
         super().__init__(code=code, message=message)
 
 
@@ -136,6 +144,7 @@ class ProviderRouter:
                         provider=provider_name,
                         phase="CAPABILITY_CHECK",
                         failure_code=code,
+                        failure_message=_sanitize_failure_message(str(exc)),
                     )
                 )
                 continue
@@ -152,6 +161,7 @@ class ProviderRouter:
                         provider=provider_name,
                         phase="PRIMARY",
                         failure_code=code,
+                        failure_message=_sanitize_failure_message(str(exc)),
                     )
                 )
                 continue
@@ -168,6 +178,7 @@ class ProviderRouter:
                         phase="PRIMARY",
                         response=provider_response,
                         failure_code=code,
+                        failure_message=_sanitize_failure_message(str(exc)),
                     )
                 )
                 # Try repair
@@ -244,6 +255,9 @@ class ProviderRouter:
                 f"All {len(provider_order)} provider(s) failed ({len(history)} routing attempt(s))"
             ),
             attempts=tuple(history),
+            root_cause_code=_root_cause_code(history),
+            root_cause_message=_root_cause_message(history),
+            retryable=_routing_failure_retryable(history),
         )
 
     async def _repair_and_record(
@@ -290,6 +304,7 @@ class ProviderRouter:
                     provider=provider_name,
                     phase="REPAIR",
                     failure_code=code,
+                    failure_message=_sanitize_failure_message(str(exc)),
                 )
             )
             return None
@@ -325,6 +340,11 @@ def _validate_provider_order(
 
 
 def _repair_to_route(seq: int, provider_name: str, ra: Any) -> ProviderRouteAttempt:
+    failure_message = None
+    if getattr(ra, "validation_errors", ()):
+        failure_message = _sanitize_failure_message(
+            "; ".join(issue.message for issue in ra.validation_errors if issue.message) or ""
+        )
     return ProviderRouteAttempt(
         sequence=seq,
         provider=provider_name,
@@ -333,6 +353,7 @@ def _repair_to_route(seq: int, provider_name: str, ra: Any) -> ProviderRouteAtte
         payload=(_to_mapping(dict(ra.parsed_payload)) if ra.parsed_payload is not None else None),
         validation_errors=ra.validation_errors,
         failure_code=ra.failure_code,
+        failure_message=failure_message,
     )
 
 
@@ -350,3 +371,53 @@ def _parse_issues(code: str, message: str) -> list[ValidationIssue]:
 
 def _to_mapping(d: dict[str, object]) -> Mapping[str, object]:
     return dict(d)
+
+
+_NON_RETRYABLE_ROUTING_CODES = frozenset(
+    {
+        "AI_PROVIDER_AUTHENTICATION_FAILED",
+        "AI_PROVIDER_INVALID_REQUEST",
+        "AI_PROVIDER_CONTENT_FILTERED",
+        "AI_RESPONSE_EMPTY",
+        "PROVIDER_CAPABILITY_UNSUPPORTED",
+        "PROVIDER_UNKNOWN",
+        "PROVIDER_ORDER_EMPTY",
+        "JSON_PARSE_ERROR",
+        "REPAIR_VALIDATION_FAILED",
+    }
+)
+_SENSITIVE_VALUE_PATTERN = re.compile(
+    r"(?i)\b(api[_ -]?key|authorization|bearer|token)\b\s*[:=]\s*([^\s,;]+)"
+)
+
+
+def _routing_failure_retryable(attempts: Sequence[ProviderRouteAttempt]) -> bool:
+    code = _root_cause_code(attempts)
+    if code is None:
+        return True
+    if code in {"AI_PROVIDER_RATE_LIMITED", "AI_PROVIDER_TIMEOUT"}:
+        return True
+    if code in _NON_RETRYABLE_ROUTING_CODES:
+        return False
+    if code.startswith("SCHEMA_"):
+        return False
+    return True
+
+
+def _root_cause_code(attempts: Sequence[ProviderRouteAttempt]) -> str | None:
+    for attempt in reversed(attempts):
+        if attempt.failure_code:
+            return attempt.failure_code
+    return None
+
+
+def _root_cause_message(attempts: Sequence[ProviderRouteAttempt]) -> str | None:
+    for attempt in reversed(attempts):
+        if attempt.failure_message:
+            return attempt.failure_message
+    return None
+
+
+def _sanitize_failure_message(message: str) -> str:
+    cleaned = _SENSITIVE_VALUE_PATTERN.sub(r"\1=[REDACTED]", message)
+    return cleaned[:500] if len(cleaned) > 500 else cleaned

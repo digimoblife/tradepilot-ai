@@ -55,6 +55,19 @@ describe("rendering", () => {
     expect(screen.getByText(/AI Provider mengalami kendala/)).toBeTruthy();
   });
 
+  it("shows provider-specific Gemini summary for authentication/configuration failure", () => {
+    render(
+      <AnalysisFailure
+        jobStatus={makeStatus({
+          last_error_code: "AI_PROVIDER_AUTHENTICATION_FAILED",
+          last_error_message: "Model not found: gemini-3.5-flash",
+        })}
+        sessionId="sess-a"
+      />
+    );
+    expect(screen.getByText(/kredensial Gemini tidak valid/i)).toBeTruthy();
+  });
+
   it("shows fallback summary for unknown code", () => {
     render(<AnalysisFailure jobStatus={makeStatus({ last_error_code: "UNKNOWN_CODE", last_error_message: "Something broke." })} sessionId="sess-a" />);
     expect(screen.getByText("Something broke.")).toBeTruthy();

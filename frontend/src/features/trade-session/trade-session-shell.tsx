@@ -204,6 +204,10 @@ export function TradeSessionShell({ sessionId }: Props) {
     setRetryKey((k) => k + 1);
   }, []);
 
+  const handleJobFailed = useCallback(() => {
+    setRetryKey((k) => k + 1);
+  }, []);
+
   if (state.status === "loading") {
     return (
       <p className="py-12 text-center text-zinc-500">Memuat sesi trading…</p>
@@ -332,6 +336,7 @@ export function TradeSessionShell({ sessionId }: Props) {
             jobId={activeJob.jobId}
             sessionId={sessionId}
             onCompleted={handleJobCompleted}
+            onFailed={handleJobFailed}
             onClear={handleJobCompleted}
             onRetry={handleJobCompleted}
           />

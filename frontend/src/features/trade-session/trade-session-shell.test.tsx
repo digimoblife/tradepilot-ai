@@ -774,6 +774,39 @@ describe("initial analysis trigger", () => {
     expect(await screen.findByText("Analisis Gagal")).toBeTruthy();
   });
 
+  it("refreshes session state after a terminal failed job response", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeReadySession())
+      .mockResolvedValueOnce(makeReadySession({ session: { ...makeReadySession().session, lifecycle_status: "READY_FOR_ANALYSIS" } }));
+    mockEvidenceComplete();
+    vi.mocked(getJobStatus).mockResolvedValue({
+      job_id: "job-1",
+      session_id: "sess-1",
+      analysis_type: "INITIAL_ANALYSIS",
+      status: "FAILED",
+      attempt_count: 3,
+      max_attempts: 3,
+      available_at: null,
+      started_at: "2026-07-20T12:01:00Z",
+      completed_at: "2026-07-20T12:02:00Z",
+      last_error_code: "AI_PROVIDER_INVALID_REQUEST",
+      last_error_message: "Model not found: gemini-3.5-flash",
+      analysis_id: null,
+      created_at: "2026-07-20T12:00:00Z",
+      updated_at: "2026-07-20T12:02:00Z",
+    });
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await clickInitialAnalysisAction(user);
+    await clickInitialAnalysisSubmit(user);
+
+    expect(await screen.findByText("Analisis Gagal")).toBeTruthy();
+    await waitFor(() => {
+      expect(getSession).toHaveBeenCalledTimes(3);
+    });
+  });
+
   it("refreshes session, timeline, and analysis history after successful analysis", async () => {
     const user = userEvent.setup();
     vi.mocked(getSession)

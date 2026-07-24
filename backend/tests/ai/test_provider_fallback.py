@@ -511,6 +511,30 @@ class TestAllFail:
             )
         assert len(exc.value.attempts) >= 2
 
+    async def test_final_error_retains_sanitized_root_cause(self) -> None:
+        class _GeminiTimeoutError(Exception):
+            code = "AI_PROVIDER_TIMEOUT"
+
+            def __str__(self) -> str:
+                return "request failed api_key=secret-token"
+
+        gemini = FakeProvider("gemini", responses=[_GeminiTimeoutError()])
+        router = ProviderRouter()
+
+        with pytest.raises(ProviderRoutingFailedError) as exc:
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini},
+                provider_order=["gemini"],
+                validate=_always_valid,
+                canonical_facts={},
+                max_repair_attempts=2,
+            )
+
+        assert exc.value.root_cause_code == "AI_PROVIDER_TIMEOUT"
+        assert exc.value.root_cause_message == "request failed api_key=[REDACTED]"
+        assert exc.value.retryable is True
+
     async def test_no_invalid_payload_returned(self) -> None:
         router = ProviderRouter()
         try:

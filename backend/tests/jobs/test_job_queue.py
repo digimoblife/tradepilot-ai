@@ -1043,6 +1043,38 @@ class TestRecordProcessingError:
         assert row[4] == "PROVIDER_CONTEXT_PROVIDER_INCOMPATIBLE"
         assert row[5] == "Provider does not support images but evidence is required"
 
+    async def test_session_invalid_error_is_terminal_not_retrying(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=1,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            await q.record_processing_error(
+                job_id=jid,
+                worker_id="w1",
+                error_code="ANALYSIS_PROCESSOR_SESSION_INVALID",
+                error_message="Session is not in ANALYZING state",
+            )
+            await s.commit()
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            result = await q.claim_next(worker_id="w2", lease_duration=_LEASE_1S)
+
+        assert result is None
+
     async def test_terminal_context_error_is_not_claimed_again(
         self,
         engine: AsyncEngine,
