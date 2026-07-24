@@ -174,15 +174,22 @@ async def _make_claimed_job(
 async def _add_context_summary(
     engine: AsyncEngine,
     session_id: uuid.UUID,
+    *,
+    source_cutoff: datetime | None = None,
+    is_stale: bool = False,
 ) -> None:
     async with engine.begin() as conn:
         await conn.execute(
             text(
                 "INSERT INTO context_summaries "
-                "(session_id, context_version, payload, is_stale) "
-                "VALUES (:sid, 1, '{}', false)"
+                "(session_id, context_version, source_cutoff, payload, is_stale) "
+                "VALUES (:sid, 1, :cutoff, '{}', :stale)"
             ),
-            {"sid": session_id},
+            {
+                "sid": session_id,
+                "cutoff": source_cutoff or datetime.now(timezone.utc),
+                "stale": is_stale,
+            },
         )
 
 
@@ -348,6 +355,48 @@ class TestSuccessfulProcessing:
 
         assert router.call_count == 0
         assert reqs.first() is None
+
+    async def test_stale_context_is_rebuilt_before_provider_call(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id)
+        old_cutoff = datetime(2026, 7, 1, 10, 0, tzinfo=timezone.utc)
+        await _add_context_summary(
+            engine,
+            session_id,
+            source_cutoff=old_cutoff,
+            is_stale=True,
+        )
+        router = FakeRouter()
+
+        async with factory() as s:
+            proc = AnalysisProcessor(session=s, router=router, validate=_always_valid)
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == "COMPLETED"
+            reqs = await s.execute(
+                text("SELECT id FROM provider_requests WHERE analysis_job_id = :jid"),
+                {"jid": jid},
+            )
+            await s.commit()
+
+        assert router.call_count == 1
+        assert reqs.first() is not None
+        async with engine.begin() as conn:
+            fresh_count = (
+                await conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM context_summaries "
+                        "WHERE session_id = :sid AND is_stale = false "
+                        "AND source_cutoff > :cutoff"
+                    ),
+                    {"sid": session_id, "cutoff": old_cutoff},
+                )
+            ).scalar_one()
+        assert fresh_count >= 1
 
     async def test_lease_cleared(
         self,

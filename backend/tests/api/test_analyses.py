@@ -241,7 +241,7 @@ class TestAuth:
 
 class TestCreate:
     async def test_valid_create_returns_immediately(
-        self, engine: AsyncEngine, client: AsyncClient
+        self, engine: AsyncEngine, client: AsyncClient, db_session: AsyncSession
     ) -> None:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)
@@ -256,6 +256,58 @@ class TestCreate:
         data = resp.json()
         assert data["status"] == "QUEUED"
         assert data["analysis_type"] == "INITIAL_ANALYSIS"
+        await db_session.commit()
+
+        async with engine.begin() as conn:
+            context_count = (
+                await conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM context_summaries "
+                        "WHERE session_id = :sid AND is_stale = false"
+                    ),
+                    {"sid": sid},
+                )
+            ).scalar_one()
+        assert context_count >= 1
+
+    async def test_request_rebuilds_stale_context_before_queueing(
+        self, engine: AsyncEngine, client: AsyncClient, db_session: AsyncSession
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_ready_session(engine, uid)
+        old_cutoff = datetime(2026, 7, 1, 10, 0, tzinfo=timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO context_summaries "
+                    "(session_id, context_version, source_cutoff, payload, is_stale) "
+                    "VALUES (:sid, 1, :cutoff, '{}', true)"
+                ),
+                {"sid": sid, "cutoff": old_cutoff},
+            )
+
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/analyses",
+            json={"analysis_type": "INITIAL_ANALYSIS"},
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 202
+        await db_session.commit()
+        async with engine.begin() as conn:
+            fresh_count = (
+                await conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM context_summaries "
+                        "WHERE session_id = :sid AND is_stale = false "
+                        "AND source_cutoff > :cutoff"
+                    ),
+                    {"sid": sid, "cutoff": old_cutoff},
+                )
+            ).scalar_one()
+        assert fresh_count >= 1
 
     async def test_duplicate_active_rejected(
         self, engine: AsyncEngine, client: AsyncClient

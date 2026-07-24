@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.context import ContextFreshnessService
 from app.models.analysis_job import AnalysisJob
 from app.models.enums import AnalysisJobStatus, AnalysisType, TradeSessionStatus
 from app.models.trade_session import TradeSession
@@ -100,6 +101,10 @@ class AnalysisJobAlreadyActiveError(AnalysisJobCreationError):
     code: str = "ANALYSIS_JOB_ALREADY_ACTIVE"
 
 
+class AnalysisJobContextRebuildFailedError(AnalysisJobCreationError):
+    code: str = "ANALYSIS_JOB_CONTEXT_REBUILD_FAILED"
+
+
 # ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
@@ -124,7 +129,7 @@ class AnalysisJobCreationService:
         atype = _normalize_analysis_type(analysis_type)
 
         # 1. Load owned session
-        ts = await self._session_repo.get_by_id_for_user(session_id, owner_id)
+        ts = await self._session_repo.get_by_id_for_user_for_update(session_id, owner_id)
         if ts is None:
             raise AnalysisJobSessionNotFoundError(
                 message="Trade Session not found or not owned",
@@ -161,12 +166,22 @@ class AnalysisJobCreationService:
         # 4. Prevent duplicate active job
         await self._check_no_duplicate_active(session_id, owner_id, atype)
 
-        # 5. Preserve previous status
+        # 5. Ensure current context before queueing analysis
+        try:
+            freshness = ContextFreshnessService(self._session)
+            await freshness.ensure_fresh(session_id=session_id, owner_id=owner_id)
+        except Exception as exc:
+            raise AnalysisJobContextRebuildFailedError(
+                code=getattr(exc, "code", None),
+                message=f"Context Summary rebuild failed before queueing analysis: {exc}",
+            ) from exc
+
+        # 6. Preserve previous status
         prev_status = (
             ts.stable_status.value if hasattr(ts.stable_status, "value") else str(ts.stable_status)
         )  # noqa: E501
 
-        # 6. Create queued job
+        # 7. Create queued job
         job = AnalysisJob(
             id=uuid.uuid4(),
             session_id=session_id,
@@ -180,7 +195,7 @@ class AnalysisJobCreationService:
         )
         self._session.add(job)
 
-        # 7. Transition session to ANALYZING
+        # 8. Transition session to ANALYZING
         _analyzing = TradeSessionStatus.ANALYZING
         ts.lifecycle_status = _analyzing
         ts.stable_status = _analyzing

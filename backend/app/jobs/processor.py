@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.context_builder import (
     ProviderContextBuilder,
+    ProviderContextStaleError,
 )
 from app.ai.providers import (
     AIProvider,
@@ -28,6 +29,8 @@ from app.ai.providers.router import (
     ProviderRoutingFailedError,
     ProviderRoutingResult,
 )
+from app.context import ContextFreshnessService
+from app.logging import get_logger
 from app.models.analysis import Analysis
 from app.models.analysis_job import AnalysisJob
 from app.models.enums import (
@@ -41,7 +44,6 @@ from app.models.provider_request import ProviderRequest as DBProviderRequest
 from app.models.provider_response import ProviderResponse as DBProviderResponse
 from app.models.trade_session import TradeSession
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
-from app.logging import get_logger
 from app.validation import ValidationIssue
 
 # ---------------------------------------------------------------------------
@@ -100,6 +102,10 @@ class AnalysisProcessorAlreadyTerminalError(AnalysisProcessorError):
 
 class AnalysisProcessorPersistenceFailedError(AnalysisProcessorError):
     code: str = "ANALYSIS_PROCESSOR_PERSISTENCE_FAILED"
+
+
+class AnalysisProcessorContextRebuildFailedError(AnalysisProcessorError):
+    code: str = "PROVIDER_CONTEXT_REBUILD_FAILED"
 
 
 # ---------------------------------------------------------------------------
@@ -183,12 +189,10 @@ class AnalysisProcessor:
             else str(job.analysis_type)
         )  # noqa: E501
 
-        # Build context
-        ctx = await self._context_builder.build(
+        ctx = await self._build_fresh_provider_context(
             session_id=job.session_id,
             owner_id=ts.owner_id,
             analysis_type=atype,
-            provider_capabilities=self._get_primary_capabilities(),
             now=now,
         )
 
@@ -327,6 +331,48 @@ class AnalysisProcessor:
             if p is not None:
                 return p.capabilities
         return ProviderCapabilities()
+
+    async def _build_fresh_provider_context(
+        self,
+        *,
+        session_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        analysis_type: str,
+        now: datetime,
+    ) -> Any:
+        capabilities = self._get_primary_capabilities()
+        freshness = ContextFreshnessService(self._session)
+        try:
+            await freshness.ensure_fresh(session_id=session_id, owner_id=owner_id)
+        except Exception as exc:
+            raise AnalysisProcessorContextRebuildFailedError(
+                code=getattr(exc, "code", None),
+                message=f"Context Summary rebuild failed before analysis: {exc}",
+            ) from exc
+
+        try:
+            return await self._context_builder.build(
+                session_id=session_id,
+                owner_id=owner_id,
+                analysis_type=analysis_type,
+                provider_capabilities=capabilities,
+                now=now,
+            )
+        except ProviderContextStaleError:
+            try:
+                await freshness.ensure_fresh(session_id=session_id, owner_id=owner_id)
+                return await self._context_builder.build(
+                    session_id=session_id,
+                    owner_id=owner_id,
+                    analysis_type=analysis_type,
+                    provider_capabilities=capabilities,
+                    now=now,
+                )
+            except Exception as exc:
+                raise AnalysisProcessorContextRebuildFailedError(
+                    code=getattr(exc, "code", None),
+                    message=f"Context Summary remained stale after rebuild: {exc}",
+                ) from exc
 
     async def _persist_route_attempts(
         self,

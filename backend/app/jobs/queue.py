@@ -24,6 +24,16 @@ _FAILED = AnalysisJobStatus.FAILED
 _CANCELLED = AnalysisJobStatus.CANCELLED
 
 _TERMINAL = frozenset({_COMPLETED, _FAILED, _CANCELLED})
+_NON_RETRYABLE_PROCESSING_ERROR_CODES = frozenset(
+    {
+        "PROVIDER_CONTEXT_STALE",
+        "PROVIDER_CONTEXT_REBUILD_FAILED",
+        "CONTEXT_REBUILD_FAILED",
+        "CONTEXT_REBUILD_VALIDATION_FAILED",
+        "CONTEXT_REBUILD_PERSISTENCE_FAILED",
+        "CONTEXT_REBUILD_STILL_STALE",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +289,10 @@ class PostgreSQLJobQueue:
                 message=f"Worker {worker_id!r} does not own lease for job {job_id}",
             )
 
-        attempts_remain = job.attempt_count < job.max_attempts
+        attempts_remain = (
+            error_code not in _NON_RETRYABLE_PROCESSING_ERROR_CODES
+            and job.attempt_count < job.max_attempts
+        )
         job.lease_owner = None
         job.lease_acquired_at = None
         job.lease_expires_at = None
