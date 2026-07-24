@@ -1,11 +1,41 @@
 import asyncio
+import sys
+from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+import app
 from app.config import WorkerConfig
 from app.consumers.analysis_jobs import AnalysisJobConsumer
-from app.runtime import run_worker
+from app.runtime import (
+    _assert_real_validation_factory,
+    _build_validation_callback_factory,
+    _create_consumer,
+    run_worker,
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_BACKEND_APP = _REPO_ROOT / "backend" / "app"
+
+
+def _extend_app_namespace() -> None:
+    backend_app = str(_BACKEND_APP)
+    if backend_app not in app.__path__:
+        app.__path__.append(backend_app)
+
+
+def _make_initial_analysis_payload() -> dict[str, object]:
+    from backend.tests.test_json_schema_validation import _minimal_initial_analysis
+
+    payload = _minimal_initial_analysis()
+    market_snapshot = payload["market_snapshot"]
+    assert isinstance(market_snapshot, dict)
+    market_snapshot["change_percentage"] = Decimal("5.00")
+    market_snapshot["spread_percentage"] = Decimal("1.89")
+    return payload
 
 
 def _skip_startup_validation(config: WorkerConfig) -> None:
@@ -192,4 +222,95 @@ async def test_startup_validation_runs_before_heartbeat_and_claim(fake_consumer:
             consumer=fake_consumer,
             heartbeat=hb,
             startup_validator=fail_startup,
+        )
+
+
+def test_worker_injects_real_validator(monkeypatch: pytest.MonkeyPatch) -> None:
+    _extend_app_namespace()
+
+    import app.ai.providers as provider_module
+    import app.jobs as jobs_module
+    import app.jobs.processor as processor_module
+
+    captured: dict[str, Any] = {}
+
+    class FakeProcessor:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        provider_module,
+        "build_analysis_provider_config",
+        lambda config: SimpleNamespace(providers={}, provider_order=[]),
+    )
+    monkeypatch.setattr(jobs_module, "AnalysisProcessor", FakeProcessor)
+    monkeypatch.setattr(jobs_module, "PostgreSQLJobQueue", object)
+
+    consumer = _create_consumer(_FakeFactory(), "worker-1", WorkerConfig())
+    consumer._processor_cls(session=None)
+    assert isinstance(consumer, AnalysisJobConsumer)
+    assert callable(captured["validate_factory"])
+    assert captured["validate_factory"] is not processor_module._always_invalid
+
+
+def test_initial_analysis_validator_accepts_valid_payload() -> None:
+    _extend_app_namespace()
+
+    from app.validation import UnifiedValidationService
+
+    service = UnifiedValidationService(schema_package_root=str(_REPO_ROOT / "schemas" / "production" / "v1"))
+    validate_factory = _build_validation_callback_factory(service)
+    validate = validate_factory(
+        analysis_type="INITIAL_ANALYSIS",
+        session_status_before_job="READY_FOR_ANALYSIS",
+        canonical_facts={
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "ticker": "BBRI",
+        },
+    )
+
+    is_valid, issues = validate(_make_initial_analysis_payload())
+    assert is_valid is True
+    assert issues == ()
+
+
+def test_initial_analysis_validator_returns_concrete_issues_for_invalid_payload() -> None:
+    _extend_app_namespace()
+
+    from app.validation import UnifiedValidationService
+
+    service = UnifiedValidationService(schema_package_root=str(_REPO_ROOT / "schemas" / "production" / "v1"))
+    validate_factory = _build_validation_callback_factory(service)
+    validate = validate_factory(
+        analysis_type="INITIAL_ANALYSIS",
+        session_status_before_job="READY_FOR_ANALYSIS",
+        canonical_facts={
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "ticker": "BBRI",
+        },
+    )
+
+    payload = _make_initial_analysis_payload()
+    market_snapshot = payload["market_snapshot"]
+    assert isinstance(market_snapshot, dict)
+    market_snapshot["high"] = 1000
+
+    is_valid, issues = validate(payload)
+    assert is_valid is False
+    assert issues
+    assert any(issue.message for issue in issues)
+
+
+def test_placeholder_validator_factory_is_rejected() -> None:
+    _extend_app_namespace()
+
+    import app.jobs.processor as processor_module
+
+    with pytest.raises(
+        RuntimeError,
+        match="placeholder _always_invalid",
+    ):
+        _assert_real_validation_factory(
+            lambda **kwargs: processor_module._always_invalid,
+            processor_module._always_invalid,
         )

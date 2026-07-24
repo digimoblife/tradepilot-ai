@@ -122,14 +122,20 @@ def _create_consumer(
     """Lazy import to avoid backend dependency at module level."""
     from app.ai.providers import build_analysis_provider_config
     from app.jobs import AnalysisProcessor, PostgreSQLJobQueue
+    from app.jobs.processor import _always_invalid
+    from app.validation import UnifiedValidationService
 
     provider_config = build_analysis_provider_config(config)
+    validation_service = _build_validation_service(UnifiedValidationService)
+    validate_factory = _build_validation_callback_factory(validation_service)
+    _assert_real_validation_factory(validate_factory, _always_invalid)
 
     def processor_factory(*, session: AsyncSession) -> AnalysisProcessor:
         return AnalysisProcessor(
             session=session,
             providers=provider_config.providers,
             provider_order=provider_config.provider_order,
+            validate_factory=validate_factory,
         )
 
     return AnalysisJobConsumer(
@@ -138,3 +144,82 @@ def _create_consumer(
         processor=processor_factory,
         worker_id=worker_id,
     )
+
+
+def _build_validation_service(service_cls: type[Any]) -> Any:
+    try:
+        return service_cls(schema_package_root="schemas/production/v1")
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to initialize UnifiedValidationService: {exc}",
+        ) from exc
+
+
+def _build_validation_callback_factory(validation_service: Any) -> Callable[..., Any]:
+    def factory(
+        *,
+        analysis_type: str,
+        session_status_before_job: str | None,
+        canonical_facts: dict[str, object],
+    ) -> Callable[[dict[str, object]], tuple[bool, tuple[Any, ...]]]:
+        trade_state = _canonical_trade_state_from_facts(canonical_facts)
+
+        def validate(payload: dict[str, object]) -> tuple[bool, tuple[Any, ...]]:
+            result = validation_service.validate(
+                payload,
+                expected_analysis_type=analysis_type,
+                trade_state=trade_state,
+                session_status_before_job=session_status_before_job,
+            )
+            return result.valid, result.issues
+
+        return validate
+
+    return factory
+
+
+def _assert_real_validation_factory(
+    validate_factory: Callable[..., Any],
+    placeholder_validate: Callable[[dict[str, object]], tuple[bool, tuple[Any, ...]]],
+) -> None:
+    probe = validate_factory(
+        analysis_type="INITIAL_ANALYSIS",
+        session_status_before_job=None,
+        canonical_facts={},
+    )
+    if probe is placeholder_validate:
+        raise RuntimeError(
+            "Worker validation callback resolved to placeholder _always_invalid.",
+        )
+
+
+def _canonical_trade_state_from_facts(
+    canonical_facts: dict[str, object],
+) -> dict[str, object] | None:
+    trade_state: dict[str, object] = {}
+
+    session_id = canonical_facts.get("session_id")
+    if session_id is not None:
+        trade_state["session_id"] = session_id
+
+    ticker = canonical_facts.get("ticker")
+    if ticker is not None:
+        trade_state["ticker"] = ticker
+
+    position: dict[str, object] = {}
+    for key in (
+        "entry_price",
+        "original_quantity",
+        "remaining_quantity",
+        "active_stop_loss",
+        "active_target",
+        "position_status",
+    ):
+        value = canonical_facts.get(key)
+        if value is not None:
+            position[key] = value
+
+    if position:
+        trade_state["position"] = position
+
+    return trade_state or None

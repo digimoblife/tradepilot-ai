@@ -46,6 +46,15 @@ from app.models.trade_session import TradeSession
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
 from app.validation import ValidationIssue
 
+ValidationCallback = Callable[
+    [dict[str, object]],
+    tuple[bool, tuple[ValidationIssue, ...]],
+]
+ValidationCallbackFactory = Callable[
+    ...,
+    ValidationCallback,
+]
+
 # ---------------------------------------------------------------------------
 # Result model
 # ---------------------------------------------------------------------------
@@ -123,11 +132,8 @@ class AnalysisProcessor:
         session: AsyncSession,
         context_builder: ProviderContextBuilder | None = None,
         router: ProviderRouter | None = None,
-        validate: Callable[
-            [dict[str, object]],
-            tuple[bool, tuple[ValidationIssue, ...]],
-        ]
-        | None = None,
+        validate: ValidationCallback | None = None,
+        validate_factory: ValidationCallbackFactory | None = None,
         providers: Mapping[str, AIProvider] | None = None,
         provider_order: Sequence[str] | None = None,
         max_repair_attempts: int = 0,
@@ -137,6 +143,7 @@ class AnalysisProcessor:
         self._context_builder = context_builder or ProviderContextBuilder(session)
         self._router = router or ProviderRouter()
         self._validate = validate or _always_invalid
+        self._validate_factory = validate_factory
         self._providers = providers or {}
         self._provider_order = list(provider_order or [])
         self._max_repair = max_repair_attempts
@@ -232,6 +239,12 @@ class AnalysisProcessor:
         )
         await self._session.flush()  # ensure DB record exists before router call
 
+        validate = self._build_validate_callback(
+            analysis_type=atype,
+            session_status_before_job=job.previous_session_status,
+            canonical_facts=ctx.canonical_facts,
+        )
+
         # Call router
         try:
             route_result = await self._router.generate_validated(
@@ -239,7 +252,7 @@ class AnalysisProcessor:
                 providers=self._providers,
                 provider_order=self._provider_order,
                 max_provider_attempts=1,
-                validate=self._validate,
+                validate=validate,
                 canonical_facts=ctx.canonical_facts,
                 max_repair_attempts=self._max_repair,
             )
@@ -347,6 +360,21 @@ class AnalysisProcessor:
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _build_validate_callback(
+        self,
+        *,
+        analysis_type: str,
+        session_status_before_job: str | None,
+        canonical_facts: Mapping[str, object],
+    ) -> ValidationCallback:
+        if self._validate_factory is None:
+            return self._validate
+        return self._validate_factory(
+            analysis_type=analysis_type,
+            session_status_before_job=session_status_before_job,
+            canonical_facts=canonical_facts,
+        )
 
     def _get_primary_capabilities(self) -> ProviderCapabilities:
         if self._provider_order and self._providers:
