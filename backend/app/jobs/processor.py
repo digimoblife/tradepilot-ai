@@ -130,7 +130,7 @@ class AnalysisProcessor:
         | None = None,
         providers: Mapping[str, AIProvider] | None = None,
         provider_order: Sequence[str] | None = None,
-        max_repair_attempts: int = 2,
+        max_repair_attempts: int = 0,
     ) -> None:
         self._log = get_logger(__name__)
         self._session = session
@@ -238,6 +238,7 @@ class AnalysisProcessor:
                 request=router_request,
                 providers=self._providers,
                 provider_order=self._provider_order,
+                max_provider_attempts=1,
                 validate=self._validate,
                 canonical_facts=ctx.canonical_facts,
                 max_repair_attempts=self._max_repair,
@@ -447,33 +448,23 @@ class AnalysisProcessor:
     ) -> None:
         error_code = routing_error.root_cause_code or routing_error.code
         error_message = routing_error.root_cause_message or routing_error.message
-        attempts_remain = routing_error.retryable and job.attempt_count < job.max_attempts
 
-        if attempts_remain:
-            job.status = AnalysisJobStatus.RETRYING
-            job.lease_owner = None
-            job.lease_acquired_at = None
-            job.lease_expires_at = None
-            job.last_error_code = error_code
-            job.last_error_message = error_message
-            job.available_at = now
-        else:
-            job.status = AnalysisJobStatus.FAILED
-            job.completed_at = now
-            job.lease_owner = None
-            job.lease_acquired_at = None
-            job.lease_expires_at = None
-            job.last_error_code = error_code
-            job.last_error_message = error_message
+        job.status = AnalysisJobStatus.FAILED
+        job.completed_at = now
+        job.lease_owner = None
+        job.lease_acquired_at = None
+        job.lease_expires_at = None
+        job.last_error_code = error_code
+        job.last_error_message = error_message
 
-            prev = job.previous_session_status
-            if prev:
-                try:
-                    restored = TradeSessionStatus(prev)
-                    ts.lifecycle_status = restored
-                    ts.stable_status = restored
-                except ValueError:
-                    pass
+        prev = job.previous_session_status
+        if prev:
+            try:
+                restored = TradeSessionStatus(prev)
+                ts.lifecycle_status = restored
+                ts.stable_status = restored
+            except ValueError:
+                pass
 
 
 def _always_invalid(

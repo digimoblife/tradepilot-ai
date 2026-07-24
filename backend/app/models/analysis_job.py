@@ -81,7 +81,7 @@ class AnalysisJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     previous_session_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     available_at: Mapped[datetime] = mapped_column(
         utc_datetime(), nullable=False, server_default=func.now()
     )
@@ -114,7 +114,7 @@ class AnalysisJob(Base):
     def __init__(self, **kwargs: object) -> None:
         kwargs.setdefault("status", AnalysisJobStatus.CREATED)
         kwargs.setdefault("attempt_count", 0)
-        kwargs.setdefault("max_attempts", 3)
+        kwargs.setdefault("max_attempts", 1)
         kwargs.setdefault("requested_at", func.now())
         kwargs.setdefault("available_at", func.now())
         kwargs.setdefault("created_at", func.now())

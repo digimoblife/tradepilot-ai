@@ -18,7 +18,7 @@ function makeStatus(overrides: Partial<AnalysisJobStatus> = {}): AnalysisJobStat
     analysis_type: "INITIAL_ANALYSIS",
     status: "FAILED",
     attempt_count: 1,
-    max_attempts: 3,
+    max_attempts: 1,
     available_at: null,
     started_at: null,
     completed_at: null,
@@ -74,21 +74,21 @@ describe("rendering", () => {
   });
 
   it("shows retry button when attempts remain", () => {
-    render(<AnalysisFailure jobStatus={makeStatus({ attempt_count: 1, max_attempts: 3 })} sessionId="sess-a" />);
+    render(<AnalysisFailure jobStatus={makeStatus({ attempt_count: 1, max_attempts: 1 })} sessionId="sess-a" />);
     expect(screen.getByText("Coba Lagi")).toBeTruthy();
   });
 
   it("shows retry button when max attempts reached", () => {
-    render(<AnalysisFailure jobStatus={makeStatus({ attempt_count: 3, max_attempts: 3 })} sessionId="sess-a" />);
+    render(<AnalysisFailure jobStatus={makeStatus({ attempt_count: 1, max_attempts: 1 })} sessionId="sess-a" />);
     expect(screen.getByText("Coba Lagi")).toBeTruthy();
   });
 
   it("shows Indonesian exhausted-attempts feedback", () => {
     render(
-      <AnalysisFailure
+        <AnalysisFailure
         jobStatus={makeStatus({
-          attempt_count: 3,
-          max_attempts: 3,
+          attempt_count: 1,
+          max_attempts: 1,
           last_error_code: "JOB_ATTEMPTS_EXHAUSTED",
           last_error_message: "raw backend detail",
         })}
@@ -104,6 +104,7 @@ describe("rendering", () => {
     expect(screen.getByText("Detail teknis")).toBeTruthy();
     expect(screen.getByText(/Kode:/)).toBeTruthy();
     expect(screen.getByText(/PROVIDER_ERROR/)).toBeTruthy();
+    expect(screen.getByText("Attempt: 1/1")).toBeTruthy();
   });
 
   it("shows Tutup button when onClear provided", () => {
@@ -118,7 +119,7 @@ describe("rendering", () => {
 describe("retry", () => {
   it("calls retryJob when retry button clicked", async () => {
     vi.mocked(retryJob).mockResolvedValue({
-      job_id: "job-1", status: "PENDING", attempt_count: 2, max_attempts: 3,
+      job_id: "job-1", status: "PENDING", attempt_count: 0, max_attempts: 1,
     });
     render(<AnalysisFailure jobStatus={makeStatus()} sessionId="sess-a" />);
     await userEvent.click(screen.getByText("Coba Lagi"));
@@ -129,7 +130,7 @@ describe("retry", () => {
 
   it("calls onRetry after successful retry", async () => {
     vi.mocked(retryJob).mockResolvedValue({
-      job_id: "job-1", status: "PENDING", attempt_count: 2, max_attempts: 3,
+      job_id: "job-1", status: "PENDING", attempt_count: 0, max_attempts: 1,
     });
     const onRetry = vi.fn();
     render(<AnalysisFailure jobStatus={makeStatus()} sessionId="sess-a" onRetry={onRetry} />);
@@ -147,6 +148,13 @@ describe("retry", () => {
     expect(screen.getByText("Mengirim ulang…")).toBeDisabled();
   });
 
+  it("keeps duplicate retry clicks idempotent", async () => {
+    vi.mocked(retryJob).mockImplementation(() => new Promise(() => {}));
+    render(<AnalysisFailure jobStatus={makeStatus()} sessionId="sess-a" />);
+    await userEvent.dblClick(screen.getByText("Coba Lagi"));
+    expect(retryJob).toHaveBeenCalledTimes(1);
+  });
+
   it("shows API error on retry failure", async () => {
     vi.mocked(retryJob).mockRejectedValue(new ApiError(400, "ERROR", "Gagal."));
     render(<AnalysisFailure jobStatus={makeStatus()} sessionId="sess-a" />);
@@ -159,6 +167,19 @@ describe("retry", () => {
     render(<AnalysisFailure jobStatus={makeStatus()} sessionId="sess-a" />);
     await userEvent.click(screen.getByText("Coba Lagi"));
     expect(await screen.findByText("Silakan masuk terlebih dahulu.")).toBeTruthy();
+  });
+
+  it("shows retry-after when provider rate limit includes it", () => {
+    render(
+      <AnalysisFailure
+        jobStatus={makeStatus({
+          last_error_code: "AI_PROVIDER_RATE_LIMITED",
+          last_error_message: "Rate limited Retry-After: 60",
+        })}
+        sessionId="sess-a"
+      />,
+    );
+    expect(screen.getByText("Retry-After: 60")).toBeTruthy();
   });
 });
 

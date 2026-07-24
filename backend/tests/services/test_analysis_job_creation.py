@@ -199,6 +199,7 @@ class TestValidCreation:
             job = await s.get(AnalysisJob, result.job_id)
             assert job is not None
             assert job.attempt_count == 0
+            assert job.max_attempts == 1
 
     async def test_no_lease_owner(
         self,

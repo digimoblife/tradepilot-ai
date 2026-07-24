@@ -194,6 +194,25 @@ class TestConfiguredOrder:
         assert deepseek.call_count == 1
         assert result.provider == "deepseek"
 
+    async def test_single_attempt_does_not_fallback_after_primary_failure(self) -> None:
+        gemini = FakeProvider("gemini", responses=[Exception("fail")])
+        deepseek = FakeProvider("deepseek")
+        router = ProviderRouter()
+
+        with pytest.raises(ProviderRoutingFailedError):
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini, "deepseek": deepseek},
+                provider_order=["gemini", "deepseek"],
+                max_provider_attempts=1,
+                validate=_always_valid,
+                canonical_facts={},
+                max_repair_attempts=0,
+            )
+
+        assert gemini.call_count == 1
+        assert deepseek.call_count == 0
+
     async def test_empty_order_rejected(self) -> None:
         router = ProviderRouter()
         with pytest.raises(ProviderOrderEmptyError):
@@ -331,6 +350,23 @@ class TestRepairBeforeFallback:
         # At least one repair attempt should exist in history
         repair_attempts = [a for a in result.attempts if a.phase == "REPAIR"]
         assert len(repair_attempts) >= 1
+
+    async def test_repair_disabled_keeps_single_provider_invocation(self) -> None:
+        gemini = FakeProvider("gemini")
+        router = ProviderRouter()
+
+        with pytest.raises(ProviderRoutingFailedError):
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini},
+                provider_order=["gemini"],
+                max_provider_attempts=1,
+                validate=_always_invalid,
+                canonical_facts={},
+                max_repair_attempts=0,
+            )
+
+        assert gemini.call_count == 1
 
 
 # ===================================================================

@@ -535,6 +535,7 @@ class TestRetry:
         data = resp.json()
         assert data["status"] == "QUEUED"
         assert data["attempt_count"] == 0
+        assert data["max_attempts"] == 1
 
     async def test_exhausted_failed_job_retried(
         self, engine: AsyncEngine, client: AsyncClient
@@ -551,7 +552,7 @@ class TestRetry:
                     "attempt_count, max_attempts, requested_at, available_at, completed_at, "
                     "last_error_code) "
                     "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', "
-                    "3, 3, :now, :now, :now, 'JOB_ATTEMPTS_EXHAUSTED')"
+                    "1, 1, :now, :now, :now, 'JOB_ATTEMPTS_EXHAUSTED')"
                 ),
                 {"jid": jid, "sid": sid, "now": now},
             )
@@ -567,6 +568,7 @@ class TestRetry:
         assert data["job_id"] == str(jid)
         assert data["status"] == "QUEUED"
         assert data["attempt_count"] == 0
+        assert data["max_attempts"] == 1
 
     async def test_completed_retry_rejected(
         self, engine: AsyncEngine, client: AsyncClient
@@ -594,7 +596,7 @@ class TestRetry:
                 text(
                     "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
                     "attempt_count, max_attempts, requested_at, available_at) "
-                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 1, 3, :now, :now)"
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 1, 1, :now, :now)"
                 ),
                 {"jid": jid, "sid": sid, "now": now},
             )
@@ -618,7 +620,7 @@ class TestRetry:
                 text(
                     "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
                     "attempt_count, max_attempts, requested_at, available_at) "
-                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 3, 3, :now, :now)"
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 1, 1, :now, :now)"
                 ),
                 {"jid": jid, "sid": sid, "now": now},
             )
@@ -637,6 +639,7 @@ class TestRetry:
         assert second.status_code == 202
         assert second.json()["job_id"] == str(jid)
         assert second.json()["status"] == "QUEUED"
+        assert second.json()["max_attempts"] == 1
 
         async with engine.begin() as conn:
             count = (
@@ -665,7 +668,7 @@ class TestRetry:
                 text(
                     "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
                     "attempt_count, max_attempts, requested_at, available_at) "
-                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 3, 3, :now, :now)"
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'FAILED', 1, 1, :now, :now)"
                 ),
                 {"jid": failed_jid, "sid": sid, "now": now},
             )
@@ -673,7 +676,7 @@ class TestRetry:
                 text(
                     "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, "
                     "attempt_count, max_attempts, requested_at, available_at) "
-                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'QUEUED', 0, 3, :now, :now)"
+                    "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'QUEUED', 0, 1, :now, :now)"
                 ),
                 {"jid": active_jid, "sid": sid, "now": now},
             )
@@ -702,7 +705,7 @@ class TestRetry:
                     "attempt_count, max_attempts, lease_owner, lease_expires_at, "
                     "requested_at, available_at) "
                     "VALUES (:jid, :sid, 'INITIAL_ANALYSIS', 'PROCESSING', "
-                    "3, 3, 'old-worker', :past, :past, :past)"
+                    "1, 1, 'old-worker', :past, :past, :past)"
                 ),
                 {"jid": jid, "sid": sid, "past": past},
             )
@@ -715,3 +718,4 @@ class TestRetry:
 
         assert resp.status_code == 202
         assert resp.json()["status"] == "QUEUED"
+        assert resp.json()["max_attempts"] == 1

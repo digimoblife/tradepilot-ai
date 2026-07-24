@@ -80,7 +80,7 @@ async def request_analysis(
         analysis_type=result.analysis_type,
         status=result.job_status,
         attempt_count=0,
-        max_attempts=3,
+        max_attempts=1,
         available_at=datetime.now(timezone.utc),
         created_at=datetime.now(timezone.utc),
         previous_session_status=result.previous_session_status,

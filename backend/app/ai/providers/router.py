@@ -112,6 +112,7 @@ class ProviderRouter:
         request: ProviderRequest,
         providers: Mapping[str, AIProvider],
         provider_order: Sequence[str],
+        max_provider_attempts: int | None = None,
         validate: Callable[
             [dict[str, object]],
             tuple[bool, tuple[ValidationIssue, ...]],
@@ -123,12 +124,13 @@ class ProviderRouter:
             raise ProviderOrderEmptyError(message="Provider order is empty")
 
         _validate_provider_order(provider_order, set(providers.keys()))
+        effective_order = tuple(provider_order[:max_provider_attempts]) if max_provider_attempts else tuple(provider_order)
 
         history: list[ProviderRouteAttempt] = []
         seq = 0
-        primary_name = provider_order[0]
+        primary_name = effective_order[0]
 
-        for provider_name in provider_order:
+        for provider_name in effective_order:
             provider_obj = providers[provider_name]
             is_fallback = provider_name != primary_name
 
@@ -182,22 +184,23 @@ class ProviderRouter:
                     )
                 )
                 # Try repair
-                result = await self._repair_and_record(
-                    provider_obj=provider_obj,
-                    provider_name=provider_name,
-                    seq=seq,
-                    request=request,
-                    response=provider_response,
-                    validation_errors=_parse_issues(code, str(exc)),
-                    canonical_facts=canonical_facts,
-                    validate=validate,
-                    max_attempts=max_repair_attempts,
-                    history=history,
-                    is_fallback=is_fallback,
-                )
-                if result is not None:
-                    return result
-                seq = len(history) if history else 0
+                if max_repair_attempts > 0:
+                    result = await self._repair_and_record(
+                        provider_obj=provider_obj,
+                        provider_name=provider_name,
+                        seq=seq,
+                        request=request,
+                        response=provider_response,
+                        validation_errors=_parse_issues(code, str(exc)),
+                        canonical_facts=canonical_facts,
+                        validate=validate,
+                        max_attempts=max_repair_attempts,
+                        history=history,
+                        is_fallback=is_fallback,
+                    )
+                    if result is not None:
+                        return result
+                    seq = len(history) if history else 0
                 continue
 
             # --- Validate ---
@@ -233,26 +236,27 @@ class ProviderRouter:
                 )
 
             # Validation failed — repair
-            result = await self._repair_and_record(
-                provider_obj=provider_obj,
-                provider_name=provider_name,
-                seq=seq,
-                request=request,
-                response=provider_response,
-                validation_errors=list(issues),
-                canonical_facts=canonical_facts,
-                validate=validate,
-                max_attempts=max_repair_attempts,
-                history=history,
-                is_fallback=is_fallback,
-            )
-            if result is not None:
-                return result
-            seq = len(history) if history else 0
+            if max_repair_attempts > 0:
+                result = await self._repair_and_record(
+                    provider_obj=provider_obj,
+                    provider_name=provider_name,
+                    seq=seq,
+                    request=request,
+                    response=provider_response,
+                    validation_errors=list(issues),
+                    canonical_facts=canonical_facts,
+                    validate=validate,
+                    max_attempts=max_repair_attempts,
+                    history=history,
+                    is_fallback=is_fallback,
+                )
+                if result is not None:
+                    return result
+                seq = len(history) if history else 0
 
         raise ProviderRoutingFailedError(
             message=(
-                f"All {len(provider_order)} provider(s) failed ({len(history)} routing attempt(s))"
+                f"All {len(effective_order)} provider(s) failed ({len(history)} routing attempt(s))"
             ),
             attempts=tuple(history),
             root_cause_code=_root_cause_code(history),

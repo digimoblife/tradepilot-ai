@@ -188,7 +188,7 @@ class AnalysisJobCreationService:
             analysis_type=atype,
             status=AnalysisJobStatus.QUEUED,
             attempt_count=0,
-            max_attempts=3,
+            max_attempts=1,
             previous_session_status=prev_status,
             requested_at=requested_at or datetime.now(timezone.utc),
             available_at=datetime.now(timezone.utc),

@@ -322,23 +322,23 @@ def _map_exception(exc: Exception) -> GeminiError:
 def _extract_safe_exception_text(exc: Exception) -> str:
     message = _sanitize_exception_text(getattr(exc, "message", ""))
     if message:
-        return message
+        return _append_retry_after(message, exc)
 
     details = _stringify_exception_value(getattr(exc, "details", None))
     details = _sanitize_exception_text(details)
     if details:
-        return details
+        return _append_retry_after(details, exc)
 
     errors = _stringify_exception_value(getattr(exc, "errors", None))
     errors = _sanitize_exception_text(errors)
     if errors:
-        return errors
+        return _append_retry_after(errors, exc)
 
     text = _sanitize_exception_text(str(exc))
     if text:
-        return text
+        return _append_retry_after(text, exc)
 
-    return _sanitize_exception_text(repr(exc))
+    return _append_retry_after(_sanitize_exception_text(repr(exc)), exc)
 
 
 def _stringify_exception_value(value: Any) -> str:
@@ -360,6 +360,42 @@ def _sanitize_exception_text(text: str) -> str:
         return ""
     cleaned = _SENSITIVE_VALUE_PATTERN.sub(r"\1=[REDACTED]", text.strip())
     return cleaned[:500] if len(cleaned) > 500 else cleaned
+
+
+def _append_retry_after(message: str, exc: Exception) -> str:
+    retry_after = _extract_retry_after(exc)
+    if not retry_after:
+        return message
+
+    lowered = message.lower()
+    if "retry-after" in lowered or "retry after" in lowered:
+        return message
+
+    combined = f"{message} Retry-After: {retry_after}"
+    return combined[:500] if len(combined) > 500 else combined
+
+
+def _extract_retry_after(exc: Exception) -> str | None:
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        headers = getattr(exc, "headers", None)
+    if headers is None:
+        return None
+
+    value: Any = None
+    if isinstance(headers, dict):
+        value = headers.get("Retry-After") or headers.get("retry-after")
+    else:
+        getter = getattr(headers, "get", None)
+        if callable(getter):
+            value = getter("Retry-After") or getter("retry-after")
+
+    if value is None:
+        return None
+
+    rendered = _sanitize_exception_text(str(value))
+    return rendered or None
 
 
 def _safe_metadata(obj: Any) -> Any:

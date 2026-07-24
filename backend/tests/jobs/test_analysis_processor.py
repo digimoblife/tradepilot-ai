@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.ai.providers import (
     AIProvider,
+    ProviderCapabilities,
     ProviderRequest,
     ProviderResponse,
 )
@@ -94,6 +95,39 @@ class FakeRouter(ProviderRouter):
 class FailingContextBuilder:
     async def build(self, **kwargs: Any) -> Any:
         raise FileNotFoundError("/app/prompts/production/v1/initial_analysis.system.md")
+
+
+class CountingProvider(AIProvider):
+    def __init__(self, responses: list[ProviderResponse | Exception]) -> None:
+        self._responses = list(responses)
+        self.call_count = 0
+
+    @property
+    def name(self) -> str:
+        return "gemini"
+
+    @property
+    def model(self) -> str:
+        return "gemini-3.5-flash"
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        return ProviderCapabilities(
+            supports_images=True,
+            supports_text_output=True,
+            supports_structured_output=True,
+            supports_system_prompt=True,
+            supports_json_schema=True,
+            supports_multi_image=True,
+            maximum_images=10,
+        )
+
+    async def generate(self, request: ProviderRequest) -> ProviderResponse:
+        self.call_count += 1
+        response = self._responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 # ===================================================================
@@ -531,14 +565,14 @@ class TestIdempotency:
 
 
 class TestRoutingFailure:
-    async def test_transient_router_failure_sets_retry(
+    async def test_provider_failure_sets_failed_after_one_call(
         self,
         engine: AsyncEngine,
         user_id: uuid.UUID,
         session_id: uuid.UUID,
         factory: async_sessionmaker[AsyncSession],
     ) -> None:
-        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=3)
+        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=1)
         await _add_context_summary(engine, session_id)
         async with factory() as s:
             proc = AnalysisProcessor(
@@ -554,14 +588,17 @@ class TestRoutingFailure:
                 validate=_always_valid,
             )
             result = await proc.process(job_id=jid, worker_id="w1")
-            assert result.job_status == AnalysisJobStatus.RETRYING.value
+            assert result.job_status == AnalysisJobStatus.FAILED.value
             await s.commit()
         async with factory() as s:
             job = await s.get(AnalysisJob, jid)
+            session = await s.get(TradeSession, session_id)
             assert job is not None
-            assert job.status == AnalysisJobStatus.RETRYING
+            assert session is not None
+            assert job.status == AnalysisJobStatus.FAILED
             assert job.last_error_code == "AI_PROVIDER_TIMEOUT"
             assert job.last_error_message == "Gemini timed out"
+            assert session.lifecycle_status.value == "WATCHING"
 
     async def test_deterministic_router_failure_sets_failed_without_repeated_retry(
         self,
@@ -662,6 +699,115 @@ class TestRoutingFailure:
                 {"jid": jid},
             )
             assert count.scalar_one() == 0
+
+    async def test_rate_limit_failure_becomes_failed_after_one_provider_call(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=1)
+        await _add_context_summary(engine, session_id)
+
+        class _RateLimitError(Exception):
+            code = "AI_PROVIDER_RATE_LIMITED"
+
+            def __str__(self) -> str:
+                return "rate limited Retry-After: 60"
+
+        provider = CountingProvider([_RateLimitError()])
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=_always_valid,
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        async with factory() as s:
+            job = await s.get(AnalysisJob, jid)
+            assert job is not None
+            assert provider.call_count == 1
+            assert job.status == AnalysisJobStatus.FAILED
+            assert job.last_error_code == "AI_PROVIDER_RATE_LIMITED"
+            assert job.last_error_message == "rate limited Retry-After: 60"
+
+    async def test_manual_retry_can_invoke_provider_once_again(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=1)
+        await _add_context_summary(engine, session_id)
+
+        class _TimeoutError(Exception):
+            code = "AI_PROVIDER_TIMEOUT"
+
+            def __str__(self) -> str:
+                return "Gemini timed out"
+
+        provider = CountingProvider(
+            [
+                _TimeoutError(),
+                ProviderResponse(
+                    provider="gemini",
+                    model="gemini-3.5-flash",
+                    raw_output='{"ok": true}',
+                    request_id=uuid.uuid4(),
+                ),
+            ]
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=_always_valid,
+            )
+            first = await proc.process(job_id=jid, worker_id="w1")
+            assert first.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        now = datetime.now(timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "UPDATE analysis_jobs SET status = 'PROCESSING', attempt_count = 1, "
+                    "max_attempts = 1, lease_owner = 'w1', lease_acquired_at = :now, "
+                    "lease_expires_at = :lease, available_at = :now, completed_at = NULL, "
+                    "last_error_code = NULL, last_error_message = NULL "
+                    "WHERE id = :jid"
+                ),
+                {"jid": jid, "now": now, "lease": now + timedelta(seconds=30)},
+            )
+            await conn.execute(
+                text(
+                    "UPDATE trade_sessions SET lifecycle_status = 'ANALYZING', stable_status = 'ANALYZING' "
+                    "WHERE id = :sid"
+                ),
+                {"sid": session_id},
+            )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=_always_valid,
+            )
+            second = await proc.process(job_id=jid, worker_id="w1")
+            assert second.job_status == AnalysisJobStatus.COMPLETED.value
+            await s.commit()
+
+        assert provider.call_count == 2
 
 
 # ===================================================================

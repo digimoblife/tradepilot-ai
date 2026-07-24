@@ -149,6 +149,7 @@ async def retry_job(
     now = datetime.now(timezone.utc)
     job.status = AnalysisJobStatus.QUEUED
     job.attempt_count = 0
+    job.max_attempts = 1
     job.available_at = now
     job.lease_owner = None
     job.lease_acquired_at = None

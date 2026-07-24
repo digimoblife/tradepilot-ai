@@ -66,6 +66,13 @@ function errorSummary(code: string | null, message: string | null): string {
   return "Terjadi kesalahan yang tidak diketahui.";
 }
 
+function retryAfterLabel(message: string | null): string | null {
+  if (!message) return null;
+  const match = message.match(/retry-after:\s*([^\s,;]+)/i);
+  if (!match) return null;
+  return match[1] ?? null;
+}
+
 function canRetry(status: AnalysisJobStatus): boolean {
   return status.status === "FAILED";
 }
@@ -84,6 +91,7 @@ export function AnalysisFailure({ jobStatus, onRetry, onClear }: Props) {
   const summary = errorSummary(jobStatus.last_error_code, jobStatus.last_error_message);
   const category = errorCategoryLabel(jobStatus.last_error_code);
   const retryAllowed = canRetry(jobStatus);
+  const retryAfter = retryAfterLabel(jobStatus.last_error_message);
 
   const handleRetry = useCallback(async () => {
     if (retryState === "pending") return;
@@ -113,6 +121,9 @@ export function AnalysisFailure({ jobStatus, onRetry, onClear }: Props) {
         <p className="text-sm font-medium text-red-800">Analisis Gagal</p>
         <p className="mt-1 text-xs text-red-600">{category}</p>
         <p className="mt-1 text-sm text-red-700">{summary}</p>
+        {retryAfter && (
+          <p className="mt-1 text-xs text-red-600">Retry-After: {retryAfter}</p>
+        )}
       </div>
 
       {jobStatus.last_error_code && (
