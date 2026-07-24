@@ -317,15 +317,28 @@ type LoadState =
 interface Props {
   sessionId: string;
   refreshKey?: number;
+  analyses?: AnalysisSummary[] | null;
+  loading?: boolean;
+  errorMessage?: string | null;
+  onRetry?: () => void;
 }
 
-export function AnalysisHistory({ sessionId, refreshKey = 0 }: Props) {
+export function AnalysisHistory({
+  sessionId,
+  refreshKey = 0,
+  analyses,
+  loading: externalLoading = false,
+  errorMessage = null,
+  onRetry,
+}: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [openId, setOpenId] = useState<string | null>(null);
   const [detailMap, setDetailMap] = useState<Record<string, AnalysisDetail | "loading" | "error">>({});
   const cancelledRef = useRef(false);
+  const usesExternalData = analyses !== undefined;
 
   const load = useCallback(async function loadFn() {
+    if (usesExternalData) return;
     cancelledRef.current = false;
     setState({ status: "loading" });
     try {
@@ -369,13 +382,46 @@ export function AnalysisHistory({ sessionId, refreshKey = 0 }: Props) {
         });
       }
     }
-  }, [sessionId]);
+  }, [sessionId, usesExternalData]);
 
   useEffect(() => {
+    if (usesExternalData) return;
     cancelledRef.current = false;
     load();
     return () => { cancelledRef.current = true; };
-  }, [load, refreshKey]);
+  }, [load, refreshKey, usesExternalData]);
+
+  useEffect(() => {
+    if (!usesExternalData) return;
+
+    if (externalLoading) {
+      setState({ status: "loading" });
+      return;
+    }
+
+    if (errorMessage) {
+      setState({
+        status: "error",
+        message: errorMessage,
+        retry: onRetry ?? (() => {}),
+      });
+      return;
+    }
+
+    const accepted = (analyses ?? [])
+      .filter((a) => a.acceptance_status === "ACCEPTED")
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+    if (accepted.length === 0) {
+      setState({ status: "empty" });
+      return;
+    }
+
+    setState({ status: "loaded", analyses: accepted });
+  }, [analyses, errorMessage, externalLoading, onRetry, usesExternalData]);
 
   const handleToggle = useCallback((id: string) => {
     if (cancelledRef.current) return;

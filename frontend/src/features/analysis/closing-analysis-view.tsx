@@ -5,6 +5,7 @@ import { listAnalyses, getAnalysis } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import { AnalysisSection } from "./analysis-section";
 import { AnalysisValue } from "./analysis-value";
+import type { AnalysisSummary } from "@/types/analysis";
 import {
   enumLabel,
   percentage,
@@ -156,9 +157,10 @@ interface Props {
   sessionId: string;
   onEmpty?: () => void;
   onLoaded?: () => void;
+  selectedAnalysis?: AnalysisSummary | null;
 }
 
-export function ClosingAnalysisView({ sessionId, onEmpty, onLoaded }: Props) {
+export function ClosingAnalysisView({ sessionId, onEmpty, onLoaded, selectedAnalysis }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const cancelledRef = useRef(false);
 
@@ -166,25 +168,28 @@ export function ClosingAnalysisView({ sessionId, onEmpty, onLoaded }: Props) {
     cancelledRef.current = false;
     setState({ status: "loading" });
     try {
-      const list = await listAnalyses(sessionId, {
-        analysis_type: "CLOSING_ANALYSIS",
-      });
-      if (cancelledRef.current) return;
+      let latest = selectedAnalysis ?? null;
+      if (selectedAnalysis === undefined) {
+        const list = await listAnalyses(sessionId, {
+          analysis_type: "CLOSING_ANALYSIS",
+        });
+        if (cancelledRef.current) return;
 
-      const accepted = list.analyses
-        .filter((a) => a.acceptance_status === "ACCEPTED")
-        .sort(
-          (a, b) =>
-            new Date(b.accepted_at ?? b.created_at).getTime() -
-            new Date(a.accepted_at ?? a.created_at).getTime(),
-        );
+        const accepted = list.analyses
+          .filter((a) => a.acceptance_status === "ACCEPTED")
+          .sort(
+            (a, b) =>
+              new Date(b.accepted_at ?? b.created_at).getTime() -
+              new Date(a.accepted_at ?? a.created_at).getTime(),
+          );
+        latest = accepted[0] ?? null;
+      }
 
-      if (accepted.length === 0) {
+      if (!latest) {
         if (!cancelledRef.current) setState({ status: "empty" });
         return;
       }
 
-      const latest = accepted[0];
       const detail = await getAnalysis(latest.id);
       if (cancelledRef.current) return;
 
@@ -221,7 +226,7 @@ export function ClosingAnalysisView({ sessionId, onEmpty, onLoaded }: Props) {
         });
       }
     }
-  }, [sessionId]);
+  }, [selectedAnalysis, sessionId]);
 
   useEffect(() => {
     cancelledRef.current = false;

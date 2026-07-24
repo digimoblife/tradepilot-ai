@@ -5,9 +5,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
 import { cancelSession } from "@/lib/api/trade-actions";
 import { getTimeline } from "@/lib/api/timeline";
+import { listAnalyses } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { TradeSessionDetail } from "@/types/trade-session";
 import type { TimelineEvent } from "@/types/timeline";
+import type { AnalysisSummary } from "@/types/analysis";
 import { SessionHeader } from "./session-header";
 import { LifecycleStatus } from "./lifecycle-status";
 import { CanonicalPositionSummary } from "./canonical-position-summary";
@@ -39,6 +41,11 @@ type LoadState =
 type LifecycleActionState =
   | { status: "idle"; error: string }
   | { status: "submitting"; action: string; error: string };
+
+type AnalysisListState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "loaded"; analyses: AnalysisSummary[] };
 
 const STORAGE_KEY = "tp-active-job";
 
@@ -95,6 +102,7 @@ function lifecycleErrorMessage(action: string, error: unknown): string {
 
 export function TradeSessionShell({ sessionId }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [analysisListState, setAnalysisListState] = useState<AnalysisListState>({ status: "loading" });
   const [retryKey, setRetryKey] = useState(0);
   const [actionModal, setActionModal] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
@@ -141,6 +149,38 @@ export function TradeSessionShell({ sessionId }: Props) {
           }
         } else {
           setState({ status: "error", message: "Terjadi kesalahan. Silakan coba lagi." });
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [sessionId, retryKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setAnalysisListState({ status: "loading" });
+      try {
+        const result = await listAnalyses(sessionId);
+        if (!cancelled) {
+          setAnalysisListState({ status: "loaded", analyses: result.analyses });
+        }
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (e instanceof AuthenticationError) {
+          setAnalysisListState({
+            status: "error",
+            message: "Silakan masuk terlebih dahulu untuk melihat analisis.",
+          });
+        } else if (e instanceof ApiError) {
+          setAnalysisListState({ status: "error", message: e.message });
+        } else {
+          setAnalysisListState({
+            status: "error",
+            message: "Gagal memuat analisis. Silakan coba lagi.",
+          });
         }
       }
     }
@@ -254,12 +294,23 @@ export function TradeSessionShell({ sessionId }: Props) {
       </div>
 
       <div className="mt-6">
-        <AnalysisSwitcher sessionId={sessionId} />
+        <AnalysisSwitcher
+          analysisListState={analysisListState}
+          onRetry={() => setRetryKey((k) => k + 1)}
+          sessionId={sessionId}
+        />
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <SessionTimeline sessionId={sessionId} refreshKey={retryKey} />
-        <AnalysisHistory sessionId={sessionId} refreshKey={retryKey} />
+        <AnalysisHistory
+          sessionId={sessionId}
+          refreshKey={retryKey}
+          analyses={analysisListState.status === "loaded" ? analysisListState.analyses : undefined}
+          loading={analysisListState.status === "loading"}
+          errorMessage={analysisListState.status === "error" ? analysisListState.message : null}
+          onRetry={() => setRetryKey((k) => k + 1)}
+        />
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -505,45 +556,95 @@ function PendingActionsSection({
  * 4. WatchingUpdateView (pre-entry setup changes)
  * 5. InitialAnalysisView (initial setup)
  */
-function AnalysisSwitcher({ sessionId }: { sessionId: string }) {
-  const [show, setShow] = useState<"ca" | "per" | "opu" | "wu" | "ia" | null>(null);
+function AnalysisSwitcher({
+  analysisListState,
+  onRetry,
+  sessionId,
+}: {
+  analysisListState: AnalysisListState;
+  onRetry: () => void;
+  sessionId: string;
+}) {
+  if (analysisListState.status === "loading") {
+    return (
+      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+        <p className="text-sm text-zinc-500">Memuat closing analysis…</p>
+      </section>
+    );
+  }
+
+  if (analysisListState.status === "error") {
+    return (
+      <section className="rounded-lg border border-red-200 bg-red-50 p-4">
+        <p className="text-sm text-red-700">{analysisListState.message}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-2 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+        >
+          Coba Lagi
+        </button>
+      </section>
+    );
+  }
+
+  const selected = selectHighestPrecedenceAnalysis(analysisListState.analyses);
 
   return (
     <>
-      {show !== "per" && show !== "opu" && show !== "wu" && show !== "ia" && (
+      {selected?.analysis_type === "CLOSING_ANALYSIS" && (
         <ClosingAnalysisView
           sessionId={sessionId}
-          onEmpty={() => setShow("per")}
-          onLoaded={() => setShow("ca")}
+          selectedAnalysis={selected}
         />
       )}
-      {show === "per" && (
+      {selected?.analysis_type === "PARTIAL_EXIT_REVIEW" && (
         <PartialExitReviewView
           sessionId={sessionId}
-          onEmpty={() => setShow("opu")}
-          onLoaded={() => setShow("per")}
+          selectedAnalysis={selected}
         />
       )}
-      {show === "opu" && (
+      {selected?.analysis_type === "OPEN_POSITION_UPDATE" && (
         <OpenPositionUpdateView
           sessionId={sessionId}
-          onEmpty={() => setShow("wu")}
-          onLoaded={() => setShow("opu")}
+          selectedAnalysis={selected}
         />
       )}
-      {show === "wu" && (
+      {selected?.analysis_type === "WATCHING_UPDATE" && (
         <WatchingUpdateView
           sessionId={sessionId}
-          onEmpty={() => setShow("ia")}
-          onLoaded={() => setShow("wu")}
+          selectedAnalysis={selected}
         />
       )}
-      {show === "ia" && <InitialAnalysisView sessionId={sessionId} />}
-      {show === null && (
-        <section className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-sm text-zinc-500">Memuat closing analysis…</p>
-        </section>
+      {(selected?.analysis_type === "INITIAL_ANALYSIS" || selected === null) && (
+        <InitialAnalysisView sessionId={sessionId} selectedAnalysis={selected} />
       )}
     </>
   );
+}
+
+const ANALYSIS_PRECEDENCE = [
+  "CLOSING_ANALYSIS",
+  "PARTIAL_EXIT_REVIEW",
+  "OPEN_POSITION_UPDATE",
+  "WATCHING_UPDATE",
+  "INITIAL_ANALYSIS",
+] as const;
+
+function selectHighestPrecedenceAnalysis(analyses: AnalysisSummary[]): AnalysisSummary | null {
+  const accepted = analyses.filter((analysis) => analysis.acceptance_status === "ACCEPTED");
+
+  for (const type of ANALYSIS_PRECEDENCE) {
+    const match = accepted
+      .filter((analysis) => analysis.analysis_type === type)
+      .sort(
+        (a, b) =>
+          new Date(b.accepted_at ?? b.created_at).getTime() -
+          new Date(a.accepted_at ?? a.created_at).getTime(),
+      )[0];
+
+    if (match) return match;
+  }
+
+  return null;
 }

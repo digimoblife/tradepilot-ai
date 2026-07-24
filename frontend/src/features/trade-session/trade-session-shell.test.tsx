@@ -5,7 +5,8 @@ import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions"
 import { cancelSession } from "@/lib/api/trade-actions";
 import { listEvidence } from "@/lib/api/evidence";
 import { getTimeline } from "@/lib/api/timeline";
-import { getJobStatus, requestAnalysis } from "@/lib/api/analyses";
+import { getJobStatus, requestAnalysis, listAnalyses, getAnalysis } from "@/lib/api/analyses";
+import { initialAnalysisFixture, closingAnalysisFixture } from "@/test/fixtures";
 
 vi.mock("@/lib/api/trade-sessions", () => ({
   getSession: vi.fn(),
@@ -128,6 +129,51 @@ async function clickInitialAnalysisSubmit(user: ReturnType<typeof userEvent.setu
   });
   const buttons = screen.getAllByRole("button", { name: "Jalankan Analisis Awal" });
   await user.click(buttons[buttons.length - 1]);
+}
+
+function makeAnalysisSummary(
+  analysisType: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: `${analysisType}-1`,
+    session_id: "sess-1",
+    analysis_type: analysisType,
+    acceptance_status: "ACCEPTED",
+    accepted_at: "2026-07-20T12:05:00Z",
+    created_at: "2026-07-20T12:00:00Z",
+    prompt_version: "1.0.0",
+    schema_name: analysisType.toLowerCase(),
+    schema_version: "1.0.0",
+    supersedes_analysis_id: null,
+    ...overrides,
+  };
+}
+
+function makeAnalysisDetail(
+  analysisType: string,
+  overrides: Record<string, unknown> = {},
+) {
+  const payload =
+    analysisType === "CLOSING_ANALYSIS"
+      ? JSON.parse(JSON.stringify(closingAnalysisFixture))
+      : JSON.parse(JSON.stringify(initialAnalysisFixture));
+
+  return {
+    id: `${analysisType}-1`,
+    session_id: "sess-1",
+    analysis_type: analysisType,
+    acceptance_status: "ACCEPTED",
+    accepted_at: "2026-07-20T12:05:00Z",
+    created_at: "2026-07-20T12:00:00Z",
+    prompt_name: analysisType.toLowerCase(),
+    prompt_version: "1.0.0",
+    schema_name: analysisType.toLowerCase(),
+    schema_version: "1.0.0",
+    payload,
+    supersedes_analysis_id: null,
+    ...overrides,
+  };
 }
 
 beforeEach(async () => {
@@ -342,6 +388,7 @@ describe("required sections", () => {
 
   it("has analysis section showing loading state", async () => {
     vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listAnalyses).mockImplementation(() => new Promise(() => {}));
     render(<TradeSessionShell sessionId="sess-1" />);
     expect(
       await screen.findByText("Memuat closing analysis…"),
@@ -364,6 +411,79 @@ describe("required sections", () => {
     vi.mocked(getSession).mockResolvedValue(makeSession());
     render(<TradeSessionShell sessionId="sess-1" />);
     expect(await screen.findByText("Tindakan Tersedia")).toBeTruthy();
+  });
+});
+
+// -------------------------------------------------------------------
+// Analysis switcher request flow
+// -------------------------------------------------------------------
+describe("analysis switcher request flow", () => {
+  it("calls listAnalyses once on page open", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAnalysisSummary("INITIAL_ANALYSIS")],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeAnalysisDetail("INITIAL_ANALYSIS"));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    await screen.findByText("Ringkasan Eksekutif");
+    expect(listAnalyses).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not issue analysis_type-specific list requests", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAnalysisSummary("INITIAL_ANALYSIS")],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeAnalysisDetail("INITIAL_ANALYSIS"));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    await screen.findByText("Ringkasan Eksekutif");
+    expect(vi.mocked(listAnalyses).mock.calls).toContainEqual(["sess-1"]);
+    expect(
+      vi.mocked(listAnalyses).mock.calls.some(([, query]) => query && "analysis_type" in query),
+    ).toBe(false);
+  });
+
+  it("selects the highest-precedence accepted analysis", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [
+        makeAnalysisSummary("INITIAL_ANALYSIS", { id: "ia-1" }),
+        makeAnalysisSummary("OPEN_POSITION_UPDATE", { id: "opu-1" }),
+        makeAnalysisSummary("CLOSING_ANALYSIS", { id: "ca-1" }),
+      ],
+      total: 3,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(
+      makeAnalysisDetail("CLOSING_ANALYSIS", { id: "ca-1" }),
+    );
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    await screen.findByText("Ringkasan Penutupan");
+    expect(getAnalysis).toHaveBeenCalledWith("ca-1");
+  });
+
+  it("fetches detail once for the selected analysis", async () => {
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAnalysisSummary("INITIAL_ANALYSIS", { id: "ia-1" })],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(
+      makeAnalysisDetail("INITIAL_ANALYSIS", { id: "ia-1" }),
+    );
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+
+    await screen.findByText("Ringkasan Eksekutif");
+    expect(getAnalysis).toHaveBeenCalledTimes(1);
+    expect(getAnalysis).toHaveBeenCalledWith("ia-1");
   });
 });
 
