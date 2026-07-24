@@ -368,6 +368,24 @@ class TestRepairBeforeFallback:
 
         assert gemini.call_count == 1
 
+    async def test_repair_disabled_preserves_concrete_validation_error(self) -> None:
+        gemini = FakeProvider("gemini")
+        router = ProviderRouter()
+
+        with pytest.raises(ProviderRoutingFailedError) as exc:
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini},
+                provider_order=["gemini"],
+                max_provider_attempts=1,
+                validate=_always_invalid,
+                canonical_facts={},
+                max_repair_attempts=0,
+            )
+
+        assert exc.value.root_cause_code == "TEST_ERROR"
+        assert exc.value.root_cause_message == "Test error"
+
 
 # ===================================================================
 # Fallback success

@@ -205,6 +205,13 @@ class ProviderRouter:
 
             # --- Validate ---
             is_valid, issues = validate(parsed)
+            validation_failure_code = None
+            validation_failure_message = None
+            if not is_valid:
+                validation_failure_code = issues[0].code if issues else "REPAIR_VALIDATION_FAILED"
+                validation_failure_message = _sanitize_failure_message(
+                    "; ".join(issue.message for issue in issues if issue.message) or ""
+                )
 
             history.append(
                 ProviderRouteAttempt(
@@ -213,6 +220,9 @@ class ProviderRouter:
                     phase="PRIMARY",
                     response=provider_response,
                     payload=_to_mapping(parsed),
+                    validation_errors=issues,
+                    failure_code=validation_failure_code,
+                    failure_message=validation_failure_message,
                 )
             )
 
