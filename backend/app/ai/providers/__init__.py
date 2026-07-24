@@ -47,10 +47,19 @@ from app.ai.providers.router import (
     ProviderRoutingResult,
     ProviderUnknownError,
 )
+from app.ai.providers.selection import (
+    AnalysisProviderConfig,
+    AnalysisProviderConfigurationError,
+    build_analysis_provider_config,
+    parse_provider_order,
+    validate_analysis_provider_startup,
+)
 
 __all__ = [
     "AIProvider",
     "AIProviderError",
+    "AnalysisProviderConfig",
+    "AnalysisProviderConfigurationError",
     "DeepSeekAuthenticationError",
     "DeepSeekConfigurationError",
     "DeepSeekError",
@@ -75,6 +84,7 @@ __all__ = [
     "ProviderOrderEmptyError",
     "ProviderRequest",
     "ProviderRequestInvalidError",
+    "ProviderResponse",
     "ProviderRouteAttempt",
     "ProviderRouter",
     "ProviderRouterError",
@@ -82,5 +92,8 @@ __all__ = [
     "ProviderRoutingResult",
     "ProviderUnknownError",
     "ProviderUsage",
+    "build_analysis_provider_config",
     "ensure_request_supported",
+    "parse_provider_order",
+    "validate_analysis_provider_startup",
 ]

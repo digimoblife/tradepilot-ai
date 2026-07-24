@@ -14,8 +14,9 @@ class WorkerStartupValidationError(RuntimeError):
 
 
 def validate_worker_startup(config: WorkerConfig) -> None:
-    """Validate prompt files before heartbeat initialization or job claims."""
+    """Validate runtime assets before heartbeat initialization or job claims."""
     from app.ai.prompts import PromptRegistry
+    from app.ai.providers import validate_analysis_provider_startup
 
     prompts_root = Path(config.prompts_root)
     try:
@@ -23,4 +24,11 @@ def validate_worker_startup(config: WorkerConfig) -> None:
     except Exception as exc:
         raise WorkerStartupValidationError(
             f"Prompt produksi wajib tidak tersedia atau tidak valid di {prompts_root}: {exc}"
+        ) from exc
+
+    try:
+        validate_analysis_provider_startup(config)
+    except Exception as exc:
+        raise WorkerStartupValidationError(
+            f"Konfigurasi provider analisis produksi tidak valid: {exc}"
         ) from exc

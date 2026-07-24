@@ -33,8 +33,8 @@ services:
       DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
       STORAGE_ROOT: /data/evidence
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      PROVIDER_ORDER: ${PROVIDER_ORDER:-gemini,deepseek}
+      GEMINI_MODEL: ${GEMINI_MODEL:-models/gemini-2.0-flash}
+      PROVIDER_ORDER: ${PROVIDER_ORDER:-gemini}
 
       # ---- Auth (TP-1001 / TP-1704) ----
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-tradepilot_session}
@@ -71,6 +71,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
       DATABASE_SYNC_URL: postgresql+psycopg://${POSTGRES_USER:-tradepilot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tradepilot}
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/evidence}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-models/gemini-2.0-flash}
+      PROVIDER_ORDER: ${PROVIDER_ORDER:-gemini}
     volumes:
       - evidence_data:/data/evidence
       - ./schemas:/app/schemas:ro

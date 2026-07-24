@@ -997,6 +997,52 @@ class TestRecordProcessingError:
         assert row[2] is not None
         assert row[3] == "CONTEXT_REBUILD_VALIDATION_FAILED"
 
+    async def test_provider_incompatibility_error_is_terminal_not_retrying(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _insert_job(
+            engine,
+            session_id,
+            status="PROCESSING",
+            attempt_count=1,
+            max_attempts=3,
+            lease_owner="w1",
+            lease_expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+
+        async with factory() as s:
+            q = PostgreSQLJobQueue(s)
+            await q.record_processing_error(
+                job_id=jid,
+                worker_id="w1",
+                error_code="PROVIDER_CONTEXT_PROVIDER_INCOMPATIBLE",
+                error_message="Provider does not support images but evidence is required",
+            )
+            await s.commit()
+
+        async with engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT status, lease_owner, completed_at, attempt_count, "
+                        "last_error_code, last_error_message "
+                        "FROM analysis_jobs WHERE id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert row is not None
+        assert row[0] == "FAILED"
+        assert row[1] is None
+        assert row[2] is not None
+        assert row[3] == 1
+        assert row[4] == "PROVIDER_CONTEXT_PROVIDER_INCOMPATIBLE"
+        assert row[5] == "Provider does not support images but evidence is required"
+
     async def test_terminal_context_error_is_not_claimed_again(
         self,
         engine: AsyncEngine,

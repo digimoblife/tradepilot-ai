@@ -76,7 +76,7 @@ async def run_worker(
         raise
 
     # Consumer
-    default_consumer = consumer or _create_consumer(factory, worker_id)
+    default_consumer = consumer or _create_consumer(factory, worker_id, config)
 
     shutdown_requested = False
 
@@ -117,13 +117,24 @@ async def run_worker(
 def _create_consumer(
     factory: async_sessionmaker[AsyncSession],
     worker_id: str,
+    config: WorkerConfig,
 ) -> Any:
     """Lazy import to avoid backend dependency at module level."""
+    from app.ai.providers import build_analysis_provider_config
     from app.jobs import AnalysisProcessor, PostgreSQLJobQueue
+
+    provider_config = build_analysis_provider_config(config)
+
+    def processor_factory(*, session: AsyncSession) -> AnalysisProcessor:
+        return AnalysisProcessor(
+            session=session,
+            providers=provider_config.providers,
+            provider_order=provider_config.provider_order,
+        )
 
     return AnalysisJobConsumer(
         session_factory=factory,
         queue=PostgreSQLJobQueue,
-        processor=AnalysisProcessor,
+        processor=processor_factory,
         worker_id=worker_id,
     )
