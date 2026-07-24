@@ -19,7 +19,7 @@ class AIProvider(ABC):
     @property
     @abstractmethod
     def model(self) -> str:
-        """Model name (e.g. ``"gemini-2.0-flash"``)."""
+        """Model name (e.g. ``"gemini-3.5-flash"``)."""
 
     @property
     @abstractmethod

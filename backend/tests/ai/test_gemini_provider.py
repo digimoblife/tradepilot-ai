@@ -88,7 +88,7 @@ class FakeGeminiModel:
     def __init__(self, response: FakeGeminiResponse | None = None) -> None:
         self._response = response or FakeGeminiResponse()
         self.last_contents: list[Any] = []
-        self.model_name: str = "models/gemini-2.0-flash"
+        self.model_name: str = "gemini-3.5-flash"
 
     async def generate_content_async(self, contents: list[Any]) -> FakeGeminiResponse:
         self.last_contents = contents
@@ -175,11 +175,12 @@ class TestSharedInterface:
         assert provider.name == "gemini"
 
     def test_model(self, provider: GeminiProvider) -> None:
-        assert provider.model == "models/gemini-2.0-flash"
+        assert provider.model == "gemini-3.5-flash"
 
     def test_capabilities(self, provider: GeminiProvider) -> None:
         caps = provider.capabilities
         assert caps.supports_images is True
+        assert caps.supports_text_output is True
         assert caps.supports_structured_output is True
         assert caps.supports_multi_image is True
         assert caps.maximum_images == 10

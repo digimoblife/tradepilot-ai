@@ -13,6 +13,7 @@ class ProviderCapabilities:
     """Immutable declaration of a provider's capabilities."""
 
     supports_images: bool = False
+    supports_text_output: bool = True
     supports_structured_output: bool = False
     supports_system_prompt: bool = False
     supports_json_schema: bool = False

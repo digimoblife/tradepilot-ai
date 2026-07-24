@@ -35,7 +35,7 @@ class FakeGeminiProvider(AIProvider):
 
     @property
     def model(self) -> str:
-        return "gemini-2.0-flash"
+        return "gemini-3.5-flash"
 
     @property
     def capabilities(self) -> ProviderCapabilities:
@@ -299,6 +299,7 @@ class TestCapabilities:
     def test_gemini_supports_images(self) -> None:
         caps = FakeGeminiProvider().capabilities
         assert caps.supports_images is True
+        assert caps.supports_text_output is True
         assert caps.supports_structured_output is True
         assert caps.supports_multi_image is True
         assert caps.maximum_images == 10
@@ -306,6 +307,7 @@ class TestCapabilities:
     def test_deepseek_no_images_supports_structured_output(self) -> None:
         caps = FakeDeepSeekProvider().capabilities
         assert caps.supports_images is False
+        assert caps.supports_text_output is True
         assert caps.supports_structured_output is True
         assert caps.maximum_images == 0
 
@@ -465,7 +467,7 @@ class TestOffline:
         """Fake providers never make HTTP calls."""
         gemini = FakeGeminiProvider()
         assert gemini.name == "gemini"
-        assert gemini.model == "gemini-2.0-flash"
+        assert gemini.model == "gemini-3.5-flash"
 
     def test_no_api_key_required(self) -> None:
         FakeGeminiProvider()

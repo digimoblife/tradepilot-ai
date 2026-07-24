@@ -83,6 +83,8 @@ Configuration is read from the root `.env` file. Key variables:
 | `DATABASE_SYNC_URL`           | `postgresql+psycopg://tradepilot:change_me@postgres:5432/tradepilot` (sync) |
 | `NEXT_PUBLIC_API_BASE_URL`    | `http://localhost:8000`                     |
 | `EVIDENCE_STORAGE_PATH`       | `/data/evidence` (inside containers)        |
+| `GEMINI_MODEL`                | `gemini-3.5-flash`                          |
+| `PROVIDER_ORDER`              | `gemini`                                    |
 
 ## Test Database
 

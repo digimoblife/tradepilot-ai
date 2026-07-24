@@ -42,7 +42,7 @@ def _metadata(analysis_type: str) -> dict[str, object]:
         },
         "prompt_version": "1.0.0",
         "provider": "GEMINI",
-        "model": "gemini-2.0-flash",
+        "model": "gemini-3.5-flash",
     }
 
 

@@ -29,7 +29,7 @@ class AppConfig(BaseSettings):
     auth_cookie_secure: bool = Field(default=False)
 
     gemini_api_key: str = ""
-    gemini_model: str = "models/gemini-2.0-flash"
+    gemini_model: str = "gemini-3.5-flash"
     gemini_timeout_seconds: int = Field(default=120, ge=1)
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"

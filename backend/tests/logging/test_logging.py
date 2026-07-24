@@ -125,7 +125,7 @@ class TestContextualFields:
                 "request_id": "req-1",
                 "session_id": "ses-2",
                 "provider": "gemini",
-                "model": "gemini-2.0-flash",
+                "model": "gemini-3.5-flash",
                 "attempt": 2,
                 "duration": 1.5,
             },
@@ -134,7 +134,7 @@ class TestContextualFields:
         assert record["request_id"] == "req-1"
         assert record["session_id"] == "ses-2"
         assert record["provider"] == "gemini"
-        assert record["model"] == "gemini-2.0-flash"
+        assert record["model"] == "gemini-3.5-flash"
         assert record["attempt"] == 2
         assert record["duration"] == 1.5
 

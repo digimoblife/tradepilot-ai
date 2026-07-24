@@ -86,7 +86,7 @@ def _make_response(
 ) -> ProviderResponse:
     return ProviderResponse(
         provider="gemini",
-        model="gemini-2.0-flash",
+        model="gemini-3.5-flash",
         raw_output=raw_output,
         request_id=uuid.uuid4(),
     )

@@ -80,6 +80,7 @@ class DeepSeekChatClient(Protocol):
 
 _DEFAULT_CAPABILITIES = ProviderCapabilities(
     supports_images=False,
+    supports_text_output=True,
     supports_structured_output=True,
     supports_system_prompt=True,
     supports_json_schema=False,

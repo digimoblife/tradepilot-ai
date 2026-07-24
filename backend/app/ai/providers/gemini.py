@@ -71,11 +71,12 @@ class GeminiModelClient(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# Default capabilities for Gemini 2.0 Flash (MVP model)
+# Default capabilities for Gemini 3.5 Flash (production model)
 # ---------------------------------------------------------------------------
 
 _DEFAULT_CAPABILITIES = ProviderCapabilities(
     supports_images=True,
+    supports_text_output=True,
     supports_structured_output=True,
     supports_system_prompt=True,
     supports_json_schema=True,
@@ -112,7 +113,7 @@ class GeminiProvider(AIProvider):
         capabilities: ProviderCapabilities | None = None,
     ) -> None:
         self._api_key = api_key
-        self._model_name = model_name or "models/gemini-2.0-flash"
+        self._model_name = model_name or "gemini-3.5-flash"
         self._timeout_seconds = timeout_seconds
         self._capabilities = capabilities or _DEFAULT_CAPABILITIES
         self._image_loader = image_loader or _default_image_loader
@@ -261,9 +262,9 @@ class GeminiProvider(AIProvider):
 
         return ProviderResponse(
             provider="gemini",
-            model=request.metadata.get("model_name", "gemini-2.0-flash")
+            model=request.metadata.get("model_name", "gemini-3.5-flash")
             if isinstance(request.metadata, dict)
-            else "gemini-2.0-flash",  # noqa: E501
+            else "gemini-3.5-flash",  # noqa: E501
             raw_output=raw_output,
             request_id=request.request_id,
             provider_response_id=provider_response_id,

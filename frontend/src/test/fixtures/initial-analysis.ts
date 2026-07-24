@@ -10,7 +10,7 @@ export const initialAnalysisFixture = {
     schema: { schema_name: "initial_analysis", schema_version: "1.0.0" },
     prompt_version: "1.0.0",
     provider: "GEMINI",
-    model: "gemini-2.0-flash",
+    model: "gemini-3.5-flash",
   },
   evidence_summary: {
     evidence_ids: [],

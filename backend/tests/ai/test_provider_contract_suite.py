@@ -162,7 +162,7 @@ def image_request(request_id: uuid.UUID) -> ProviderRequest:
 def _gemini(raw_output: str = '{"result": "ok"}') -> GeminiProvider:
     return GeminiProvider(
         api_key="test-key",
-        model_name="gemini-2.0-flash",
+        model_name="gemini-3.5-flash",
         model=_mock_gemini_client(raw_output),
     )
 

@@ -18,7 +18,7 @@ class WorkerConfig(BaseSettings):
     prompts_root: str = "/app/prompts/production/v1"
 
     gemini_api_key: str = ""
-    gemini_model: str = "models/gemini-2.0-flash"
+    gemini_model: str = "gemini-3.5-flash"
     gemini_timeout_seconds: int = Field(default=120, ge=1)
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"

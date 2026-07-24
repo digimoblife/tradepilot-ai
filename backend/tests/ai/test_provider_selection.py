@@ -24,19 +24,13 @@ class _FakeGeminiProvider:
         model_name: str,
         timeout_seconds: int,
         image_loader: object,
+        capabilities: ProviderCapabilities,
     ) -> None:
         self.api_key = api_key
         self._model = model_name
         self.timeout_seconds = timeout_seconds
         self.image_loader = image_loader
-        self._capabilities = ProviderCapabilities(
-            supports_images=True,
-            supports_structured_output=True,
-            supports_system_prompt=True,
-            supports_json_schema=True,
-            supports_multi_image=True,
-            maximum_images=10,
-        )
+        self._capabilities = capabilities
 
     @property
     def name(self) -> str:
@@ -56,7 +50,7 @@ def _config(**overrides: object) -> SimpleNamespace:
         "app_env": "production",
         "provider_order": "gemini",
         "gemini_api_key": "secret-gemini-key",
-        "gemini_model": "models/gemini-2.0-flash",
+        "gemini_model": "gemini-3.5-flash",
         "gemini_timeout_seconds": 120,
         "deepseek_api_key": "secret-deepseek-key",
         "deepseek_model": "deepseek-chat",
@@ -77,7 +71,9 @@ def test_production_selection_is_gemini_only(monkeypatch: pytest.MonkeyPatch) ->
 
     assert provider_config.provider_order == ("gemini",)
     assert set(provider_config.providers) == {"gemini"}
+    assert provider_config.providers["gemini"].model == "gemini-3.5-flash"
     assert provider_config.providers["gemini"].capabilities.supports_images is True
+    assert provider_config.providers["gemini"].capabilities.supports_text_output is True
 
 
 def test_production_rejects_deepseek_fallback_before_building_it(
@@ -157,6 +153,28 @@ def test_startup_validation_requires_gemini_credentials_without_leaking_secret(
     assert "secret" not in str(excinfo.value)
 
 
+def test_startup_validation_rejects_deprecated_gemini_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
+
+    with pytest.raises(AnalysisProviderConfigurationError, match="deprecated"):
+        validate_analysis_provider_startup(_config(gemini_model="gemini-2.0-flash"))
+
+
+def test_startup_validation_rejects_unapproved_gemini_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
+
+    with pytest.raises(AnalysisProviderConfigurationError, match="not approved"):
+        validate_analysis_provider_startup(_config(gemini_model="gemini-flash-latest"))
+
+
 def test_startup_validation_requires_image_capable_gemini(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,4 +188,20 @@ def test_startup_validation_requires_image_capable_gemini(
     monkeypatch.setattr(selection, "GeminiProvider", TextOnlyGemini)
 
     with pytest.raises(AnalysisProviderConfigurationError, match="image input"):
+        validate_analysis_provider_startup(_config())
+
+
+def test_startup_validation_requires_text_output_capable_gemini(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    class NoTextOutputGemini(_FakeGeminiProvider):
+        @property
+        def capabilities(self) -> ProviderCapabilities:
+            return ProviderCapabilities(supports_images=True, supports_text_output=False)
+
+    monkeypatch.setattr(selection, "GeminiProvider", NoTextOutputGemini)
+
+    with pytest.raises(AnalysisProviderConfigurationError, match="text output"):
         validate_analysis_provider_startup(_config())

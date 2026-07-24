@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from app.ai.providers.base import AIProvider
+from app.ai.providers.capabilities import ProviderCapabilities
 from app.ai.providers.deepseek import DeepSeekProvider
 from app.ai.providers.gemini import GeminiProvider
 from app.storage import create_file_storage
@@ -21,6 +22,25 @@ class AnalysisProviderConfigurationError(RuntimeError):
 class AnalysisProviderConfig:
     providers: Mapping[str, AIProvider]
     provider_order: tuple[str, ...]
+
+
+_DEPRECATED_GEMINI_MODELS = frozenset(
+    {
+        "gemini-2.0-flash",
+        "models/gemini-2.0-flash",
+    }
+)
+_SUPPORTED_GEMINI_MODELS: Mapping[str, ProviderCapabilities] = {
+    "gemini-3.5-flash": ProviderCapabilities(
+        supports_images=True,
+        supports_text_output=True,
+        supports_structured_output=True,
+        supports_system_prompt=True,
+        supports_json_schema=True,
+        supports_multi_image=True,
+        maximum_images=10,
+    )
+}
 
 
 def build_analysis_provider_config(config: Any) -> AnalysisProviderConfig:
@@ -68,9 +88,21 @@ def validate_analysis_provider_startup(config: Any) -> None:
     gemini = provider_config.providers["gemini"]
     if not gemini.model:
         raise AnalysisProviderConfigurationError("Gemini model is not configured")
+    if gemini.model in _DEPRECATED_GEMINI_MODELS:
+        raise AnalysisProviderConfigurationError(
+            f"Gemini model {gemini.model} is deprecated or unavailable"
+        )
+    if gemini.model not in _SUPPORTED_GEMINI_MODELS:
+        raise AnalysisProviderConfigurationError(
+            f"Gemini model {gemini.model} is not approved for production analysis"
+        )
     if not gemini.capabilities.supports_images:
         raise AnalysisProviderConfigurationError(
             "Configured Gemini model must support image input"
+        )
+    if not gemini.capabilities.supports_text_output:
+        raise AnalysisProviderConfigurationError(
+            "Configured Gemini model must support text output"
         )
 
 
@@ -88,6 +120,15 @@ def _build_gemini(config: Any) -> GeminiProvider:
         raise AnalysisProviderConfigurationError("Gemini API key is not configured")
     if not model_name:
         raise AnalysisProviderConfigurationError("Gemini model is not configured")
+    if model_name in _DEPRECATED_GEMINI_MODELS:
+        raise AnalysisProviderConfigurationError(
+            f"Gemini model {model_name} is deprecated or unavailable"
+        )
+    capabilities = _SUPPORTED_GEMINI_MODELS.get(model_name)
+    if capabilities is None:
+        raise AnalysisProviderConfigurationError(
+            f"Gemini model {model_name} is not approved for production analysis"
+        )
 
     storage = create_file_storage(config)
 
@@ -96,6 +137,7 @@ def _build_gemini(config: Any) -> GeminiProvider:
         model_name=model_name,
         timeout_seconds=int(getattr(config, "gemini_timeout_seconds", 120)),
         image_loader=lambda image: storage.read(file_reference=image.storage_reference),
+        capabilities=capabilities,
     )
 
 

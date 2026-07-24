@@ -10,7 +10,7 @@ export const watchingUpdateFixture = {
     schema: { schema_name: "watching_update", schema_version: "1.0.0" },
     prompt_version: "1.0.0",
     provider: "GEMINI",
-    model: "gemini-2.0-flash",
+    model: "gemini-3.5-flash",
   },
   update_period: "MARKET_CLOSE",
   comparison: {

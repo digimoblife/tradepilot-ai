@@ -180,6 +180,7 @@ class TestSharedInterface:
     def test_capabilities(self, provider: DeepSeekProvider) -> None:
         caps = provider.capabilities
         assert caps.supports_images is False
+        assert caps.supports_text_output is True
         assert caps.supports_structured_output is True
         assert caps.maximum_images == 0
 

@@ -299,7 +299,7 @@ def test_valid_fixtures_have_correct_metadata() -> None:
             continue
         meta = instance["metadata"]
         assert meta.get("provider") == "GEMINI", f"{fixture.name}: provider not GEMINI"
-        assert meta.get("model") == "gemini-2.0-flash", f"{fixture.name}: model mismatch"
+        assert meta.get("model") == "gemini-3.5-flash", f"{fixture.name}: model mismatch"
         assert meta.get("language") == "id", f"{fixture.name}: language not id"
         assert meta.get("prompt_version") == "1.0.0", f"{fixture.name}: prompt_version wrong"
         schema_block = meta.get("schema", {})

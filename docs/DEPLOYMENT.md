@@ -62,7 +62,8 @@ Edit `/opt/tradepilot-ai/env/production.env` and add:
 APP_ENV=production
 POSTGRES_PASSWORD=<strong-random-password>
 GEMINI_API_KEY=<your-gemini-key>
-DEEPSEEK_API_KEY=<your-deepseek-key>
+GEMINI_MODEL=gemini-3.5-flash
+PROVIDER_ORDER=gemini
 TRADEPILOT_GATEWAY_PORT=8181
 LOG_LEVEL=INFO
 ```
@@ -139,8 +140,9 @@ Port 8181 should be free before the first deployment.
 | `TRADEPILOT_RETRY_SECONDS` | 5 | Seconds between health-check retries |
 | `TRADEPILOT_RETRY_ATTEMPTS` | 12 | Max health-check retries |
 | `POSTGRES_PASSWORD` | *(required)* | PostgreSQL password |
-| `GEMINI_API_KEY` | *(optional)* | Google Gemini API key |
-| `DEEPSEEK_API_KEY` | *(optional)* | DeepSeek API key |
+| `GEMINI_API_KEY` | *(required for analysis worker)* | Google Gemini API key |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Gemini model ID for production analysis |
+| `PROVIDER_ORDER` | `gemini` | Production analysis provider order |
 | `LOG_LEVEL` | `INFO` | Log level |
 
 ---

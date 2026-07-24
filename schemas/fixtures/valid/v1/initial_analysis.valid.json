@@ -13,7 +13,7 @@
     },
     "prompt_version": "1.0.0",
     "provider": "GEMINI",
-    "model": "gemini-2.0-flash"
+    "model": "gemini-3.5-flash"
   },
   "evidence_summary": {
     "evidence_ids": ["77777777-7777-4777-8777-777777777777"],

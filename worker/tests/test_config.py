@@ -9,6 +9,8 @@ def test_defaults() -> None:
     assert config.worker_name == "tradepilot-worker"
     assert config.log_level == "INFO"
     assert config.worker_poll_interval_seconds == 5
+    assert config.gemini_model == "gemini-3.5-flash"
+    assert config.provider_order == "gemini"
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
