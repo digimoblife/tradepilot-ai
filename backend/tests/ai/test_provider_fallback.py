@@ -386,6 +386,32 @@ class TestRepairBeforeFallback:
         assert exc.value.root_cause_code == "TEST_ERROR"
         assert exc.value.root_cause_message == "Test error"
 
+    async def test_repair_disabled_preserves_fallback_validation_message_when_issues_empty(self) -> None:
+        gemini = FakeProvider("gemini")
+        router = ProviderRouter()
+
+        def _invalid_without_issues(
+            payload: dict[str, object],
+        ) -> tuple[bool, tuple[ValidationIssue, ...]]:
+            return False, ()
+
+        with pytest.raises(ProviderRoutingFailedError) as exc:
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini},
+                provider_order=["gemini"],
+                max_provider_attempts=1,
+                validate=_invalid_without_issues,
+                canonical_facts={},
+                max_repair_attempts=0,
+            )
+
+        assert exc.value.root_cause_code == "REPAIR_VALIDATION_FAILED"
+        assert (
+            exc.value.root_cause_message
+            == "Provider response validation failed with no issue details returned."
+        )
+
 
 # ===================================================================
 # Fallback success

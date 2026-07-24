@@ -208,10 +208,15 @@ class ProviderRouter:
             validation_failure_code = None
             validation_failure_message = None
             if not is_valid:
-                validation_failure_code = issues[0].code if issues else "REPAIR_VALIDATION_FAILED"
-                validation_failure_message = _sanitize_failure_message(
-                    "; ".join(issue.message for issue in issues if issue.message) or ""
-                )
+                joined_messages = "; ".join(issue.message for issue in issues if issue.message)
+                if issues and joined_messages:
+                    validation_failure_code = issues[0].code
+                    validation_failure_message = _sanitize_failure_message(joined_messages)
+                else:
+                    validation_failure_code = "REPAIR_VALIDATION_FAILED"
+                    validation_failure_message = (
+                        "Provider response validation failed with no issue details returned."
+                    )
 
             history.append(
                 ProviderRouteAttempt(
