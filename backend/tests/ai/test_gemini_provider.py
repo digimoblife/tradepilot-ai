@@ -8,11 +8,13 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from io import BytesIO
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
+from PIL import Image
 
 from app.ai.providers import (
     AIProvider,
@@ -157,6 +159,14 @@ def _valid_initial_analysis_payload() -> dict[str, object]:
 def _provider_with_schema(**kwargs: Any) -> GeminiProvider:
     kwargs.setdefault("response_schemas", {"initial_analysis": _initial_analysis_response_schema()})
     return GeminiProvider(**kwargs)
+
+
+def _verified_png_1x1_bytes() -> bytes:
+    buf = BytesIO()
+    Image.new("RGB", (1, 1), (255, 255, 255)).save(buf, format="PNG")
+    png_bytes = buf.getvalue()
+    Image.open(BytesIO(png_bytes)).verify()
+    return png_bytes
 
 
 def _text_request(**overrides: Any) -> ProviderRequest:
@@ -507,11 +517,7 @@ class TestStructuredOutput:
         if not api_key:
             pytest.skip("GEMINI_API_KEY is required for the Gemini smoke test")
 
-        png_1x1 = (
-            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDAT\x08\x99c````\x00"
-            b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
-        )
+        png_1x1 = _verified_png_1x1_bytes()
         payload = _valid_initial_analysis_payload()
         provider = _provider_with_schema(
             api_key=api_key,
