@@ -101,3 +101,48 @@ Forbidden legacy top-level aliases:
 - chart_analysis_3m
 - chart_analysis_6m
 - data_gaps_and_limitations
+
+Nested ai_assessment contract (exact fields, no extras):
+- bias
+- confidence
+- setup_quality
+- bullish_probability
+- target_probability
+- downside_probability
+- risk_level
+- setup_valid
+- summary
+
+ai_assessment enum values:
+- bias: STRONGLY_BULLISH | BULLISH | NEUTRAL | BEARISH | STRONGLY_BEARISH | UNCERTAIN
+- setup_quality: EXCELLENT | GOOD | FAIR | WEAK | INVALID | UNKNOWN
+- risk_level: LOW | MODERATE | HIGH | VERY_HIGH | UNKNOWN
+
+ai_assessment field types:
+- confidence: integer 0..100
+- bullish_probability: integer 0..100 or null
+- target_probability: integer 0..100 or null
+- downside_probability: integer 0..100 or null
+- setup_valid: boolean
+- summary: non-empty Indonesian string
+
+No additional ai_assessment properties are allowed.
+
+Minimal ai_assessment JSON skeleton:
+```json
+"ai_assessment": {{
+  "bias": "NEUTRAL",
+  "confidence": 50,
+  "setup_quality": "UNKNOWN",
+  "bullish_probability": null,
+  "target_probability": null,
+  "downside_probability": null,
+  "risk_level": "UNKNOWN",
+  "setup_valid": false,
+  "summary": "Ringkasan penilaian AI dalam Bahasa Indonesia."
+}}
+```
+
+Forbidden legacy ai_assessment fields:
+- invalidation_conditions
+- next_milestones_to_monitor

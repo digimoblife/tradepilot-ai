@@ -485,6 +485,26 @@ class TestInitialAnalysisProductionContract:
         "chart_analysis_6m",
         "data_gaps_and_limitations",
     )
+    _EXPECTED_AI_ASSESSMENT_FIELDS = (
+        "bias",
+        "confidence",
+        "setup_quality",
+        "bullish_probability",
+        "target_probability",
+        "downside_probability",
+        "risk_level",
+        "setup_valid",
+        "summary",
+    )
+    _AI_ASSESSMENT_ENUM_LINES = (
+        "STRONGLY_BULLISH | BULLISH | NEUTRAL | BEARISH | STRONGLY_BEARISH | UNCERTAIN",
+        "EXCELLENT | GOOD | FAIR | WEAK | INVALID | UNKNOWN",
+        "LOW | MODERATE | HIGH | VERY_HIGH | UNKNOWN",
+    )
+    _LEGACY_AI_ASSESSMENT_FIELDS = (
+        "invalidation_conditions",
+        "next_milestones_to_monitor",
+    )
 
     @staticmethod
     def _production_registry() -> PromptRegistry:
@@ -515,6 +535,14 @@ class TestInitialAnalysisProductionContract:
         lines = prompt[start:end].splitlines()
         return [line[2:].strip() for line in lines if line.startswith("- ")]
 
+    @staticmethod
+    def _extract_explicit_ai_assessment_fields(prompt: str) -> list[str]:
+        marker = "Nested ai_assessment contract (exact fields, no extras):"
+        start = prompt.index(marker) + len(marker)
+        end = prompt.index("ai_assessment enum values:", start)
+        lines = prompt[start:end].splitlines()
+        return [line[2:].strip() for line in lines if line.startswith("- ")]
+
     def test_rendered_prompt_contains_all_canonical_fields(self) -> None:
         prompt = self._rendered_initial_analysis_prompt()
         for field in self._EXPECTED_CANONICAL_FIELDS:
@@ -533,5 +561,33 @@ class TestInitialAnalysisProductionContract:
         repo_root = Path(__file__).resolve().parent.parent.parent.parent
         schema_path = repo_root / "schemas" / "production" / "v1" / "initial_analysis.schema.json"
         schema_required = json.loads(schema_path.read_text(encoding="utf-8"))["required"]
+
+        assert listed_fields == schema_required
+
+    def test_ai_assessment_required_fields_are_present(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        for field in self._EXPECTED_AI_ASSESSMENT_FIELDS:
+            assert field in prompt
+
+    def test_ai_assessment_enum_values_are_present(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        for enum_line in self._AI_ASSESSMENT_ENUM_LINES:
+            assert enum_line in prompt
+
+    def test_forbidden_legacy_ai_assessment_fields_are_absent_from_usable_contract(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        contract_body = prompt.split("Forbidden legacy ai_assessment fields:")[0]
+        for field in self._LEGACY_AI_ASSESSMENT_FIELDS:
+            assert field not in contract_body
+
+    def test_explicit_ai_assessment_field_list_matches_schema_required_fields(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        listed_fields = self._extract_explicit_ai_assessment_fields(prompt)
+
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        schema_path = repo_root / "schemas" / "production" / "v1" / "initial_analysis.schema.json"
+        schema_required = json.loads(schema_path.read_text(encoding="utf-8"))["$defs"][
+            "initialAiAssessment"
+        ]["required"]
 
         assert listed_fields == schema_required
