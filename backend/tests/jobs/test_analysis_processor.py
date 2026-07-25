@@ -40,7 +40,11 @@ from app.models.enums import (
     AnalysisJobStatus,
 )
 from app.models.trade_session import TradeSession
-from app.validation import ValidationIssue
+from app.validation import (
+    ValidationCategory,
+    ValidationIssue,
+    ValidationSeverity,
+)
 
 pytestmark = pytest.mark.database
 
@@ -362,6 +366,74 @@ class TestSuccessfulProcessing:
             )
             assert reqs.first() is not None
 
+    async def test_success_path_persists_real_provider_audit_data(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id)
+        await _add_context_summary(engine, session_id)
+
+        provider = CountingProvider(
+            [
+                ProviderResponse(
+                    provider="gemini",
+                    model="gemini-3.5-flash",
+                    raw_output='{"ok": true}',
+                    request_id=uuid.uuid4(),
+                    provider_response_id="resp-success",
+                    finish_reason="STOP",
+                    usage=None,
+                    latency_ms=321,
+                )
+            ]
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=_always_valid,
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.COMPLETED.value
+            await s.commit()
+
+        async with factory() as s:
+            req_row = (
+                await s.execute(
+                    text(
+                        "SELECT provider, provider_model "
+                        "FROM provider_requests WHERE analysis_job_id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+            resp_row = (
+                await s.execute(
+                    text(
+                        "SELECT status, raw_text, raw_payload, model_name, finish_reason, latency_ms "
+                        "FROM provider_responses "
+                        "WHERE provider_request_id = ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert req_row == ("GEMINI", "gemini-3.5-flash")
+        assert resp_row is not None
+        assert resp_row[0] == "COMPLETED"
+        assert resp_row[1] == '{"ok": true}'
+        assert resp_row[2] == {"ok": True}
+        assert resp_row[3] == "gemini-3.5-flash"
+        assert resp_row[4] == "STOP"
+        assert resp_row[5] == 321
+
     async def test_context_failure_does_not_call_provider(
         self,
         engine: AsyncEngine,
@@ -565,6 +637,91 @@ class TestIdempotency:
 
 
 class TestRoutingFailure:
+    async def test_parseable_validation_failure_persists_response_and_commits_failed_job(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=1)
+        await _add_context_summary(engine, session_id)
+
+        provider = CountingProvider(
+            [
+                ProviderResponse(
+                    provider="gemini",
+                    model="gemini-3.5-flash",
+                    raw_output='{"analysis": "ok"}',
+                    request_id=uuid.uuid4(),
+                    provider_response_id="resp-failed-validation",
+                    finish_reason="STOP",
+                    usage=None,
+                    latency_ms=654,
+                    metadata={"safe": True},
+                )
+            ]
+        )
+
+        issue = ValidationIssue(
+            code="SCHEMA_REQUIRED_FIELD_MISSING",
+            category=ValidationCategory.SCHEMA,
+            severity=ValidationSeverity.ERROR,
+            path="/ai_assessment/bias",
+            message="Missing required property: bias",
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=lambda payload: (False, (issue,)),
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        async with factory() as s:
+            job = await s.get(AnalysisJob, jid)
+            req_row = (
+                await s.execute(
+                    text(
+                        "SELECT provider, provider_model "
+                        "FROM provider_requests WHERE analysis_job_id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+            resp_row = (
+                await s.execute(
+                    text(
+                        "SELECT status, raw_text, raw_payload, model_name, finish_reason, latency_ms, "
+                        "error_code, error_message "
+                        "FROM provider_responses "
+                        "WHERE provider_request_id = ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert job is not None
+        assert job.status == AnalysisJobStatus.FAILED
+        assert job.last_error_code == "SCHEMA_REQUIRED_FIELD_MISSING"
+        assert "bias" in (job.last_error_message or "")
+        assert req_row == ("GEMINI", "gemini-3.5-flash")
+        assert resp_row is not None
+        assert resp_row[0] == "FAILED"
+        assert resp_row[1] == '{"analysis": "ok"}'
+        assert resp_row[2] == {"analysis": "ok"}
+        assert resp_row[3] == "gemini-3.5-flash"
+        assert resp_row[4] == "STOP"
+        assert resp_row[5] == 654
+        assert resp_row[6] == "SCHEMA_REQUIRED_FIELD_MISSING"
+        assert "bias" in (resp_row[7] or "")
+
     async def test_provider_failure_sets_failed_after_one_call(
         self,
         engine: AsyncEngine,
@@ -816,6 +973,48 @@ class TestRoutingFailure:
 
 
 class TestBoundaries:
+    async def test_unhandled_exception_rollback_removes_transient_audit_rows(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id)
+        await _add_context_summary(engine, session_id)
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                router=FakeRouter(result=RuntimeError("boom")),
+                validate=_always_valid,
+            )
+            with pytest.raises(Exception):
+                await proc.process(job_id=jid, worker_id="w1")
+            await s.rollback()
+
+        async with factory() as s:
+            req_count = (
+                await s.execute(
+                    text("SELECT COUNT(*) FROM provider_requests WHERE analysis_job_id = :jid"),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+            resp_count = (
+                await s.execute(
+                    text(
+                        "SELECT COUNT(*) FROM provider_responses "
+                        "WHERE provider_request_id IN ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+
+        assert req_count == 0
+        assert resp_count == 0
+
     async def test_no_claim_inside_processor(
         self,
         engine: AsyncEngine,

@@ -205,12 +205,14 @@ class AnalysisProcessor:
             now=now,
         )
 
+        selected_provider_name, selected_provider_model = self._get_selected_provider_audit_values()
+
         # Create ProviderRequest DB record
         db_provider_request = DBProviderRequest(
             id=uuid.uuid4(),
             analysis_job_id=job_id,
-            provider=ProviderType.MOCK,
-            provider_model=None,
+            provider=selected_provider_name,
+            provider_model=selected_provider_model,
             attempt_number=1,
             prompt_name=atype,
             prompt_version=ctx.prompt_version,
@@ -257,6 +259,10 @@ class AnalysisProcessor:
                 max_repair_attempts=self._max_repair,
             )
         except ProviderRoutingFailedError as exc:
+            await self._persist_route_attempts(
+                db_provider_request.id,
+                getattr(exc, "attempts", ()),
+            )
             await self._fail_job(job, exc, ts, now)
             await self._session.flush()
             self._log.warning(
@@ -290,7 +296,7 @@ class AnalysisProcessor:
             raise
 
         # Persist provider responses
-        await self._persist_route_attempts(db_provider_request.id, route_result, atype)
+        await self._persist_route_attempts(db_provider_request.id, route_result.attempts)
 
         # Create accepted Analysis
         analysis_id = uuid.uuid4()
@@ -384,6 +390,15 @@ class AnalysisProcessor:
                 return p.capabilities
         return ProviderCapabilities()
 
+    def _get_selected_provider_audit_values(self) -> tuple[ProviderType, str | None]:
+        if self._provider_order:
+            selected_name = self._provider_order[0]
+            selected_provider = self._providers.get(selected_name)
+            provider_type = _provider_type_from_name(selected_name)
+            provider_model = getattr(selected_provider, "model", None) if selected_provider else None
+            return provider_type, str(provider_model) if provider_model else None
+        return ProviderType.MOCK, None
+
     async def _build_fresh_provider_context(
         self,
         *,
@@ -429,24 +444,23 @@ class AnalysisProcessor:
     async def _persist_route_attempts(
         self,
         db_req_id: uuid.UUID,
-        route_result: ProviderRoutingResult,
-        analysis_type: str,
+        attempts: Sequence[Any],
     ) -> None:
-        for attempt in route_result.attempts:
+        for attempt in attempts:
             if attempt.response is None:
                 continue
             raw = attempt.response
 
-            try:
-                ProviderType(raw.provider.upper())
-            except ValueError:
-                pass
-
             resp = DBProviderResponse(
                 id=uuid.uuid4(),
                 provider_request_id=db_req_id,
-                status=ProviderResponseStatus.COMPLETED,
+                status=(
+                    ProviderResponseStatus.FAILED
+                    if attempt.failure_code or attempt.failure_message
+                    else ProviderResponseStatus.COMPLETED
+                ),
                 raw_text=raw.raw_output,
+                raw_payload=dict(attempt.payload) if attempt.payload is not None else None,
                 provider_response_id=raw.provider_response_id,
                 model_name=raw.model,
                 finish_reason=raw.finish_reason,
@@ -463,6 +477,8 @@ class AnalysisProcessor:
                     if raw.usage
                     else None
                 ),
+                error_code=attempt.failure_code,
+                error_message=attempt.failure_message,
             )
             self._session.add(resp)
         await self._session.flush()
@@ -499,3 +515,10 @@ def _always_invalid(
     payload: dict[str, object],
 ) -> tuple[bool, tuple[ValidationIssue, ...]]:
     return False, ()
+
+
+def _provider_type_from_name(provider_name: str) -> ProviderType:
+    try:
+        return ProviderType(provider_name.upper())
+    except ValueError:
+        return ProviderType.MOCK
