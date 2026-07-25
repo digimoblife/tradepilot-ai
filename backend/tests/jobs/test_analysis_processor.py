@@ -434,6 +434,100 @@ class TestSuccessfulProcessing:
         assert resp_row[4] == "STOP"
         assert resp_row[5] == 321
 
+    async def test_missing_response_id_persists_as_null(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id)
+        await _add_context_summary(engine, session_id)
+
+        provider = CountingProvider(
+            [
+                ProviderResponse(
+                    provider="gemini",
+                    model="gemini-3.5-flash",
+                    raw_output='{"ok": true}',
+                    request_id=uuid.uuid4(),
+                    provider_response_id=None,
+                )
+            ]
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=_always_valid,
+            )
+            await proc.process(job_id=jid, worker_id="w1")
+            await s.commit()
+
+        async with factory() as s:
+            persisted_id = (
+                await s.execute(
+                    text(
+                        "SELECT provider_response_id FROM provider_responses "
+                        "WHERE provider_request_id = ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+
+        assert persisted_id is None
+
+    async def test_numeric_provider_response_id_is_normalized_to_string(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id)
+        await _add_context_summary(engine, session_id)
+
+        provider = CountingProvider(
+            [
+                ProviderResponse(
+                    provider="gemini",
+                    model="gemini-3.5-flash",
+                    raw_output='{"ok": true}',
+                    request_id=uuid.uuid4(),
+                    provider_response_id=123,  # type: ignore[arg-type]
+                )
+            ]
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+                validate=_always_valid,
+            )
+            await proc.process(job_id=jid, worker_id="w1")
+            await s.commit()
+
+        async with factory() as s:
+            persisted_id = (
+                await s.execute(
+                    text(
+                        "SELECT provider_response_id FROM provider_responses "
+                        "WHERE provider_request_id = ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+
+        assert persisted_id == "123"
+
     async def test_context_failure_does_not_call_provider(
         self,
         engine: AsyncEngine,
@@ -654,7 +748,7 @@ class TestRoutingFailure:
                     model="gemini-3.5-flash",
                     raw_output='{"analysis": "ok"}',
                     request_id=uuid.uuid4(),
-                    provider_response_id="resp-failed-validation",
+                    provider_response_id=0,  # type: ignore[arg-type]
                     finish_reason="STOP",
                     usage=None,
                     latency_ms=654,
@@ -696,7 +790,7 @@ class TestRoutingFailure:
             resp_row = (
                 await s.execute(
                     text(
-                        "SELECT status, raw_text, raw_payload, model_name, finish_reason, latency_ms, "
+                        "SELECT status, raw_text, raw_payload, provider_response_id, model_name, finish_reason, latency_ms, "
                         "error_code, error_message "
                         "FROM provider_responses "
                         "WHERE provider_request_id = ("
@@ -716,11 +810,12 @@ class TestRoutingFailure:
         assert resp_row[0] == "FAILED"
         assert resp_row[1] == '{"analysis": "ok"}'
         assert resp_row[2] == {"analysis": "ok"}
-        assert resp_row[3] == "gemini-3.5-flash"
-        assert resp_row[4] == "STOP"
-        assert resp_row[5] == 654
-        assert resp_row[6] == "SCHEMA_REQUIRED_FIELD_MISSING"
-        assert "bias" in (resp_row[7] or "")
+        assert resp_row[3] is None
+        assert resp_row[4] == "gemini-3.5-flash"
+        assert resp_row[5] == "STOP"
+        assert resp_row[6] == 654
+        assert resp_row[7] == "SCHEMA_REQUIRED_FIELD_MISSING"
+        assert "bias" in (resp_row[8] or "")
 
     async def test_provider_failure_sets_failed_after_one_call(
         self,

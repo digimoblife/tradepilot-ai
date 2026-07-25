@@ -250,12 +250,7 @@ class GeminiProvider(AIProvider):
                 total_tokens=getattr(um, "total_token_count", None),
             )
 
-        provider_response_id = None
-        if hasattr(raw, "candidates") and raw.candidates:
-            try:
-                provider_response_id = raw.candidates[0].index
-            except (AttributeError, IndexError):
-                pass
+        provider_response_id = _normalize_provider_response_id(raw)
 
         metadata: dict[str, Any] = {}
         if hasattr(raw, "prompt_feedback") and raw.prompt_feedback is not None:
@@ -409,3 +404,37 @@ def _safe_metadata(obj: Any) -> Any:
     if isinstance(obj, (str, int, float, bool, type(None))):
         return obj
     return str(obj)
+
+
+def _normalize_provider_response_id(raw: Any) -> str | None:
+    candidate = None
+    if hasattr(raw, "candidates") and raw.candidates:
+        try:
+            candidate = raw.candidates[0]
+        except IndexError:
+            candidate = None
+
+    for value in (
+        getattr(raw, "response_id", None),
+        getattr(raw, "id", None),
+        getattr(candidate, "response_id", None) if candidate is not None else None,
+        getattr(candidate, "id", None) if candidate is not None else None,
+    ):
+        normalized = _stringify_provider_response_id(value)
+        if normalized is not None:
+            return normalized
+
+    return None
+
+
+def _stringify_provider_response_id(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    if isinstance(value, int):
+        return str(value) if value > 0 else None
+    return None

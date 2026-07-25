@@ -399,11 +399,31 @@ class TestStructuredOutput:
 class TestResponseMapping:
     async def test_provider_response_id(
         self,
+        text_req: ProviderRequest,
+    ) -> None:
+        response = FakeGeminiResponse()
+        response.response_id = "gemini-response-123"  # type: ignore[attr-defined]
+        provider = GeminiProvider(api_key="k", model=FakeGeminiModel(response=response))
+        resp = await provider.generate(text_req)
+        assert resp.provider_response_id == "gemini-response-123"
+
+    async def test_missing_provider_response_id_returns_none(
+        self,
         provider: GeminiProvider,
         text_req: ProviderRequest,
     ) -> None:
         resp = await provider.generate(text_req)
-        assert resp.provider_response_id is not None
+        assert resp.provider_response_id is None
+
+    async def test_numeric_real_provider_response_id_normalized_to_string(
+        self,
+        text_req: ProviderRequest,
+    ) -> None:
+        response = FakeGeminiResponse()
+        response.id = 12345  # type: ignore[attr-defined]
+        provider = GeminiProvider(api_key="k", model=FakeGeminiModel(response=response))
+        resp = await provider.generate(text_req)
+        assert resp.provider_response_id == "12345"
 
     async def test_finish_reason(
         self,

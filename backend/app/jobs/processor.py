@@ -461,7 +461,7 @@ class AnalysisProcessor:
                 ),
                 raw_text=raw.raw_output,
                 raw_payload=dict(attempt.payload) if attempt.payload is not None else None,
-                provider_response_id=raw.provider_response_id,
+                provider_response_id=_normalize_provider_response_id(raw.provider_response_id),
                 model_name=raw.model,
                 finish_reason=raw.finish_reason,
                 latency_ms=raw.latency_ms,
@@ -522,3 +522,16 @@ def _provider_type_from_name(provider_name: str) -> ProviderType:
         return ProviderType(provider_name.upper())
     except ValueError:
         return ProviderType.MOCK
+
+
+def _normalize_provider_response_id(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    if isinstance(value, int):
+        return str(value) if value > 0 else None
+    return None
