@@ -5,8 +5,11 @@ Uses an injected fake model client — no real API calls.
 
 from __future__ import annotations
 
+import json
+import os
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -25,6 +28,12 @@ from app.ai.providers import (
     ProviderRequest,
     ProviderResponse,
 )
+from app.ai.providers.gemini import (
+    GeminiSchemaConversionError,
+    _convert_gemini_schema_document,
+    load_initial_analysis_response_schema,
+)
+from app.validation import UnifiedValidationService
 
 # ===================================================================
 # Fake Gemini model client
@@ -88,10 +97,17 @@ class FakeGeminiModel:
     def __init__(self, response: FakeGeminiResponse | None = None) -> None:
         self._response = response or FakeGeminiResponse()
         self.last_contents: list[Any] = []
+        self.last_generation_config: dict[str, Any] | None = None
         self.model_name: str = "gemini-3.5-flash"
 
-    async def generate_content_async(self, contents: list[Any]) -> FakeGeminiResponse:
+    async def generate_content_async(
+        self,
+        contents: list[Any],
+        *,
+        generation_config: dict[str, Any] | None = None,
+    ) -> FakeGeminiResponse:
         self.last_contents = contents
+        self.last_generation_config = generation_config
         if isinstance(self._response, Exception):
             raise self._response
         return self._response
@@ -115,6 +131,32 @@ def _make_image(evidence_id: uuid.UUID | None = None) -> ProviderImage:
 
 def _image_loader(img: ProviderImage) -> bytes:
     return b"fake-image-bytes"
+
+
+def _schema_root() -> Path:
+    return Path(__file__).resolve().parents[3] / "schemas" / "production" / "v1"
+
+
+def _initial_analysis_response_schema() -> dict[str, object]:
+    return load_initial_analysis_response_schema(_schema_root())
+
+
+def _valid_initial_analysis_payload() -> dict[str, object]:
+    fixture_path = Path(__file__).resolve().parents[3] / "schemas" / "fixtures" / "valid" / "v1" / "initial_analysis.valid.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    market_snapshot = payload["market_snapshot"]
+    market_snapshot["previous_close"] = market_snapshot["last"]
+    market_snapshot["change"] = 0
+    market_snapshot["change_percentage"] = 0
+    market_snapshot["best_bid"] = market_snapshot["best_offer"]
+    market_snapshot["spread"] = 0
+    market_snapshot["spread_percentage"] = 0
+    return payload
+
+
+def _provider_with_schema(**kwargs: Any) -> GeminiProvider:
+    kwargs.setdefault("response_schemas", {"initial_analysis": _initial_analysis_response_schema()})
+    return GeminiProvider(**kwargs)
 
 
 def _text_request(**overrides: Any) -> ProviderRequest:
@@ -143,7 +185,7 @@ def fake_model() -> FakeGeminiModel:
 
 @pytest.fixture
 def provider(fake_model: FakeGeminiModel) -> GeminiProvider:
-    return GeminiProvider(
+    return _provider_with_schema(
         api_key="test-key",
         model=fake_model,
         image_loader=_image_loader,
@@ -309,7 +351,7 @@ class TestImageRequest:
             loaded.append(img.evidence_id)
             return b"loaded"
 
-        provider = GeminiProvider(api_key="k", model=fake_model, image_loader=loader)
+        provider = _provider_with_schema(api_key="k", model=fake_model, image_loader=loader)
         img = _make_image()
         req = _text_request(images=(img,))
         await provider.generate(req)
@@ -322,7 +364,11 @@ class TestImageRequest:
         def failing_loader(img: ProviderImage) -> bytes:
             raise GeminiRequestFailedError(message="Loader failed")
 
-        provider = GeminiProvider(api_key="k", model=fake_model, image_loader=failing_loader)
+        provider = _provider_with_schema(
+            api_key="k",
+            model=fake_model,
+            image_loader=failing_loader,
+        )
         req = _text_request(images=(_make_image(),))
         with pytest.raises(GeminiRequestFailedError):
             await provider.generate(req)
@@ -333,7 +379,7 @@ class TestImageRequest:
     ) -> None:
         from app.ai.providers import ProviderCapabilityUnsupportedError
 
-        provider = GeminiProvider(
+        provider = _provider_with_schema(
             api_key="k",
             model=fake_model,
             image_loader=_image_loader,
@@ -350,45 +396,147 @@ class TestImageRequest:
 
 
 class TestStructuredOutput:
-    async def test_schema_supplied(
+    async def test_active_initial_analysis_schema_attached_to_generation_config(
         self,
         provider: GeminiProvider,
         fake_model: FakeGeminiModel,
-        text_req: ProviderRequest,
     ) -> None:
-        schema = {"type": "object", "properties": {"result": {"type": "string"}}}
-        req = _text_request(structured_output_schema=schema)
-        resp = await provider.generate(req)
-        assert resp.raw_output is not None
-
-    async def test_schema_unchanged(
-        self,
-        provider: GeminiProvider,
-        fake_model: FakeGeminiModel,
-        text_req: ProviderRequest,
-    ) -> None:
-        schema = {"type": "object", "properties": {"result": {"type": "string"}}}
-        original = dict(schema)
-        req = _text_request(structured_output_schema=schema)
+        req = _text_request()
         await provider.generate(req)
-        assert schema == original
 
-    async def test_raw_json_unparsed(
+        assert fake_model.last_generation_config is not None
+        assert fake_model.last_generation_config["response_mime_type"] == "application/json"
+        assert (
+            fake_model.last_generation_config["response_schema"]
+            == _initial_analysis_response_schema()
+        )
+
+    async def test_attached_schema_preserves_nested_required_fields_and_enums(
         self,
         provider: GeminiProvider,
-        text_req: ProviderRequest,
+        fake_model: FakeGeminiModel,
     ) -> None:
-        req = _text_request(structured_output_schema={"type": "object"})
-        resp = await provider.generate(req)
-        assert resp.raw_output == '{"result": "ok"}'
+        await provider.generate(_text_request())
 
-    async def test_text_only_without_schema(
+        schema = fake_model.last_generation_config["response_schema"]
+        ai_assessment = schema["properties"]["ai_assessment"]
+        assert ai_assessment["required"] == [
+            "bias",
+            "confidence",
+            "setup_quality",
+            "bullish_probability",
+            "target_probability",
+            "downside_probability",
+            "risk_level",
+            "setup_valid",
+            "summary",
+        ]
+        assert ai_assessment["properties"]["bias"]["enum"] == [
+            "STRONGLY_BULLISH",
+            "BULLISH",
+            "NEUTRAL",
+            "BEARISH",
+            "STRONGLY_BEARISH",
+            "UNCERTAIN",
+        ]
+        assert ai_assessment["properties"]["risk_level"]["enum"] == [
+            "LOW",
+            "MODERATE",
+            "HIGH",
+            "VERY_HIGH",
+            "UNKNOWN",
+        ]
+
+    def test_generated_schema_contract_matches_active_application_schema(self) -> None:
+        raw_schema = json.loads((_schema_root() / "initial_analysis.schema.json").read_text())
+        common_schema = json.loads((_schema_root() / "common.schema.json").read_text())
+        converted = _initial_analysis_response_schema()
+
+        assert converted["required"] == raw_schema["required"]
+        raw_ai_assessment = raw_schema["$defs"]["initialAiAssessment"]
+        converted_ai_assessment = converted["properties"]["ai_assessment"]
+        assert converted_ai_assessment["required"] == raw_ai_assessment["required"]
+        assert (
+            converted_ai_assessment["properties"]["bias"]["enum"]
+            == common_schema["$defs"]["directionalBias"]["enum"]
+        )
+        assert (
+            converted_ai_assessment["properties"]["setup_quality"]["enum"]
+            == common_schema["$defs"]["setupQuality"]["enum"]
+        )
+        assert (
+            converted_ai_assessment["properties"]["risk_level"]["enum"]
+            == common_schema["$defs"]["riskLevel"]["enum"]
+        )
+
+    def test_unsupported_schema_keywords_are_rejected(self) -> None:
+        with pytest.raises(GeminiSchemaConversionError, match="Unsupported schema keywords"):
+            _convert_gemini_schema_document(
+                {"type": "object", "not": {"type": "null"}},
+                schema_path=Path("invalid.schema.json"),
+                package_root=Path("."),
+            )
+
+    async def test_valid_schema_constrained_output_passes_local_validation(
         self,
-        provider: GeminiProvider,
-        text_req: ProviderRequest,
+        fake_model: FakeGeminiModel,
     ) -> None:
-        resp = await provider.generate(text_req)
-        assert resp.raw_output is not None
+        payload = _valid_initial_analysis_payload()
+        provider = _provider_with_schema(
+            api_key="test-key",
+            model=FakeGeminiModel(response=FakeGeminiResponse(text=json.dumps(payload))),
+            image_loader=_image_loader,
+        )
+
+        response = await provider.generate(_text_request())
+        validation = UnifiedValidationService(
+            schema_package_root=str(_schema_root()),
+        ).validate(
+            json.loads(response.raw_output),
+            expected_analysis_type="INITIAL_ANALYSIS",
+        )
+
+        assert validation.valid is True
+
+    @pytest.mark.skipif(
+        os.environ.get("RUN_GEMINI_INITIAL_ANALYSIS_SMOKE") != "1",
+        reason="Set RUN_GEMINI_INITIAL_ANALYSIS_SMOKE=1 to run against Gemini",
+    )
+    async def test_real_provider_initial_analysis_smoke(self) -> None:
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            pytest.skip("GEMINI_API_KEY is required for the Gemini smoke test")
+
+        png_1x1 = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDAT\x08\x99c````\x00"
+            b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        payload = _valid_initial_analysis_payload()
+        provider = _provider_with_schema(
+            api_key=api_key,
+            model_name="gemini-3.5-flash",
+            image_loader=lambda image: png_1x1,
+        )
+        request = _text_request(
+            user_prompt=(
+                "Kembalikan tepat satu objek JSON yang valid dan sesuai schema ini. "
+                "Jangan tambahkan penjelasan di luar JSON. "
+                f"Gunakan nilai berikut apa adanya: {json.dumps(payload, ensure_ascii=False)}"
+            ),
+            images=(_make_image(), _make_image(), _make_image()),
+        )
+
+        response = await provider.generate(request)
+        parsed = json.loads(response.raw_output)
+        validation = UnifiedValidationService(
+            schema_package_root=str(_schema_root()),
+        ).validate(
+            parsed,
+            expected_analysis_type="INITIAL_ANALYSIS",
+        )
+
+        assert validation.valid is True
 
 
 # ===================================================================
@@ -403,7 +551,7 @@ class TestResponseMapping:
     ) -> None:
         response = FakeGeminiResponse()
         response.response_id = "gemini-response-123"  # type: ignore[attr-defined]
-        provider = GeminiProvider(api_key="k", model=FakeGeminiModel(response=response))
+        provider = _provider_with_schema(api_key="k", model=FakeGeminiModel(response=response))
         resp = await provider.generate(text_req)
         assert resp.provider_response_id == "gemini-response-123"
 
@@ -421,7 +569,7 @@ class TestResponseMapping:
     ) -> None:
         response = FakeGeminiResponse()
         response.id = 12345  # type: ignore[attr-defined]
-        provider = GeminiProvider(api_key="k", model=FakeGeminiModel(response=response))
+        provider = _provider_with_schema(api_key="k", model=FakeGeminiModel(response=response))
         resp = await provider.generate(text_req)
         assert resp.provider_response_id == "12345"
 
@@ -470,7 +618,7 @@ class TestResponseMapping:
         )
         no_usage_response._usage = None  # type: ignore[assignment]
         fake_model._response = no_usage_response
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
         resp = await provider.generate(text_req)
         assert resp.usage is None
 
@@ -481,7 +629,7 @@ class TestResponseMapping:
     ) -> None:
         empty_response = FakeGeminiResponse(text=None)  # type: ignore[arg-type]
         fake_model._response = empty_response
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
         resp = await provider.generate(text_req)
         assert resp.raw_output == ""
 
@@ -504,7 +652,7 @@ class TestErrors:
         import google.api_core.exceptions as api_exc
 
         fake_model._response = api_exc.Unauthenticated("Invalid API key")  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="bad", model=fake_model)
+        provider = _provider_with_schema(api_key="bad", model=fake_model)
         with pytest.raises(GeminiAuthenticationError):
             await provider.generate(text_req)
 
@@ -516,7 +664,7 @@ class TestErrors:
         import google.api_core.exceptions as api_exc
 
         fake_model._response = api_exc.ResourceExhausted("Rate limited")  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
         with pytest.raises(GeminiRateLimitedError):
             await provider.generate(text_req)
 
@@ -528,7 +676,7 @@ class TestErrors:
         import google.api_core.exceptions as api_exc
 
         fake_model._response = api_exc.DeadlineExceeded("Timed out")  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
         with pytest.raises(GeminiTimeoutError):
             await provider.generate(text_req)
 
@@ -538,7 +686,7 @@ class TestErrors:
         text_req: ProviderRequest,
     ) -> None:
         fake_model._response = Exception("Response was blocked due to safety")  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
         with pytest.raises(GeminiRefusedError):
             await provider.generate(text_req)
 
@@ -548,7 +696,7 @@ class TestErrors:
         text_req: ProviderRequest,
     ) -> None:
         fake_model._response = Exception("Unexpected SDK error")  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
         with pytest.raises(GeminiError):
             await provider.generate(text_req)
 
@@ -567,7 +715,7 @@ class TestErrors:
                 return ""
 
         fake_model._response = _SdkStyleError()  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
 
         with pytest.raises(GeminiRequestFailedError) as exc:
             await provider.generate(text_req)
@@ -589,7 +737,7 @@ class TestErrors:
                 return ""
 
         fake_model._response = _SdkStyleError()  # type: ignore[assignment]
-        provider = GeminiProvider(api_key="k", model=fake_model)
+        provider = _provider_with_schema(api_key="k", model=fake_model)
 
         with pytest.raises(GeminiRequestFailedError) as exc:
             await provider.generate(text_req)
@@ -648,7 +796,7 @@ class TestImmutability:
         self,
         fake_model: FakeGeminiModel,
     ) -> None:
-        provider = GeminiProvider(api_key="test", model=fake_model)
+        provider = _provider_with_schema(api_key="test", model=fake_model)
         req = _text_request()
         await provider.generate(req)
 
@@ -656,6 +804,6 @@ class TestImmutability:
         self,
         fake_model: FakeGeminiModel,
     ) -> None:
-        provider = GeminiProvider(api_key="fake-key", model=fake_model)
+        provider = _provider_with_schema(api_key="fake-key", model=fake_model)
         req = _text_request()
         await provider.generate(req)

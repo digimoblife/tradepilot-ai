@@ -8,7 +8,7 @@ from typing import Any, Mapping
 from app.ai.providers.base import AIProvider
 from app.ai.providers.capabilities import ProviderCapabilities
 from app.ai.providers.deepseek import DeepSeekProvider
-from app.ai.providers.gemini import GeminiProvider
+from app.ai.providers.gemini import GeminiProvider, load_initial_analysis_response_schema
 from app.storage import create_file_storage
 
 
@@ -129,6 +129,14 @@ def _build_gemini(config: Any) -> GeminiProvider:
         raise AnalysisProviderConfigurationError(
             f"Gemini model {model_name} is not approved for production analysis"
         )
+    try:
+        initial_analysis_schema = load_initial_analysis_response_schema(
+            getattr(config, "schema_package_root", "schemas/production/v1")
+        )
+    except Exception as exc:
+        raise AnalysisProviderConfigurationError(
+            f"Initial Analysis Gemini response schema is invalid: {exc}"
+        ) from exc
 
     storage = create_file_storage(config)
 
@@ -138,6 +146,7 @@ def _build_gemini(config: Any) -> GeminiProvider:
         timeout_seconds=int(getattr(config, "gemini_timeout_seconds", 120)),
         image_loader=lambda image: storage.read(file_reference=image.storage_reference),
         capabilities=capabilities,
+        response_schemas={"initial_analysis": initial_analysis_schema},
     )
 
 

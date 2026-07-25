@@ -25,12 +25,14 @@ class _FakeGeminiProvider:
         timeout_seconds: int,
         image_loader: object,
         capabilities: ProviderCapabilities,
+        response_schemas: dict[str, object],
     ) -> None:
         self.api_key = api_key
         self._model = model_name
         self.timeout_seconds = timeout_seconds
         self.image_loader = image_loader
         self._capabilities = capabilities
+        self.response_schemas = response_schemas
 
     @property
     def name(self) -> str:
@@ -74,6 +76,7 @@ def test_production_selection_is_gemini_only(monkeypatch: pytest.MonkeyPatch) ->
     assert provider_config.providers["gemini"].model == "gemini-3.5-flash"
     assert provider_config.providers["gemini"].capabilities.supports_images is True
     assert provider_config.providers["gemini"].capabilities.supports_text_output is True
+    assert "initial_analysis" in provider_config.providers["gemini"].response_schemas
 
 
 def test_production_rejects_deepseek_fallback_before_building_it(
@@ -204,4 +207,23 @@ def test_startup_validation_requires_text_output_capable_gemini(
     monkeypatch.setattr(selection, "GeminiProvider", NoTextOutputGemini)
 
     with pytest.raises(AnalysisProviderConfigurationError, match="text output"):
+        validate_analysis_provider_startup(_config())
+
+
+def test_startup_validation_fails_when_initial_analysis_schema_cannot_convert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
+    monkeypatch.setattr(
+        selection,
+        "load_initial_analysis_response_schema",
+        lambda schema_package_root: (_ for _ in ()).throw(RuntimeError("unsupported keyword: not")),
+    )
+
+    with pytest.raises(
+        AnalysisProviderConfigurationError,
+        match="Initial Analysis Gemini response schema is invalid",
+    ):
         validate_analysis_provider_startup(_config())

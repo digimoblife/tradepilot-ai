@@ -5,8 +5,10 @@ Implements the ``AIProvider`` contract for Google Gemini.
 
 from __future__ import annotations
 
+import json
 import re
 import time
+from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from app.ai.providers.base import AIProvider
@@ -57,6 +59,10 @@ class GeminiRequestFailedError(GeminiError):
     code: str = "AI_PROVIDER_INVALID_REQUEST"
 
 
+class GeminiSchemaConversionError(GeminiError):
+    code: str = "AI_PROVIDER_INVALID_REQUEST"
+
+
 # ---------------------------------------------------------------------------
 # Client Protocol  (injectable for tests)
 # ---------------------------------------------------------------------------
@@ -65,7 +71,12 @@ class GeminiRequestFailedError(GeminiError):
 class GeminiModelClient(Protocol):
     """Minimal protocol for the Gemini model's async generate method."""
 
-    async def generate_content_async(self, contents: list[Any]) -> Any: ...
+    async def generate_content_async(
+        self,
+        contents: list[Any],
+        *,
+        generation_config: dict[str, Any] | None = None,
+    ) -> Any: ...
 
     @property
     def model_name(self) -> str: ...
@@ -116,12 +127,14 @@ class GeminiProvider(AIProvider):
         model: GeminiModelClient | None = None,
         image_loader: Callable[[ProviderImage], bytes] | None = None,
         capabilities: ProviderCapabilities | None = None,
+        response_schemas: dict[str, dict[str, object]] | None = None,
     ) -> None:
         self._api_key = api_key
         self._model_name = model_name or "gemini-3.5-flash"
         self._timeout_seconds = timeout_seconds
         self._capabilities = capabilities or _DEFAULT_CAPABILITIES
         self._image_loader = image_loader or _default_image_loader
+        self._response_schemas = dict(response_schemas or {})
 
         if model is not None:
             self._model = model
@@ -157,7 +170,10 @@ class GeminiProvider(AIProvider):
         started_at = time.monotonic()
 
         try:
-            raw = await self._model.generate_content_async(contents)
+            raw = await self._model.generate_content_async(
+                contents,
+                generation_config=generation_config or None,
+            )
         except Exception as exc:
             raise _map_exception(exc) from exc
 
@@ -215,11 +231,24 @@ class GeminiProvider(AIProvider):
     def _build_generation_config(self, request: ProviderRequest) -> dict[str, Any]:
         config: dict[str, Any] = {}
 
-        if request.structured_output_schema is not None:
+        response_schema = self._resolve_response_schema(request)
+        if response_schema is not None:
             config["response_mime_type"] = "application/json"
-            config["response_schema"] = request.structured_output_schema
+            config["response_schema"] = response_schema
 
         return config
+
+    def _resolve_response_schema(self, request: ProviderRequest) -> dict[str, object] | None:
+        if request.expected_schema_name == "initial_analysis":
+            schema = self._response_schemas.get("initial_analysis")
+            if schema is None:
+                raise GeminiConfigurationError(
+                    message="Initial Analysis Gemini response schema is not configured",
+                )
+            return schema
+        if request.structured_output_schema is not None:
+            return dict(request.structured_output_schema)
+        return None
 
     @staticmethod
     def _build_response(
@@ -425,6 +454,269 @@ def _normalize_provider_response_id(raw: Any) -> str | None:
             return normalized
 
     return None
+
+
+def load_initial_analysis_response_schema(
+    schema_package_root: str | Path = "schemas/production/v1",
+) -> dict[str, object]:
+    package_root = Path(schema_package_root)
+    schema_path = package_root / "initial_analysis.schema.json"
+    if not schema_path.is_file():
+        raise GeminiSchemaConversionError(
+            message=f"Initial Analysis schema file not found: {schema_path}",
+        )
+
+    raw_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _convert_gemini_schema_document(raw_schema, schema_path=schema_path, package_root=package_root)
+
+
+_IGNORED_SCHEMA_KEYS = frozenset(
+    {
+        "$schema",
+        "$id",
+        "$defs",
+        "title",
+        "examples",
+        "default",
+        "minLength",
+        "maxLength",
+        "minimum",
+        "maximum",
+        "pattern",
+        "format",
+        "const",
+        "allOf",
+        "if",
+        "then",
+        "else",
+        "additionalProperties",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+        "minProperties",
+        "maxProperties",
+        "readOnly",
+        "writeOnly",
+        "deprecated",
+    }
+)
+_SUPPORTED_SCHEMA_KEYS = frozenset({"type", "properties", "required", "items", "enum", "description"})
+
+
+def _convert_gemini_schema_document(
+    raw_schema: dict[str, object],
+    *,
+    schema_path: Path,
+    package_root: Path,
+) -> dict[str, object]:
+    converted = _convert_schema_node(
+        raw_schema,
+        schema_path=schema_path,
+        package_root=package_root,
+        document=raw_schema,
+    )
+    if not isinstance(converted, dict):
+        raise GeminiSchemaConversionError(message="Converted Gemini schema must be an object")
+    return converted
+
+
+def _convert_schema_node(
+    node: object,
+    *,
+    schema_path: Path,
+    package_root: Path,
+    document: dict[str, object],
+) -> object:
+    if isinstance(node, list):
+        return [
+            _convert_schema_node(
+                item,
+                schema_path=schema_path,
+                package_root=package_root,
+                document=document,
+            )
+            for item in node
+        ]
+    if not isinstance(node, dict):
+        return node
+
+    if "$ref" in node:
+        resolved, resolved_path, resolved_document = _resolve_schema_ref(
+            str(node["$ref"]),
+            schema_path=schema_path,
+            package_root=package_root,
+            document=document,
+        )
+        merged = dict(resolved)
+        for key, value in node.items():
+            if key != "$ref":
+                merged[key] = value
+        return _convert_schema_node(
+            merged,
+            schema_path=resolved_path,
+            package_root=package_root,
+            document=resolved_document,
+        )
+
+    if "oneOf" in node:
+        return _convert_nullable_one_of(
+            node["oneOf"],
+            schema_path=schema_path,
+            package_root=package_root,
+            document=document,
+        )
+
+    unsupported = set(node) - _SUPPORTED_SCHEMA_KEYS - _IGNORED_SCHEMA_KEYS
+    if unsupported:
+        raise GeminiSchemaConversionError(
+            message=(
+                f"Unsupported schema keywords for Gemini conversion in {schema_path.name}: "
+                f"{sorted(unsupported)}"
+            ),
+        )
+
+    converted: dict[str, object] = {}
+
+    description = node.get("description")
+    if isinstance(description, str) and description.strip():
+        converted["description"] = description
+
+    if "type" in node:
+        node_type = node["type"]
+        if isinstance(node_type, list):
+            if "null" in node_type and len(node_type) == 2:
+                non_null = next(item for item in node_type if item != "null")
+                converted["type"] = non_null
+                converted["nullable"] = True
+            else:
+                raise GeminiSchemaConversionError(
+                    message=(
+                        f"Unsupported multi-type schema in {schema_path.name}: {node_type!r}"
+                    ),
+                )
+        else:
+            converted["type"] = node_type
+
+    if "enum" in node:
+        converted["enum"] = list(node["enum"]) if isinstance(node["enum"], list) else node["enum"]
+
+    if "properties" in node:
+        properties = node["properties"]
+        if not isinstance(properties, dict):
+            raise GeminiSchemaConversionError(
+                message=f"Schema properties must be an object in {schema_path.name}",
+            )
+        converted["properties"] = {
+            key: _convert_schema_node(
+                value,
+                schema_path=schema_path,
+                package_root=package_root,
+                document=document,
+            )
+            for key, value in properties.items()
+        }
+
+    if "required" in node:
+        required = node["required"]
+        if not isinstance(required, list):
+            raise GeminiSchemaConversionError(
+                message=f"Schema required must be an array in {schema_path.name}",
+            )
+        converted["required"] = list(required)
+
+    if "items" in node:
+        converted["items"] = _convert_schema_node(
+            node["items"],
+            schema_path=schema_path,
+            package_root=package_root,
+            document=document,
+        )
+
+    return converted
+
+
+def _convert_nullable_one_of(
+    one_of: object,
+    *,
+    schema_path: Path,
+    package_root: Path,
+    document: dict[str, object],
+) -> dict[str, object]:
+    if not isinstance(one_of, list):
+        raise GeminiSchemaConversionError(
+            message=f"Schema oneOf must be an array in {schema_path.name}",
+        )
+
+    non_null_variants: list[dict[str, object]] = []
+    nullable = False
+    for variant in one_of:
+        if isinstance(variant, dict) and variant.get("type") == "null":
+            nullable = True
+            continue
+        converted = _convert_schema_node(
+            variant,
+            schema_path=schema_path,
+            package_root=package_root,
+            document=document,
+        )
+        if not isinstance(converted, dict):
+            raise GeminiSchemaConversionError(
+                message=f"Converted oneOf branch must be an object in {schema_path.name}",
+            )
+        non_null_variants.append(converted)
+
+    if len(non_null_variants) != 1 or not nullable:
+        raise GeminiSchemaConversionError(
+            message=f"Unsupported oneOf schema in {schema_path.name}; only nullable unions are supported",
+        )
+
+    converted = dict(non_null_variants[0])
+    converted["nullable"] = True
+    return converted
+
+
+def _resolve_schema_ref(
+    ref: str,
+    *,
+    schema_path: Path,
+    package_root: Path,
+    document: dict[str, object],
+) -> tuple[dict[str, object], Path, dict[str, object]]:
+    if ref.startswith("#/"):
+        return _resolve_json_pointer(document, ref[1:]), schema_path, document
+
+    path_part, _, pointer = ref.partition("#")
+    if ref.startswith("https://schemas.tradepilot.local/production/v1/"):
+        filename = path_part.rsplit("/", 1)[-1]
+        target_path = package_root / filename
+    else:
+        target_path = (schema_path.parent / path_part).resolve()
+
+    if not target_path.is_file():
+        raise GeminiSchemaConversionError(message=f"Referenced schema file not found: {target_path}")
+
+    target_document = json.loads(target_path.read_text(encoding="utf-8"))
+    if not pointer:
+        return target_document, target_path, target_document
+    return _resolve_json_pointer(target_document, pointer), target_path, target_document
+
+
+def _resolve_json_pointer(document: dict[str, object], pointer: str) -> dict[str, object]:
+    current: object = document
+    for token in pointer.lstrip("/").split("/"):
+        token = token.replace("~1", "/").replace("~0", "~")
+        if not isinstance(current, dict) or token not in current:
+            raise GeminiSchemaConversionError(
+                message=f"Schema JSON pointer not found: #{pointer}",
+            )
+        current = current[token]
+    if not isinstance(current, dict):
+        raise GeminiSchemaConversionError(
+            message=f"Schema JSON pointer must resolve to an object: #{pointer}",
+        )
+    return current
 
 
 def _stringify_provider_response_id(value: Any) -> str | None:
