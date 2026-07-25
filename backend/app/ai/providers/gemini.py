@@ -5,11 +5,12 @@ Implements the ``AIProvider`` contract for Google Gemini.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 from app.ai.providers.base import AIProvider
 from app.ai.providers.capabilities import ProviderCapabilities, ensure_request_supported
@@ -75,7 +76,7 @@ class GeminiModelClient(Protocol):
         self,
         contents: list[Any],
         *,
-        generation_config: dict[str, Any] | None = None,
+        generation_config: Mapping[str, Any] | None = None,
     ) -> Any: ...
 
     @property
@@ -108,6 +109,32 @@ _FINISH_REASON_MAP: dict[int, str] = {
 _SENSITIVE_VALUE_PATTERN = re.compile(
     r"(?i)\b(api[_ -]?key|authorization|bearer|token)\b\s*[:=]\s*([^\s,;]+)"
 )
+
+
+class _GoogleGenAIModelClient:
+    """Thin wrapper around the current Google GenAI async client."""
+
+    def __init__(self, *, api_key: str, model_name: str) -> None:
+        from google import genai
+
+        self._client = genai.Client(api_key=api_key)
+        self._model_name = model_name
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    async def generate_content_async(
+        self,
+        contents: list[Any],
+        *,
+        generation_config: Mapping[str, Any] | None = None,
+    ) -> Any:
+        return await self._client.aio.models.generate_content(
+            model=self._model_name,
+            contents=contents,
+            config=generation_config,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -166,75 +193,71 @@ class GeminiProvider(AIProvider):
 
         contents = self._build_contents(request)
         generation_config = self._build_generation_config(request)
+        timeout_seconds = request.timeout_seconds or self._timeout_seconds
 
         started_at = time.monotonic()
 
         try:
-            raw = await self._model.generate_content_async(
-                contents,
-                generation_config=generation_config or None,
+            raw = await asyncio.wait_for(
+                self._model.generate_content_async(
+                    contents,
+                    generation_config=generation_config or None,
+                ),
+                timeout=timeout_seconds,
             )
+        except asyncio.TimeoutError as exc:
+            raise GeminiTimeoutError(
+                message=f"Gemini request timed out after {timeout_seconds} seconds",
+            ) from exc
         except Exception as exc:
             raise _map_exception(exc) from exc
 
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
 
-        return self._build_response(raw, request, elapsed_ms, generation_config)
+        return self._build_response(
+            raw,
+            request,
+            elapsed_ms,
+            generation_config,
+            configured_model_name=self._model_name,
+        )
 
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
     def _build_model(self) -> GeminiModelClient:
-        import google.generativeai as genai
-
         if not self._api_key:
             raise GeminiConfigurationError(
                 message="Gemini API key is not configured",
             )
-
-        genai.configure(api_key=self._api_key)  # type: ignore[attr-defined]
-
-        system_instruction = None  # Set per-request in contents
-
-        model = genai.GenerativeModel(  # type: ignore[attr-defined]
+        return _GoogleGenAIModelClient(
+            api_key=self._api_key,
             model_name=self._model_name,
-            system_instruction=system_instruction,
         )
-        return model
 
     def _build_contents(self, request: ProviderRequest) -> list[Any]:
         parts: list[Any] = []
+        from google.genai import types
 
-        from google.generativeai import protos
-
-        if request.system_prompt:
-            parts.append(
-                protos.Part(text=f"[SYSTEM]\n{request.system_prompt}\n[/SYSTEM]"),
-            )
-
-        parts.append(protos.Part(text=request.user_prompt))
+        parts.append(request.user_prompt)
 
         for pi in request.images:
             image_bytes = self._image_loader(pi)
-            parts.append(
-                protos.Part(
-                    inline_data=protos.Blob(
-                        mime_type=pi.mime_type,
-                        data=image_bytes,
-                    ),
-                ),
-            )
+            parts.append(types.Part.from_bytes(data=image_bytes, mime_type=pi.mime_type))
 
         return parts
 
     def _build_generation_config(self, request: ProviderRequest) -> dict[str, Any]:
         config: dict[str, Any] = {}
 
+        if request.system_prompt:
+            config["system_instruction"] = request.system_prompt
+
         response_schema = self._resolve_response_schema(request)
         if response_schema is not None:
             config["response_mime_type"] = "application/json"
-            config["response_schema"] = response_schema
+            config["response_json_schema"] = response_schema
 
         return config
 
@@ -256,26 +279,22 @@ class GeminiProvider(AIProvider):
         request: ProviderRequest,
         elapsed_ms: int,
         generation_config: dict[str, Any],
+        *,
+        configured_model_name: str,
     ) -> ProviderResponse:
-        raw_output = raw.text if hasattr(raw, "text") and raw.text is not None else ""
+        raw_output = _extract_response_text(raw)
 
-        finish_reason = None
-        if hasattr(raw, "candidates") and raw.candidates:
-            try:
-                fr = raw.candidates[0].finish_reason
-                if isinstance(fr, int):
-                    finish_reason = _FINISH_REASON_MAP.get(fr, f"UNKNOWN_{fr}")
-                else:
-                    finish_reason = str(fr)
-            except (AttributeError, IndexError):
-                pass
+        finish_reason = _extract_finish_reason(raw)
 
         usage = None
         if hasattr(raw, "usage_metadata") and raw.usage_metadata is not None:
             um = raw.usage_metadata
             usage = ProviderUsage(
                 input_tokens=getattr(um, "prompt_token_count", None),
-                output_tokens=getattr(um, "candidates_token_count", None),
+                output_tokens=(
+                    getattr(um, "response_token_count", None)
+                    or getattr(um, "candidates_token_count", None)
+                ),
                 total_tokens=getattr(um, "total_token_count", None),
             )
 
@@ -284,6 +303,10 @@ class GeminiProvider(AIProvider):
         metadata: dict[str, Any] = {}
         if hasattr(raw, "prompt_feedback") and raw.prompt_feedback is not None:
             metadata["prompt_feedback"] = _safe_metadata(raw.prompt_feedback)
+        if getattr(raw, "parsed", None) is not None:
+            metadata["parsed"] = _safe_metadata(raw.parsed)
+        if getattr(raw, "model_version", None) is not None:
+            metadata["model_version"] = _safe_metadata(raw.model_version)
 
         metadata["latency_ms"] = elapsed_ms
         if generation_config:
@@ -291,9 +314,9 @@ class GeminiProvider(AIProvider):
 
         return ProviderResponse(
             provider="gemini",
-            model=request.metadata.get("model_name", "gemini-3.5-flash")
+            model=request.metadata.get("model_name", configured_model_name)
             if isinstance(request.metadata, dict)
-            else "gemini-3.5-flash",  # noqa: E501
+            else configured_model_name,
             raw_output=raw_output,
             request_id=request.request_id,
             provider_response_id=provider_response_id,
@@ -316,31 +339,75 @@ def _default_image_loader(image: ProviderImage) -> bytes:
 
 
 def _map_exception(exc: Exception) -> GeminiError:
-    import google.api_core.exceptions as api_exc
-
     message = _extract_safe_exception_text(exc)
+    status_code = _extract_status_code(exc)
 
-    if isinstance(exc, api_exc.DeadlineExceeded):
-        return GeminiTimeoutError(message=message)
-    if isinstance(exc, api_exc.Unauthenticated):
+    if status_code in {401, 403}:
         return GeminiAuthenticationError(message=message)
-    if isinstance(exc, api_exc.PermissionDenied):
-        return GeminiAuthenticationError(message=message)
-    if isinstance(exc, api_exc.ResourceExhausted):
-        return GeminiRateLimitedError(message=message)
-    if isinstance(exc, api_exc.InvalidArgument):
-        return GeminiRequestFailedError(message=message)
-    if isinstance(exc, api_exc.NotFound):
+    if status_code == 404:
         return GeminiConfigurationError(message=f"Model not found: {message}")
+    if status_code == 408:
+        return GeminiTimeoutError(message=message)
+    if status_code == 429:
+        return GeminiRateLimitedError(message=message)
+    if status_code == 400:
+        return GeminiRequestFailedError(message=message)
+    if status_code in {500, 502, 503, 504}:
+        return GeminiTimeoutError(message=message)
 
     # Check for blocked/safety responses
     exc_str = message.lower()
     if "safety" in exc_str or "blocked" in exc_str or "finish_reason" in exc_str:
         return GeminiRefusedError(message=message)
+    if "quota" in exc_str or "rate limit" in exc_str or "resource exhausted" in exc_str:
+        return GeminiRateLimitedError(message=message)
+    if "permission" in exc_str or "unauthorized" in exc_str or "forbidden" in exc_str:
+        return GeminiAuthenticationError(message=message)
     if "timed out" in exc_str or "timeout" in exc_str or "deadline" in exc_str:
         return GeminiTimeoutError(message=message)
 
     return GeminiRequestFailedError(message=message)
+
+
+def _extract_status_code(exc: Exception) -> int | None:
+    for attr in ("code", "status_code", "status"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    response = getattr(exc, "response", None)
+    if response is not None:
+        for attr in ("status_code", "status_code", "status"):
+            value = getattr(response, attr, None)
+            if isinstance(value, int):
+                return value
+    return None
+
+
+def _extract_response_text(raw: Any) -> str:
+    try:
+        text = getattr(raw, "text", None)
+    except Exception:  # noqa: BLE001
+        text = None
+    return text if isinstance(text, str) else ""
+
+
+def _extract_finish_reason(raw: Any) -> str | None:
+    candidates = getattr(raw, "candidates", None)
+    if not candidates:
+        return None
+    try:
+        finish_reason = candidates[0].finish_reason
+    except (AttributeError, IndexError):
+        return None
+
+    if isinstance(finish_reason, int):
+        return _FINISH_REASON_MAP.get(finish_reason, f"UNKNOWN_{finish_reason}")
+    if hasattr(finish_reason, "name"):
+        name = getattr(finish_reason, "name", None)
+        if isinstance(name, str) and name:
+            return name
+    rendered = str(finish_reason)
+    return rendered or None
 
 
 def _extract_safe_exception_text(exc: Exception) -> str:
@@ -472,28 +539,18 @@ def load_initial_analysis_response_schema(
 
 _IGNORED_SCHEMA_KEYS = frozenset(
     {
-        "$schema",
-        "$id",
-        "$defs",
-        "title",
         "examples",
         "default",
         "minLength",
         "maxLength",
-        "minimum",
-        "maximum",
         "pattern",
-        "format",
         "const",
         "allOf",
         "if",
         "then",
         "else",
-        "additionalProperties",
         "exclusiveMinimum",
         "exclusiveMaximum",
-        "minItems",
-        "maxItems",
         "uniqueItems",
         "minProperties",
         "maxProperties",
@@ -502,7 +559,32 @@ _IGNORED_SCHEMA_KEYS = frozenset(
         "deprecated",
     }
 )
-_SUPPORTED_SCHEMA_KEYS = frozenset({"type", "properties", "required", "items", "enum", "description"})
+_SUPPORTED_SCHEMA_KEYS = frozenset(
+    {
+        "$schema",
+        "$id",
+        "$defs",
+        "$ref",
+        "$anchor",
+        "type",
+        "format",
+        "title",
+        "description",
+        "enum",
+        "items",
+        "prefixItems",
+        "minItems",
+        "maxItems",
+        "minimum",
+        "maximum",
+        "anyOf",
+        "oneOf",
+        "properties",
+        "additionalProperties",
+        "required",
+        "propertyOrdering",
+    }
+)
 
 
 def _convert_gemini_schema_document(
@@ -560,14 +642,6 @@ def _convert_schema_node(
             document=resolved_document,
         )
 
-    if "oneOf" in node:
-        return _convert_nullable_one_of(
-            node["oneOf"],
-            schema_path=schema_path,
-            package_root=package_root,
-            document=document,
-        )
-
     unsupported = set(node) - _SUPPORTED_SCHEMA_KEYS - _IGNORED_SCHEMA_KEYS
     if unsupported:
         raise GeminiSchemaConversionError(
@@ -579,101 +653,97 @@ def _convert_schema_node(
 
     converted: dict[str, object] = {}
 
-    description = node.get("description")
-    if isinstance(description, str) and description.strip():
-        converted["description"] = description
-
-    if "type" in node:
-        node_type = node["type"]
-        if isinstance(node_type, list):
-            if "null" in node_type and len(node_type) == 2:
-                non_null = next(item for item in node_type if item != "null")
-                converted["type"] = non_null
-                converted["nullable"] = True
+    for key, value in node.items():
+        if key in _IGNORED_SCHEMA_KEYS:
+            continue
+        if key in {"$schema", "$id", "$anchor", "title", "description", "format", "propertyOrdering"}:
+            converted[key] = value
+            continue
+        if key == "type":
+            if isinstance(value, list):
+                converted[key] = [
+                    _convert_schema_node(item, schema_path=schema_path, package_root=package_root, document=document)
+                    for item in value
+                ]
             else:
+                converted[key] = value
+            continue
+        if key == "enum":
+            converted[key] = list(value) if isinstance(value, list) else value
+            continue
+        if key == "required":
+            if not isinstance(value, list):
                 raise GeminiSchemaConversionError(
-                    message=(
-                        f"Unsupported multi-type schema in {schema_path.name}: {node_type!r}"
-                    ),
+                    message=f"Schema required must be an array in {schema_path.name}",
                 )
-        else:
-            converted["type"] = node_type
-
-    if "enum" in node:
-        converted["enum"] = list(node["enum"]) if isinstance(node["enum"], list) else node["enum"]
-
-    if "properties" in node:
-        properties = node["properties"]
-        if not isinstance(properties, dict):
-            raise GeminiSchemaConversionError(
-                message=f"Schema properties must be an object in {schema_path.name}",
-            )
-        converted["properties"] = {
-            key: _convert_schema_node(
+            converted[key] = list(value)
+            continue
+        if key == "additionalProperties":
+            if isinstance(value, dict):
+                converted[key] = _convert_schema_node(
+                    value,
+                    schema_path=schema_path,
+                    package_root=package_root,
+                    document=document,
+                )
+            else:
+                converted[key] = value
+            continue
+        if key == "$defs":
+            if not isinstance(value, dict):
+                raise GeminiSchemaConversionError(
+                    message=f"Schema $defs must be an object in {schema_path.name}",
+                )
+            converted[key] = {
+                def_name: _convert_schema_node(
+                    def_value,
+                    schema_path=schema_path,
+                    package_root=package_root,
+                    document=document,
+                )
+                for def_name, def_value in value.items()
+            }
+            continue
+        if key == "properties":
+            if not isinstance(value, dict):
+                raise GeminiSchemaConversionError(
+                    message=f"Schema properties must be an object in {schema_path.name}",
+                )
+            converted[key] = {
+                prop_name: _convert_schema_node(
+                    prop_value,
+                    schema_path=schema_path,
+                    package_root=package_root,
+                    document=document,
+                )
+                for prop_name, prop_value in value.items()
+            }
+            continue
+        if key in {"items"}:
+            converted[key] = _convert_schema_node(
                 value,
                 schema_path=schema_path,
                 package_root=package_root,
                 document=document,
             )
-            for key, value in properties.items()
-        }
-
-    if "required" in node:
-        required = node["required"]
-        if not isinstance(required, list):
-            raise GeminiSchemaConversionError(
-                message=f"Schema required must be an array in {schema_path.name}",
-            )
-        converted["required"] = list(required)
-
-    if "items" in node:
-        converted["items"] = _convert_schema_node(
-            node["items"],
-            schema_path=schema_path,
-            package_root=package_root,
-            document=document,
-        )
-
-    return converted
-
-
-def _convert_nullable_one_of(
-    one_of: object,
-    *,
-    schema_path: Path,
-    package_root: Path,
-    document: dict[str, object],
-) -> dict[str, object]:
-    if not isinstance(one_of, list):
-        raise GeminiSchemaConversionError(
-            message=f"Schema oneOf must be an array in {schema_path.name}",
-        )
-
-    non_null_variants: list[dict[str, object]] = []
-    nullable = False
-    for variant in one_of:
-        if isinstance(variant, dict) and variant.get("type") == "null":
-            nullable = True
             continue
-        converted = _convert_schema_node(
-            variant,
-            schema_path=schema_path,
-            package_root=package_root,
-            document=document,
-        )
-        if not isinstance(converted, dict):
-            raise GeminiSchemaConversionError(
-                message=f"Converted oneOf branch must be an object in {schema_path.name}",
-            )
-        non_null_variants.append(converted)
+        if key in {"prefixItems", "anyOf", "oneOf"}:
+            if not isinstance(value, list):
+                raise GeminiSchemaConversionError(
+                    message=f"Schema {key} must be an array in {schema_path.name}",
+                )
+            converted[key] = [
+                _convert_schema_node(
+                    item,
+                    schema_path=schema_path,
+                    package_root=package_root,
+                    document=document,
+                )
+                for item in value
+            ]
+            continue
+        converted[key] = value
 
-    if len(non_null_variants) != 1 or not nullable:
-        raise GeminiSchemaConversionError(
-            message=f"Unsupported oneOf schema in {schema_path.name}; only nullable unions are supported",
-        )
-
-    converted = dict(non_null_variants[0])
-    converted["nullable"] = True
     return converted
 
 

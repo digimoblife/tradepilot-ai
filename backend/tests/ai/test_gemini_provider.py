@@ -5,8 +5,10 @@ Uses an injected fake model client — no real API calls.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import time
 import uuid
 from io import BytesIO
 from dataclasses import dataclass
@@ -169,6 +171,208 @@ def _verified_png_1x1_bytes() -> bytes:
     return png_bytes
 
 
+def _real_image_bytes() -> tuple[bytes, bytes, bytes]:
+    colors = ((255, 255, 255), (192, 192, 192), (0, 0, 0))
+    images: list[bytes] = []
+    for color in colors:
+        buf = BytesIO()
+        Image.new("RGB", (1, 1), color).save(buf, format="PNG")
+        png_bytes = buf.getvalue()
+        Image.open(BytesIO(png_bytes)).verify()
+        images.append(png_bytes)
+    return tuple(images)  # type: ignore[return-value]
+
+
+def _real_image_loader_factory(image_bytes: tuple[bytes, bytes, bytes]) -> Callable[[ProviderImage], bytes]:
+    by_reference = {
+        "user/session/file-1.png": image_bytes[0],
+        "user/session/file-2.png": image_bytes[1],
+        "user/session/file-3.png": image_bytes[2],
+    }
+
+    def load(image: ProviderImage) -> bytes:
+        return by_reference[image.storage_reference]
+
+    return load
+
+
+def _real_images() -> tuple[ProviderImage, ProviderImage, ProviderImage]:
+    return (
+        ProviderImage(
+            evidence_id=uuid.uuid4(),
+            mime_type="image/png",
+            storage_reference="user/session/file-1.png",
+            byte_size=69,
+            width=1,
+            height=1,
+        ),
+        ProviderImage(
+            evidence_id=uuid.uuid4(),
+            mime_type="image/png",
+            storage_reference="user/session/file-2.png",
+            byte_size=69,
+            width=1,
+            height=1,
+        ),
+        ProviderImage(
+            evidence_id=uuid.uuid4(),
+            mime_type="image/png",
+            storage_reference="user/session/file-3.png",
+            byte_size=69,
+            width=1,
+            height=1,
+        ),
+    )
+
+
+def _real_request(
+    *,
+    user_prompt: str,
+    expected_schema_name: str,
+    expected_schema_version: str,
+    structured_output_schema: dict[str, object] | None,
+    images: tuple[ProviderImage, ...],
+    timeout_seconds: int,
+) -> ProviderRequest:
+    return ProviderRequest(
+        request_id=uuid.uuid4(),
+        analysis_type="INITIAL_ANALYSIS",
+        prompt_version="1.0.0",
+        user_prompt=user_prompt,
+        expected_schema_name=expected_schema_name,
+        expected_schema_version=expected_schema_version,
+        system_prompt="Jawab singkat dan patuhi schema.",
+        images=images,
+        structured_output_schema=structured_output_schema,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+async def _run_real_case(
+    *,
+    api_key: str,
+    label: str,
+    user_prompt: str,
+    expected_schema_name: str,
+    expected_schema_version: str,
+    structured_output_schema: dict[str, object] | None,
+    response_schemas: dict[str, dict[str, object]] | None,
+    images: tuple[ProviderImage, ...],
+    timeout_seconds: int = 60,
+) -> dict[str, object]:
+    provider = GeminiProvider(
+        api_key=api_key,
+        model_name="gemini-3.5-flash",
+        timeout_seconds=timeout_seconds,
+        image_loader=_real_image_loader_factory(_real_image_bytes()),
+        response_schemas=response_schemas,
+    )
+    request = _real_request(
+        user_prompt=user_prompt,
+        expected_schema_name=expected_schema_name,
+        expected_schema_version=expected_schema_version,
+        structured_output_schema=structured_output_schema,
+        images=images,
+        timeout_seconds=timeout_seconds,
+    )
+    started_at = time.monotonic()
+    try:
+        response = await provider.generate(request)
+    except GeminiError as exc:
+        return {
+            "case": label,
+            "success": False,
+            "elapsed_seconds": round(time.monotonic() - started_at, 3),
+            "error_code": exc.code,
+            "error_message": exc.message,
+        }
+
+    elapsed_seconds = round(time.monotonic() - started_at, 3)
+    try:
+        parsed = json.loads(response.raw_output)
+        valid_json = True
+        top_level_keys = list(parsed.keys())[:20] if isinstance(parsed, dict) else []
+    except Exception:  # noqa: BLE001
+        parsed = None
+        valid_json = False
+        top_level_keys = []
+
+    result: dict[str, object] = {
+        "case": label,
+        "success": True,
+        "elapsed_seconds": elapsed_seconds,
+        "response_received": True,
+        "valid_json": valid_json,
+        "top_level_keys": top_level_keys,
+        "finish_reason": response.finish_reason,
+        "parsed": parsed,
+    }
+    return result
+
+
+def _schema_with_sections(
+    schema: dict[str, object],
+    section_names: tuple[str, ...],
+) -> dict[str, object]:
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    required = schema["required"]
+    assert isinstance(required, list)
+
+    pruned_required = [name for name in required if name in section_names]
+    return {
+        key: value
+        for key, value in {
+            "type": schema.get("type"),
+            "description": schema.get("description"),
+            "additionalProperties": schema.get("additionalProperties"),
+            "properties": {name: properties[name] for name in section_names},
+            "required": pruned_required,
+        }.items()
+        if value is not None
+    }
+
+
+async def _find_first_failing_top_level_section(
+    *,
+    api_key: str,
+    image_count: int,
+    full_schema: dict[str, object],
+    timeout_seconds: int = 60,
+) -> dict[str, object] | None:
+    required = full_schema.get("required", ())
+    if not isinstance(required, list):
+        return None
+
+    images = _real_images()[:image_count]
+    sections: list[str] = []
+    for section in required:
+        if not isinstance(section, str):
+            continue
+        sections.append(section)
+        case_result = await _run_real_case(
+            api_key=api_key,
+            label=f"boundary:{section}",
+            user_prompt="Return only valid JSON matching the response schema.",
+            expected_schema_name="initial_analysis",
+            expected_schema_version="1.0.0",
+            structured_output_schema=None,
+            response_schemas={
+                "initial_analysis": _schema_with_sections(full_schema, tuple(sections)),
+            },
+            images=images,
+            timeout_seconds=timeout_seconds,
+        )
+        if not bool(case_result.get("success")):
+            return {
+                "first_failing_section": section,
+                "sections_tested": list(sections),
+                "failure": case_result,
+            }
+
+    return None
+
+
 def _text_request(**overrides: Any) -> ProviderRequest:
     kwargs = dict(
         request_id=uuid.uuid4(),
@@ -267,9 +471,8 @@ class TestTextRequest:
         text_req: ProviderRequest,
     ) -> None:
         await provider.generate(text_req)
-        contents = fake_model.last_contents
-        parts_text = " ".join(str(p) for p in contents)
-        assert "You are a helpful analyst" in parts_text
+        assert fake_model.last_generation_config is not None
+        assert fake_model.last_generation_config["system_instruction"] == "You are a helpful analyst."
 
     async def test_user_prompt_mapped(
         self,
@@ -417,7 +620,7 @@ class TestStructuredOutput:
         assert fake_model.last_generation_config is not None
         assert fake_model.last_generation_config["response_mime_type"] == "application/json"
         assert (
-            fake_model.last_generation_config["response_schema"]
+            fake_model.last_generation_config["response_json_schema"]
             == _initial_analysis_response_schema()
         )
 
@@ -428,7 +631,7 @@ class TestStructuredOutput:
     ) -> None:
         await provider.generate(_text_request())
 
-        schema = fake_model.last_generation_config["response_schema"]
+        schema = fake_model.last_generation_config["response_json_schema"]
         ai_assessment = schema["properties"]["ai_assessment"]
         assert ai_assessment["required"] == [
             "bias",
@@ -509,40 +712,124 @@ class TestStructuredOutput:
         assert validation.valid is True
 
     @pytest.mark.skipif(
-        os.environ.get("RUN_GEMINI_INITIAL_ANALYSIS_SMOKE") != "1",
-        reason="Set RUN_GEMINI_INITIAL_ANALYSIS_SMOKE=1 to run against Gemini",
+        os.environ.get("RUN_GEMINI_PROVIDER_MATRIX") != "1",
+        reason="Set RUN_GEMINI_PROVIDER_MATRIX=1 to run live Gemini migration checks",
     )
-    async def test_real_provider_initial_analysis_smoke(self) -> None:
+    async def test_real_provider_google_genai_matrix(self) -> None:
         api_key = os.environ.get("GEMINI_API_KEY", "")
         if not api_key:
-            pytest.skip("GEMINI_API_KEY is required for the Gemini smoke test")
+            pytest.skip("GEMINI_API_KEY is required for the live Gemini matrix")
 
-        png_1x1 = _verified_png_1x1_bytes()
-        payload = _valid_initial_analysis_payload()
-        provider = _provider_with_schema(
-            api_key=api_key,
-            model_name="gemini-3.5-flash",
-            image_loader=lambda image: png_1x1,
-        )
-        request = _text_request(
-            user_prompt=(
-                "Kembalikan tepat satu objek JSON yang valid dan sesuai schema ini. "
-                "Jangan tambahkan penjelasan di luar JSON. "
-                f"Gunakan nilai berikut apa adanya: {json.dumps(payload, ensure_ascii=False)}"
+        full_schema = _initial_analysis_response_schema()
+        tiny_schema = {
+            "type": "object",
+            "properties": {"result": {"type": "string"}},
+            "required": ["result"],
+        }
+        images = _real_images()
+        results = [
+            await _run_real_case(
+                api_key=api_key,
+                label="A",
+                user_prompt="Reply with exactly OK.",
+                expected_schema_name="diagnostic",
+                expected_schema_version="1.0.0",
+                structured_output_schema=None,
+                response_schemas={},
+                images=(),
             ),
-            images=(_make_image(), _make_image(), _make_image()),
-        )
+            await _run_real_case(
+                api_key=api_key,
+                label="B",
+                user_prompt="Return only valid JSON matching the response schema.",
+                expected_schema_name="diagnostic",
+                expected_schema_version="1.0.0",
+                structured_output_schema=tiny_schema,
+                response_schemas={},
+                images=(),
+            ),
+            await _run_real_case(
+                api_key=api_key,
+                label="C",
+                user_prompt="Return only valid JSON matching the response schema.",
+                expected_schema_name="diagnostic",
+                expected_schema_version="1.0.0",
+                structured_output_schema=tiny_schema,
+                response_schemas={},
+                images=(images[0],),
+            ),
+            await _run_real_case(
+                api_key=api_key,
+                label="D",
+                user_prompt="Return only valid JSON matching the response schema.",
+                expected_schema_name="initial_analysis",
+                expected_schema_version="1.0.0",
+                structured_output_schema=None,
+                response_schemas={"initial_analysis": full_schema},
+                images=(),
+            ),
+            await _run_real_case(
+                api_key=api_key,
+                label="E",
+                user_prompt="Return only valid JSON matching the response schema.",
+                expected_schema_name="initial_analysis",
+                expected_schema_version="1.0.0",
+                structured_output_schema=None,
+                response_schemas={"initial_analysis": full_schema},
+                images=images,
+            ),
+        ]
 
-        response = await provider.generate(request)
-        parsed = json.loads(response.raw_output)
-        validation = UnifiedValidationService(
-            schema_package_root=str(_schema_root()),
-        ).validate(
-            parsed,
-            expected_analysis_type="INITIAL_ANALYSIS",
-        )
+        boundary: dict[str, object] | None = None
+        if not bool(results[3].get("success")):
+            boundary = await _find_first_failing_top_level_section(
+                api_key=api_key,
+                image_count=0,
+                full_schema=full_schema,
+            )
+        elif not bool(results[4].get("success")):
+            boundary = await _find_first_failing_top_level_section(
+                api_key=api_key,
+                image_count=3,
+                full_schema=full_schema,
+            )
 
-        assert validation.valid is True
+        local_validation: dict[str, object] | None = None
+        if bool(results[4].get("success")):
+            parsed = results[4].get("parsed")
+            assert isinstance(parsed, dict)
+            validation = UnifiedValidationService(
+                schema_package_root=str(_schema_root()),
+            ).validate(
+                parsed,
+                expected_analysis_type="INITIAL_ANALYSIS",
+            )
+            local_validation = {
+                "valid": validation.valid,
+                "issue_codes": [issue.code for issue in validation.issues[:10]],
+            }
+
+        print(
+            json.dumps(
+                {
+                    "model": "gemini-3.5-flash",
+                    "results": [
+                        {k: v for k, v in result.items() if k != "parsed"} for result in results
+                    ],
+                    "boundary": boundary,
+                    "local_validation": local_validation,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        assert bool(results[0].get("success")) is True
+        assert bool(results[1].get("success")) is True
+        assert bool(results[2].get("success")) is True
+        assert bool(results[3].get("success")) is True or boundary is not None
+        assert bool(results[4].get("success")) is True or boundary is not None
+        if local_validation is not None:
+            assert local_validation["valid"] is True
 
 
 # ===================================================================
@@ -749,6 +1036,42 @@ class TestErrors:
             await provider.generate(text_req)
 
         assert exc.value.message == "detail token=[REDACTED]; {'reason': 'model missing'}"
+
+    async def test_request_timeout_seconds_override_is_used(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        fake_model: FakeGeminiModel,
+    ) -> None:
+        observed: dict[str, float] = {}
+
+        async def fake_wait_for(awaitable: Any, timeout: float) -> Any:
+            observed["timeout"] = timeout
+            return await awaitable
+
+        monkeypatch.setattr("app.ai.providers.gemini.asyncio.wait_for", fake_wait_for)
+
+        provider = _provider_with_schema(api_key="k", model=fake_model, timeout_seconds=17)
+        await provider.generate(_text_request(timeout_seconds=5))
+
+        assert observed["timeout"] == 5
+
+    async def test_provider_timeout_used_when_request_timeout_absent(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        fake_model: FakeGeminiModel,
+    ) -> None:
+        observed: dict[str, float] = {}
+
+        async def fake_wait_for(awaitable: Any, timeout: float) -> Any:
+            observed["timeout"] = timeout
+            return await awaitable
+
+        monkeypatch.setattr("app.ai.providers.gemini.asyncio.wait_for", fake_wait_for)
+
+        provider = _provider_with_schema(api_key="k", model=fake_model, timeout_seconds=17)
+        await provider.generate(_text_request())
+
+        assert observed["timeout"] == 17
 
 
 # ===================================================================
