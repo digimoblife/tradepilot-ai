@@ -52,6 +52,52 @@ Requirements:
 - Use null for unavailable values when allowed by schema.
 - Do not omit required fields.
 - Do not add properties outside the schema.
+- No additional top-level properties are allowed.
 - Do not return Markdown.
 - Do not wrap JSON in a code fence.
 - Do not add explanation before or after JSON.
+
+Required top-level JSON properties (exact names, no extras):
+- metadata
+- evidence_summary
+- market_snapshot
+- executive_summary
+- orderbook_analysis
+- chart_3_month_analysis
+- chart_6_month_analysis
+- combined_chart_analysis
+- price_levels
+- entry_plan
+- stop_loss_plan
+- target_plan
+- initial_thesis
+- trading_plan
+- ai_assessment
+- warnings_and_missing_information
+
+Minimal top-level JSON skeleton:
+```json
+{{
+  "metadata": {{}},
+  "evidence_summary": {{}},
+  "market_snapshot": {{}},
+  "executive_summary": {{}},
+  "orderbook_analysis": {{}},
+  "chart_3_month_analysis": {{}},
+  "chart_6_month_analysis": {{}},
+  "combined_chart_analysis": {{}},
+  "price_levels": {{}},
+  "entry_plan": {{}},
+  "stop_loss_plan": {{}},
+  "target_plan": {{}},
+  "initial_thesis": {{}},
+  "trading_plan": {{}},
+  "ai_assessment": {{}},
+  "warnings_and_missing_information": {{}}
+}}
+```
+
+Forbidden legacy top-level aliases:
+- chart_analysis_3m
+- chart_analysis_6m
+- data_gaps_and_limitations

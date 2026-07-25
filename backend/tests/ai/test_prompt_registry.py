@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from hashlib import sha256
+import json
 from pathlib import Path
 
 import pytest
@@ -467,3 +468,70 @@ class TestProductionPromptCatalog:
             assert (prompts_root / f"{key}.user.md").is_file()
             assert definition.system_prompt.strip()
             assert definition.user_prompt_template.strip()
+
+
+class TestInitialAnalysisProductionContract:
+    _EXPECTED_CANONICAL_FIELDS = (
+        "evidence_summary",
+        "chart_3_month_analysis",
+        "chart_6_month_analysis",
+        "combined_chart_analysis",
+        "entry_plan",
+        "ai_assessment",
+        "warnings_and_missing_information",
+    )
+    _LEGACY_ALIASES = (
+        "chart_analysis_3m",
+        "chart_analysis_6m",
+        "data_gaps_and_limitations",
+    )
+
+    @staticmethod
+    def _production_registry() -> PromptRegistry:
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        prompts_root = repo_root / "prompts" / "production" / "v1"
+        return PromptRegistry(prompts_root=prompts_root)
+
+    @staticmethod
+    def _rendered_initial_analysis_prompt() -> str:
+        registry = TestInitialAnalysisProductionContract._production_registry()
+        rendered = registry.render(
+            analysis_type="INITIAL_ANALYSIS",
+            variables={
+                "session_identity": "SID",
+                "trade_state_json": "{}",
+                "market_snapshot_json": "{}",
+                "evidence_manifest_json": "[]",
+                "user_notes": "",
+            },
+        )
+        return rendered.user_prompt
+
+    @staticmethod
+    def _extract_explicit_top_level_fields(prompt: str) -> list[str]:
+        marker = "Required top-level JSON properties (exact names, no extras):"
+        start = prompt.index(marker) + len(marker)
+        end = prompt.index("Minimal top-level JSON skeleton:", start)
+        lines = prompt[start:end].splitlines()
+        return [line[2:].strip() for line in lines if line.startswith("- ")]
+
+    def test_rendered_prompt_contains_all_canonical_fields(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        for field in self._EXPECTED_CANONICAL_FIELDS:
+            assert field in prompt
+
+    def test_rendered_prompt_excludes_legacy_aliases(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        contract_body = prompt.split("Forbidden legacy top-level aliases:")[0]
+        for alias in self._LEGACY_ALIASES:
+            assert alias not in contract_body
+
+    def test_explicit_top_level_field_list_matches_schema_required_fields(self) -> None:
+        prompt = self._rendered_initial_analysis_prompt()
+        listed_fields = self._extract_explicit_top_level_fields(prompt)
+
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        schema_path = repo_root / "schemas" / "production" / "v1" / "initial_analysis.schema.json"
+        schema_required = json.loads(schema_path.read_text(encoding="utf-8"))["required"]
+
+        assert listed_fields == schema_required
