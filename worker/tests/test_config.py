@@ -9,7 +9,7 @@ def test_defaults() -> None:
     assert config.worker_name == "tradepilot-worker"
     assert config.log_level == "INFO"
     assert config.worker_poll_interval_seconds == 5
-    assert config.gemini_model == "gemini-3.5-flash"
+    assert config.gemini_model == "gemini-3.1-flash-lite"
     assert config.provider_order == "gemini"
 
 
@@ -23,6 +23,12 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.worker_name == "test-worker"
     assert config.log_level == "DEBUG"
     assert config.worker_poll_interval_seconds == 10
+
+
+def test_gemini_model_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash")
+    config = WorkerConfig()
+    assert config.gemini_model == "gemini-3.5-flash"
 
 
 def test_zero_poll_interval_rejected() -> None:

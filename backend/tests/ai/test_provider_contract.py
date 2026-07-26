@@ -35,7 +35,7 @@ class FakeGeminiProvider(AIProvider):
 
     @property
     def model(self) -> str:
-        return "gemini-3.5-flash"
+        return "gemini-3.1-flash-lite"
 
     @property
     def capabilities(self) -> ProviderCapabilities:
@@ -467,7 +467,7 @@ class TestOffline:
         """Fake providers never make HTTP calls."""
         gemini = FakeGeminiProvider()
         assert gemini.name == "gemini"
-        assert gemini.model == "gemini-3.5-flash"
+        assert gemini.model == "gemini-3.1-flash-lite"
 
     def test_no_api_key_required(self) -> None:
         FakeGeminiProvider()

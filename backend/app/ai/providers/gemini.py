@@ -208,7 +208,7 @@ class GeminiProvider(AIProvider):
         response_schemas: dict[str, dict[str, object]] | None = None,
     ) -> None:
         self._api_key = api_key
-        self._model_name = model_name or "gemini-3.5-flash"
+        self._model_name = model_name or "gemini-3.1-flash-lite"
         self._timeout_seconds = timeout_seconds
         self._capabilities = capabilities or _DEFAULT_CAPABILITIES
         self._image_loader = image_loader or _default_image_loader

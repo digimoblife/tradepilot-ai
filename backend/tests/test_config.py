@@ -37,7 +37,7 @@ def test_dev_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.api_host == "127.0.0.1"
     assert config.api_port == 8000
     assert config.log_level == "INFO"
-    assert config.gemini_model == "gemini-3.5-flash"
+    assert config.gemini_model == "gemini-3.1-flash-lite"
     assert config.provider_order == "gemini"
 
 
@@ -50,6 +50,13 @@ def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.api_host == "0.0.0.0"
     assert config.api_port == 9000
     assert config.log_level == "DEBUG"
+
+
+def test_gemini_model_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_config_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash")
+    config = _config_from_process_env()
+    assert config.gemini_model == "gemini-3.5-flash"
 
 
 def test_app_env_override(monkeypatch: pytest.MonkeyPatch) -> None:

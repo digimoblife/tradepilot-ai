@@ -52,7 +52,7 @@ def _config(**overrides: object) -> SimpleNamespace:
         "app_env": "production",
         "provider_order": "gemini",
         "gemini_api_key": "secret-gemini-key",
-        "gemini_model": "gemini-3.5-flash",
+        "gemini_model": "gemini-3.1-flash-lite",
         "gemini_timeout_seconds": 120,
         "deepseek_api_key": "secret-deepseek-key",
         "deepseek_model": "deepseek-chat",
@@ -73,10 +73,24 @@ def test_production_selection_is_gemini_only(monkeypatch: pytest.MonkeyPatch) ->
 
     assert provider_config.provider_order == ("gemini",)
     assert set(provider_config.providers) == {"gemini"}
-    assert provider_config.providers["gemini"].model == "gemini-3.5-flash"
+    assert provider_config.providers["gemini"].model == "gemini-3.1-flash-lite"
     assert provider_config.providers["gemini"].capabilities.supports_images is True
     assert provider_config.providers["gemini"].capabilities.supports_text_output is True
     assert "initial_analysis" in provider_config.providers["gemini"].response_schemas
+
+
+def test_gemini_model_override_still_builds_selected_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
+
+    provider_config = build_analysis_provider_config(
+        _config(gemini_model="gemini-3.5-flash")
+    )
+
+    assert provider_config.providers["gemini"].model == "gemini-3.5-flash"
 
 
 def test_production_rejects_deepseek_fallback_before_building_it(

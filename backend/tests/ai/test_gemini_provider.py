@@ -13,7 +13,7 @@ import uuid
 from io import BytesIO
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 from PIL import Image
@@ -117,7 +117,7 @@ class FakeGeminiModel:
         self._response = response or FakeGeminiResponse()
         self.last_contents: list[Any] = []
         self.last_generation_config: dict[str, Any] | None = None
-        self.model_name: str = "gemini-3.5-flash"
+        self.model_name: str = "gemini-3.1-flash-lite"
 
     async def generate_content_async(
         self,
@@ -283,6 +283,22 @@ def _real_request(
     )
 
 
+def _final_recommendation_label(payload: Mapping[str, object] | None) -> str | None:
+    if not isinstance(payload, Mapping):
+        return None
+    trading_plan = payload.get("trading_plan")
+    if not isinstance(trading_plan, Mapping):
+        return None
+    action = trading_plan.get("current_action")
+    if action == "ENTER_IF_CONFIRMED":
+        return "BUY"
+    if action == "WAIT":
+        return "WAIT"
+    if action in {"DO_NOT_ENTER", "CANCEL_SETUP"}:
+        return "SKIP"
+    return str(action) if action is not None else None
+
+
 async def _run_real_case(
     *,
     api_key: str,
@@ -297,7 +313,7 @@ async def _run_real_case(
 ) -> dict[str, object]:
     provider = GeminiProvider(
         api_key=api_key,
-        model_name="gemini-3.5-flash",
+        model_name="gemini-3.1-flash-lite",
         timeout_seconds=timeout_seconds,
         image_loader=_real_image_loader_factory(_real_image_bytes()),
         response_schemas=response_schemas,
@@ -466,7 +482,7 @@ class TestSharedInterface:
         assert provider.name == "gemini"
 
     def test_model(self, provider: GeminiProvider) -> None:
-        assert provider.model == "gemini-3.5-flash"
+        assert provider.model == "gemini-3.1-flash-lite"
 
     def test_capabilities(self, provider: GeminiProvider) -> None:
         caps = provider.capabilities
@@ -946,6 +962,34 @@ class TestStructuredOutput:
         merged_payload = None
         schema_validation = None
         full_validation = None
+        total_input_tokens = sum(
+            int(result["input_tokens"])
+            for result in results
+            if isinstance(result.get("input_tokens"), int)
+        )
+        total_output_tokens = sum(
+            int(result["output_tokens"])
+            for result in results
+            if isinstance(result.get("output_tokens"), int)
+        )
+        total_tokens = sum(
+            int(result["total_tokens"])
+            for result in results
+            if isinstance(result.get("total_tokens"), int)
+        )
+        total_latency_ms = sum(
+            int(result["latency_ms"])
+            for result in results
+            if isinstance(result.get("latency_ms"), int)
+        )
+        total_elapsed_seconds = round(
+            sum(
+                float(result["elapsed_seconds"])
+                for result in results
+                if isinstance(result.get("elapsed_seconds"), int | float)
+            ),
+            3,
+        )
         if len(validated_partitions) == len(PARTITIONS):
             merged_payload = merge_partition_payloads(validated_partitions)
             schema_validation = schema_service.validate_by_name(
@@ -969,9 +1013,20 @@ class TestStructuredOutput:
         print(
             json.dumps(
                 {
-                    "model": "gemini-3.5-flash",
+                    "model": provider.model,
                     "results": results,
+                    "token_totals": {
+                        "input_tokens": total_input_tokens,
+                        "output_tokens": total_output_tokens,
+                        "total_tokens": total_tokens,
+                    },
+                    "latency_totals": {
+                        "latency_ms": total_latency_ms,
+                        "elapsed_seconds": total_elapsed_seconds,
+                    },
                     "merged": merged_payload is not None,
+                    "merged_payload": merged_payload,
+                    "final_recommendation": _final_recommendation_label(merged_payload),
                     "schema_valid": schema_validation.valid if schema_validation else None,
                     "schema_issue_codes": (
                         [issue.code for issue in schema_validation.issues[:10]]
@@ -979,6 +1034,13 @@ class TestStructuredOutput:
                         else None
                     ),
                     "canonical_valid": full_validation.valid if full_validation else None,
+                    "canonical_acceptance_status": (
+                        "ACCEPTED"
+                        if merged_payload is not None
+                        and isinstance(merged_payload, dict)
+                        and bool(merged_payload)
+                        else "REJECTED"
+                    ),
                     "canonical_issue_codes": (
                         [issue.code for issue in full_validation.issues[:10]]
                         if full_validation is not None

@@ -117,7 +117,7 @@ class CountingProvider(AIProvider):
 
     @property
     def model(self) -> str:
-        return "gemini-3.5-flash"
+        return "gemini-3.1-flash-lite"
 
     @property
     def capabilities(self) -> ProviderCapabilities:
@@ -220,7 +220,7 @@ class PartitionRouter(ProviderRouter):
                         phase="PRIMARY",
                         response=ProviderResponse(
                             provider="gemini",
-                            model="gemini-3.5-flash",
+                            model="gemini-3.1-flash-lite",
                             raw_output=json.dumps(payload),
                             request_id=request.request_id,
                             metadata={"provider_payload_raw": payload},
@@ -237,7 +237,7 @@ class PartitionRouter(ProviderRouter):
 
         response = ProviderResponse(
             provider="gemini",
-            model="gemini-3.5-flash",
+            model="gemini-3.1-flash-lite",
             raw_output=json.dumps(payload),
             request_id=request.request_id,
             finish_reason="STOP",
@@ -572,7 +572,7 @@ class TestSuccessfulProcessing:
             [
                 ProviderResponse(
                     provider="gemini",
-                    model="gemini-3.5-flash",
+                    model="gemini-3.1-flash-lite",
                     raw_output='{"ok": true}',
                     request_id=uuid.uuid4(),
                     provider_response_id="resp-success",
@@ -617,12 +617,12 @@ class TestSuccessfulProcessing:
                 )
             ).first()
 
-        assert req_row == ("GEMINI", "gemini-3.5-flash")
+        assert req_row == ("GEMINI", "gemini-3.1-flash-lite")
         assert resp_row is not None
         assert resp_row[0] == "COMPLETED"
         assert resp_row[1] == '{"ok": true}'
         assert resp_row[2] == {"ok": True}
-        assert resp_row[3] == "gemini-3.5-flash"
+        assert resp_row[3] == "gemini-3.1-flash-lite"
         assert resp_row[4] == "STOP"
         assert resp_row[5] == 321
 
@@ -640,7 +640,7 @@ class TestSuccessfulProcessing:
             [
                 ProviderResponse(
                     provider="gemini",
-                    model="gemini-3.5-flash",
+                    model="gemini-3.1-flash-lite",
                     raw_output='{"ok": true}',
                     request_id=uuid.uuid4(),
                     provider_response_id=None,
@@ -687,7 +687,7 @@ class TestSuccessfulProcessing:
             [
                 ProviderResponse(
                     provider="gemini",
-                    model="gemini-3.5-flash",
+                    model="gemini-3.1-flash-lite",
                     raw_output='{"ok": true}',
                     request_id=uuid.uuid4(),
                     provider_response_id=123,  # type: ignore[arg-type]
@@ -937,7 +937,7 @@ class TestRoutingFailure:
             [
                 ProviderResponse(
                     provider="gemini",
-                    model="gemini-3.5-flash",
+                    model="gemini-3.1-flash-lite",
                     raw_output='{"analysis": "ok"}',
                     request_id=uuid.uuid4(),
                     provider_response_id=0,  # type: ignore[arg-type]
@@ -997,13 +997,13 @@ class TestRoutingFailure:
         assert job.status == AnalysisJobStatus.FAILED
         assert job.last_error_code == "SCHEMA_REQUIRED_FIELD_MISSING"
         assert "bias" in (job.last_error_message or "")
-        assert req_row == ("GEMINI", "gemini-3.5-flash")
+        assert req_row == ("GEMINI", "gemini-3.1-flash-lite")
         assert resp_row is not None
         assert resp_row[0] == "FAILED"
         assert resp_row[1] == '{"analysis": "ok"}'
         assert resp_row[2] == {"analysis": "ok"}
         assert resp_row[3] is None
-        assert resp_row[4] == "gemini-3.5-flash"
+        assert resp_row[4] == "gemini-3.1-flash-lite"
         assert resp_row[5] == "STOP"
         assert resp_row[6] == 654
         assert resp_row[7] == "SCHEMA_REQUIRED_FIELD_MISSING"
@@ -1045,7 +1045,7 @@ class TestRoutingFailure:
                     phase="PRIMARY",
                     response=ProviderResponse(
                         provider="gemini",
-                        model="gemini-3.5-flash",
+                        model="gemini-3.1-flash-lite",
                         raw_output='{"chart_3_month_analysis":{"available":true,"nearest_support":2720}}',
                         request_id=uuid.uuid4(),
                         metadata={"provider_payload_raw": raw_payload},
@@ -1138,7 +1138,7 @@ class TestRoutingFailure:
                     result=ProviderRoutingFailedError(
                         "All failed",
                         root_cause_code="AI_PROVIDER_INVALID_REQUEST",
-                        root_cause_message="Model not found: gemini-3.5-flash",
+                        root_cause_message="Model not found: gemini-3.1-flash-lite",
                         retryable=False,
                     )
                 ),
@@ -1154,7 +1154,7 @@ class TestRoutingFailure:
             assert session is not None
             assert job.status == AnalysisJobStatus.FAILED
             assert job.last_error_code == "AI_PROVIDER_INVALID_REQUEST"
-            assert job.last_error_message == "Model not found: gemini-3.5-flash"
+            assert job.last_error_message == "Model not found: gemini-3.1-flash-lite"
             assert session.lifecycle_status.value == "WATCHING"
 
     async def test_router_exhaustion_sets_failed_atomically(
@@ -1208,7 +1208,7 @@ class TestRoutingFailure:
                     result=ProviderRoutingFailedError(
                         "All failed",
                         root_cause_code="AI_PROVIDER_INVALID_REQUEST",
-                        root_cause_message="Model not found: gemini-3.5-flash",
+                        root_cause_message="Model not found: gemini-3.1-flash-lite",
                         retryable=False,
                     )
                 ),
@@ -1280,7 +1280,7 @@ class TestRoutingFailure:
                 _TimeoutError(),
                 ProviderResponse(
                     provider="gemini",
-                    model="gemini-3.5-flash",
+                    model="gemini-3.1-flash-lite",
                     raw_output='{"ok": true}',
                     request_id=uuid.uuid4(),
                 ),
@@ -1461,6 +1461,12 @@ class TestPartitionedInitialAnalysis:
         }
         assert "canonical_chart_timestamps" not in router.request_metadata[2]
         assert "canonical_chart_timestamps" not in router.request_metadata[3]
+        assert [metadata["model_name"] for metadata in router.request_metadata] == [
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-flash-lite",
+        ]
 
     async def test_unusable_partition_stops_before_next_request(
         self,
