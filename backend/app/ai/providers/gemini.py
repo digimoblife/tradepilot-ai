@@ -6,6 +6,7 @@ Implements the ``AIProvider`` contract for Google Gemini.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
 import time
@@ -64,6 +65,10 @@ class GeminiSchemaConversionError(GeminiError):
     code: str = "AI_PROVIDER_INVALID_REQUEST"
 
 
+class GeminiNormalizationError(GeminiError):
+    code: str = "AI_RESPONSE_NORMALIZATION_FAILED"
+
+
 # ---------------------------------------------------------------------------
 # Client Protocol  (injectable for tests)
 # ---------------------------------------------------------------------------
@@ -109,6 +114,52 @@ _FINISH_REASON_MAP: dict[int, str] = {
 _SENSITIVE_VALUE_PATTERN = re.compile(
     r"(?i)\b(api[_ -]?key|authorization|bearer|token)\b\s*[:=]\s*([^\s,;]+)"
 )
+_INITIAL_ANALYSIS_CHART_SECTION_TIMEFRAMES = {
+    "chart_3_month_analysis": "THREE_MONTH",
+    "chart_6_month_analysis": "SIX_MONTH",
+}
+_INITIAL_ANALYSIS_CHART_REQUIRED_FIELDS = (
+    "available",
+    "chart_timestamp",
+    "trend",
+    "momentum",
+    "breakout_status",
+    "breakdown_status",
+    "nearest_support",
+    "nearest_resistance",
+    "positive_signals",
+    "risk_signals",
+    "limitations",
+    "conclusion",
+)
+_INITIAL_ANALYSIS_CHART_OPTIONAL_FIELDS = (
+    "timeframe",
+    "structure_status",
+    "volume_condition",
+    "supports_setup",
+)
+_CHART_LEVEL_DEFAULTS = {
+    "chart_3_month_analysis": {
+        "nearest_support": (
+            "Three-month support",
+            "Level support tiga bulan yang dinormalisasi dari respons transport Gemini.",
+        ),
+        "nearest_resistance": (
+            "Three-month resistance",
+            "Level resistance tiga bulan yang dinormalisasi dari respons transport Gemini.",
+        ),
+    },
+    "chart_6_month_analysis": {
+        "nearest_support": (
+            "Six-month support",
+            "Level support enam bulan yang dinormalisasi dari respons transport Gemini.",
+        ),
+        "nearest_resistance": (
+            "Six-month resistance",
+            "Level resistance enam bulan yang dinormalisasi dari respons transport Gemini.",
+        ),
+    },
+}
 
 
 class _GoogleGenAIModelClient:
@@ -262,15 +313,15 @@ class GeminiProvider(AIProvider):
         return config
 
     def _resolve_response_schema(self, request: ProviderRequest) -> dict[str, object] | None:
+        if request.structured_output_schema is not None:
+            return dict(request.structured_output_schema)
         if request.expected_schema_name == "initial_analysis":
             schema = self._response_schemas.get("initial_analysis")
             if schema is None:
                 raise GeminiConfigurationError(
                     message="Initial Analysis Gemini response schema is not configured",
                 )
-            return schema
-        if request.structured_output_schema is not None:
-            return dict(request.structured_output_schema)
+            return build_initial_analysis_transport_schema(schema)
         return None
 
     @staticmethod
@@ -535,6 +586,324 @@ def load_initial_analysis_response_schema(
 
     raw_schema = json.loads(schema_path.read_text(encoding="utf-8"))
     return _convert_gemini_schema_document(raw_schema, schema_path=schema_path, package_root=package_root)
+
+
+def build_initial_analysis_transport_schema(
+    canonical_schema: Mapping[str, object],
+) -> dict[str, object]:
+    if not isinstance(canonical_schema, Mapping):
+        raise GeminiSchemaConversionError(message="Canonical Initial Analysis schema must be a mapping")
+
+    transport = copy.deepcopy(dict(canonical_schema))
+    properties = transport.get("properties")
+    if not isinstance(properties, dict):
+        raise GeminiSchemaConversionError(
+            message="Canonical Initial Analysis schema must include object properties",
+        )
+
+    for section_name, timeframe in _INITIAL_ANALYSIS_CHART_SECTION_TIMEFRAMES.items():
+        section_schema = properties.get(section_name)
+        if not isinstance(section_schema, dict):
+            raise GeminiSchemaConversionError(
+                message=f"Canonical Initial Analysis schema is missing {section_name}",
+            )
+        properties[section_name] = _build_transport_chart_schema(
+            section_name=section_name,
+            timeframe=timeframe,
+            canonical_section=section_schema,
+        )
+
+    return _strip_schema_metadata(transport)
+
+
+def normalize_initial_analysis_transport_payload(
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    if not isinstance(payload, Mapping):
+        raise GeminiNormalizationError(message="Initial Analysis payload must be a JSON object")
+
+    normalized = copy.deepcopy(dict(payload))
+    for section_name, timeframe in _INITIAL_ANALYSIS_CHART_SECTION_TIMEFRAMES.items():
+        section = normalized.get(section_name)
+        if not isinstance(section, Mapping):
+            raise GeminiNormalizationError(
+                message=f"{section_name} must be a JSON object in the Gemini transport response.",
+            )
+        normalized[section_name] = _normalize_transport_chart_section(
+            section_name=section_name,
+            timeframe=timeframe,
+            section=section,
+        )
+
+    return normalized
+
+
+def _build_transport_chart_schema(
+    *,
+    section_name: str,
+    timeframe: str,
+    canonical_section: Mapping[str, object],
+) -> dict[str, object]:
+    properties = canonical_section.get("properties")
+    if not isinstance(properties, Mapping):
+        raise GeminiSchemaConversionError(
+            message=f"Canonical chart schema for {section_name} must include properties",
+        )
+
+    transport_properties: dict[str, object] = {}
+    for field_name in _INITIAL_ANALYSIS_CHART_REQUIRED_FIELDS + _INITIAL_ANALYSIS_CHART_OPTIONAL_FIELDS:
+        if field_name not in properties:
+            raise GeminiSchemaConversionError(
+                message=f"Canonical chart schema for {section_name} is missing {field_name}",
+            )
+        transport_properties[field_name] = copy.deepcopy(properties[field_name])
+
+    transport_properties["timeframe"] = {
+        "type": "string",
+        "enum": [timeframe],
+    }
+    transport_properties["nearest_support"] = {
+        "oneOf": [{"type": "number"}, {"type": "null"}],
+    }
+    transport_properties["nearest_resistance"] = {
+        "oneOf": [{"type": "number"}, {"type": "null"}],
+    }
+
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(_INITIAL_ANALYSIS_CHART_REQUIRED_FIELDS),
+        "properties": transport_properties,
+    }
+
+
+def _strip_schema_metadata(node: object) -> object:
+    if isinstance(node, list):
+        return [_strip_schema_metadata(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+
+    stripped: dict[str, object] = {}
+    for key, value in node.items():
+        if key in {"$schema", "$id", "$anchor", "title", "description", "propertyOrdering"}:
+            continue
+        stripped[key] = _strip_schema_metadata(value)
+    return stripped
+
+
+def _normalize_transport_chart_section(
+    *,
+    section_name: str,
+    timeframe: str,
+    section: Mapping[str, object],
+) -> dict[str, object]:
+    available = _require_bool(section_name, "available", section.get("available"))
+    normalized: dict[str, object] = {
+        "available": available,
+        "timeframe": timeframe,
+        "structure_status": _normalize_unknownable_enum(
+            section_name,
+            "structure_status",
+            section.get("structure_status"),
+        ),
+        "volume_condition": _normalize_unknownable_enum(
+            section_name,
+            "volume_condition",
+            section.get("volume_condition"),
+        ),
+        "supports_setup": _normalize_nullable_bool(
+            section_name,
+            "supports_setup",
+            section.get("supports_setup"),
+        ),
+        "nearest_support": _normalize_transport_level(section_name, "nearest_support", section.get("nearest_support")),
+        "nearest_resistance": _normalize_transport_level(
+            section_name,
+            "nearest_resistance",
+            section.get("nearest_resistance"),
+        ),
+    }
+
+    chart_timestamp = section.get("chart_timestamp")
+    if available:
+        normalized["chart_timestamp"] = _require_nullable_string(
+            section_name,
+            "chart_timestamp",
+            chart_timestamp,
+            allow_null=False,
+        )
+        normalized["trend"] = _require_non_empty_string(section_name, "trend", section.get("trend"))
+        normalized["momentum"] = _require_non_empty_string(section_name, "momentum", section.get("momentum"))
+        normalized["breakout_status"] = _require_non_empty_string(
+            section_name,
+            "breakout_status",
+            section.get("breakout_status"),
+        )
+        normalized["breakdown_status"] = _require_non_empty_string(
+            section_name,
+            "breakdown_status",
+            section.get("breakdown_status"),
+        )
+        normalized["positive_signals"] = _require_string_array(
+            section_name,
+            "positive_signals",
+            section.get("positive_signals"),
+        )
+        normalized["risk_signals"] = _require_string_array(
+            section_name,
+            "risk_signals",
+            section.get("risk_signals"),
+        )
+        normalized["limitations"] = _require_string_array(
+            section_name,
+            "limitations",
+            section.get("limitations"),
+        )
+        normalized["conclusion"] = _require_non_empty_string(
+            section_name,
+            "conclusion",
+            section.get("conclusion"),
+        )
+    else:
+        normalized["chart_timestamp"] = _require_nullable_string(
+            section_name,
+            "chart_timestamp",
+            chart_timestamp,
+            allow_null=True,
+            default_null=True,
+        )
+        normalized["trend"] = _normalize_unknownable_enum(section_name, "trend", section.get("trend"))
+        normalized["momentum"] = _normalize_unknownable_enum(section_name, "momentum", section.get("momentum"))
+        normalized["breakout_status"] = _normalize_unknownable_enum(
+            section_name,
+            "breakout_status",
+            section.get("breakout_status"),
+        )
+        normalized["breakdown_status"] = _normalize_unknownable_enum(
+            section_name,
+            "breakdown_status",
+            section.get("breakdown_status"),
+        )
+        normalized["positive_signals"] = _normalize_string_array(section_name, "positive_signals", section.get("positive_signals"))
+        normalized["risk_signals"] = _normalize_string_array(section_name, "risk_signals", section.get("risk_signals"))
+        limitations = _normalize_string_array(section_name, "limitations", section.get("limitations"))
+        if not limitations:
+            raise GeminiNormalizationError(
+                message=(
+                    f"{section_name}.limitations is required when available=false and cannot be safely defaulted."
+                ),
+            )
+        normalized["limitations"] = limitations
+        normalized["conclusion"] = _require_non_empty_string(
+            section_name,
+            "conclusion",
+            section.get("conclusion"),
+        )
+
+    return normalized
+
+
+def _normalize_transport_level(
+    section_name: str,
+    field_name: str,
+    value: object,
+) -> dict[str, object] | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise GeminiNormalizationError(
+            message=f"{section_name}.{field_name} must be a number or null in the Gemini transport response.",
+        )
+    label, summary = _CHART_LEVEL_DEFAULTS[section_name][field_name]
+    return {
+        "price": float(value) if isinstance(value, float) else value,
+        "label": label,
+        "summary": summary,
+    }
+
+
+def _require_bool(section_name: str, field_name: str, value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise GeminiNormalizationError(
+        message=f"{section_name}.{field_name} must be a boolean in the Gemini transport response.",
+    )
+
+
+def _normalize_nullable_bool(section_name: str, field_name: str, value: object) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    raise GeminiNormalizationError(
+        message=f"{section_name}.{field_name} must be a boolean or null in the Gemini transport response.",
+    )
+
+
+def _normalize_unknownable_enum(section_name: str, field_name: str, value: object) -> str:
+    if value is None:
+        return "UNKNOWN"
+    if isinstance(value, str):
+        rendered = value.strip()
+        if rendered:
+            return rendered
+    raise GeminiNormalizationError(
+        message=f"{section_name}.{field_name} must be a non-empty string when provided.",
+    )
+
+
+def _require_non_empty_string(section_name: str, field_name: str, value: object) -> str:
+    if isinstance(value, str):
+        rendered = value.strip()
+        if rendered:
+            return rendered
+    raise GeminiNormalizationError(
+        message=f"{section_name}.{field_name} must be a non-empty string in the Gemini transport response.",
+    )
+
+
+def _require_nullable_string(
+    section_name: str,
+    field_name: str,
+    value: object,
+    *,
+    allow_null: bool,
+    default_null: bool = False,
+) -> str | None:
+    if value is None:
+        if allow_null or default_null:
+            return None
+        raise GeminiNormalizationError(
+            message=f"{section_name}.{field_name} is required and cannot be safely defaulted.",
+        )
+    return _require_non_empty_string(section_name, field_name, value)
+
+
+def _normalize_string_array(section_name: str, field_name: str, value: object) -> list[str]:
+    if value is None:
+        return []
+    return _require_string_array(section_name, field_name, value)
+
+
+def _require_string_array(section_name: str, field_name: str, value: object) -> list[str]:
+    if not isinstance(value, list):
+        raise GeminiNormalizationError(
+            message=f"{section_name}.{field_name} must be an array of non-empty strings in the Gemini transport response.",
+        )
+
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise GeminiNormalizationError(
+                message=f"{section_name}.{field_name} must contain only strings in the Gemini transport response.",
+            )
+        rendered = item.strip()
+        if not rendered:
+            raise GeminiNormalizationError(
+                message=f"{section_name}.{field_name} must not contain empty strings in the Gemini transport response.",
+            )
+        normalized.append(rendered)
+    return normalized
 
 
 _IGNORED_SCHEMA_KEYS = frozenset(

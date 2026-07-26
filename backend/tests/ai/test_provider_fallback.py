@@ -5,6 +5,7 @@ Uses fake providers — no real network access.
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -297,6 +298,73 @@ class TestPrimarySuccess:
             max_repair_attempts=2,
         )
         assert result.payload is not None
+
+    async def test_gemini_transport_payload_is_normalized_before_validation(self) -> None:
+        payload = {
+            "chart_3_month_analysis": {
+                "available": True,
+                "chart_timestamp": "2026-07-25T09:00:00Z",
+                "trend": "BULLISH",
+                "momentum": "IMPROVING",
+                "breakout_status": "NOT_PRESENT",
+                "breakdown_status": "FAILED",
+                "nearest_support": 2720,
+                "nearest_resistance": 2900,
+                "positive_signals": ["Buyer bertahan."],
+                "risk_signals": ["Resistance dekat."],
+                "limitations": ["Hanya satu snapshot chart."],
+                "conclusion": "Struktur jangka pendek membaik.",
+            },
+            "chart_6_month_analysis": {
+                "available": True,
+                "chart_timestamp": "2026-07-25T09:00:00Z",
+                "trend": "NEUTRAL",
+                "momentum": "MIXED",
+                "breakout_status": "NOT_PRESENT",
+                "breakdown_status": "NOT_PRESENT",
+                "nearest_support": None,
+                "nearest_resistance": 3000,
+                "positive_signals": ["Base masih terjaga."],
+                "risk_signals": ["Trend menengah belum kuat."],
+                "limitations": ["Belum ada volume detail."],
+                "conclusion": "Trend menengah masih menunggu konfirmasi.",
+            },
+        }
+        response = ProviderResponse(
+            provider="gemini",
+            model="gemini-3.5-flash",
+            raw_output=json.dumps(payload),
+            request_id=uuid.uuid4(),
+        )
+        gemini = FakeProvider("gemini", responses=[response])
+        router = ProviderRouter()
+
+        captured: dict[str, object] = {}
+
+        def _validate(payload: dict[str, object]) -> tuple[bool, tuple[ValidationIssue, ...]]:
+            captured.update(payload)
+            return True, ()
+
+        result = await router.generate_validated(
+            request=_req(),
+            providers={"gemini": gemini},
+            provider_order=["gemini"],
+            validate=_validate,
+            canonical_facts={},
+            max_repair_attempts=0,
+        )
+
+        chart = captured["chart_3_month_analysis"]
+        assert isinstance(chart, dict)
+        assert chart["timeframe"] == "THREE_MONTH"
+        assert chart["nearest_support"] == {
+            "price": 2720,
+            "label": "Three-month support",
+            "summary": "Level support tiga bulan yang dinormalisasi dari respons transport Gemini.",
+        }
+        assert result.response.raw_output == json.dumps(payload)
+        assert result.response.metadata["provider_payload_raw"] == payload
+        assert result.payload["chart_6_month_analysis"]["nearest_support"] is None
 
 
 # ===================================================================

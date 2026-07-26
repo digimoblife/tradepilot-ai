@@ -12,6 +12,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from app.ai.parsing import extract_and_parse_json
 from app.ai.providers.base import AIProvider
+from app.ai.providers.gemini import normalize_initial_analysis_transport_payload
 from app.ai.providers.capabilities import ensure_request_supported
 from app.ai.providers.models import ProviderRequest, ProviderResponse
 from app.ai.repair import (
@@ -203,8 +204,61 @@ class ProviderRouter:
                     seq = len(history) if history else 0
                 continue
 
+            raw_payload = _to_mapping(parsed)
+            canonical_payload = raw_payload
+            provider_response = _with_payload_metadata(
+                provider_response,
+                raw_payload=raw_payload,
+                normalized_payload=None,
+            )
+
+            try:
+                canonical_payload = _normalize_payload(
+                    request=request,
+                    response=provider_response,
+                    parsed=raw_payload,
+                )
+            except Exception as exc:
+                code = getattr(exc, "code", "AI_RESPONSE_NORMALIZATION_FAILED")
+                message = _safe_exception_message(exc)
+                history.append(
+                    ProviderRouteAttempt(
+                        sequence=seq,
+                        provider=provider_name,
+                        phase="PRIMARY",
+                        response=provider_response,
+                        validation_errors=_parse_issues(code, message),
+                        failure_code=code,
+                        failure_message=message,
+                    )
+                )
+                if max_repair_attempts > 0:
+                    result = await self._repair_and_record(
+                        provider_obj=provider_obj,
+                        provider_name=provider_name,
+                        seq=seq,
+                        request=request,
+                        response=provider_response,
+                        validation_errors=_parse_issues(code, message),
+                        canonical_facts=canonical_facts,
+                        validate=validate,
+                        max_attempts=max_repair_attempts,
+                        history=history,
+                        is_fallback=is_fallback,
+                    )
+                    if result is not None:
+                        return result
+                    seq = len(history) if history else 0
+                continue
+
+            provider_response = _with_payload_metadata(
+                provider_response,
+                raw_payload=raw_payload,
+                normalized_payload=canonical_payload,
+            )
+
             # --- Validate ---
-            is_valid, issues = validate(parsed)
+            is_valid, issues = validate(dict(canonical_payload))
             validation_failure_code = None
             validation_failure_message = None
             if not is_valid:
@@ -224,7 +278,7 @@ class ProviderRouter:
                     provider=provider_name,
                     phase="PRIMARY",
                     response=provider_response,
-                    payload=_to_mapping(parsed),
+                    payload=canonical_payload,
                     validation_errors=issues,
                     failure_code=validation_failure_code,
                     failure_message=validation_failure_message,
@@ -245,7 +299,7 @@ class ProviderRouter:
                 return ProviderRoutingResult(
                     provider=provider_name,
                     response=provider_response,
-                    payload=_to_mapping(parsed),
+                    payload=canonical_payload,
                     attempts=tuple(history),
                     fallback_used=is_fallback,
                 )
@@ -390,6 +444,44 @@ def _parse_issues(code: str, message: str) -> list[ValidationIssue]:
 
 def _to_mapping(d: dict[str, object]) -> Mapping[str, object]:
     return dict(d)
+
+
+def _normalize_payload(
+    *,
+    request: ProviderRequest,
+    response: ProviderResponse,
+    parsed: Mapping[str, object],
+) -> Mapping[str, object]:
+    if (
+        response.provider == "gemini"
+        and request.expected_schema_name == "initial_analysis"
+        and any(name in parsed for name in ("chart_3_month_analysis", "chart_6_month_analysis"))
+    ):
+        return normalize_initial_analysis_transport_payload(parsed)
+    return dict(parsed)
+
+
+def _with_payload_metadata(
+    response: ProviderResponse,
+    *,
+    raw_payload: Mapping[str, object],
+    normalized_payload: Mapping[str, object] | None,
+) -> ProviderResponse:
+    metadata = dict(response.metadata) if isinstance(response.metadata, dict) else {}
+    metadata["provider_payload_raw"] = dict(raw_payload)
+    if normalized_payload is not None:
+        metadata["normalized_payload"] = dict(normalized_payload)
+    return ProviderResponse(
+        provider=response.provider,
+        model=response.model,
+        raw_output=response.raw_output,
+        request_id=response.request_id,
+        provider_response_id=response.provider_response_id,
+        finish_reason=response.finish_reason,
+        usage=response.usage,
+        latency_ms=response.latency_ms,
+        metadata=metadata,
+    )
 
 
 _NON_RETRYABLE_ROUTING_CODES = frozenset(

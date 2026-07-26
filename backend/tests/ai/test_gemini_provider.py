@@ -33,11 +33,26 @@ from app.ai.providers import (
     ProviderResponse,
 )
 from app.ai.providers.gemini import (
+    GeminiNormalizationError,
     GeminiSchemaConversionError,
+    build_initial_analysis_transport_schema,
     _convert_gemini_schema_document,
     load_initial_analysis_response_schema,
+    normalize_initial_analysis_transport_payload,
 )
+from app.ai.initial_analysis_partitioning import (
+    PARTITIONS,
+    build_partition_schemas,
+    build_partition_user_prompt,
+    decimalize_json_numbers_for_validation,
+    merge_partition_payloads,
+    select_partition_images,
+    validate_partition_payload,
+)
+from app.schemas.manifest import load_production_manifest
+from app.schemas.registry import LocalSchemaRegistry
 from app.validation import UnifiedValidationService
+from app.validation.json_schema import JsonSchemaValidationService
 
 # ===================================================================
 # Fake Gemini model client
@@ -145,6 +160,10 @@ def _initial_analysis_response_schema() -> dict[str, object]:
     return load_initial_analysis_response_schema(_schema_root())
 
 
+def _initial_analysis_transport_schema() -> dict[str, object]:
+    return build_initial_analysis_transport_schema(_initial_analysis_response_schema())
+
+
 def _valid_initial_analysis_payload() -> dict[str, object]:
     fixture_path = Path(__file__).resolve().parents[3] / "schemas" / "fixtures" / "valid" / "v1" / "initial_analysis.valid.json"
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
@@ -155,6 +174,22 @@ def _valid_initial_analysis_payload() -> dict[str, object]:
     market_snapshot["best_bid"] = market_snapshot["best_offer"]
     market_snapshot["spread"] = 0
     market_snapshot["spread_percentage"] = 0
+    return payload
+
+
+def _transport_initial_analysis_payload() -> dict[str, object]:
+    payload = _valid_initial_analysis_payload()
+    for section_name in ("chart_3_month_analysis", "chart_6_month_analysis"):
+        section = payload[section_name]
+        section["nearest_support"] = (
+            section["nearest_support"]["price"] if section["nearest_support"] is not None else None
+        )
+        section["nearest_resistance"] = (
+            section["nearest_resistance"]["price"] if section["nearest_resistance"] is not None else None
+        )
+        section.pop("structure_status", None)
+        section.pop("volume_condition", None)
+        section.pop("supports_setup", None)
     return payload
 
 
@@ -619,12 +654,9 @@ class TestStructuredOutput:
 
         assert fake_model.last_generation_config is not None
         assert fake_model.last_generation_config["response_mime_type"] == "application/json"
-        assert (
-            fake_model.last_generation_config["response_json_schema"]
-            == _initial_analysis_response_schema()
-        )
+        assert fake_model.last_generation_config["response_json_schema"] == _initial_analysis_transport_schema()
 
-    async def test_attached_schema_preserves_nested_required_fields_and_enums(
+    async def test_transport_schema_reduces_chart_level_fields(
         self,
         provider: GeminiProvider,
         fake_model: FakeGeminiModel,
@@ -632,55 +664,45 @@ class TestStructuredOutput:
         await provider.generate(_text_request())
 
         schema = fake_model.last_generation_config["response_json_schema"]
-        ai_assessment = schema["properties"]["ai_assessment"]
-        assert ai_assessment["required"] == [
-            "bias",
-            "confidence",
-            "setup_quality",
-            "bullish_probability",
-            "target_probability",
-            "downside_probability",
-            "risk_level",
-            "setup_valid",
-            "summary",
+        chart = schema["properties"]["chart_3_month_analysis"]
+        assert chart["required"] == [
+            "available",
+            "chart_timestamp",
+            "trend",
+            "momentum",
+            "breakout_status",
+            "breakdown_status",
+            "nearest_support",
+            "nearest_resistance",
+            "positive_signals",
+            "risk_signals",
+            "limitations",
+            "conclusion",
         ]
-        assert ai_assessment["properties"]["bias"]["enum"] == [
-            "STRONGLY_BULLISH",
-            "BULLISH",
-            "NEUTRAL",
-            "BEARISH",
-            "STRONGLY_BEARISH",
-            "UNCERTAIN",
-        ]
-        assert ai_assessment["properties"]["risk_level"]["enum"] == [
-            "LOW",
-            "MODERATE",
-            "HIGH",
-            "VERY_HIGH",
-            "UNKNOWN",
-        ]
+        assert chart["properties"]["nearest_support"] == {
+            "oneOf": [{"type": "number"}, {"type": "null"}]
+        }
+        assert chart["properties"]["nearest_resistance"] == {
+            "oneOf": [{"type": "number"}, {"type": "null"}]
+        }
 
-    def test_generated_schema_contract_matches_active_application_schema(self) -> None:
+    def test_transport_schema_preserves_top_level_contract_and_reduces_chart_complexity(self) -> None:
         raw_schema = json.loads((_schema_root() / "initial_analysis.schema.json").read_text())
-        common_schema = json.loads((_schema_root() / "common.schema.json").read_text())
-        converted = _initial_analysis_response_schema()
+        canonical = _initial_analysis_response_schema()
+        transport = _initial_analysis_transport_schema()
 
-        assert converted["required"] == raw_schema["required"]
-        raw_ai_assessment = raw_schema["$defs"]["initialAiAssessment"]
-        converted_ai_assessment = converted["properties"]["ai_assessment"]
-        assert converted_ai_assessment["required"] == raw_ai_assessment["required"]
+        assert transport["required"] == raw_schema["required"]
         assert (
-            converted_ai_assessment["properties"]["bias"]["enum"]
-            == common_schema["$defs"]["directionalBias"]["enum"]
+            transport["properties"]["ai_assessment"]["required"]
+            == canonical["properties"]["ai_assessment"]["required"]
         )
         assert (
-            converted_ai_assessment["properties"]["setup_quality"]["enum"]
-            == common_schema["$defs"]["setupQuality"]["enum"]
+            transport["properties"]["ai_assessment"]["properties"]
+            == canonical["properties"]["ai_assessment"]["properties"]
         )
-        assert (
-            converted_ai_assessment["properties"]["risk_level"]["enum"]
-            == common_schema["$defs"]["riskLevel"]["enum"]
-        )
+        canonical_chart = json.dumps(canonical["properties"]["chart_3_month_analysis"], sort_keys=True)
+        transport_chart = json.dumps(transport["properties"]["chart_3_month_analysis"], sort_keys=True)
+        assert len(transport_chart) < len(canonical_chart)
 
     def test_unsupported_schema_keywords_are_rejected(self) -> None:
         with pytest.raises(GeminiSchemaConversionError, match="Unsupported schema keywords"):
@@ -711,125 +733,180 @@ class TestStructuredOutput:
 
         assert validation.valid is True
 
+    def test_transport_output_normalizes_to_canonical_chart_objects(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+
+        normalized = normalize_initial_analysis_transport_payload(transport_payload)
+
+        chart = normalized["chart_3_month_analysis"]
+        assert chart["timeframe"] == "THREE_MONTH"
+        assert chart["structure_status"] == "UNKNOWN"
+        assert chart["volume_condition"] == "UNKNOWN"
+        assert chart["supports_setup"] is None
+        assert chart["nearest_support"] == {
+            "price": 2720,
+            "label": "Three-month support",
+            "summary": "Level support tiga bulan yang dinormalisasi dari respons transport Gemini.",
+        }
+        assert chart["nearest_resistance"] == {
+            "price": 2900,
+            "label": "Three-month resistance",
+            "summary": "Level resistance tiga bulan yang dinormalisasi dari respons transport Gemini.",
+        }
+
+        validation = UnifiedValidationService(
+            schema_package_root=str(_schema_root()),
+        ).validate(
+            normalized,
+            expected_analysis_type="INITIAL_ANALYSIS",
+        )
+        assert validation.valid is True
+
+    def test_transport_normalizer_preserves_null_levels(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        transport_payload["chart_3_month_analysis"]["nearest_support"] = None
+        transport_payload["chart_3_month_analysis"]["nearest_resistance"] = None
+
+        normalized = normalize_initial_analysis_transport_payload(transport_payload)
+
+        assert normalized["chart_3_month_analysis"]["nearest_support"] is None
+        assert normalized["chart_3_month_analysis"]["nearest_resistance"] is None
+
+    def test_transport_normalizer_rejects_unsafe_missing_required_values(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        transport_payload["chart_3_month_analysis"].pop("conclusion")
+
+        with pytest.raises(GeminiNormalizationError, match="chart_3_month_analysis.conclusion"):
+            normalize_initial_analysis_transport_payload(transport_payload)
+
     @pytest.mark.skipif(
         os.environ.get("RUN_GEMINI_PROVIDER_MATRIX") != "1",
-        reason="Set RUN_GEMINI_PROVIDER_MATRIX=1 to run live Gemini migration checks",
+        reason="Set RUN_GEMINI_PROVIDER_MATRIX=1 to run live Gemini partition checks",
     )
-    async def test_real_provider_google_genai_matrix(self) -> None:
+    async def test_real_provider_google_genai_partitioned_initial_analysis(self) -> None:
         api_key = os.environ.get("GEMINI_API_KEY", "")
         if not api_key:
             pytest.skip("GEMINI_API_KEY is required for the live Gemini matrix")
 
-        full_schema = _initial_analysis_response_schema()
-        tiny_schema = {
-            "type": "object",
-            "properties": {"result": {"type": "string"}},
-            "required": ["result"],
-        }
         images = _real_images()
-        results = [
-            await _run_real_case(
-                api_key=api_key,
-                label="A",
-                user_prompt="Reply with exactly OK.",
-                expected_schema_name="diagnostic",
-                expected_schema_version="1.0.0",
-                structured_output_schema=None,
-                response_schemas={},
-                images=(),
-            ),
-            await _run_real_case(
-                api_key=api_key,
-                label="B",
-                user_prompt="Return only valid JSON matching the response schema.",
-                expected_schema_name="diagnostic",
-                expected_schema_version="1.0.0",
-                structured_output_schema=tiny_schema,
-                response_schemas={},
-                images=(),
-            ),
-            await _run_real_case(
-                api_key=api_key,
-                label="C",
-                user_prompt="Return only valid JSON matching the response schema.",
-                expected_schema_name="diagnostic",
-                expected_schema_version="1.0.0",
-                structured_output_schema=tiny_schema,
-                response_schemas={},
-                images=(images[0],),
-            ),
-            await _run_real_case(
-                api_key=api_key,
-                label="D",
-                user_prompt="Return only valid JSON matching the response schema.",
+        schema_root = _schema_root()
+        manifest = load_production_manifest(schema_root)
+        schema_registry = LocalSchemaRegistry(manifest, schema_root)
+        schema_service = JsonSchemaValidationService(schema_registry)
+        unified_validation = UnifiedValidationService(schema_package_root=str(schema_root))
+        partition_schemas = build_partition_schemas(schema_root)
+        provider = _provider_with_schema(
+            api_key=api_key,
+            image_loader=_real_image_loader_factory(_real_image_bytes()),
+        )
+        validated_partitions: dict[str, dict[str, object]] = {}
+        results: list[dict[str, object]] = []
+
+        for partition in PARTITIONS:
+            prompt = build_partition_user_prompt(
+                base_user_prompt="Return only valid JSON matching the response schema.",
+                partition_name=partition.name,
+                validated_context=validated_partitions,
+            )
+            request = _real_request(
+                user_prompt=prompt,
                 expected_schema_name="initial_analysis",
                 expected_schema_version="1.0.0",
-                structured_output_schema=None,
-                response_schemas={"initial_analysis": full_schema},
-                images=(),
-            ),
-            await _run_real_case(
-                api_key=api_key,
-                label="E",
-                user_prompt="Return only valid JSON matching the response schema.",
-                expected_schema_name="initial_analysis",
-                expected_schema_version="1.0.0",
-                structured_output_schema=None,
-                response_schemas={"initial_analysis": full_schema},
-                images=images,
-            ),
-        ]
+                structured_output_schema=partition_schemas[partition.name].provider_schema,
+                images=select_partition_images(partition_name=partition.name, images=images),
+                timeout_seconds=60,
+            )
+            started_at = time.monotonic()
+            try:
+                response = await provider.generate(request)
+            except GeminiError as exc:
+                results.append(
+                    {
+                        "partition": partition.name,
+                        "success": False,
+                        "elapsed_seconds": round(time.monotonic() - started_at, 3),
+                        "error_code": exc.code,
+                        "error_message": exc.message,
+                    }
+                )
+                break
 
-        boundary: dict[str, object] | None = None
-        if not bool(results[3].get("success")):
-            boundary = await _find_first_failing_top_level_section(
-                api_key=api_key,
-                image_count=0,
-                full_schema=full_schema,
+            elapsed_seconds = round(time.monotonic() - started_at, 3)
+            parsed = json.loads(response.raw_output)
+            normalized = (
+                normalize_initial_analysis_transport_payload(parsed)
+                if partition.name == "CHART_ANALYSIS"
+                else parsed
             )
-        elif not bool(results[4].get("success")):
-            boundary = await _find_first_failing_top_level_section(
-                api_key=api_key,
-                image_count=3,
-                full_schema=full_schema,
+            is_valid, issues = validate_partition_payload(
+                payload=normalized,
+                partition_name=partition.name,
+                schemas=partition_schemas,
             )
-
-        local_validation: dict[str, object] | None = None
-        if bool(results[4].get("success")):
-            parsed = results[4].get("parsed")
-            assert isinstance(parsed, dict)
-            validation = UnifiedValidationService(
-                schema_package_root=str(_schema_root()),
-            ).validate(
-                parsed,
-                expected_analysis_type="INITIAL_ANALYSIS",
-            )
-            local_validation = {
-                "valid": validation.valid,
-                "issue_codes": [issue.code for issue in validation.issues[:10]],
+            result = {
+                "partition": partition.name,
+                "success": is_valid,
+                "elapsed_seconds": elapsed_seconds,
+                "top_level_keys": list(parsed.keys())[:20] if isinstance(parsed, dict) else [],
+                "finish_reason": response.finish_reason,
+                "input_tokens": response.usage.input_tokens if response.usage else None,
+                "output_tokens": response.usage.output_tokens if response.usage else None,
+                "total_tokens": response.usage.total_tokens if response.usage else None,
+                "latency_ms": response.latency_ms,
             }
+            if not is_valid:
+                result["issue_codes"] = [issue.code for issue in issues[:10]]
+                result["issue_messages"] = [issue.message for issue in issues[:5]]
+                results.append(result)
+                break
+
+            validated_partitions[partition.name] = dict(normalized)
+            results.append(result)
+
+        merged_payload = None
+        schema_validation = None
+        full_validation = None
+        if len(validated_partitions) == len(PARTITIONS):
+            merged_payload = merge_partition_payloads(validated_partitions)
+            schema_validation = schema_service.validate_by_name(
+                merged_payload,
+                "initial_analysis",
+                "1.0.0",
+            )
+            if schema_validation.valid:
+                full_validation = unified_validation.validate(
+                    decimalize_json_numbers_for_validation(merged_payload),
+                    expected_analysis_type="INITIAL_ANALYSIS",
+                )
 
         print(
             json.dumps(
                 {
                     "model": "gemini-3.5-flash",
-                    "results": [
-                        {k: v for k, v in result.items() if k != "parsed"} for result in results
-                    ],
-                    "boundary": boundary,
-                    "local_validation": local_validation,
+                    "results": results,
+                    "merged": merged_payload is not None,
+                    "schema_valid": schema_validation.valid if schema_validation else None,
+                    "schema_issue_codes": (
+                        [issue.code for issue in schema_validation.issues[:10]]
+                        if schema_validation is not None
+                        else None
+                    ),
+                    "canonical_valid": full_validation.valid if full_validation else None,
+                    "canonical_issue_codes": (
+                        [issue.code for issue in full_validation.issues[:10]]
+                        if full_validation is not None
+                        else None
+                    ),
                 },
                 ensure_ascii=False,
                 indent=2,
             )
         )
-        assert bool(results[0].get("success")) is True
-        assert bool(results[1].get("success")) is True
-        assert bool(results[2].get("success")) is True
-        assert bool(results[3].get("success")) is True or boundary is not None
-        assert bool(results[4].get("success")) is True or boundary is not None
-        if local_validation is not None:
-            assert local_validation["valid"] is True
+        assert len(results) == 4
+        assert all(bool(result.get("success")) is True for result in results)
+        assert merged_payload is not None
+        assert schema_validation is not None and schema_validation.valid is True
+        assert full_validation is not None and full_validation.valid is True
 
 
 # ===================================================================

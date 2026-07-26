@@ -5,8 +5,11 @@ PostgreSQL-backed — uses fake providers and routers.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -16,9 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.ai.providers import (
     AIProvider,
     ProviderCapabilities,
+    ProviderImage,
     ProviderRequest,
     ProviderResponse,
 )
+from app.ai.providers.gemini import normalize_initial_analysis_transport_payload
 from app.ai.providers.router import (
     ProviderRouteAttempt,
     ProviderRouter,
@@ -134,6 +139,120 @@ class CountingProvider(AIProvider):
         return response
 
 
+class FakeInitialAnalysisContextBuilder:
+    def __init__(self) -> None:
+        self.images = (
+            ProviderImage(uuid.uuid4(), "image/png", "user/session/file-1.png", 69, 1, 1),
+            ProviderImage(uuid.uuid4(), "image/png", "user/session/file-2.png", 69, 1, 1),
+            ProviderImage(uuid.uuid4(), "image/png", "user/session/file-3.png", 69, 1, 1),
+        )
+
+    async def build(self, **kwargs: Any) -> Any:
+        return SimpleNamespace(
+            session_id=kwargs["session_id"],
+            analysis_type="INITIAL_ANALYSIS",
+            prompt_version="1.0.0",
+            system_prompt="System prompt",
+            user_prompt="Base user prompt",
+            expected_schema_name="initial_analysis",
+            expected_schema_version="1.0.0",
+            structured_output_schema={},
+            canonical_facts={},
+            images=self.images,
+            metadata={"session_id": str(kwargs["session_id"])},
+        )
+
+
+class PartitionRouter(ProviderRouter):
+    def __init__(
+        self,
+        *,
+        payloads_by_partition: dict[str, dict[str, object]],
+        failing_partition: str | None = None,
+        failure_code: str = "AI_PROVIDER_TIMEOUT",
+        failure_message: str = "Gemini timed out",
+    ) -> None:
+        self.payloads_by_partition = payloads_by_partition
+        self.failing_partition = failing_partition
+        self.failure_code = failure_code
+        self.failure_message = failure_message
+        self.calls: list[tuple[str, tuple[str, ...]]] = []
+        self.validations: list[str] = []
+
+    async def generate_validated(self, **kwargs: Any) -> Any:
+        request: ProviderRequest = kwargs["request"]
+        validate = kwargs["validate"]
+        partition_name = str(request.metadata["partition_name"])
+        image_refs = tuple(img.storage_reference for img in request.images)
+        self.calls.append((partition_name, image_refs))
+
+        if self.failing_partition == partition_name:
+            raise ProviderRoutingFailedError(
+                message="Partition failed",
+                root_cause_code=self.failure_code,
+                root_cause_message=self.failure_message,
+                retryable=self.failure_code in {"AI_PROVIDER_TIMEOUT", "AI_PROVIDER_RATE_LIMITED"},
+            )
+
+        payload = self.payloads_by_partition[partition_name]
+        validated_payload = (
+            normalize_initial_analysis_transport_payload(payload)
+            if partition_name == "CHART_ANALYSIS"
+            else payload
+        )
+        is_valid, issues = validate(dict(validated_payload))
+        self.validations.append(partition_name)
+        if not is_valid:
+            raise ProviderRoutingFailedError(
+                message="Partition validation failed",
+                attempts=(
+                    ProviderRouteAttempt(
+                        sequence=1,
+                        provider="gemini",
+                        phase="PRIMARY",
+                        response=ProviderResponse(
+                            provider="gemini",
+                            model="gemini-3.5-flash",
+                            raw_output=json.dumps(payload),
+                            request_id=request.request_id,
+                            metadata={"provider_payload_raw": payload},
+                        ),
+                        payload=validated_payload,
+                        failure_code=issues[0].code if issues else "REPAIR_VALIDATION_FAILED",
+                        failure_message=issues[0].message if issues else "Partition invalid",
+                    ),
+                ),
+                root_cause_code=issues[0].code if issues else "REPAIR_VALIDATION_FAILED",
+                root_cause_message=issues[0].message if issues else "Partition invalid",
+                retryable=False,
+            )
+
+        response = ProviderResponse(
+            provider="gemini",
+            model="gemini-3.5-flash",
+            raw_output=json.dumps(payload),
+            request_id=request.request_id,
+            finish_reason="STOP",
+            latency_ms=123,
+            metadata={"provider_payload_raw": payload},
+        )
+        return ProviderRoutingResult(
+            provider="gemini",
+            response=response,
+            payload=validated_payload,
+            attempts=(
+                ProviderRouteAttempt(
+                    sequence=1,
+                    provider="gemini",
+                    phase="PRIMARY",
+                    response=response,
+                    payload=validated_payload,
+                ),
+            ),
+            fallback_used=False,
+        )
+
+
 # ===================================================================
 # Helpers
 # ===================================================================
@@ -183,6 +302,7 @@ async def _make_claimed_job(
     max_attempts: int = 3,
     lease_expires: datetime | None = None,
     prev_status: str = "WATCHING",
+    analysis_type: str = "WATCHING_UPDATE",
 ) -> uuid.UUID:
     async with engine.begin() as conn:
         r = await conn.execute(
@@ -191,11 +311,12 @@ async def _make_claimed_job(
                 "(session_id, analysis_type, status, attempt_count, "
                 "max_attempts, lease_owner, lease_expires_at, "
                 "lease_acquired_at, previous_session_status, available_at) "
-                "VALUES (:sid, 'WATCHING_UPDATE', :st, :ac, :ma, "
+                "VALUES (:sid, :atype, :st, :ac, :ma, "
                 ":lo, :lea, :now, :ps, :now) RETURNING id"
             ),
             {
                 "sid": session_id,
+                "atype": analysis_type,
                 "st": status,
                 "ac": attempt_count,
                 "ma": max_attempts,
@@ -228,6 +349,69 @@ async def _add_context_summary(
                 "stale": is_stale,
             },
         )
+
+
+def _valid_initial_analysis_payload() -> dict[str, object]:
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "schemas"
+        / "fixtures"
+        / "valid"
+        / "v1"
+        / "initial_analysis.valid.json"
+    )
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    market_snapshot = payload["market_snapshot"]
+    market_snapshot["previous_close"] = market_snapshot["last"]
+    market_snapshot["change"] = 0
+    market_snapshot["change_percentage"] = 0
+    market_snapshot["best_bid"] = market_snapshot["best_offer"]
+    market_snapshot["spread"] = 0
+    market_snapshot["spread_percentage"] = 0
+    return payload
+
+
+def _partition_payloads() -> dict[str, dict[str, object]]:
+    payload = _valid_initial_analysis_payload()
+    chart_transport = {
+        "chart_3_month_analysis": dict(payload["chart_3_month_analysis"]),
+        "chart_6_month_analysis": dict(payload["chart_6_month_analysis"]),
+        "combined_chart_analysis": dict(payload["combined_chart_analysis"]),
+    }
+    for section_name in ("chart_3_month_analysis", "chart_6_month_analysis"):
+        section = chart_transport[section_name]
+        section["nearest_support"] = (
+            section["nearest_support"]["price"] if section["nearest_support"] is not None else None
+        )
+        section["nearest_resistance"] = (
+            section["nearest_resistance"]["price"] if section["nearest_resistance"] is not None else None
+        )
+        section.pop("structure_status", None)
+        section.pop("volume_condition", None)
+        section.pop("supports_setup", None)
+
+    return {
+        "MARKET_EVIDENCE": {
+            "metadata": payload["metadata"],
+            "evidence_summary": payload["evidence_summary"],
+            "market_snapshot": payload["market_snapshot"],
+            "executive_summary": payload["executive_summary"],
+            "orderbook_analysis": payload["orderbook_analysis"],
+        },
+        "CHART_ANALYSIS": chart_transport,
+        "TRADE_THESIS": {
+            "price_levels": payload["price_levels"],
+            "entry_plan": payload["entry_plan"],
+            "stop_loss_plan": payload["stop_loss_plan"],
+            "target_plan": payload["target_plan"],
+            "initial_thesis": payload["initial_thesis"],
+        },
+        "DECISION_ASSESSMENT": {
+            "trading_plan": payload["trading_plan"],
+            "ai_assessment": payload["ai_assessment"],
+            "warnings_and_missing_information": payload["warnings_and_missing_information"],
+        },
+    }
 
 
 # ===================================================================
@@ -817,6 +1001,84 @@ class TestRoutingFailure:
         assert resp_row[7] == "SCHEMA_REQUIRED_FIELD_MISSING"
         assert "bias" in (resp_row[8] or "")
 
+    async def test_failed_job_persists_raw_provider_payload_separately_from_normalized_payload(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(engine, session_id, attempt_count=1, max_attempts=1)
+        await _add_context_summary(engine, session_id)
+
+        raw_payload = {
+            "chart_3_month_analysis": {
+                "available": True,
+                "nearest_support": 2720,
+            }
+        }
+        normalized_payload = {
+            "chart_3_month_analysis": {
+                "available": True,
+                "nearest_support": {
+                    "price": 2720,
+                    "label": "Three-month support",
+                    "summary": "Normalized support level.",
+                },
+            }
+        }
+
+        routing_error = ProviderRoutingFailedError(
+            message="All failed",
+            attempts=(
+                ProviderRouteAttempt(
+                    sequence=1,
+                    provider="gemini",
+                    phase="PRIMARY",
+                    response=ProviderResponse(
+                        provider="gemini",
+                        model="gemini-3.5-flash",
+                        raw_output='{"chart_3_month_analysis":{"available":true,"nearest_support":2720}}',
+                        request_id=uuid.uuid4(),
+                        metadata={"provider_payload_raw": raw_payload},
+                    ),
+                    payload=normalized_payload,
+                    failure_code="SCHEMA_REQUIRED_FIELD_MISSING",
+                    failure_message="Missing required property: ai_assessment",
+                ),
+            ),
+            root_cause_code="SCHEMA_REQUIRED_FIELD_MISSING",
+            root_cause_message="Missing required property: ai_assessment",
+            retryable=False,
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                router=FakeRouter(result=routing_error),
+                validate=_always_valid,
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        async with factory() as s:
+            resp_row = (
+                await s.execute(
+                    text(
+                        "SELECT raw_payload "
+                        "FROM provider_responses "
+                        "WHERE provider_request_id = ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert resp_row is not None
+        assert resp_row[0] == raw_payload
+
     async def test_provider_failure_sets_failed_after_one_call(
         self,
         engine: AsyncEngine,
@@ -1147,6 +1409,186 @@ class TestBoundaries:
             r = row.first()
             assert r[0] == "NOT_OPENED"
             assert r[1] is None
+
+
+class TestPartitionedInitialAnalysis:
+    async def test_images_routed_only_to_required_partitions(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        router = PartitionRouter(payloads_by_partition=_partition_payloads())
+        provider = CountingProvider([])
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=_always_valid,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.COMPLETED.value
+
+        assert router.calls == [
+            ("MARKET_EVIDENCE", ("user/session/file-1.png",)),
+            ("CHART_ANALYSIS", ("user/session/file-2.png", "user/session/file-3.png")),
+            ("TRADE_THESIS", ()),
+            ("DECISION_ASSESSMENT", ()),
+        ]
+
+    async def test_partition_validation_stops_before_next_request(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        payloads = _partition_payloads()
+        payloads["MARKET_EVIDENCE"]["chart_3_month_analysis"] = {}
+        router = PartitionRouter(payloads_by_partition=payloads)
+        provider = CountingProvider([])
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=_always_valid,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        assert router.calls == [("MARKET_EVIDENCE", ("user/session/file-1.png",))]
+        assert router.validations == ["MARKET_EVIDENCE"]
+
+    async def test_post_merge_validation_runs_after_all_partitions(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        router = PartitionRouter(payloads_by_partition=_partition_payloads())
+        provider = CountingProvider([])
+        merged_payloads: list[dict[str, object]] = []
+
+        def _domain_invalid(payload: dict[str, object]) -> tuple[bool, tuple[ValidationIssue, ...]]:
+            merged_payloads.append(dict(payload))
+            return False, (
+                ValidationIssue(
+                    code="DOMAIN_TEST_FAILURE",
+                    category=ValidationCategory.DOMAIN,
+                    severity=ValidationSeverity.ERROR,
+                    path="/trading_plan",
+                    message="Domain validator rejected trading plan",
+                ),
+            )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=_domain_invalid,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        assert len(router.calls) == 4
+        assert len(merged_payloads) == 1
+
+    async def test_failed_later_partition_keeps_earlier_raw_audits(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        router = PartitionRouter(
+            payloads_by_partition=_partition_payloads(),
+            failing_partition="TRADE_THESIS",
+            failure_code="AI_PROVIDER_TIMEOUT",
+            failure_message="Gemini timed out",
+        )
+        provider = CountingProvider([])
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=_always_valid,
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
+            await s.commit()
+
+        async with factory() as s:
+            req_rows = (
+                await s.execute(
+                    text(
+                        "SELECT attempt_number, request_metadata->>'partition_name' "
+                        "FROM provider_requests WHERE analysis_job_id = :jid ORDER BY attempt_number"
+                    ),
+                    {"jid": jid},
+                )
+            ).all()
+            resp_rows = (
+                await s.execute(
+                    text(
+                        "SELECT raw_payload "
+                        "FROM provider_responses "
+                        "WHERE provider_request_id IN ("
+                        "  SELECT id FROM provider_requests WHERE analysis_job_id = :jid"
+                        ") ORDER BY created_at"
+                    ),
+                    {"jid": jid},
+                )
+            ).all()
+
+        assert req_rows == [
+            (1, "MARKET_EVIDENCE"),
+            (2, "CHART_ANALYSIS"),
+            (3, "TRADE_THESIS"),
+        ]
+        assert len(resp_rows) == 2
 
 
 # ===================================================================

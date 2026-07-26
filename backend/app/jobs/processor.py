@@ -17,6 +17,15 @@ from app.ai.context_builder import (
     ProviderContextBuilder,
     ProviderContextStaleError,
 )
+from app.ai.initial_analysis_partitioning import (
+    PARTITIONS,
+    build_partition_schemas,
+    build_partition_user_prompt,
+    decimalize_json_numbers_for_validation,
+    merge_partition_payloads,
+    select_partition_images,
+    validate_partition_payload,
+)
 from app.ai.providers import (
     AIProvider,
     ProviderCapabilities,
@@ -207,10 +216,25 @@ class AnalysisProcessor:
 
         selected_provider_name, selected_provider_model = self._get_selected_provider_audit_values()
 
-        # Create ProviderRequest DB record
-        db_provider_request = DBProviderRequest(
-            id=uuid.uuid4(),
-            analysis_job_id=job_id,
+        validate = self._build_validate_callback(
+            analysis_type=atype,
+            session_status_before_job=job.previous_session_status,
+            canonical_facts=ctx.canonical_facts,
+        )
+
+        if self._should_use_partitioned_initial_analysis(atype):
+            return await self._process_partitioned_initial_analysis(
+                job=job,
+                ts=ts,
+                ctx=ctx,
+                now=now,
+                selected_provider_name=selected_provider_name,
+                selected_provider_model=selected_provider_model,
+                validate=validate,
+            )
+
+        db_provider_request = self._create_provider_request_record(
+            job_id=job_id,
             provider=selected_provider_name,
             provider_model=selected_provider_model,
             attempt_number=1,
@@ -218,16 +242,13 @@ class AnalysisProcessor:
             prompt_version=ctx.prompt_version,
             schema_name=ctx.expected_schema_name,
             schema_version=ctx.expected_schema_version,
-            request_payload={
-                "system_prompt": ctx.system_prompt,
-                "user_prompt": ctx.user_prompt,
-                "images": [img.storage_reference for img in ctx.images],
-            },
-            request_metadata=dict(ctx.metadata),
+            system_prompt=ctx.system_prompt,
+            user_prompt=ctx.user_prompt,
+            images=ctx.images,
+            metadata=dict(ctx.metadata),
         )
         self._session.add(db_provider_request)
 
-        # Create ProviderRequest for router
         router_request = ProviderRequestModel(
             request_id=uuid.uuid4(),
             analysis_type=atype,
@@ -240,12 +261,6 @@ class AnalysisProcessor:
             structured_output_schema=ctx.structured_output_schema,
         )
         await self._session.flush()  # ensure DB record exists before router call
-
-        validate = self._build_validate_callback(
-            analysis_type=atype,
-            session_status_before_job=job.previous_session_status,
-            canonical_facts=ctx.canonical_facts,
-        )
 
         # Call router
         try:
@@ -382,6 +397,13 @@ class AnalysisProcessor:
             canonical_facts=canonical_facts,
         )
 
+    def _should_use_partitioned_initial_analysis(self, analysis_type: str) -> bool:
+        if analysis_type != "INITIAL_ANALYSIS":
+            return False
+        if not self._provider_order:
+            return False
+        return self._provider_order[0] == "gemini"
+
     def _get_primary_capabilities(self) -> ProviderCapabilities:
         if self._provider_order and self._providers:
             primary_name = self._provider_order[0]
@@ -398,6 +420,270 @@ class AnalysisProcessor:
             provider_model = getattr(selected_provider, "model", None) if selected_provider else None
             return provider_type, str(provider_model) if provider_model else None
         return ProviderType.MOCK, None
+
+    def _create_provider_request_record(
+        self,
+        *,
+        job_id: uuid.UUID,
+        provider: ProviderType,
+        provider_model: str | None,
+        attempt_number: int,
+        prompt_name: str,
+        prompt_version: str,
+        schema_name: str,
+        schema_version: str,
+        system_prompt: str | None,
+        user_prompt: str,
+        images: Sequence[Any],
+        metadata: Mapping[str, object],
+    ) -> DBProviderRequest:
+        return DBProviderRequest(
+            id=uuid.uuid4(),
+            analysis_job_id=job_id,
+            provider=provider,
+            provider_model=provider_model,
+            attempt_number=attempt_number,
+            prompt_name=prompt_name,
+            prompt_version=prompt_version,
+            schema_name=schema_name,
+            schema_version=schema_version,
+            request_payload={
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "images": [img.storage_reference for img in images],
+            },
+            request_metadata=dict(metadata),
+        )
+
+    async def _process_partitioned_initial_analysis(
+        self,
+        *,
+        job: AnalysisJob,
+        ts: TradeSession,
+        ctx: Any,
+        now: datetime,
+        selected_provider_name: ProviderType,
+        selected_provider_model: str | None,
+        validate: ValidationCallback,
+    ) -> AnalysisProcessingResult:
+        partition_schemas = build_partition_schemas()
+        partition_payloads: dict[str, dict[str, object]] = {}
+
+        for attempt_number, partition in enumerate(PARTITIONS, start=1):
+            validated_context = {
+                name: payload for name, payload in partition_payloads.items()
+            }
+            partition_user_prompt = build_partition_user_prompt(
+                base_user_prompt=ctx.user_prompt,
+                partition_name=partition.name,
+                validated_context=validated_context,
+            )
+            partition_images = select_partition_images(
+                partition_name=partition.name,
+                images=ctx.images,
+            )
+            partition_metadata = dict(ctx.metadata)
+            partition_metadata["partition_name"] = partition.name
+            partition_metadata["partition_keys"] = list(partition.top_level_keys)
+
+            db_provider_request = self._create_provider_request_record(
+                job_id=job.id,
+                provider=selected_provider_name,
+                provider_model=selected_provider_model,
+                attempt_number=attempt_number,
+                prompt_name=ctx.analysis_type,
+                prompt_version=ctx.prompt_version,
+                schema_name=ctx.expected_schema_name,
+                schema_version=ctx.expected_schema_version,
+                system_prompt=ctx.system_prompt,
+                user_prompt=partition_user_prompt,
+                images=partition_images,
+                metadata=partition_metadata,
+            )
+            self._session.add(db_provider_request)
+
+            router_request = ProviderRequestModel(
+                request_id=uuid.uuid4(),
+                analysis_type=ctx.analysis_type,
+                prompt_version=ctx.prompt_version,
+                user_prompt=partition_user_prompt,
+                expected_schema_name=ctx.expected_schema_name,
+                expected_schema_version=ctx.expected_schema_version,
+                system_prompt=ctx.system_prompt,
+                images=partition_images,
+                structured_output_schema=partition_schemas[partition.name].provider_schema,
+                metadata={"partition_name": partition.name, "model_name": selected_provider_model},
+            )
+            await self._session.flush()
+
+            partition_validate = self._make_partition_validate_callback(
+                partition_name=partition.name,
+                partition_schemas=partition_schemas,
+            )
+
+            try:
+                route_result = await self._router.generate_validated(
+                    request=router_request,
+                    providers=self._providers,
+                    provider_order=self._provider_order,
+                    max_provider_attempts=1,
+                    validate=partition_validate,
+                    canonical_facts=ctx.canonical_facts,
+                    max_repair_attempts=0,
+                )
+            except ProviderRoutingFailedError as exc:
+                await self._persist_route_attempts(
+                    db_provider_request.id,
+                    getattr(exc, "attempts", ()),
+                )
+                await self._fail_job(job, exc, ts, now)
+                await self._session.flush()
+                self._log.warning(
+                    "Initial analysis partition failed",
+                    extra={
+                        "analysis_job_id": str(job.id),
+                        "session_id": str(job.session_id),
+                        "partition_name": partition.name,
+                        "root_cause_code": job.last_error_code,
+                        "root_cause_message": job.last_error_message,
+                    },
+                )
+                return AnalysisProcessingResult(
+                    job_id=job.id,
+                    session_id=job.session_id,
+                    analysis_id=None,
+                    job_status=job.status.value,
+                    restored_session_status=(
+                        job.previous_session_status
+                        if job.status == AnalysisJobStatus.FAILED
+                        else None
+                    ),
+                    provider=None,
+                    fallback_used=False,
+                    error_code=job.last_error_code,
+                    error_message=job.last_error_message,
+                )
+
+            await self._persist_route_attempts(db_provider_request.id, route_result.attempts)
+            partition_payloads[partition.name] = dict(route_result.payload)
+
+        try:
+            merged_payload = merge_partition_payloads(partition_payloads)
+        except ValueError as exc:
+            routing_error = ProviderRoutingFailedError(
+                message="Partition merge failed",
+                root_cause_code="INITIAL_ANALYSIS_PARTITION_MERGE_FAILED",
+                root_cause_message=str(exc),
+                retryable=False,
+            )
+            await self._fail_job(job, routing_error, ts, now)
+            await self._session.flush()
+            return AnalysisProcessingResult(
+                job_id=job.id,
+                session_id=job.session_id,
+                analysis_id=None,
+                job_status=job.status.value,
+                restored_session_status=job.previous_session_status,
+                provider=None,
+                fallback_used=False,
+                error_code=job.last_error_code,
+                error_message=job.last_error_message,
+            )
+
+        validation_payload = decimalize_json_numbers_for_validation(merged_payload)
+        is_valid, issues = validate(dict(validation_payload))
+        if not is_valid:
+            code = issues[0].code if issues else "REPAIR_VALIDATION_FAILED"
+            message = (
+                "; ".join(issue.message for issue in issues if issue.message)
+                if issues
+                else "Merged INITIAL_ANALYSIS validation failed with no issue details returned."
+            )
+            routing_error = ProviderRoutingFailedError(
+                message="Merged INITIAL_ANALYSIS validation failed",
+                root_cause_code=code,
+                root_cause_message=message,
+                retryable=False,
+            )
+            await self._fail_job(job, routing_error, ts, now)
+            await self._session.flush()
+            return AnalysisProcessingResult(
+                job_id=job.id,
+                session_id=job.session_id,
+                analysis_id=None,
+                job_status=job.status.value,
+                restored_session_status=job.previous_session_status,
+                provider=None,
+                fallback_used=False,
+                error_code=job.last_error_code,
+                error_message=job.last_error_message,
+            )
+
+        analysis_id = uuid.uuid4()
+        analysis = Analysis(
+            id=analysis_id,
+            session_id=job.session_id,
+            analysis_job_id=job.id,
+            analysis_type=ctx.analysis_type,
+            acceptance_status=AcceptanceStatus.ACCEPTED,
+            prompt_name=ctx.analysis_type,
+            prompt_version=ctx.prompt_version,
+            schema_name=ctx.expected_schema_name,
+            schema_version=ctx.expected_schema_version,
+            payload=merged_payload,
+            accepted_at=now,
+        )
+        self._session.add(analysis)
+
+        job.status = AnalysisJobStatus.COMPLETED
+        job.completed_at = now
+        job.lease_owner = None
+        job.lease_acquired_at = None
+        job.lease_expires_at = None
+
+        prev = job.previous_session_status
+        if prev:
+            try:
+                restored = TradeSessionStatus(prev)
+                ts.lifecycle_status = restored
+                ts.stable_status = restored
+            except ValueError:
+                pass
+
+        await self._session.flush()
+
+        rebuild = ContextRebuildService(self._session)
+        await rebuild.rebuild_after_material_event(
+            session_id=job.session_id,
+            owner_id=ts.owner_id,
+            reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
+            source_id=analysis_id,
+        )
+
+        return AnalysisProcessingResult(
+            job_id=job.id,
+            session_id=job.session_id,
+            analysis_id=analysis_id,
+            job_status=AnalysisJobStatus.COMPLETED.value,
+            restored_session_status=prev,
+            provider=self._provider_order[0] if self._provider_order else None,
+            fallback_used=False,
+        )
+
+    def _make_partition_validate_callback(
+        self,
+        *,
+        partition_name: str,
+        partition_schemas: Mapping[str, object],
+    ) -> ValidationCallback:
+        def _validate_partition(payload: dict[str, object]) -> tuple[bool, tuple[ValidationIssue, ...]]:
+            return validate_partition_payload(
+                payload=payload,
+                partition_name=partition_name,
+                schemas=partition_schemas,  # type: ignore[arg-type]
+            )
+
+        return _validate_partition
 
     async def _build_fresh_provider_context(
         self,
@@ -450,6 +736,13 @@ class AnalysisProcessor:
             if attempt.response is None:
                 continue
             raw = attempt.response
+            raw_payload = None
+            if isinstance(raw.metadata, dict):
+                provider_payload_raw = raw.metadata.get("provider_payload_raw")
+                if isinstance(provider_payload_raw, dict):
+                    raw_payload = dict(provider_payload_raw)
+            if raw_payload is None and attempt.payload is not None:
+                raw_payload = dict(attempt.payload)
 
             resp = DBProviderResponse(
                 id=uuid.uuid4(),
@@ -460,7 +753,7 @@ class AnalysisProcessor:
                     else ProviderResponseStatus.COMPLETED
                 ),
                 raw_text=raw.raw_output,
-                raw_payload=dict(attempt.payload) if attempt.payload is not None else None,
+                raw_payload=raw_payload,
                 provider_response_id=_normalize_provider_response_id(raw.provider_response_id),
                 model_name=raw.model,
                 finish_reason=raw.finish_reason,
