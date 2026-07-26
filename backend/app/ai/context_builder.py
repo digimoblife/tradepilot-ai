@@ -212,6 +212,7 @@ class ProviderContextBuilder:
             "context_summary_id": str(context_summary.id) if context_summary else None,
             "latest_analysis_id": str(latest_analysis.id) if latest_analysis else None,
             "evidence_ids": [str(e.id) for e in ordered_evidence],
+            "canonical_chart_timestamps": _build_canonical_chart_timestamps(ordered_evidence),
         }
 
         return ProviderContext(
@@ -353,6 +354,25 @@ def _order_evidence(
         return (type_order, -mkt_ts.timestamp(), -upl_ts.timestamp(), str(ev.id))
 
     return sorted(evidence_list, key=sort_key)
+
+
+def _build_canonical_chart_timestamps(evidence_list: Sequence[Evidence]) -> dict[str, str]:
+    timestamps: dict[str, str] = {}
+    section_by_type = {
+        EvidenceType.CHART_THREE_MONTH.value: "chart_3_month_analysis",
+        EvidenceType.CHART_SIX_MONTH.value: "chart_6_month_analysis",
+    }
+    for ev in evidence_list:
+        evidence_type = (
+            ev.evidence_type.value
+            if hasattr(ev.evidence_type, "value")
+            else str(ev.evidence_type)
+        )
+        section_name = section_by_type.get(evidence_type)
+        if section_name is None or section_name in timestamps or ev.market_timestamp is None:
+            continue
+        timestamps[section_name] = ev.market_timestamp.isoformat()
+    return timestamps
 
 
 def _build_prompt_variables(

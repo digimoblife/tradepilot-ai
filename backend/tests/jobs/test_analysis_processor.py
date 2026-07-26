@@ -159,7 +159,13 @@ class FakeInitialAnalysisContextBuilder:
             structured_output_schema={},
             canonical_facts={},
             images=self.images,
-            metadata={"session_id": str(kwargs["session_id"])},
+            metadata={
+                "session_id": str(kwargs["session_id"]),
+                "canonical_chart_timestamps": {
+                    "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+                    "chart_6_month_analysis": "2026-07-23T15:45:00+07:00",
+                },
+            },
         )
 
 
@@ -177,6 +183,7 @@ class PartitionRouter(ProviderRouter):
         self.failure_code = failure_code
         self.failure_message = failure_message
         self.calls: list[tuple[str, tuple[str, ...]]] = []
+        self.request_metadata: list[dict[str, object]] = []
         self.validations: list[str] = []
 
     async def generate_validated(self, **kwargs: Any) -> Any:
@@ -185,6 +192,7 @@ class PartitionRouter(ProviderRouter):
         partition_name = str(request.metadata["partition_name"])
         image_refs = tuple(img.storage_reference for img in request.images)
         self.calls.append((partition_name, image_refs))
+        self.request_metadata.append(dict(request.metadata))
 
         if self.failing_partition == partition_name:
             raise ProviderRoutingFailedError(
@@ -1446,6 +1454,13 @@ class TestPartitionedInitialAnalysis:
             ("TRADE_THESIS", ()),
             ("DECISION_ASSESSMENT", ()),
         ]
+        assert "canonical_chart_timestamps" not in router.request_metadata[0]
+        assert router.request_metadata[1]["canonical_chart_timestamps"] == {
+            "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+            "chart_6_month_analysis": "2026-07-23T15:45:00+07:00",
+        }
+        assert "canonical_chart_timestamps" not in router.request_metadata[2]
+        assert "canonical_chart_timestamps" not in router.request_metadata[3]
 
     async def test_unusable_partition_stops_before_next_request(
         self,
@@ -1690,6 +1705,59 @@ class TestPartitionedInitialAnalysis:
             )
             result = await proc.process(job_id=jid, worker_id="w1")
             assert result.job_status == AnalysisJobStatus.FAILED.value
+
+    async def test_missing_chart_timestamp_becomes_warning_not_failure(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        payloads = _partition_payloads()
+        payloads["CHART_ANALYSIS"]["chart_3_month_analysis"].pop("chart_timestamp")
+        router = PartitionRouter(payloads_by_partition=payloads)
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=_always_valid,
+                providers={"gemini": CountingProvider([])},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.COMPLETED.value
+            await s.commit()
+
+        async with factory() as s:
+            analysis_row = (
+                await s.execute(
+                    text("SELECT payload FROM analyses WHERE analysis_job_id = :jid"),
+                    {"jid": jid},
+                )
+            ).first()
+            warning_row = (
+                await s.execute(
+                    text(
+                        "SELECT issues FROM validation_attempts "
+                        "WHERE analysis_job_id = :jid AND stage = 'JSON_SCHEMA'"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert analysis_row is not None
+        assert analysis_row[0]["chart_3_month_analysis"]["chart_timestamp"] is None
+        assert warning_row is not None
+        warning_paths = {warning["path"] for warning in warning_row[0]["warnings"]}
+        assert "/chart_3_month_analysis/chart_timestamp" in warning_paths
 
     async def test_failed_later_partition_keeps_earlier_raw_audits(
         self,

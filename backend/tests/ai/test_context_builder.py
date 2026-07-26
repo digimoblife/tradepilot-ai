@@ -404,6 +404,34 @@ class TestEvidenceOrdering:
             )
             assert ctx1.images == ctx2.images
 
+    async def test_chart_market_timestamps_included_in_context_metadata(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        sid = await _make_session(engine, user_id, status="READY_FOR_ANALYSIS")
+        await _add_context_summary(engine, sid, is_stale=False)
+        ts_3m = datetime.fromisoformat("2026-07-24T09:15:00+07:00")
+        ts_6m = datetime.fromisoformat("2026-07-23T15:45:00+07:00")
+        await _add_evidence(engine, sid, user_id, "ORDERBOOK_SCREENSHOT")
+        await _add_evidence(engine, sid, user_id, "CHART_THREE_MONTH", market_ts=ts_3m)
+        await _add_evidence(engine, sid, user_id, "CHART_SIX_MONTH", market_ts=ts_6m)
+
+        async with factory() as s:
+            builder = ProviderContextBuilder(s)
+            ctx = await builder.build(
+                session_id=sid,
+                owner_id=user_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS,
+                provider_capabilities=_STANDARD_CAPS,
+            )
+
+        assert ctx.metadata["canonical_chart_timestamps"] == {
+            "chart_3_month_analysis": "2026-07-24T02:15:00+00:00",
+            "chart_6_month_analysis": "2026-07-23T08:45:00+00:00",
+        }
+
     async def test_inactive_evidence_excluded(
         self,
         engine: AsyncEngine,

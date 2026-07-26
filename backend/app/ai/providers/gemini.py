@@ -618,6 +618,8 @@ def build_initial_analysis_transport_schema(
 
 def normalize_initial_analysis_transport_payload(
     payload: Mapping[str, object],
+    *,
+    canonical_chart_timestamps: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     if not isinstance(payload, Mapping):
         raise GeminiNormalizationError(message="Initial Analysis payload must be a JSON object")
@@ -633,6 +635,11 @@ def normalize_initial_analysis_transport_payload(
             section_name=section_name,
             timeframe=timeframe,
             section=section,
+            canonical_chart_timestamp=(
+                canonical_chart_timestamps.get(section_name)
+                if canonical_chart_timestamps is not None
+                else None
+            ),
         )
 
     return normalized
@@ -696,6 +703,7 @@ def _normalize_transport_chart_section(
     section_name: str,
     timeframe: str,
     section: Mapping[str, object],
+    canonical_chart_timestamp: str | None = None,
 ) -> dict[str, object]:
     available = _require_bool(section_name, "available", section.get("available"))
     normalized: dict[str, object] = {
@@ -724,14 +732,13 @@ def _normalize_transport_chart_section(
         ),
     }
 
-    chart_timestamp = section.get("chart_timestamp")
+    chart_timestamp = _normalize_chart_timestamp(
+        section_name=section_name,
+        canonical_chart_timestamp=canonical_chart_timestamp,
+        gemini_chart_timestamp=section.get("chart_timestamp"),
+    )
     if available:
-        normalized["chart_timestamp"] = _require_nullable_string(
-            section_name,
-            "chart_timestamp",
-            chart_timestamp,
-            allow_null=False,
-        )
+        normalized["chart_timestamp"] = chart_timestamp
         normalized["trend"] = _require_non_empty_string(section_name, "trend", section.get("trend"))
         normalized["momentum"] = _require_non_empty_string(section_name, "momentum", section.get("momentum"))
         normalized["breakout_status"] = _require_non_empty_string(
@@ -765,13 +772,7 @@ def _normalize_transport_chart_section(
             section.get("conclusion"),
         )
     else:
-        normalized["chart_timestamp"] = _require_nullable_string(
-            section_name,
-            "chart_timestamp",
-            chart_timestamp,
-            allow_null=True,
-            default_null=True,
-        )
+        normalized["chart_timestamp"] = chart_timestamp
         normalized["trend"] = _normalize_unknownable_enum(section_name, "trend", section.get("trend"))
         normalized["momentum"] = _normalize_unknownable_enum(section_name, "momentum", section.get("momentum"))
         normalized["breakout_status"] = _normalize_unknownable_enum(
@@ -820,6 +821,24 @@ def _normalize_transport_level(
         "label": label,
         "summary": summary,
     }
+
+
+def _normalize_chart_timestamp(
+    *,
+    section_name: str,
+    canonical_chart_timestamp: str | None,
+    gemini_chart_timestamp: object,
+) -> str | None:
+    if isinstance(canonical_chart_timestamp, str) and canonical_chart_timestamp.strip():
+        return canonical_chart_timestamp
+    if gemini_chart_timestamp is None:
+        return None
+    if isinstance(gemini_chart_timestamp, str):
+        rendered = gemini_chart_timestamp.strip()
+        return rendered or None
+    raise GeminiNormalizationError(
+        message=f"{section_name}.chart_timestamp must be a string or null in the Gemini transport response.",
+    )
 
 
 def _require_bool(section_name: str, field_name: str, value: object) -> bool:

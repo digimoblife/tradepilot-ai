@@ -457,7 +457,19 @@ def _normalize_payload(
         and request.expected_schema_name == "initial_analysis"
         and any(name in parsed for name in ("chart_3_month_analysis", "chart_6_month_analysis"))
     ):
-        return normalize_initial_analysis_transport_payload(parsed)
+        canonical_chart_timestamps = None
+        if isinstance(request.metadata, Mapping):
+            raw = request.metadata.get("canonical_chart_timestamps")
+            if isinstance(raw, Mapping):
+                canonical_chart_timestamps = {
+                    str(key): value
+                    for key, value in raw.items()
+                    if isinstance(value, str)
+                }
+        return normalize_initial_analysis_transport_payload(
+            parsed,
+            canonical_chart_timestamps=canonical_chart_timestamps,
+        )
     return dict(parsed)
 
 

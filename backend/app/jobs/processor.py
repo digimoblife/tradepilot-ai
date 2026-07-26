@@ -489,6 +489,14 @@ class AnalysisProcessor:
             partition_metadata = dict(ctx.metadata)
             partition_metadata["partition_name"] = partition.name
             partition_metadata["partition_keys"] = list(partition.top_level_keys)
+            canonical_chart_timestamps = _canonical_chart_timestamps_for_partition(
+                ctx.metadata,
+                partition.name,
+            )
+            if canonical_chart_timestamps is not None:
+                partition_metadata["canonical_chart_timestamps"] = canonical_chart_timestamps
+            else:
+                partition_metadata.pop("canonical_chart_timestamps", None)
 
             db_provider_request = self._create_provider_request_record(
                 job_id=job.id,
@@ -516,7 +524,11 @@ class AnalysisProcessor:
                 system_prompt=ctx.system_prompt,
                 images=partition_images,
                 structured_output_schema=partition_schemas[partition.name].provider_schema,
-                metadata={"partition_name": partition.name, "model_name": selected_provider_model},
+                metadata=_provider_request_metadata_for_partition(
+                    partition_name=partition.name,
+                    model_name=selected_provider_model,
+                    canonical_chart_timestamps=canonical_chart_timestamps,
+                ),
             )
             await self._session.flush()
 
@@ -948,6 +960,39 @@ def _is_usable_initial_analysis_payload(payload: Mapping[str, object]) -> bool:
         "warnings_and_missing_information",
     )
     return any(isinstance(payload.get(section), Mapping) for section in usable_sections)
+
+
+def _canonical_chart_timestamps_for_partition(
+    metadata: Mapping[str, object],
+    partition_name: str,
+) -> dict[str, str] | None:
+    if partition_name != "CHART_ANALYSIS":
+        return None
+    raw = metadata.get("canonical_chart_timestamps")
+    if not isinstance(raw, Mapping):
+        return None
+    allowed = {"chart_3_month_analysis", "chart_6_month_analysis"}
+    timestamps = {
+        str(key): value
+        for key, value in raw.items()
+        if key in allowed and isinstance(value, str) and value.strip()
+    }
+    return timestamps or None
+
+
+def _provider_request_metadata_for_partition(
+    *,
+    partition_name: str,
+    model_name: str | None,
+    canonical_chart_timestamps: Mapping[str, str] | None,
+) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "partition_name": partition_name,
+        "model_name": model_name,
+    }
+    if partition_name == "CHART_ANALYSIS" and canonical_chart_timestamps:
+        metadata["canonical_chart_timestamps"] = dict(canonical_chart_timestamps)
+    return metadata
 
 
 def _issue_to_warning_dict(issue: ValidationIssue) -> dict[str, object]:

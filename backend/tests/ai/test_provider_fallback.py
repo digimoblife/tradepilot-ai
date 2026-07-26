@@ -366,6 +366,64 @@ class TestPrimarySuccess:
         assert result.response.metadata["provider_payload_raw"] == payload
         assert result.payload["chart_6_month_analysis"]["nearest_support"] is None
 
+    async def test_gemini_chart_timestamps_from_request_metadata_are_used_for_normalization(self) -> None:
+        payload = {
+            "chart_3_month_analysis": {
+                "available": True,
+                "trend": "BULLISH",
+                "momentum": "IMPROVING",
+                "breakout_status": "NOT_PRESENT",
+                "breakdown_status": "FAILED",
+                "nearest_support": 2720,
+                "nearest_resistance": 2900,
+                "positive_signals": ["Buyer bertahan."],
+                "risk_signals": ["Resistance dekat."],
+                "limitations": ["Hanya satu snapshot chart."],
+                "conclusion": "Struktur jangka pendek membaik.",
+            },
+            "chart_6_month_analysis": {
+                "available": True,
+                "chart_timestamp": "2026-01-01T00:00:00+00:00",
+                "trend": "NEUTRAL",
+                "momentum": "MIXED",
+                "breakout_status": "NOT_PRESENT",
+                "breakdown_status": "NOT_PRESENT",
+                "nearest_support": None,
+                "nearest_resistance": 3000,
+                "positive_signals": ["Base masih terjaga."],
+                "risk_signals": ["Trend menengah belum kuat."],
+                "limitations": ["Belum ada volume detail."],
+                "conclusion": "Trend menengah masih menunggu konfirmasi.",
+            },
+        }
+        response = ProviderResponse(
+            provider="gemini",
+            model="gemini-3.5-flash",
+            raw_output=json.dumps(payload),
+            request_id=uuid.uuid4(),
+        )
+        gemini = FakeProvider("gemini", responses=[response])
+        router = ProviderRouter()
+
+        result = await router.generate_validated(
+            request=_req(
+                metadata={
+                    "canonical_chart_timestamps": {
+                        "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+                        "chart_6_month_analysis": "2026-07-23T15:45:00+07:00",
+                    }
+                }
+            ),
+            providers={"gemini": gemini},
+            provider_order=["gemini"],
+            validate=_always_valid,
+            canonical_facts={},
+            max_repair_attempts=0,
+        )
+
+        assert result.payload["chart_3_month_analysis"]["chart_timestamp"] == "2026-07-24T09:15:00+07:00"
+        assert result.payload["chart_6_month_analysis"]["chart_timestamp"] == "2026-07-23T15:45:00+07:00"
+
 
 # ===================================================================
 # Repair before fallback

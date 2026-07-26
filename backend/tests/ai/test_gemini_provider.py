@@ -762,6 +762,86 @@ class TestStructuredOutput:
         )
         assert validation.valid is True
 
+    def test_transport_normalizer_injects_canonical_chart_timestamps(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        transport_payload["chart_3_month_analysis"].pop("chart_timestamp")
+        transport_payload["chart_6_month_analysis"].pop("chart_timestamp")
+
+        normalized = normalize_initial_analysis_transport_payload(
+            transport_payload,
+            canonical_chart_timestamps={
+                "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+                "chart_6_month_analysis": "2026-07-23T15:45:00+07:00",
+            },
+        )
+
+        assert normalized["chart_3_month_analysis"]["chart_timestamp"] == "2026-07-24T09:15:00+07:00"
+        assert normalized["chart_6_month_analysis"]["chart_timestamp"] == "2026-07-23T15:45:00+07:00"
+
+    def test_transport_normalizer_canonical_timestamp_overrides_gemini_timestamp(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        transport_payload["chart_3_month_analysis"]["chart_timestamp"] = "2026-01-01T00:00:00+00:00"
+
+        normalized = normalize_initial_analysis_transport_payload(
+            transport_payload,
+            canonical_chart_timestamps={
+                "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+            },
+        )
+
+        assert normalized["chart_3_month_analysis"]["chart_timestamp"] == "2026-07-24T09:15:00+07:00"
+
+    def test_transport_normalizer_missing_canonical_and_gemini_timestamp_becomes_null(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        transport_payload["chart_3_month_analysis"].pop("chart_timestamp")
+
+        normalized = normalize_initial_analysis_transport_payload(transport_payload)
+
+        assert normalized["chart_3_month_analysis"]["chart_timestamp"] is None
+
+    def test_transport_normalizer_does_not_assign_timestamp_to_other_chart(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        transport_payload["chart_3_month_analysis"].pop("chart_timestamp")
+        transport_payload["chart_6_month_analysis"].pop("chart_timestamp")
+
+        normalized = normalize_initial_analysis_transport_payload(
+            transport_payload,
+            canonical_chart_timestamps={
+                "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+            },
+        )
+
+        assert normalized["chart_3_month_analysis"]["chart_timestamp"] == "2026-07-24T09:15:00+07:00"
+        assert normalized["chart_6_month_analysis"]["chart_timestamp"] is None
+
+    def test_transport_normalizer_preserves_existing_chart_analysis_values(self) -> None:
+        transport_payload = _transport_initial_analysis_payload()
+        chart = transport_payload["chart_3_month_analysis"]
+        expected = {
+            "trend": chart["trend"],
+            "momentum": chart["momentum"],
+            "nearest_support": chart["nearest_support"],
+            "nearest_resistance": chart["nearest_resistance"],
+            "positive_signals": list(chart["positive_signals"]),
+            "risk_signals": list(chart["risk_signals"]),
+            "conclusion": chart["conclusion"],
+        }
+
+        normalized = normalize_initial_analysis_transport_payload(
+            transport_payload,
+            canonical_chart_timestamps={
+                "chart_3_month_analysis": "2026-07-24T09:15:00+07:00",
+            },
+        )
+
+        assert normalized["chart_3_month_analysis"]["trend"] == expected["trend"]
+        assert normalized["chart_3_month_analysis"]["momentum"] == expected["momentum"]
+        assert normalized["chart_3_month_analysis"]["nearest_support"]["price"] == expected["nearest_support"]
+        assert normalized["chart_3_month_analysis"]["nearest_resistance"]["price"] == expected["nearest_resistance"]
+        assert normalized["chart_3_month_analysis"]["positive_signals"] == expected["positive_signals"]
+        assert normalized["chart_3_month_analysis"]["risk_signals"] == expected["risk_signals"]
+        assert normalized["chart_3_month_analysis"]["conclusion"] == expected["conclusion"]
+
     def test_transport_normalizer_preserves_null_levels(self) -> None:
         transport_payload = _transport_initial_analysis_payload()
         transport_payload["chart_3_month_analysis"]["nearest_support"] = None
