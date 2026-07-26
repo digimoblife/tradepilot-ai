@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "ticker": "BBRI",
+    "analysis_timestamp": "2026-07-26T09:15:00+07:00",
+    "schema_name": "initial_analysis_v2",
+    "schema_version": "2.0.0",
+    "prompt_version": "2.0.0"
+  },
+  "decision": {
+    "recommendation": "WAIT",
+    "bias": "BULLISH",
+    "confidence": 72,
+    "setup_quality": "FAIR",
+    "risk_level": "MODERATE",
+    "summary": "BBRI membaik, tetapi entry menunggu konfirmasi buyer di atas area support."
+  },
+  "market_facts": {
+    "open": 2800,
+    "high": 2830,
+    "low": 2780,
+    "close_or_last": 2810,
+    "average": 2805,
+    "best_bid": 2800,
+    "best_offer": 2810,
+    "foreign_net": null
+  },
+  "evidence_findings": {
+    "orderbook": [
+      "Bid 2800 masih menjadi penyangga terdekat.",
+      "Offer 2810 menahan kenaikan cepat."
+    ],
+    "chart_3_month": [
+      "Momentum pendek mulai membaik.",
+      "Resistance 2850 belum ditembus."
+    ],
+    "chart_6_month": [
+      "Trend menengah masih pemulihan awal."
+    ],
+    "broker_summary": [],
+    "foreign_flow": [],
+    "limitations": [
+      "Foreign flow belum tersedia.",
+      "Indikator teknikal terstruktur terbatas."
+    ]
+  },
+  "trade_plan": {
+    "nearest_support": 2780,
+    "nearest_resistance": 2850,
+    "entry_zone_low": 2780,
+    "entry_zone_high": 2800,
+    "chase_limit": 2820,
+    "stop_loss": 2750,
+    "target_1": 2850,
+    "target_2": 2900,
+    "invalidation": 2750,
+    "risk_reward": "ACCEPTABLE"
+  },
+  "probabilities": {
+    "bullish": 58,
+    "target_1": 54,
+    "downside": 32
+  },
+  "scenarios": {
+    "bullish": "Break 2850 membuka ruang menuju 2900.",
+    "neutral": "Harga bertahan 2780-2850 sambil menunggu volume.",
+    "bearish": "Tembus 2750 membatalkan setup rebound."
+  },
+  "next_actions": {
+    "reasons": [
+      "Struktur pendek mulai membaik.",
+      "Buyer belum cukup dominan."
+    ],
+    "risks": [
+      "Resistance 2850 masih kuat.",
+      "Foreign flow belum terkonfirmasi."
+    ],
+    "monitoring": [
+      "Pantau 2780 sebagai support.",
+      "Pantau breakout 2850.",
+      "Batalkan jika turun di bawah 2750."
+    ]
+  }
+}

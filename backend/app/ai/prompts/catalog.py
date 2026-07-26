@@ -28,9 +28,13 @@ class CatalogEntry:
 # ---------------------------------------------------------------------------
 
 _ANALYSIS_TYPE_SCHEMA: dict[str, tuple[str, str]] = {
-    "INITIAL_ANALYSIS": ("initial_analysis", "1.0.0"),
+    "INITIAL_ANALYSIS": ("initial_analysis_v2", "2.0.0"),
     "WATCHING_UPDATE": ("watching_update", "1.0.0"),
     "OPEN_POSITION_UPDATE": ("open_position_update", "1.0.0"),
+}
+
+_PROMPT_VERSION: dict[str, str] = {
+    "INITIAL_ANALYSIS": "2.0.0",
 }
 
 # Required evidence metadata for each analysis type
@@ -82,9 +86,10 @@ def load_catalog(prompts_root: Path) -> list[CatalogEntry]:
         system_prompt = system_path.read_text(encoding="utf-8")
         user_template = user_path.read_text(encoding="utf-8")
 
+        prompt_version = _PROMPT_VERSION.get(analysis_type, "1.0.0")
         definition = PromptDefinition(
             analysis_type=analysis_type,
-            prompt_version="1.0.0",
+            prompt_version=prompt_version,
             system_prompt=system_prompt,
             user_prompt_template=user_template,
             expected_schema_name=schema_name,
@@ -96,7 +101,7 @@ def load_catalog(prompts_root: Path) -> list[CatalogEntry]:
         entries.append(
             CatalogEntry(
                 analysis_type=analysis_type,
-                prompt_version="1.0.0",
+                prompt_version=prompt_version,
                 definition=definition,
             ),
         )

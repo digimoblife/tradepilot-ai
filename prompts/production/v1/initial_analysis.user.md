@@ -1,24 +1,35 @@
-TASK: INITIAL ANALYSIS
+TASK: INITIAL ANALYSIS V2
 
-Analyze the initial Trade Session evidence and create the first technical thesis.
+Analyze the initial Trade Session evidence and return the compact canonical v2 payload.
 
-You must:
-1. Summarize available Open, High, Low, Last/Close, Average, bid, and offer data.
-2. State which values are verified, extracted, inferred, or unavailable.
-3. Analyze the current orderbook snapshot.
-4. Analyze the three-month chart.
-5. Analyze the six-month chart.
-6. Identify support, resistance, invalidation, entry zones, chase limit, stop-loss proposal, and target proposals.
-7. Create the initial thesis.
-8. Estimate required probabilities with explicit horizons.
-9. Calculate analysis confidence using the supplied evidence and context quality.
-10. Provide bullish, neutral, and bearish scenarios.
-11. State what the user should monitor next.
-12. Disclose missing data and limitations.
+Decision-critical values to preserve:
+- recommendation, bias, confidence, setup quality, risk level;
+- market OHLC/last/average/bid/offer/foreign net when available;
+- orderbook, chart, broker, foreign-flow findings and limitations;
+- support, resistance, entry zone, chase limit, stop loss, targets, invalidation, risk/reward;
+- bullish, target_1, and downside probabilities;
+- bullish, neutral, and bearish scenarios;
+- reasons, risks, and monitoring.
 
 There is no previous thesis to compare.
-Do not invent historical movement that is not visible or provided.
-The initial thesis should normally be INTACT. Use UNDER_REVIEW when evidence is materially incomplete or conflicting. Do not create INVALIDATED as the first thesis state.
+Do not invent unreadable prices, indicators, broker flow, foreign flow, or timestamps.
+Use null for unavailable numeric values.
+
+CONCISE V2 CONTRACT
+- Return only fields required by initial_analysis_v2.schema.json.
+- Total output target: 700-1100 output tokens across all four partitions.
+- User-facing narrative values must be Bahasa Indonesia.
+- Never write user-facing findings, summaries, scenarios, reasons, risks, or monitoring in English.
+- Property names and enum values must be English.
+- decision.summary maximum 50 words.
+- Every finding item maximum 20 words.
+- Maximum 3 items per array.
+- Every scenario maximum 25 words.
+- No generic disclaimers in generated prose.
+- limitations must mention only missing or unreadable evidence/data constraints.
+- Do not generate disclosures about snapshots, AI uncertainty, market risk, missing indicators, or investment advice.
+- Do not repeat narrative from earlier partitions.
+- Prefer short factual phrases over paragraphs.
 
 CONTEXT AUTHORITY
 Use the following authority order when sources conflict:
@@ -45,23 +56,25 @@ END_CONTEXT_PACKAGE
 OUTPUT CONTRACT
 Return exactly one JSON object matching the provided JSON Schema.
 
-Requirements:
-- English property names.
-- Exact English enum values.
-- Bahasa Indonesia narrative text.
-- Use null for unavailable values when allowed by schema.
-- Do not omit required fields.
-- Do not add properties outside the schema.
-- No additional top-level properties are allowed.
-- Do not return Markdown.
-- Do not wrap JSON in a code fence.
-- Do not add explanation before or after JSON.
-
-Required top-level JSON properties (exact names, no extras):
+Required top-level JSON properties:
 - metadata
+- decision
+- market_facts
+- evidence_findings
+- trade_plan
+- probabilities
+- scenarios
+- next_actions
+
+metadata requirements:
+- schema_name must be initial_analysis_v2.
+- schema_version must be 2.0.0.
+- prompt_version must be 2.0.0.
+
+Forbidden v1 narrative fields:
+- executive_summary
 - evidence_summary
 - market_snapshot
-- executive_summary
 - orderbook_analysis
 - chart_3_month_analysis
 - chart_6_month_analysis
@@ -75,74 +88,6 @@ Required top-level JSON properties (exact names, no extras):
 - ai_assessment
 - warnings_and_missing_information
 
-Minimal top-level JSON skeleton:
-```json
-{{
-  "metadata": {{}},
-  "evidence_summary": {{}},
-  "market_snapshot": {{}},
-  "executive_summary": {{}},
-  "orderbook_analysis": {{}},
-  "chart_3_month_analysis": {{}},
-  "chart_6_month_analysis": {{}},
-  "combined_chart_analysis": {{}},
-  "price_levels": {{}},
-  "entry_plan": {{}},
-  "stop_loss_plan": {{}},
-  "target_plan": {{}},
-  "initial_thesis": {{}},
-  "trading_plan": {{}},
-  "ai_assessment": {{}},
-  "warnings_and_missing_information": {{}}
-}}
-```
-
-Forbidden legacy top-level aliases:
-- chart_analysis_3m
-- chart_analysis_6m
-- data_gaps_and_limitations
-
-Nested ai_assessment contract (exact fields, no extras):
-- bias
-- confidence
-- setup_quality
-- bullish_probability
-- target_probability
-- downside_probability
-- risk_level
-- setup_valid
-- summary
-
-ai_assessment enum values:
-- bias: STRONGLY_BULLISH | BULLISH | NEUTRAL | BEARISH | STRONGLY_BEARISH | UNCERTAIN
-- setup_quality: EXCELLENT | GOOD | FAIR | WEAK | INVALID | UNKNOWN
-- risk_level: LOW | MODERATE | HIGH | VERY_HIGH | UNKNOWN
-
-ai_assessment field types:
-- confidence: integer 0..100
-- bullish_probability: integer 0..100 or null
-- target_probability: integer 0..100 or null
-- downside_probability: integer 0..100 or null
-- setup_valid: boolean
-- summary: non-empty Indonesian string
-
-No additional ai_assessment properties are allowed.
-
-Minimal ai_assessment JSON skeleton:
-```json
-"ai_assessment": {{
-  "bias": "NEUTRAL",
-  "confidence": 50,
-  "setup_quality": "UNKNOWN",
-  "bullish_probability": null,
-  "target_probability": null,
-  "downside_probability": null,
-  "risk_level": "UNKNOWN",
-  "setup_valid": false,
-  "summary": "Ringkasan penilaian AI dalam Bahasa Indonesia."
-}}
-```
-
-Forbidden legacy ai_assessment fields:
-- invalidation_conditions
-- next_milestones_to_monitor
+Do not return Markdown.
+Do not wrap JSON in a code fence.
+Do not add explanation before or after JSON.

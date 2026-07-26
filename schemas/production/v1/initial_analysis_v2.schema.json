@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/initial_analysis_v2.schema.json",
+  "title": "TradePilot AI Compact Initial Analysis v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "decision",
+    "market_facts",
+    "evidence_findings",
+    "trade_plan",
+    "probabilities",
+    "scenarios",
+    "next_actions"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "ticker",
+        "analysis_timestamp",
+        "schema_name",
+        "schema_version",
+        "prompt_version"
+      ],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "ticker": { "type": "string", "minLength": 1 },
+        "analysis_timestamp": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "schema_name": { "const": "initial_analysis_v2" },
+        "schema_version": { "const": "2.0.0" },
+        "prompt_version": { "const": "2.0.0" }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recommendation",
+        "bias",
+        "confidence",
+        "setup_quality",
+        "risk_level",
+        "summary"
+      ],
+      "properties": {
+        "recommendation": {
+          "type": "string",
+          "enum": ["BUY", "WAIT", "SKIP", "UNCERTAIN"]
+        },
+        "bias": {
+          "type": "string",
+          "enum": [
+            "STRONGLY_BULLISH",
+            "BULLISH",
+            "NEUTRAL",
+            "BEARISH",
+            "STRONGLY_BEARISH",
+            "UNCERTAIN"
+          ]
+        },
+        "confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "setup_quality": {
+          "type": "string",
+          "enum": ["EXCELLENT", "GOOD", "FAIR", "WEAK", "INVALID", "UNKNOWN"]
+        },
+        "risk_level": {
+          "type": "string",
+          "enum": ["LOW", "MODERATE", "HIGH", "VERY_HIGH", "UNKNOWN"]
+        },
+        "summary": { "$ref": "#/$defs/conciseText" }
+      }
+    },
+    "market_facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "open",
+        "high",
+        "low",
+        "close_or_last",
+        "average",
+        "best_bid",
+        "best_offer",
+        "foreign_net"
+      ],
+      "properties": {
+        "open": { "$ref": "#/$defs/nullableNumber" },
+        "high": { "$ref": "#/$defs/nullableNumber" },
+        "low": { "$ref": "#/$defs/nullableNumber" },
+        "close_or_last": { "$ref": "#/$defs/nullableNumber" },
+        "average": { "$ref": "#/$defs/nullableNumber" },
+        "best_bid": { "$ref": "#/$defs/nullableNumber" },
+        "best_offer": { "$ref": "#/$defs/nullableNumber" },
+        "foreign_net": { "$ref": "#/$defs/nullableNumber" }
+      }
+    },
+    "evidence_findings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orderbook",
+        "chart_3_month",
+        "chart_6_month",
+        "broker_summary",
+        "foreign_flow",
+        "limitations"
+      ],
+      "properties": {
+        "orderbook": { "$ref": "#/$defs/findingArray" },
+        "chart_3_month": { "$ref": "#/$defs/findingArray" },
+        "chart_6_month": { "$ref": "#/$defs/findingArray" },
+        "broker_summary": { "$ref": "#/$defs/findingArray" },
+        "foreign_flow": { "$ref": "#/$defs/findingArray" },
+        "limitations": { "$ref": "#/$defs/findingArray" }
+      }
+    },
+    "trade_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nearest_support",
+        "nearest_resistance",
+        "entry_zone_low",
+        "entry_zone_high",
+        "chase_limit",
+        "stop_loss",
+        "target_1",
+        "target_2",
+        "invalidation",
+        "risk_reward"
+      ],
+      "properties": {
+        "nearest_support": { "$ref": "#/$defs/nullableNumber" },
+        "nearest_resistance": { "$ref": "#/$defs/nullableNumber" },
+        "entry_zone_low": { "$ref": "#/$defs/nullableNumber" },
+        "entry_zone_high": { "$ref": "#/$defs/nullableNumber" },
+        "chase_limit": { "$ref": "#/$defs/nullableNumber" },
+        "stop_loss": { "$ref": "#/$defs/nullableNumber" },
+        "target_1": { "$ref": "#/$defs/nullableNumber" },
+        "target_2": { "$ref": "#/$defs/nullableNumber" },
+        "invalidation": { "$ref": "#/$defs/nullableNumber" },
+        "risk_reward": {
+          "type": "string",
+          "enum": ["FAVORABLE", "ACCEPTABLE", "UNFAVORABLE", "UNAVAILABLE"]
+        }
+      }
+    },
+    "probabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bullish", "target_1", "downside"],
+      "properties": {
+        "bullish": { "$ref": "#/$defs/nullableProbability" },
+        "target_1": { "$ref": "#/$defs/nullableProbability" },
+        "downside": { "$ref": "#/$defs/nullableProbability" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bullish", "neutral", "bearish"],
+      "properties": {
+        "bullish": { "$ref": "#/$defs/conciseText" },
+        "neutral": { "$ref": "#/$defs/conciseText" },
+        "bearish": { "$ref": "#/$defs/conciseText" }
+      }
+    },
+    "next_actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasons", "risks", "monitoring"],
+      "properties": {
+        "reasons": { "$ref": "#/$defs/findingArray" },
+        "risks": { "$ref": "#/$defs/findingArray" },
+        "monitoring": { "$ref": "#/$defs/findingArray" }
+      }
+    }
+  },
+  "$defs": {
+    "nullableNumber": {
+      "oneOf": [{ "type": "number" }, { "type": "null" }]
+    },
+    "nullableProbability": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0, "maximum": 100 },
+        { "type": "null" }
+      ]
+    },
+    "conciseText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 320
+    },
+    "findingArray": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    }
+  }
+}

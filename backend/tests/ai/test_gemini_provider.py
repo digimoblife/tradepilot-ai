@@ -37,6 +37,7 @@ from app.ai.providers.gemini import (
     GeminiSchemaConversionError,
     build_initial_analysis_transport_schema,
     _convert_gemini_schema_document,
+    _strip_schema_metadata,
     load_initial_analysis_response_schema,
     normalize_initial_analysis_transport_payload,
 )
@@ -160,8 +161,12 @@ def _initial_analysis_response_schema() -> dict[str, object]:
     return load_initial_analysis_response_schema(_schema_root())
 
 
+def _legacy_initial_analysis_response_schema() -> dict[str, object]:
+    return load_initial_analysis_response_schema(_schema_root(), schema_name="initial_analysis")
+
+
 def _initial_analysis_transport_schema() -> dict[str, object]:
-    return build_initial_analysis_transport_schema(_initial_analysis_response_schema())
+    return build_initial_analysis_transport_schema(_legacy_initial_analysis_response_schema())
 
 
 def _valid_initial_analysis_payload() -> dict[str, object]:
@@ -175,6 +180,18 @@ def _valid_initial_analysis_payload() -> dict[str, object]:
     market_snapshot["spread"] = 0
     market_snapshot["spread_percentage"] = 0
     return payload
+
+
+def _valid_initial_analysis_v2_payload() -> dict[str, object]:
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "schemas"
+        / "fixtures"
+        / "valid"
+        / "v1"
+        / "initial_analysis_v2.valid.json"
+    )
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 def _transport_initial_analysis_payload() -> dict[str, object]:
@@ -194,7 +211,13 @@ def _transport_initial_analysis_payload() -> dict[str, object]:
 
 
 def _provider_with_schema(**kwargs: Any) -> GeminiProvider:
-    kwargs.setdefault("response_schemas", {"initial_analysis": _initial_analysis_response_schema()})
+    kwargs.setdefault(
+        "response_schemas",
+        {
+            "initial_analysis_v2": _initial_analysis_response_schema(),
+            "initial_analysis": _legacy_initial_analysis_response_schema(),
+        },
+    )
     return GeminiProvider(**kwargs)
 
 
@@ -272,11 +295,14 @@ def _real_request(
     return ProviderRequest(
         request_id=uuid.uuid4(),
         analysis_type="INITIAL_ANALYSIS",
-        prompt_version="1.0.0",
+        prompt_version="2.0.0",
         user_prompt=user_prompt,
         expected_schema_name=expected_schema_name,
         expected_schema_version=expected_schema_version,
-        system_prompt="Jawab singkat dan patuhi schema.",
+        system_prompt=(
+            "Jawab singkat dan patuhi schema. "
+            "Semua nilai string naratif untuk pengguna wajib Bahasa Indonesia, bukan Inggris."
+        ),
         images=images,
         structured_output_schema=structured_output_schema,
         timeout_seconds=timeout_seconds,
@@ -286,6 +312,10 @@ def _real_request(
 def _final_recommendation_label(payload: Mapping[str, object] | None) -> str | None:
     if not isinstance(payload, Mapping):
         return None
+    decision = payload.get("decision")
+    if isinstance(decision, Mapping):
+        recommendation = decision.get("recommendation")
+        return str(recommendation) if recommendation is not None else None
     trading_plan = payload.get("trading_plan")
     if not isinstance(trading_plan, Mapping):
         return None
@@ -428,10 +458,10 @@ def _text_request(**overrides: Any) -> ProviderRequest:
     kwargs = dict(
         request_id=uuid.uuid4(),
         analysis_type="INITIAL_ANALYSIS",
-        prompt_version="1.0.0",
+        prompt_version="2.0.0",
         user_prompt="Analyze this chart",
-        expected_schema_name="initial_analysis",
-        expected_schema_version="1.0",
+        expected_schema_name="initial_analysis_v2",
+        expected_schema_version="2.0.0",
         system_prompt="You are a helpful analyst.",
     )
     kwargs.update(overrides)
@@ -670,14 +700,21 @@ class TestStructuredOutput:
 
         assert fake_model.last_generation_config is not None
         assert fake_model.last_generation_config["response_mime_type"] == "application/json"
-        assert fake_model.last_generation_config["response_json_schema"] == _initial_analysis_transport_schema()
+        assert fake_model.last_generation_config["response_json_schema"] == _strip_schema_metadata(
+            _initial_analysis_response_schema()
+        )
 
     async def test_transport_schema_reduces_chart_level_fields(
         self,
         provider: GeminiProvider,
         fake_model: FakeGeminiModel,
     ) -> None:
-        await provider.generate(_text_request())
+        await provider.generate(
+            _text_request(
+                expected_schema_name="initial_analysis",
+                expected_schema_version="1.0.0",
+            )
+        )
 
         schema = fake_model.last_generation_config["response_json_schema"]
         chart = schema["properties"]["chart_3_month_analysis"]
@@ -704,7 +741,7 @@ class TestStructuredOutput:
 
     def test_transport_schema_preserves_top_level_contract_and_reduces_chart_complexity(self) -> None:
         raw_schema = json.loads((_schema_root() / "initial_analysis.schema.json").read_text())
-        canonical = _initial_analysis_response_schema()
+        canonical = _legacy_initial_analysis_response_schema()
         transport = _initial_analysis_transport_schema()
 
         assert transport["required"] == raw_schema["required"]
@@ -732,7 +769,7 @@ class TestStructuredOutput:
         self,
         fake_model: FakeGeminiModel,
     ) -> None:
-        payload = _valid_initial_analysis_payload()
+        payload = _valid_initial_analysis_v2_payload()
         provider = _provider_with_schema(
             api_key="test-key",
             model=FakeGeminiModel(response=FakeGeminiResponse(text=json.dumps(payload))),
@@ -770,13 +807,15 @@ class TestStructuredOutput:
             "summary": "Level resistance tiga bulan yang dinormalisasi dari respons transport Gemini.",
         }
 
-        validation = UnifiedValidationService(
-            schema_package_root=str(_schema_root()),
-        ).validate(
+        manifest = load_production_manifest(_schema_root())
+        schema_validation = JsonSchemaValidationService(
+            LocalSchemaRegistry(manifest, _schema_root())
+        ).validate_by_name(
             normalized,
-            expected_analysis_type="INITIAL_ANALYSIS",
+            "initial_analysis",
+            "1.0.0",
         )
-        assert validation.valid is True
+        assert schema_validation.valid is True
 
     def test_transport_normalizer_injects_canonical_chart_timestamps(self) -> None:
         transport_payload = _transport_initial_analysis_payload()
@@ -906,8 +945,8 @@ class TestStructuredOutput:
             )
             request = _real_request(
                 user_prompt=prompt,
-                expected_schema_name="initial_analysis",
-                expected_schema_version="1.0.0",
+                expected_schema_name="initial_analysis_v2",
+                expected_schema_version="2.0.0",
                 structured_output_schema=partition_schemas[partition.name].provider_schema,
                 images=select_partition_images(partition_name=partition.name, images=images),
                 timeout_seconds=60,
@@ -929,11 +968,7 @@ class TestStructuredOutput:
 
             elapsed_seconds = round(time.monotonic() - started_at, 3)
             parsed = json.loads(response.raw_output)
-            normalized = (
-                normalize_initial_analysis_transport_payload(parsed)
-                if partition.name == "CHART_ANALYSIS"
-                else parsed
-            )
+            normalized = parsed
             is_valid, issues = validate_partition_payload(
                 payload=normalized,
                 partition_name=partition.name,
@@ -994,8 +1029,8 @@ class TestStructuredOutput:
             merged_payload = merge_partition_payloads(validated_partitions)
             schema_validation = schema_service.validate_by_name(
                 merged_payload,
-                "initial_analysis",
-                "1.0.0",
+                "initial_analysis_v2",
+                "2.0.0",
             )
             if schema_validation.valid:
                 full_validation = unified_validation.validate(
@@ -1023,6 +1058,12 @@ class TestStructuredOutput:
                     "latency_totals": {
                         "latency_ms": total_latency_ms,
                         "elapsed_seconds": total_elapsed_seconds,
+                    },
+                    "baseline": {
+                        "total_output_tokens": 1989,
+                        "reduction_percentage": round((1989 - total_output_tokens) / 1989 * 100, 2)
+                        if total_output_tokens
+                        else None,
                     },
                     "merged": merged_payload is not None,
                     "merged_payload": merged_payload,
@@ -1065,6 +1106,7 @@ class TestStructuredOutput:
         assert isinstance(merged_payload, dict) and bool(merged_payload)
         assert schema_validation is not None
         assert full_validation is not None
+        assert total_output_tokens <= 1292
 
 
 # ===================================================================

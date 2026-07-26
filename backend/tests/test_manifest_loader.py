@@ -58,13 +58,13 @@ def test_typed_manifest() -> None:
 
 def test_exact_schema_count() -> None:
     manifest = load_production_manifest(PRODUCTION_DIR)
-    assert len(manifest.schemas) == 10
+    assert len(manifest.schemas) == 11
 
 
 def test_active_schema_count() -> None:
     manifest = load_production_manifest(PRODUCTION_DIR)
     active = manifest.active_schemas()
-    assert len(active) == 10
+    assert len(active) == 11
 
 
 def test_required_analysis_mappings_work() -> None:
@@ -99,6 +99,7 @@ def test_deterministic_ordering() -> None:
         "trade_state",
         "evidence",
         "initial_analysis",
+        "initial_analysis_v2",
         "watching_update",
         "open_position_update",
         "partial_exit_review",

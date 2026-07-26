@@ -128,7 +128,6 @@
       "schema_id": "https://schemas.tradepilot.local/production/v1/initial_analysis.schema.json",
       "description": "First structured analysis before a position is opened, including charts, orderbook, entry, stop loss, target, thesis, and initial trading plan.",
       "analysis_types": [
-        "INITIAL_ANALYSIS"
       ],
       "valid_session_statuses": [
         "READY_FOR_ANALYSIS",
@@ -142,6 +141,34 @@
         "market_snapshot",
         "evidence"
       ],
+      "used_by": [
+        "ai_analysis_worker",
+        "trade_session_page",
+        "context_summary_builder"
+      ]
+    },
+
+    {
+      "name": "initial_analysis_v2",
+      "title": "TradePilot AI Compact Initial Analysis v2",
+      "version": "2.0.0",
+      "category": "AI_ANALYSIS",
+      "root_schema": true,
+      "active": true,
+      "file": "initial_analysis_v2.schema.json",
+      "schema_id": "https://schemas.tradepilot.local/production/v1/initial_analysis_v2.schema.json",
+      "description": "Compact initial analysis contract preserving decision-critical trading fields with reduced narrative output.",
+      "analysis_types": [
+        "INITIAL_ANALYSIS"
+      ],
+      "valid_session_statuses": [
+        "READY_FOR_ANALYSIS",
+        "ANALYZING"
+      ],
+      "resulting_session_statuses": [
+        "WATCHING"
+      ],
+      "dependencies": [],
       "used_by": [
         "ai_analysis_worker",
         "trade_session_page",
@@ -323,8 +350,8 @@
 
   "analysis_type_registry": {
     "INITIAL_ANALYSIS": {
-      "schema": "initial_analysis",
-      "schema_version": "1.0.0",
+      "schema": "initial_analysis_v2",
+      "schema_version": "2.0.0",
       "requires_position": false,
       "requires_user_confirmation_before_execution": true,
       "required_evidence": [

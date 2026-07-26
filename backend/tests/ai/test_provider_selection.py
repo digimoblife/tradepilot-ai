@@ -76,7 +76,7 @@ def test_production_selection_is_gemini_only(monkeypatch: pytest.MonkeyPatch) ->
     assert provider_config.providers["gemini"].model == "gemini-3.1-flash-lite"
     assert provider_config.providers["gemini"].capabilities.supports_images is True
     assert provider_config.providers["gemini"].capabilities.supports_text_output is True
-    assert "initial_analysis" in provider_config.providers["gemini"].response_schemas
+    assert "initial_analysis_v2" in provider_config.providers["gemini"].response_schemas
 
 
 def test_gemini_model_override_still_builds_selected_model(

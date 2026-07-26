@@ -155,7 +155,7 @@ def _build_gemini(config: Any) -> GeminiProvider:
         timeout_seconds=int(getattr(config, "gemini_timeout_seconds", 120)),
         image_loader=lambda image: storage.read(file_reference=image.storage_reference),
         capabilities=capabilities,
-        response_schemas={"initial_analysis": initial_analysis_schema},
+        response_schemas={"initial_analysis_v2": initial_analysis_schema},
     )
 
 

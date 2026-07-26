@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { listAnalyses, getAnalysis } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { AnalysisDetail, AnalysisSummary } from "@/types/analysis";
-import type { InitialAnalysisPayload } from "./types";
+import type { InitialAnalysisPayload, InitialAnalysisV2Payload } from "./types";
 import { AnalysisSection } from "./analysis-section";
 import { AnalysisValue } from "./analysis-value";
 import {
@@ -18,7 +18,7 @@ type LoadState =
   | { status: "loading" }
   | { status: "empty" }
   | { status: "error"; message: string; retry: () => void }
-  | { status: "loaded"; payload: InitialAnalysisPayload; detail: AnalysisDetail };
+  | { status: "loaded"; payload: InitialAnalysisPayload | InitialAnalysisV2Payload; detail: AnalysisDetail };
 
 interface Props {
   sessionId: string;
@@ -144,6 +144,9 @@ export function InitialAnalysisView({ sessionId, onEmpty, onLoaded, selectedAnal
 
   const { payload } = state;
   const rawPayload = payload as unknown as Record<string, unknown>;
+  if (isInitialAnalysisV2(rawPayload)) {
+    return <InitialAnalysisV2View payload={withV2Fallbacks(rawPayload)} detail={state.detail} />;
+  }
   const p = withDisplayFallbacks(rawPayload);
   const extraTopLevelFields = additionalTopLevelFields(rawPayload);
 
@@ -911,6 +914,166 @@ export function InitialAnalysisView({ sessionId, onEmpty, onLoaded, selectedAnal
   );
 }
 
+function InitialAnalysisV2View({
+  payload,
+  detail,
+}: {
+  payload: InitialAnalysisV2Payload;
+  detail: AnalysisDetail;
+}) {
+  return (
+    <div className="space-y-4">
+      <AnalysisSection title="Keputusan">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <AnalysisValue
+              label="Rekomendasi"
+              value={enumLabel("recommended_action", payload.decision.recommendation)}
+            />
+            <AnalysisValue
+              label="Bias"
+              value={enumLabel("bias", payload.decision.bias)}
+            />
+            <AnalysisValue
+              label="Keyakinan"
+              value={percentage(payload.decision.confidence)}
+            />
+            <AnalysisValue
+              label="Kualitas Setup"
+              value={enumLabel("setup_quality", payload.decision.setup_quality)}
+            />
+            <AnalysisValue
+              label="Tingkat Risiko"
+              value={enumLabel("risk_level", payload.decision.risk_level)}
+            />
+          </div>
+          <div className="text-sm">
+            <span className="text-zinc-400">Ringkasan</span>
+            <p className="mt-1 text-zinc-800">{payload.decision.summary}</p>
+          </div>
+        </div>
+      </AnalysisSection>
+
+      <AnalysisSection title="Rencana Trading">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <AnalysisValue label="Support" value={currency(payload.trade_plan.nearest_support)} />
+          <AnalysisValue label="Resistance" value={currency(payload.trade_plan.nearest_resistance)} />
+          <AnalysisValue label="Entry Bawah" value={currency(payload.trade_plan.entry_zone_low)} />
+          <AnalysisValue label="Entry Atas" value={currency(payload.trade_plan.entry_zone_high)} />
+          <AnalysisValue label="Chase Limit" value={currency(payload.trade_plan.chase_limit)} />
+          <AnalysisValue label="Stop Loss" value={currency(payload.trade_plan.stop_loss)} />
+          <AnalysisValue label="Target 1" value={currency(payload.trade_plan.target_1)} />
+          <AnalysisValue label="Target 2" value={currency(payload.trade_plan.target_2)} />
+          <AnalysisValue label="Invalidasi" value={currency(payload.trade_plan.invalidation)} />
+          <AnalysisValue label="Risk/Reward" value={enumLabel("risk_reward", payload.trade_plan.risk_reward)} />
+        </div>
+        <p className="mt-3 text-xs italic text-zinc-400">
+          Rekomendasi AI, bukan posisi, stop loss, atau target terkonfirmasi.
+        </p>
+      </AnalysisSection>
+
+      <AnalysisSection title="Probabilitas">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <AnalysisValue label="Bullish" value={percentage(payload.probabilities.bullish)} />
+          <AnalysisValue label="Target 1" value={percentage(payload.probabilities.target_1)} />
+          <AnalysisValue label="Downside" value={percentage(payload.probabilities.downside)} />
+        </div>
+        <p className="mt-3 text-xs italic text-zinc-400">
+          Estimasi AI, bukan kepastian.
+        </p>
+      </AnalysisSection>
+
+      <AnalysisSection title="Alasan, Risiko, Monitoring">
+        <div className="grid gap-3 md:grid-cols-3">
+          <CompactList title="Alasan" items={payload.next_actions.reasons} />
+          <CompactList title="Risiko" items={payload.next_actions.risks} tone="risk" />
+          <CompactList title="Monitoring" items={payload.next_actions.monitoring} />
+        </div>
+      </AnalysisSection>
+
+      <AnalysisSection title="Skenario">
+        <div className="grid gap-3 md:grid-cols-3">
+          <AnalysisValue label="Bullish" value={payload.scenarios.bullish} />
+          <AnalysisValue label="Netral" value={payload.scenarios.neutral} />
+          <AnalysisValue label="Bearish" value={payload.scenarios.bearish} />
+        </div>
+      </AnalysisSection>
+
+      <AnalysisSection title="Fakta Pasar">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <AnalysisValue label="Open" value={currency(payload.market_facts.open)} />
+          <AnalysisValue label="High" value={currency(payload.market_facts.high)} />
+          <AnalysisValue label="Low" value={currency(payload.market_facts.low)} />
+          <AnalysisValue label="Last/Close" value={currency(payload.market_facts.close_or_last)} />
+          <AnalysisValue label="Average" value={currency(payload.market_facts.average)} />
+          <AnalysisValue label="Best Bid" value={currency(payload.market_facts.best_bid)} />
+          <AnalysisValue label="Best Offer" value={currency(payload.market_facts.best_offer)} />
+          <AnalysisValue label="Foreign Net" value={currency(payload.market_facts.foreign_net)} />
+        </div>
+      </AnalysisSection>
+
+      <AnalysisSection title="Temuan Evidence">
+        <div className="space-y-2">
+          <CompactDetails title="Orderbook" items={payload.evidence_findings.orderbook} />
+          <CompactDetails title="Chart 3 Bulan" items={payload.evidence_findings.chart_3_month} />
+          <CompactDetails title="Chart 6 Bulan" items={payload.evidence_findings.chart_6_month} />
+          <CompactDetails title="Broker" items={payload.evidence_findings.broker_summary} />
+          <CompactDetails title="Foreign Flow" items={payload.evidence_findings.foreign_flow} />
+          <CompactDetails title="Keterbatasan" items={payload.evidence_findings.limitations} />
+        </div>
+      </AnalysisSection>
+
+      <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-zinc-400">
+          <span>Tipe: INITIAL_ANALYSIS</span>
+          <span>Versi Skema: {payload.metadata.schema_version}</span>
+          <span>Skema: {payload.metadata.schema_name}</span>
+          <span>Prompt: {payload.metadata.prompt_version}</span>
+          <span>Waktu Analisis: {formatTimestamp(payload.metadata.analysis_timestamp)}</span>
+          <span>ID Analisis: {detail.id}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompactList({
+  title,
+  items,
+  tone = "default",
+}: {
+  title: string;
+  items: string[];
+  tone?: "default" | "risk";
+}) {
+  const textClass = tone === "risk" ? "text-amber-700" : "text-zinc-800";
+  return (
+    <div className="text-sm">
+      <span className="text-zinc-400">{title}</span>
+      {items.length === 0 ? (
+        <p className="mt-1 text-zinc-400">Tidak tersedia</p>
+      ) : (
+        <ul className={`mt-1 list-inside list-disc ${textClass}`}>
+          {items.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CompactDetails({ title, items }: { title: string; items: string[] }) {
+  return (
+    <details className="rounded border border-zinc-100 bg-zinc-50 px-3 py-2">
+      <summary className="cursor-pointer text-sm font-medium text-zinc-600">
+        {title}
+      </summary>
+      <CompactList title="" items={items} />
+    </details>
+  );
+}
+
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
@@ -946,7 +1109,98 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "trading_plan",
   "ai_assessment",
   "warnings_and_missing_information",
+  "decision",
+  "market_facts",
+  "evidence_findings",
+  "trade_plan",
+  "probabilities",
+  "scenarios",
+  "next_actions",
 ]);
+
+function isInitialAnalysisV2(raw: Record<string, unknown>): boolean {
+  const metadata = asRecord(raw.metadata);
+  return (
+    metadata.schema_name === "initial_analysis_v2" ||
+    metadata.schema_version === "2.0.0" ||
+    ("decision" in raw && "trade_plan" in raw && "next_actions" in raw)
+  );
+}
+
+function withV2Fallbacks(raw: Record<string, unknown>): InitialAnalysisV2Payload {
+  const metadata = asRecord(raw.metadata);
+  const decision = asRecord(raw.decision);
+  const marketFacts = asRecord(raw.market_facts);
+  const evidenceFindings = asRecord(raw.evidence_findings);
+  const tradePlan = asRecord(raw.trade_plan);
+  const probabilities = asRecord(raw.probabilities);
+  const scenarios = asRecord(raw.scenarios);
+  const nextActions = asRecord(raw.next_actions);
+
+  return {
+    metadata: {
+      session_id: asString(metadata.session_id),
+      ticker: asString(metadata.ticker),
+      analysis_timestamp: asNullableString(metadata.analysis_timestamp),
+      schema_name: asString(metadata.schema_name),
+      schema_version: asString(metadata.schema_version),
+      prompt_version: asString(metadata.prompt_version),
+    },
+    decision: {
+      recommendation: asString(decision.recommendation),
+      bias: asString(decision.bias),
+      confidence: asNumber(decision.confidence),
+      setup_quality: asString(decision.setup_quality),
+      risk_level: asString(decision.risk_level),
+      summary: asString(decision.summary),
+    },
+    market_facts: {
+      open: asNumber(marketFacts.open),
+      high: asNumber(marketFacts.high),
+      low: asNumber(marketFacts.low),
+      close_or_last: asNumber(marketFacts.close_or_last),
+      average: asNumber(marketFacts.average),
+      best_bid: asNumber(marketFacts.best_bid),
+      best_offer: asNumber(marketFacts.best_offer),
+      foreign_net: asNumber(marketFacts.foreign_net),
+    },
+    evidence_findings: {
+      orderbook: asStringArray(evidenceFindings.orderbook),
+      chart_3_month: asStringArray(evidenceFindings.chart_3_month),
+      chart_6_month: asStringArray(evidenceFindings.chart_6_month),
+      broker_summary: asStringArray(evidenceFindings.broker_summary),
+      foreign_flow: asStringArray(evidenceFindings.foreign_flow),
+      limitations: asStringArray(evidenceFindings.limitations),
+    },
+    trade_plan: {
+      nearest_support: asNumber(tradePlan.nearest_support),
+      nearest_resistance: asNumber(tradePlan.nearest_resistance),
+      entry_zone_low: asNumber(tradePlan.entry_zone_low),
+      entry_zone_high: asNumber(tradePlan.entry_zone_high),
+      chase_limit: asNumber(tradePlan.chase_limit),
+      stop_loss: asNumber(tradePlan.stop_loss),
+      target_1: asNumber(tradePlan.target_1),
+      target_2: asNumber(tradePlan.target_2),
+      invalidation: asNumber(tradePlan.invalidation),
+      risk_reward: asString(tradePlan.risk_reward),
+    },
+    probabilities: {
+      bullish: asNumber(probabilities.bullish),
+      target_1: asNumber(probabilities.target_1),
+      downside: asNumber(probabilities.downside),
+    },
+    scenarios: {
+      bullish: asString(scenarios.bullish),
+      neutral: asString(scenarios.neutral),
+      bearish: asString(scenarios.bearish),
+    },
+    next_actions: {
+      reasons: asStringArray(nextActions.reasons),
+      risks: asStringArray(nextActions.risks),
+      monitoring: asStringArray(nextActions.monitoring),
+    },
+  };
+}
 
 function withDisplayFallbacks(raw: Record<string, unknown>): InitialAnalysisPayload {
   const metadata = asRecord(raw.metadata);
@@ -1135,6 +1389,11 @@ function asString(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return DISPLAY_FALLBACK;
+}
+
+function asNullableString(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value;
+  return null;
 }
 
 function asNumber(value: unknown): number | null {

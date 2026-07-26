@@ -322,6 +322,13 @@ class GeminiProvider(AIProvider):
                     message="Initial Analysis Gemini response schema is not configured",
                 )
             return build_initial_analysis_transport_schema(schema)
+        if request.expected_schema_name == "initial_analysis_v2":
+            schema = self._response_schemas.get("initial_analysis_v2")
+            if schema is None:
+                raise GeminiConfigurationError(
+                    message="Initial Analysis v2 Gemini response schema is not configured",
+                )
+            return _strip_schema_metadata(schema)
         return None
 
     @staticmethod
@@ -576,9 +583,10 @@ def _normalize_provider_response_id(raw: Any) -> str | None:
 
 def load_initial_analysis_response_schema(
     schema_package_root: str | Path = "schemas/production/v1",
+    schema_name: str = "initial_analysis_v2",
 ) -> dict[str, object]:
     package_root = Path(schema_package_root)
-    schema_path = package_root / "initial_analysis.schema.json"
+    schema_path = package_root / f"{schema_name}.schema.json"
     if not schema_path.is_file():
         raise GeminiSchemaConversionError(
             message=f"Initial Analysis schema file not found: {schema_path}",

@@ -35,6 +35,7 @@ MANIFEST = _load(PRODUCTION_DIR / "manifest.json")
 # Map lowercased schema name for cross-schema fixture lookup
 ANALYSIS_SCHEMAS = {
     "initial_analysis",
+    "initial_analysis_v2",
     "watching_update",
     "open_position_update",
     "partial_exit_review",
@@ -47,6 +48,7 @@ EXPECTED_SCHEMA_FILES = {
     "trade_state.schema.json",
     "evidence.schema.json",
     "initial_analysis.schema.json",
+    "initial_analysis_v2.schema.json",
     "watching_update.schema.json",
     "open_position_update.schema.json",
     "partial_exit_review.schema.json",
@@ -55,7 +57,7 @@ EXPECTED_SCHEMA_FILES = {
 }
 
 ANALYSIS_TYPE_MAP = {
-    "INITIAL_ANALYSIS": "initial_analysis",
+    "INITIAL_ANALYSIS": "initial_analysis_v2",
     "WATCHING_UPDATE": "watching_update",
     "OPEN_POSITION_UPDATE": "open_position_update",
     "PARTIAL_EXIT_REVIEW": "partial_exit_review",
@@ -82,7 +84,7 @@ def test_exact_file_count() -> None:
         f"Schema count mismatch. Missing: {EXPECTED_SCHEMA_FILES - actual}. "
         f"Extra: {actual - EXPECTED_SCHEMA_FILES}"
     )
-    assert len(actual) == 10
+    assert len(actual) == 11
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +104,7 @@ def test_exact_filenames() -> None:
 
 def test_manifest_entry_count() -> None:
     entries = MANIFEST["schemas"]
-    assert len(entries) == 10, f"Expected 10 manifest entries, got {len(entries)}"
+    assert len(entries) == 11, f"Expected 11 manifest entries, got {len(entries)}"
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +416,7 @@ def test_offline_package_load() -> None:
 def test_valid_fixture_versions() -> None:
     analysis_schemas = {
         "initial_analysis",
+        "initial_analysis_v2",
         "watching_update",
         "open_position_update",
         "partial_exit_review",
@@ -429,7 +432,11 @@ def test_valid_fixture_versions() -> None:
                 expected_ver = entry["version"]
                 meta = instance.get("metadata", {})
                 schema_block = meta.get("schema", {})
-                fv = schema_block.get("schema_version", "")
+                fv = (
+                    meta.get("schema_version")
+                    if name_part == "initial_analysis_v2"
+                    else schema_block.get("schema_version", "")
+                )
                 _assert_diagnostic(
                     fv == expected_ver,
                     "Fixture version mismatch",

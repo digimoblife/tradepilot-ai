@@ -181,3 +181,67 @@ export interface InitialAnalysisPayload {
   ai_assessment: AiAssessment;
   warnings_and_missing_information: WarningsInfo;
 }
+
+export interface InitialAnalysisV2Payload {
+  metadata: {
+    session_id: string;
+    ticker: string;
+    analysis_timestamp: string | null;
+    schema_name: string;
+    schema_version: string;
+    prompt_version: string;
+  };
+  decision: {
+    recommendation: string;
+    bias: string;
+    confidence: number | null;
+    setup_quality: string;
+    risk_level: string;
+    summary: string;
+  };
+  market_facts: {
+    open: number | null;
+    high: number | null;
+    low: number | null;
+    close_or_last: number | null;
+    average: number | null;
+    best_bid: number | null;
+    best_offer: number | null;
+    foreign_net: number | null;
+  };
+  evidence_findings: {
+    orderbook: string[];
+    chart_3_month: string[];
+    chart_6_month: string[];
+    broker_summary: string[];
+    foreign_flow: string[];
+    limitations: string[];
+  };
+  trade_plan: {
+    nearest_support: number | null;
+    nearest_resistance: number | null;
+    entry_zone_low: number | null;
+    entry_zone_high: number | null;
+    chase_limit: number | null;
+    stop_loss: number | null;
+    target_1: number | null;
+    target_2: number | null;
+    invalidation: number | null;
+    risk_reward: string;
+  };
+  probabilities: {
+    bullish: number | null;
+    target_1: number | null;
+    downside: number | null;
+  };
+  scenarios: {
+    bullish: string;
+    neutral: string;
+    bearish: string;
+  };
+  next_actions: {
+    reasons: string[];
+    risks: string[];
+    monitoring: string[];
+  };
+}

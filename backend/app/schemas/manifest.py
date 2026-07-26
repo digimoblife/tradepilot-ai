@@ -44,7 +44,7 @@ REQUIRED_ANALYSIS_TYPES = frozenset(
 )
 
 ANALYSIS_TYPE_INTERNAL_MAP: Mapping[str, str] = {
-    "INITIAL_ANALYSIS": "initial_analysis",
+    "INITIAL_ANALYSIS": "initial_analysis_v2",
     "WATCHING_UPDATE": "watching_update",
     "OPEN_POSITION_UPDATE": "open_position_update",
     "PARTIAL_EXIT_REVIEW": "partial_exit_review",

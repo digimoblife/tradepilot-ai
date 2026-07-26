@@ -178,12 +178,12 @@ class TestLookup:
     def test_exact_version_lookup(self, registry: PromptRegistry) -> None:
         definition = registry.get(
             analysis_type="INITIAL_ANALYSIS",
-            prompt_version="1.0.0",
+            prompt_version="2.0.0",
         )
-        assert definition.prompt_version == "1.0.0"
+        assert definition.prompt_version == "2.0.0"
 
     def test_default_version_lookup(self, registry: PromptRegistry) -> None:
-        explicit = registry.get(analysis_type="INITIAL_ANALYSIS", prompt_version="1.0.0")
+        explicit = registry.get(analysis_type="INITIAL_ANALYSIS", prompt_version="2.0.0")
         default = registry.get(analysis_type="INITIAL_ANALYSIS")
         assert explicit is default
 
@@ -239,8 +239,8 @@ class TestPromptContent:
 
     def test_expected_schema_identity(self, registry: PromptRegistry) -> None:
         d = registry.get(analysis_type="INITIAL_ANALYSIS")
-        assert d.expected_schema_name == "initial_analysis"
-        assert d.expected_schema_version == "1.0.0"
+        assert d.expected_schema_name == "initial_analysis_v2"
+        assert d.expected_schema_version == "2.0.0"
 
     def test_open_position_schema_identity(self, registry: PromptRegistry) -> None:
         d = registry.get(analysis_type="OPEN_POSITION_UPDATE")
@@ -472,38 +472,31 @@ class TestProductionPromptCatalog:
 
 class TestInitialAnalysisProductionContract:
     _EXPECTED_CANONICAL_FIELDS = (
+        "metadata",
+        "decision",
+        "market_facts",
+        "evidence_findings",
+        "trade_plan",
+        "probabilities",
+        "scenarios",
+        "next_actions",
+    )
+    _REMOVED_V1_FIELDS = (
+        "executive_summary",
         "evidence_summary",
+        "market_snapshot",
+        "orderbook_analysis",
         "chart_3_month_analysis",
         "chart_6_month_analysis",
         "combined_chart_analysis",
+        "price_levels",
         "entry_plan",
+        "stop_loss_plan",
+        "target_plan",
+        "initial_thesis",
+        "trading_plan",
         "ai_assessment",
         "warnings_and_missing_information",
-    )
-    _LEGACY_ALIASES = (
-        "chart_analysis_3m",
-        "chart_analysis_6m",
-        "data_gaps_and_limitations",
-    )
-    _EXPECTED_AI_ASSESSMENT_FIELDS = (
-        "bias",
-        "confidence",
-        "setup_quality",
-        "bullish_probability",
-        "target_probability",
-        "downside_probability",
-        "risk_level",
-        "setup_valid",
-        "summary",
-    )
-    _AI_ASSESSMENT_ENUM_LINES = (
-        "STRONGLY_BULLISH | BULLISH | NEUTRAL | BEARISH | STRONGLY_BEARISH | UNCERTAIN",
-        "EXCELLENT | GOOD | FAIR | WEAK | INVALID | UNKNOWN",
-        "LOW | MODERATE | HIGH | VERY_HIGH | UNKNOWN",
-    )
-    _LEGACY_AI_ASSESSMENT_FIELDS = (
-        "invalidation_conditions",
-        "next_milestones_to_monitor",
     )
 
     @staticmethod
@@ -529,17 +522,17 @@ class TestInitialAnalysisProductionContract:
 
     @staticmethod
     def _extract_explicit_top_level_fields(prompt: str) -> list[str]:
-        marker = "Required top-level JSON properties (exact names, no extras):"
+        marker = "Required top-level JSON properties:"
         start = prompt.index(marker) + len(marker)
-        end = prompt.index("Minimal top-level JSON skeleton:", start)
+        end = prompt.index("metadata requirements:", start)
         lines = prompt[start:end].splitlines()
         return [line[2:].strip() for line in lines if line.startswith("- ")]
 
     @staticmethod
-    def _extract_explicit_ai_assessment_fields(prompt: str) -> list[str]:
-        marker = "Nested ai_assessment contract (exact fields, no extras):"
+    def _extract_forbidden_v1_fields(prompt: str) -> list[str]:
+        marker = "Forbidden v1 narrative fields:"
         start = prompt.index(marker) + len(marker)
-        end = prompt.index("ai_assessment enum values:", start)
+        end = prompt.index("Do not return Markdown.", start)
         lines = prompt[start:end].splitlines()
         return [line[2:].strip() for line in lines if line.startswith("- ")]
 
@@ -548,46 +541,26 @@ class TestInitialAnalysisProductionContract:
         for field in self._EXPECTED_CANONICAL_FIELDS:
             assert field in prompt
 
-    def test_rendered_prompt_excludes_legacy_aliases(self) -> None:
-        prompt = self._rendered_initial_analysis_prompt()
-        contract_body = prompt.split("Forbidden legacy top-level aliases:")[0]
-        for alias in self._LEGACY_ALIASES:
-            assert alias not in contract_body
-
     def test_explicit_top_level_field_list_matches_schema_required_fields(self) -> None:
         prompt = self._rendered_initial_analysis_prompt()
         listed_fields = self._extract_explicit_top_level_fields(prompt)
 
         repo_root = Path(__file__).resolve().parent.parent.parent.parent
-        schema_path = repo_root / "schemas" / "production" / "v1" / "initial_analysis.schema.json"
+        schema_path = repo_root / "schemas" / "production" / "v1" / "initial_analysis_v2.schema.json"
         schema_required = json.loads(schema_path.read_text(encoding="utf-8"))["required"]
 
         assert listed_fields == schema_required
 
-    def test_ai_assessment_required_fields_are_present(self) -> None:
+    def test_compact_limits_are_present(self) -> None:
         prompt = self._rendered_initial_analysis_prompt()
-        for field in self._EXPECTED_AI_ASSESSMENT_FIELDS:
-            assert field in prompt
+        assert "decision.summary maximum 50 words" in prompt
+        assert "Every finding item maximum 20 words" in prompt
+        assert "Maximum 3 items per array" in prompt
+        assert "Every scenario maximum 25 words" in prompt
+        assert "No generic disclaimers in generated prose" in prompt
+        assert "limitations must mention only missing or unreadable evidence/data constraints" in prompt
+        assert "investment advice" in prompt
 
-    def test_ai_assessment_enum_values_are_present(self) -> None:
+    def test_removed_v1_narrative_fields_are_forbidden(self) -> None:
         prompt = self._rendered_initial_analysis_prompt()
-        for enum_line in self._AI_ASSESSMENT_ENUM_LINES:
-            assert enum_line in prompt
-
-    def test_forbidden_legacy_ai_assessment_fields_are_absent_from_usable_contract(self) -> None:
-        prompt = self._rendered_initial_analysis_prompt()
-        contract_body = prompt.split("Forbidden legacy ai_assessment fields:")[0]
-        for field in self._LEGACY_AI_ASSESSMENT_FIELDS:
-            assert field not in contract_body
-
-    def test_explicit_ai_assessment_field_list_matches_schema_required_fields(self) -> None:
-        prompt = self._rendered_initial_analysis_prompt()
-        listed_fields = self._extract_explicit_ai_assessment_fields(prompt)
-
-        repo_root = Path(__file__).resolve().parent.parent.parent.parent
-        schema_path = repo_root / "schemas" / "production" / "v1" / "initial_analysis.schema.json"
-        schema_required = json.loads(schema_path.read_text(encoding="utf-8"))["$defs"][
-            "initialAiAssessment"
-        ]["required"]
-
-        assert listed_fields == schema_required
+        assert tuple(self._extract_forbidden_v1_fields(prompt)) == self._REMOVED_V1_FIELDS

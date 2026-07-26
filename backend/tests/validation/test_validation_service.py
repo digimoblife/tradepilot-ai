@@ -77,11 +77,10 @@ class TestSchemaFailure:
 class TestDomainFailure:
     def test_domain_issue_appears(self) -> None:
         svc = _make_service()
-        payload = _load_fixture("initial_analysis.valid.json")
-        # Break an OHLC relationship in the market_snapshot
-        market = payload.get("market_snapshot")
-        if isinstance(market, dict):
-            market["high"] = 1000  # below low (2770)
+        payload = _load_fixture("initial_analysis_v2.valid.json")
+        plan = payload.get("trade_plan")
+        if isinstance(plan, dict):
+            plan["stop_loss"] = 2820
         result = svc.validate(payload, "INITIAL_ANALYSIS")
         assert not result.valid
         domain_errors = [i for i in result.errors if i.category == ValidationCategory.DOMAIN]

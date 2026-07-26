@@ -51,6 +51,70 @@ function makeAnalysisDetail(
   };
 }
 
+const initialAnalysisV2Payload = {
+  metadata: {
+    session_id: "sess-a",
+    ticker: "BBRI",
+    analysis_timestamp: "2026-07-26T10:00:00+07:00",
+    schema_name: "initial_analysis_v2",
+    schema_version: "2.0.0",
+    prompt_version: "2.0.0",
+  },
+  decision: {
+    recommendation: "WAIT",
+    bias: "BULLISH",
+    confidence: 72,
+    setup_quality: "GOOD",
+    risk_level: "MODERATE",
+    summary: "Setup menarik, tetapi entry perlu menunggu pullback dekat support.",
+  },
+  market_facts: {
+    open: 2780,
+    high: 2840,
+    low: 2760,
+    close_or_last: 2810,
+    average: 2805,
+    best_bid: 2800,
+    best_offer: 2810,
+    foreign_net: 1200000000,
+  },
+  evidence_findings: {
+    orderbook: ["Bid tebal di 2800 menopang harga."],
+    chart_3_month: ["Trend naik jangka menengah masih terjaga."],
+    chart_6_month: ["Area 2900 menjadi resistance terdekat."],
+    broker_summary: ["Broker domestik masih akumulatif."],
+    foreign_flow: ["Foreign net buy ringan."],
+    limitations: ["Data indikator volume terbatas."],
+  },
+  trade_plan: {
+    nearest_support: 2780,
+    nearest_resistance: 2900,
+    entry_zone_low: 2780,
+    entry_zone_high: 2810,
+    chase_limit: 2820,
+    stop_loss: 2750,
+    target_1: 2850,
+    target_2: 2900,
+    invalidation: 2750,
+    risk_reward: "ACCEPTABLE",
+  },
+  probabilities: {
+    bullish: 58,
+    target_1: 55,
+    downside: 25,
+  },
+  scenarios: {
+    bullish: "Harga bertahan di atas 2810 lalu menguji 2850.",
+    neutral: "Harga bergerak datar di 2780-2820.",
+    bearish: "Harga turun di bawah 2750 dan membatalkan setup.",
+  },
+  next_actions: {
+    reasons: ["Tunggu entry dekat support.", "Jangan chase di atas limit."],
+    risks: ["Breakdown 2750 membatalkan rencana."],
+    monitoring: ["Pantau bid 2800.", "Pantau foreign flow sesi berikutnya."],
+  },
+};
+
 
 
 beforeEach(() => {
@@ -215,6 +279,96 @@ describe("accepted Initial Analysis", () => {
     expect(
       await screen.findByText("Rekomendasi AI, bukan target terkonfirmasi."),
     ).toBeTruthy();
+  });
+});
+
+describe("accepted Initial Analysis v2", () => {
+  it("renders compact v2 decision and critical trade values", async () => {
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [
+        makeAcceptedSummary({
+          prompt_version: "2.0.0",
+          schema_name: "initial_analysis_v2",
+          schema_version: "2.0.0",
+        }),
+      ],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(
+      makeAnalysisDetail({
+        prompt_version: "2.0.0",
+        schema_name: "initial_analysis_v2",
+        schema_version: "2.0.0",
+        payload: initialAnalysisV2Payload,
+      }),
+    );
+
+    render(<InitialAnalysisView sessionId="sess-a" />);
+
+    expect(await screen.findByText("Keputusan")).toBeTruthy();
+    expect(await screen.findByText("Rencana Trading")).toBeTruthy();
+    expect(await screen.findByText("Probabilitas")).toBeTruthy();
+    expect(await screen.findByText("Stop Loss")).toBeTruthy();
+    expect(await screen.findAllByText("Target 1")).toBeTruthy();
+    expect(await screen.findByText("Tunggu entry dekat support.")).toBeTruthy();
+    expect(await screen.findByText("Pantau bid 2800.")).toBeTruthy();
+  });
+
+  it("keeps evidence findings collapsible in v2", async () => {
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [
+        makeAcceptedSummary({
+          prompt_version: "2.0.0",
+          schema_name: "initial_analysis_v2",
+          schema_version: "2.0.0",
+        }),
+      ],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(
+      makeAnalysisDetail({
+        prompt_version: "2.0.0",
+        schema_name: "initial_analysis_v2",
+        schema_version: "2.0.0",
+        payload: initialAnalysisV2Payload,
+      }),
+    );
+
+    render(<InitialAnalysisView sessionId="sess-a" />);
+
+    expect(await screen.findByText("Temuan Evidence")).toBeTruthy();
+    expect(await screen.findByText("Orderbook")).toBeTruthy();
+    expect(await screen.findByText("Bid tebal di 2800 menopang harga.")).toBeTruthy();
+  });
+
+  it("renders safe fallbacks when compact v2 fields are missing", async () => {
+    const payload = JSON.parse(JSON.stringify(initialAnalysisV2Payload));
+    delete payload.trade_plan.stop_loss;
+    delete payload.next_actions.monitoring;
+    payload.probabilities.downside = null;
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [
+        makeAcceptedSummary({
+          prompt_version: "2.0.0",
+          schema_name: "initial_analysis_v2",
+          schema_version: "2.0.0",
+        }),
+      ],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(
+      makeAnalysisDetail({
+        prompt_version: "2.0.0",
+        schema_name: "initial_analysis_v2",
+        schema_version: "2.0.0",
+        payload,
+      }),
+    );
+
+    render(<InitialAnalysisView sessionId="sess-a" />);
+
+    expect(await screen.findByText("Keputusan")).toBeTruthy();
+    expect(await screen.findAllByText("Tidak tersedia")).toBeTruthy();
   });
 });
 

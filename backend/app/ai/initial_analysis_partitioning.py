@@ -11,10 +11,7 @@ from typing import Mapping, Sequence
 
 from jsonschema import Draft202012Validator, ValidationError
 
-from app.ai.providers.gemini import (
-    build_initial_analysis_transport_schema,
-    load_initial_analysis_response_schema,
-)
+from app.ai.providers.gemini import load_initial_analysis_response_schema
 from app.ai.providers.models import ProviderImage
 from app.validation import ValidationCategory, ValidationIssue, ValidationSeverity
 from app.validation.json_schema import _deduplicate, _error_to_issues, _issue_sort_key
@@ -26,6 +23,7 @@ _SCHEMA_ROOT = Path("schemas/production/v1")
 class InitialAnalysisPartition:
     name: str
     top_level_keys: tuple[str, ...]
+    required_paths: tuple[str, ...]
     prompt_suffix: str
     image_indexes: tuple[int, ...]
 
@@ -35,76 +33,99 @@ PARTITIONS: tuple[InitialAnalysisPartition, ...] = (
         name="MARKET_EVIDENCE",
         top_level_keys=(
             "metadata",
-            "evidence_summary",
-            "market_snapshot",
-            "executive_summary",
-            "orderbook_analysis",
+            "market_facts",
+            "evidence_findings",
+        ),
+        required_paths=(
+            "metadata",
+            "market_facts",
+            "evidence_findings.orderbook",
+            "evidence_findings.broker_summary",
+            "evidence_findings.foreign_flow",
+            "evidence_findings.limitations",
         ),
         prompt_suffix=(
-            "Produce only the market and evidence partition of the INITIAL_ANALYSIS JSON.\n"
-            "Allowed top-level keys: metadata, evidence_summary, market_snapshot, "
-            "executive_summary, orderbook_analysis.\n"
-            "metadata.analysis_type must be exactly INITIAL_ANALYSIS.\n"
-            "metadata.language must be exactly id.\n"
-            "metadata.schema.schema_name must be exactly initial_analysis.\n"
-            "metadata.schema.schema_version must be exactly 1.0.0.\n"
-            "metadata.prompt_version must be exactly 1.0.0.\n"
-            "Do not include any other top-level keys."
+            "Produce only the compact v2 MARKET_EVIDENCE partition.\n"
+            "Allowed fields: metadata; market_facts; evidence_findings.orderbook; "
+            "evidence_findings.broker_summary; evidence_findings.foreign_flow; "
+            "evidence_findings.limitations.\n"
+            "Do not include chart findings, trade_plan, decision, probabilities, scenarios, or next_actions.\n"
+            "limitations must list only missing or unreadable evidence/data constraints.\n"
+            "Do not write generic disclaimers about snapshots, AI uncertainty, market risk, or investment advice.\n"
+            "metadata.schema_name must be initial_analysis_v2; schema_version and prompt_version must be 2.0.0.\n"
+            "All user-facing string findings must be Bahasa Indonesia, not English.\n"
+            "Use arrays with at most 3 items; each item maximum 20 words."
         ),
         image_indexes=(0,),
     ),
     InitialAnalysisPartition(
         name="CHART_ANALYSIS",
         top_level_keys=(
-            "chart_3_month_analysis",
-            "chart_6_month_analysis",
-            "combined_chart_analysis",
+            "evidence_findings",
+            "trade_plan",
+        ),
+        required_paths=(
+            "evidence_findings.chart_3_month",
+            "evidence_findings.chart_6_month",
+            "trade_plan.nearest_support",
+            "trade_plan.nearest_resistance",
         ),
         prompt_suffix=(
-            "Produce only the chart-analysis partition of the INITIAL_ANALYSIS JSON.\n"
-            "Allowed top-level keys: chart_3_month_analysis, chart_6_month_analysis, "
-            "combined_chart_analysis.\n"
-            "Do not include any other top-level keys."
+            "Produce only the compact v2 CHART_ANALYSIS partition.\n"
+            "Allowed fields: evidence_findings.chart_3_month; evidence_findings.chart_6_month; "
+            "trade_plan.nearest_support; trade_plan.nearest_resistance.\n"
+            "Do not include orderbook, broker, foreign flow, decision, probabilities, scenarios, or entry/stop/target fields.\n"
+            "All user-facing chart findings must be Bahasa Indonesia, not English.\n"
+            "Use arrays with at most 3 items; each item maximum 20 words."
         ),
         image_indexes=(1, 2),
     ),
     InitialAnalysisPartition(
         name="TRADE_THESIS",
         top_level_keys=(
-            "price_levels",
-            "entry_plan",
-            "stop_loss_plan",
-            "target_plan",
-            "initial_thesis",
+            "trade_plan",
+            "scenarios",
+        ),
+        required_paths=(
+            "trade_plan.entry_zone_low",
+            "trade_plan.entry_zone_high",
+            "trade_plan.chase_limit",
+            "trade_plan.stop_loss",
+            "trade_plan.target_1",
+            "trade_plan.target_2",
+            "trade_plan.invalidation",
+            "trade_plan.risk_reward",
+            "scenarios",
         ),
         prompt_suffix=(
-            "Produce only the trade-thesis partition of the INITIAL_ANALYSIS JSON.\n"
-            "Allowed top-level keys: price_levels, entry_plan, stop_loss_plan, target_plan, "
-            "initial_thesis.\n"
-            "If entry_recommended, stop_loss_recommended, and target_recommended are all true, "
-            "target_plan.risk_reward_ratio must equal "
-            "(target_plan.target_price - reference_entry) / (reference_entry - stop_loss_plan.stop_loss_price), "
-            "where reference_entry is entry_plan.entry_price for EXACT_PRICE and "
-            "entry_plan.entry_zone_low for PRICE_ZONE. Use null when the ratio cannot be safely calculated.\n"
-            "Do not include any other top-level keys."
+            "Produce only the compact v2 TRADE_THESIS partition.\n"
+            "Allowed fields: trade_plan.entry_zone_low; entry_zone_high; chase_limit; stop_loss; "
+            "target_1; target_2; invalidation; risk_reward; scenarios.\n"
+            "Do not include nearest support/resistance, evidence narratives, decision, probabilities, or next_actions.\n"
+            "All user-facing scenario strings must be Bahasa Indonesia, not English.\n"
+            "Each scenario must be one Indonesian sentence with maximum 25 words."
         ),
         image_indexes=(),
     ),
     InitialAnalysisPartition(
         name="DECISION_ASSESSMENT",
         top_level_keys=(
-            "trading_plan",
-            "ai_assessment",
-            "warnings_and_missing_information",
+            "decision",
+            "probabilities",
+            "next_actions",
+        ),
+        required_paths=(
+            "decision",
+            "probabilities",
+            "next_actions",
         ),
         prompt_suffix=(
-            "Produce only the decision-assessment partition of the INITIAL_ANALYSIS JSON.\n"
-            "Allowed top-level keys: trading_plan, ai_assessment, "
-            "warnings_and_missing_information.\n"
-            "If trading_plan.current_action is WAIT, DO_NOT_ENTER, or CANCEL_SETUP, "
-            "trading_plan.requires_user_confirmation must be false. Use true only when "
-            "trading_plan.current_action is ENTER_IF_CONFIRMED.\n"
-            "Do not include any other top-level keys."
+            "Produce only the compact v2 DECISION_ASSESSMENT partition.\n"
+            "Allowed fields: decision; probabilities; next_actions.\n"
+            "decision.recommendation must be BUY, WAIT, SKIP, or UNCERTAIN.\n"
+            "decision.summary maximum 50 words. next_actions arrays have at most 3 items, each maximum 20 words.\n"
+            "All user-facing summary, reasons, risks, and monitoring strings must be Bahasa Indonesia, not English.\n"
+            "Do not repeat detailed evidence or trade thesis narratives."
         ),
         image_indexes=(),
     ),
@@ -127,21 +148,19 @@ def build_partition_schemas(
 ) -> dict[str, PartitionSchemas]:
     package_root = Path(schema_package_root)
     canonical_schema = load_initial_analysis_response_schema(schema_package_root)
-    transport_schema = build_initial_analysis_transport_schema(canonical_schema)
-    raw_schema = json.loads((package_root / "initial_analysis.schema.json").read_text(encoding="utf-8"))
+    raw_schema = json.loads((package_root / "initial_analysis_v2.schema.json").read_text(encoding="utf-8"))
     validation_schema = _resolve_schema_node(
         raw_schema,
-        schema_path=package_root / "initial_analysis.schema.json",
+        schema_path=package_root / "initial_analysis_v2.schema.json",
         package_root=package_root,
         document=raw_schema,
     )
 
     schemas: dict[str, PartitionSchemas] = {}
     for partition in PARTITIONS:
-        provider_base = transport_schema if partition.name == "CHART_ANALYSIS" else canonical_schema
         schemas[partition.name] = PartitionSchemas(
-            provider_schema=_derive_partition_schema(provider_base, partition.top_level_keys),
-            validation_schema=_derive_partition_schema(validation_schema, partition.top_level_keys),
+            provider_schema=_derive_partition_schema(canonical_schema, partition.required_paths),
+            validation_schema=_derive_partition_schema(validation_schema, partition.required_paths),
         )
     return schemas
 
@@ -232,18 +251,16 @@ def merge_partition_payloads(
     merged: dict[str, object] = {}
     for partition in PARTITIONS:
         payload = payloads_by_partition[partition.name]
-        for key in partition.top_level_keys:
-            if key not in payload:
-                raise ValueError(f"Partition {partition.name} is missing required top-level key: {key}")
-            if key in merged:
-                raise ValueError(f"Duplicate INITIAL_ANALYSIS top-level key during merge: {key}")
-            merged[key] = copy.deepcopy(payload[key])
-
-        extra = sorted(set(payload) - set(partition.top_level_keys))
-        if extra:
+        allowed_roots = set(partition.top_level_keys)
+        extra_roots = sorted(set(payload) - allowed_roots)
+        if extra_roots:
             raise ValueError(
-                f"Partition {partition.name} contains overlapping or unexpected top-level key(s): {', '.join(extra)}"
+                f"Partition {partition.name} contains overlapping or unexpected top-level key(s): {', '.join(extra_roots)}"
             )
+        for path in partition.required_paths:
+            if not _has_path(payload, path):
+                raise ValueError(f"Partition {partition.name} is missing required field path: {path}")
+        _deep_merge_partition(merged, payload, partition.name)
 
     return merged
 
@@ -270,28 +287,24 @@ def _merge_available_partition_context(
         payload = payloads_by_partition.get(partition.name)
         if payload is None:
             continue
-        extra = sorted(set(payload) - set(partition.top_level_keys))
-        if extra:
+        extra_roots = sorted(set(payload) - set(partition.top_level_keys))
+        if extra_roots:
             raise ValueError(
-                f"Partition {partition.name} contains unexpected context key(s): {', '.join(extra)}"
+                f"Partition {partition.name} contains unexpected context key(s): {', '.join(extra_roots)}"
             )
-        for key in partition.top_level_keys:
-            if key in payload:
-                if key in merged:
-                    raise ValueError(f"Duplicate INITIAL_ANALYSIS context key: {key}")
-                merged[key] = copy.deepcopy(payload[key])
+        _deep_merge_partition(merged, payload, partition.name)
     return merged
 
 
 def _derive_partition_schema(
     schema: Mapping[str, object],
-    top_level_keys: Sequence[str],
+    field_paths: Sequence[str],
 ) -> dict[str, object]:
     properties = schema.get("properties")
-    required = schema.get("required")
-    if not isinstance(properties, dict) or not isinstance(required, list):
+    if not isinstance(properties, dict):
         raise ValueError("INITIAL_ANALYSIS schema must be an object with properties and required")
 
+    top_level_keys = tuple(dict.fromkeys(path.split(".", 1)[0] for path in field_paths))
     missing_keys = [key for key in top_level_keys if key not in properties]
     if missing_keys:
         raise ValueError(f"INITIAL_ANALYSIS schema missing partition key(s): {', '.join(missing_keys)}")
@@ -299,15 +312,74 @@ def _derive_partition_schema(
     derived = {
         "type": "object",
         "additionalProperties": False,
-        "properties": {key: copy.deepcopy(properties[key]) for key in top_level_keys},
-        "required": [key for key in required if key in top_level_keys],
+        "properties": {},
+        "required": list(top_level_keys),
     }
+    for key in top_level_keys:
+        source = properties[key]
+        nested_paths = [
+            path.split(".", 1)[1]
+            for path in field_paths
+            if path.startswith(f"{key}.")
+        ]
+        if nested_paths and isinstance(source, Mapping):
+            derived["properties"][key] = _derive_nested_object_schema(source, nested_paths)
+        else:
+            derived["properties"][key] = copy.deepcopy(source)
     if "$defs" in schema and isinstance(schema["$defs"], dict):
         derived["$defs"] = copy.deepcopy(schema["$defs"])
-    filtered_all_of = _filter_root_all_of(schema.get("allOf"), set(top_level_keys))
-    if filtered_all_of:
-        derived["allOf"] = filtered_all_of
     return derived
+
+
+def _derive_nested_object_schema(
+    schema: Mapping[str, object],
+    field_paths: Sequence[str],
+) -> dict[str, object]:
+    properties = schema.get("properties")
+    if not isinstance(properties, Mapping):
+        raise ValueError("Nested INITIAL_ANALYSIS schema must include properties")
+    nested_keys = tuple(dict.fromkeys(path.split(".", 1)[0] for path in field_paths))
+    missing = [key for key in nested_keys if key not in properties]
+    if missing:
+        raise ValueError(f"Nested INITIAL_ANALYSIS schema missing key(s): {', '.join(missing)}")
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {key: copy.deepcopy(properties[key]) for key in nested_keys},
+        "required": list(nested_keys),
+    }
+
+
+def _has_path(payload: Mapping[str, object], path: str) -> bool:
+    current: object = payload
+    for part in path.split("."):
+        if not isinstance(current, Mapping) or part not in current:
+            return False
+        current = current[part]
+    return True
+
+
+def _deep_merge_partition(
+    merged: dict[str, object],
+    payload: Mapping[str, object],
+    partition_name: str,
+) -> None:
+    for key, value in payload.items():
+        if key not in merged:
+            merged[key] = copy.deepcopy(value)
+            continue
+        existing = merged[key]
+        if isinstance(existing, dict) and isinstance(value, Mapping):
+            for nested_key, nested_value in value.items():
+                if nested_key in existing:
+                    raise ValueError(
+                        f"Duplicate INITIAL_ANALYSIS field during merge: {key}.{nested_key}"
+                    )
+                existing[nested_key] = copy.deepcopy(nested_value)
+            continue
+        raise ValueError(
+            f"Duplicate INITIAL_ANALYSIS top-level key during merge: {key} from {partition_name}"
+        )
 
 
 def _partition_error_to_issues(error: ValidationError) -> list[ValidationIssue]:

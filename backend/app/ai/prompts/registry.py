@@ -82,12 +82,14 @@ class PromptRegistry:
         analysis_type: str,
         prompt_version: str | None = None,
     ) -> PromptDefinition:
-        version = prompt_version or _DEFAULT_PROMPT_VERSION
         by_type = self._definitions.get(analysis_type)
         if by_type is None:
             raise PromptNotFoundError(
                 message=f"No prompts registered for analysis type {analysis_type!r}",
             )
+        version = prompt_version or _DEFAULT_PROMPT_VERSION
+        if prompt_version is None and version not in by_type and len(by_type) == 1:
+            version = next(iter(by_type))
         definition = by_type.get(version)
         if definition is None:
             raise PromptVersionNotFoundError(

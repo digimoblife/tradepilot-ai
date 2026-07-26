@@ -23,7 +23,6 @@ from app.ai.providers import (
     ProviderRequest,
     ProviderResponse,
 )
-from app.ai.providers.gemini import normalize_initial_analysis_transport_payload
 from app.ai.providers.router import (
     ProviderRouteAttempt,
     ProviderRouter,
@@ -151,11 +150,11 @@ class FakeInitialAnalysisContextBuilder:
         return SimpleNamespace(
             session_id=kwargs["session_id"],
             analysis_type="INITIAL_ANALYSIS",
-            prompt_version="1.0.0",
+            prompt_version="2.0.0",
             system_prompt="System prompt",
             user_prompt="Base user prompt",
-            expected_schema_name="initial_analysis",
-            expected_schema_version="1.0.0",
+            expected_schema_name="initial_analysis_v2",
+            expected_schema_version="2.0.0",
             structured_output_schema={},
             canonical_facts={},
             images=self.images,
@@ -203,11 +202,7 @@ class PartitionRouter(ProviderRouter):
             )
 
         payload = self.payloads_by_partition[partition_name]
-        validated_payload = (
-            normalize_initial_analysis_transport_payload(payload)
-            if partition_name == "CHART_ANALYSIS"
-            else payload
-        )
+        validated_payload = payload
         is_valid, issues = validate(dict(validated_payload))
         self.validations.append(partition_name)
         if not is_valid:
@@ -366,58 +361,54 @@ def _valid_initial_analysis_payload() -> dict[str, object]:
         / "fixtures"
         / "valid"
         / "v1"
-        / "initial_analysis.valid.json"
+        / "initial_analysis_v2.valid.json"
     )
-    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
-    market_snapshot = payload["market_snapshot"]
-    market_snapshot["previous_close"] = market_snapshot["last"]
-    market_snapshot["change"] = 0
-    market_snapshot["change_percentage"] = 0
-    market_snapshot["best_bid"] = market_snapshot["best_offer"]
-    market_snapshot["spread"] = 0
-    market_snapshot["spread_percentage"] = 0
-    return payload
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 def _partition_payloads() -> dict[str, dict[str, object]]:
     payload = _valid_initial_analysis_payload()
-    chart_transport = {
-        "chart_3_month_analysis": dict(payload["chart_3_month_analysis"]),
-        "chart_6_month_analysis": dict(payload["chart_6_month_analysis"]),
-        "combined_chart_analysis": dict(payload["combined_chart_analysis"]),
-    }
-    for section_name in ("chart_3_month_analysis", "chart_6_month_analysis"):
-        section = chart_transport[section_name]
-        section["nearest_support"] = (
-            section["nearest_support"]["price"] if section["nearest_support"] is not None else None
-        )
-        section["nearest_resistance"] = (
-            section["nearest_resistance"]["price"] if section["nearest_resistance"] is not None else None
-        )
-        section.pop("structure_status", None)
-        section.pop("volume_condition", None)
-        section.pop("supports_setup", None)
+    findings = payload["evidence_findings"]
+    trade_plan = payload["trade_plan"]
 
     return {
         "MARKET_EVIDENCE": {
             "metadata": payload["metadata"],
-            "evidence_summary": payload["evidence_summary"],
-            "market_snapshot": payload["market_snapshot"],
-            "executive_summary": payload["executive_summary"],
-            "orderbook_analysis": payload["orderbook_analysis"],
+            "market_facts": payload["market_facts"],
+            "evidence_findings": {
+                "orderbook": findings["orderbook"],
+                "broker_summary": findings["broker_summary"],
+                "foreign_flow": findings["foreign_flow"],
+                "limitations": findings["limitations"],
+            },
         },
-        "CHART_ANALYSIS": chart_transport,
+        "CHART_ANALYSIS": {
+            "evidence_findings": {
+                "chart_3_month": findings["chart_3_month"],
+                "chart_6_month": findings["chart_6_month"],
+            },
+            "trade_plan": {
+                "nearest_support": trade_plan["nearest_support"],
+                "nearest_resistance": trade_plan["nearest_resistance"],
+            },
+        },
         "TRADE_THESIS": {
-            "price_levels": payload["price_levels"],
-            "entry_plan": payload["entry_plan"],
-            "stop_loss_plan": payload["stop_loss_plan"],
-            "target_plan": payload["target_plan"],
-            "initial_thesis": payload["initial_thesis"],
+            "trade_plan": {
+                "entry_zone_low": trade_plan["entry_zone_low"],
+                "entry_zone_high": trade_plan["entry_zone_high"],
+                "chase_limit": trade_plan["chase_limit"],
+                "stop_loss": trade_plan["stop_loss"],
+                "target_1": trade_plan["target_1"],
+                "target_2": trade_plan["target_2"],
+                "invalidation": trade_plan["invalidation"],
+                "risk_reward": trade_plan["risk_reward"],
+            },
+            "scenarios": payload["scenarios"],
         },
         "DECISION_ASSESSMENT": {
-            "trading_plan": payload["trading_plan"],
-            "ai_assessment": payload["ai_assessment"],
-            "warnings_and_missing_information": payload["warnings_and_missing_information"],
+            "decision": payload["decision"],
+            "probabilities": payload["probabilities"],
+            "next_actions": payload["next_actions"],
         },
     }
 
@@ -1593,44 +1584,44 @@ class TestPartitionedInitialAnalysis:
         )
         await _add_context_summary(engine, session_id)
         payloads = _partition_payloads()
-        payloads["DECISION_ASSESSMENT"]["trading_plan"]["current_action"] = "WAIT"
-        payloads["DECISION_ASSESSMENT"]["trading_plan"]["requires_user_confirmation"] = False
-        payloads["DECISION_ASSESSMENT"]["ai_assessment"].pop("bias")
-        payloads["DECISION_ASSESSMENT"]["ai_assessment"]["gemini_extra"] = "kept"
+        payloads["DECISION_ASSESSMENT"]["decision"]["recommendation"] = "HOLD"
+        payloads["DECISION_ASSESSMENT"]["decision"].pop("bias")
+        payloads["DECISION_ASSESSMENT"]["decision"]["gemini_extra"] = "kept"
+        payloads["TRADE_THESIS"]["trade_plan"]["risk_reward"] = "MIXED"
         router = PartitionRouter(payloads_by_partition=payloads)
         provider = CountingProvider([])
 
         issues = (
             ValidationIssue(
-                code="SCHEMA_CONST_MISMATCH",
-                category=ValidationCategory.CONDITIONAL,
+                code="SCHEMA_ENUM_INVALID",
+                category=ValidationCategory.ENUM,
                 severity=ValidationSeverity.ERROR,
-                path="/trading_plan/requires_user_confirmation",
-                message="Const mismatch",
-                expected=True,
-                actual=False,
+                path="/decision/recommendation",
+                message="Enum mismatch",
+                expected="BUY|WAIT|SKIP|UNCERTAIN",
+                actual="HOLD",
             ),
             ValidationIssue(
                 code="SCHEMA_ENUM_INVALID",
                 category=ValidationCategory.ENUM,
                 severity=ValidationSeverity.ERROR,
-                path="/trading_plan/current_action",
+                path="/trade_plan/risk_reward",
                 message="Enum mismatch",
-                expected="ENTER_IF_CONFIRMED",
-                actual="WAIT",
+                expected="FAVORABLE|ACCEPTABLE|UNFAVORABLE|UNAVAILABLE",
+                actual="MIXED",
             ),
             ValidationIssue(
                 code="SCHEMA_REQUIRED_FIELD_MISSING",
                 category=ValidationCategory.REQUIRED,
                 severity=ValidationSeverity.ERROR,
-                path="/ai_assessment/bias",
+                path="/decision/bias",
                 message="Missing required property: bias",
             ),
             ValidationIssue(
                 code="SCHEMA_UNKNOWN_PROPERTY",
                 category=ValidationCategory.ADDITIONAL_PROPERTY,
                 severity=ValidationSeverity.ERROR,
-                path="/ai_assessment/gemini_extra",
+                path="/decision/gemini_extra",
                 message="Additional property",
                 actual="kept",
             ),
@@ -1670,14 +1661,13 @@ class TestPartitionedInitialAnalysis:
 
         assert row is not None
         accepted = row[0]
-        assert accepted["trading_plan"]["current_action"] == "WAIT"
-        assert accepted["trading_plan"]["requires_user_confirmation"] is False
-        assert accepted["ai_assessment"]["gemini_extra"] == "kept"
-        assert "bias" not in accepted["ai_assessment"]
+        assert accepted["decision"]["recommendation"] == "HOLD"
+        assert accepted["trade_plan"]["risk_reward"] == "MIXED"
+        assert accepted["decision"]["gemini_extra"] == "kept"
+        assert "bias" not in accepted["decision"]
         assert warning_row is not None
         warning_codes = {warning["code"] for warning in warning_row[0]["warnings"]}
         assert {
-            "SCHEMA_CONST_MISMATCH",
             "SCHEMA_ENUM_INVALID",
             "SCHEMA_REQUIRED_FIELD_MISSING",
             "SCHEMA_UNKNOWN_PROPERTY",
@@ -1712,7 +1702,7 @@ class TestPartitionedInitialAnalysis:
             result = await proc.process(job_id=jid, worker_id="w1")
             assert result.job_status == AnalysisJobStatus.FAILED.value
 
-    async def test_missing_chart_timestamp_becomes_warning_not_failure(
+    async def test_minor_v2_schema_drift_becomes_warning_not_failure(
         self,
         engine: AsyncEngine,
         session_id: uuid.UUID,
@@ -1726,7 +1716,7 @@ class TestPartitionedInitialAnalysis:
         )
         await _add_context_summary(engine, session_id)
         payloads = _partition_payloads()
-        payloads["CHART_ANALYSIS"]["chart_3_month_analysis"].pop("chart_timestamp")
+        payloads["CHART_ANALYSIS"]["trade_plan"]["nearest_support"] = "2780"
         router = PartitionRouter(payloads_by_partition=payloads)
 
         async with factory() as s:
@@ -1760,10 +1750,10 @@ class TestPartitionedInitialAnalysis:
             ).first()
 
         assert analysis_row is not None
-        assert analysis_row[0]["chart_3_month_analysis"]["chart_timestamp"] is None
+        assert analysis_row[0]["trade_plan"]["nearest_support"] == "2780"
         assert warning_row is not None
         warning_paths = {warning["path"] for warning in warning_row[0]["warnings"]}
-        assert "/chart_3_month_analysis/chart_timestamp" in warning_paths
+        assert "/trade_plan/nearest_support" in warning_paths
 
     async def test_failed_later_partition_keeps_earlier_raw_audits(
         self,

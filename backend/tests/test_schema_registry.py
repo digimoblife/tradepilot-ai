@@ -63,12 +63,12 @@ def _production_registry() -> tuple[LocalSchemaRegistry, Path]:
 
 def test_registry_constructs() -> None:
     registry, _ = _production_registry()
-    assert registry.registered_resource_count == 10
+    assert registry.registered_resource_count == 11
 
 
 def test_all_active_validators_compile() -> None:
     registry, _ = _production_registry()
-    assert registry.compiled_validator_count == 10
+    assert registry.compiled_validator_count == 11
 
 
 def test_offline_no_network(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -79,7 +79,7 @@ def test_offline_no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(urllib.request, "urlopen", block)
     registry, _ = _production_registry()
-    assert registry.registered_resource_count == 10
+    assert registry.registered_resource_count == 11
 
 
 # ---------------------------------------------------------------------------

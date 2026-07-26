@@ -958,6 +958,13 @@ def _is_usable_initial_analysis_payload(payload: Mapping[str, object]) -> bool:
         "trading_plan",
         "ai_assessment",
         "warnings_and_missing_information",
+        "decision",
+        "market_facts",
+        "evidence_findings",
+        "trade_plan",
+        "probabilities",
+        "scenarios",
+        "next_actions",
     )
     return any(isinstance(payload.get(section), Mapping) for section in usable_sections)
 
