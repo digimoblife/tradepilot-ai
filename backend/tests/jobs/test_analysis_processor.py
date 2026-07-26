@@ -1447,7 +1447,7 @@ class TestPartitionedInitialAnalysis:
             ("DECISION_ASSESSMENT", ()),
         ]
 
-    async def test_partition_validation_stops_before_next_request(
+    async def test_unusable_partition_stops_before_next_request(
         self,
         engine: AsyncEngine,
         session_id: uuid.UUID,
@@ -1461,7 +1461,7 @@ class TestPartitionedInitialAnalysis:
         )
         await _add_context_summary(engine, session_id)
         payloads = _partition_payloads()
-        payloads["MARKET_EVIDENCE"]["chart_3_month_analysis"] = {}
+        payloads["MARKET_EVIDENCE"] = {}
         router = PartitionRouter(payloads_by_partition=payloads)
         provider = CountingProvider([])
 
@@ -1481,7 +1481,7 @@ class TestPartitionedInitialAnalysis:
         assert router.calls == [("MARKET_EVIDENCE", ("user/session/file-1.png",))]
         assert router.validations == ["MARKET_EVIDENCE"]
 
-    async def test_post_merge_validation_runs_after_all_partitions(
+    async def test_post_merge_domain_validation_warning_completes_job(
         self,
         engine: AsyncEngine,
         session_id: uuid.UUID,
@@ -1520,11 +1520,176 @@ class TestPartitionedInitialAnalysis:
                 provider_order=["gemini"],
             )
             result = await proc.process(job_id=jid, worker_id="w1")
-            assert result.job_status == AnalysisJobStatus.FAILED.value
+            assert result.job_status == AnalysisJobStatus.COMPLETED.value
             await s.commit()
 
         assert len(router.calls) == 4
         assert len(merged_payloads) == 1
+
+        async with factory() as s:
+            job_status = (
+                await s.execute(
+                    text("SELECT status, last_error_code FROM analysis_jobs WHERE id = :jid"),
+                    {"jid": jid},
+                )
+            ).first()
+            warning_row = (
+                await s.execute(
+                    text(
+                        "SELECT stage, valid, issues "
+                        "FROM validation_attempts WHERE analysis_job_id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+            analysis_count = (
+                await s.execute(
+                    text("SELECT COUNT(*) FROM analyses WHERE analysis_job_id = :jid"),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+
+        assert job_status == ("COMPLETED", None)
+        assert warning_row is not None
+        assert warning_row[0] == "DOMAIN"
+        assert warning_row[1] is True
+        assert warning_row[2]["mode"] == "INITIAL_ANALYSIS_NON_BLOCKING_MVP"
+        assert warning_row[2]["warnings"][0]["code"] == "DOMAIN_TEST_FAILURE"
+        assert warning_row[2]["warnings"][0]["severity"] == "WARNING"
+        assert analysis_count == 1
+
+    async def test_schema_mismatches_are_warnings_and_payload_values_are_preserved(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        payloads = _partition_payloads()
+        payloads["DECISION_ASSESSMENT"]["trading_plan"]["current_action"] = "WAIT"
+        payloads["DECISION_ASSESSMENT"]["trading_plan"]["requires_user_confirmation"] = False
+        payloads["DECISION_ASSESSMENT"]["ai_assessment"].pop("bias")
+        payloads["DECISION_ASSESSMENT"]["ai_assessment"]["gemini_extra"] = "kept"
+        router = PartitionRouter(payloads_by_partition=payloads)
+        provider = CountingProvider([])
+
+        issues = (
+            ValidationIssue(
+                code="SCHEMA_CONST_MISMATCH",
+                category=ValidationCategory.CONDITIONAL,
+                severity=ValidationSeverity.ERROR,
+                path="/trading_plan/requires_user_confirmation",
+                message="Const mismatch",
+                expected=True,
+                actual=False,
+            ),
+            ValidationIssue(
+                code="SCHEMA_ENUM_INVALID",
+                category=ValidationCategory.ENUM,
+                severity=ValidationSeverity.ERROR,
+                path="/trading_plan/current_action",
+                message="Enum mismatch",
+                expected="ENTER_IF_CONFIRMED",
+                actual="WAIT",
+            ),
+            ValidationIssue(
+                code="SCHEMA_REQUIRED_FIELD_MISSING",
+                category=ValidationCategory.REQUIRED,
+                severity=ValidationSeverity.ERROR,
+                path="/ai_assessment/bias",
+                message="Missing required property: bias",
+            ),
+            ValidationIssue(
+                code="SCHEMA_UNKNOWN_PROPERTY",
+                category=ValidationCategory.ADDITIONAL_PROPERTY,
+                severity=ValidationSeverity.ERROR,
+                path="/ai_assessment/gemini_extra",
+                message="Additional property",
+                actual="kept",
+            ),
+        )
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=lambda payload: (False, issues),
+                providers={"gemini": provider},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.COMPLETED.value
+            await s.commit()
+
+        async with factory() as s:
+            row = (
+                await s.execute(
+                    text(
+                        "SELECT payload FROM analyses WHERE analysis_job_id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+            warning_row = (
+                await s.execute(
+                    text(
+                        "SELECT issues FROM validation_attempts "
+                        "WHERE analysis_job_id = :jid AND stage = 'JSON_SCHEMA'"
+                    ),
+                    {"jid": jid},
+                )
+            ).first()
+
+        assert row is not None
+        accepted = row[0]
+        assert accepted["trading_plan"]["current_action"] == "WAIT"
+        assert accepted["trading_plan"]["requires_user_confirmation"] is False
+        assert accepted["ai_assessment"]["gemini_extra"] == "kept"
+        assert "bias" not in accepted["ai_assessment"]
+        assert warning_row is not None
+        warning_codes = {warning["code"] for warning in warning_row[0]["warnings"]}
+        assert {
+            "SCHEMA_CONST_MISMATCH",
+            "SCHEMA_ENUM_INVALID",
+            "SCHEMA_REQUIRED_FIELD_MISSING",
+            "SCHEMA_UNKNOWN_PROPERTY",
+        } <= warning_codes
+
+    async def test_empty_partition_payload_still_fails(
+        self,
+        engine: AsyncEngine,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="INITIAL_ANALYSIS",
+            prev_status="READY_FOR_ANALYSIS",
+        )
+        await _add_context_summary(engine, session_id)
+        payloads = _partition_payloads()
+        payloads["MARKET_EVIDENCE"] = {}
+        router = PartitionRouter(payloads_by_partition=payloads)
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                context_builder=FakeInitialAnalysisContextBuilder(),
+                router=router,
+                validate=_always_valid,
+                providers={"gemini": CountingProvider([])},
+                provider_order=["gemini"],
+            )
+            result = await proc.process(job_id=jid, worker_id="w1")
+            assert result.job_status == AnalysisJobStatus.FAILED.value
 
     async def test_failed_later_partition_keeps_earlier_raw_audits(
         self,

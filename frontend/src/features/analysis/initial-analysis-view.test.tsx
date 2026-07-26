@@ -272,6 +272,39 @@ describe("schema preservation", () => {
     const sedangElements = await screen.findAllByText("Sedang");
     expect(sedangElements.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("renders safe fallbacks when nested fields are missing", async () => {
+    const payload = JSON.parse(JSON.stringify(initialAnalysisFixture));
+    delete payload.ai_assessment.summary;
+    delete payload.trading_plan.levels_to_monitor;
+    payload.chart_3_month_analysis.nearest_support = null;
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAcceptedSummary()],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeAnalysisDetail({ payload }));
+
+    render(<InitialAnalysisView sessionId="sess-a" />);
+
+    expect(await screen.findByText("Probabilitas dan Keyakinan")).toBeTruthy();
+    expect(await screen.findAllByText("Tidak tersedia")).toBeTruthy();
+  });
+
+  it("renders additional Gemini top-level fields in detail tambahan", async () => {
+    const payload = JSON.parse(JSON.stringify(initialAnalysisFixture));
+    payload.data_gaps_and_limitations = { note: "Gemini detail tambahan" };
+    vi.mocked(listAnalyses).mockResolvedValue({
+      analyses: [makeAcceptedSummary()],
+      total: 1,
+    });
+    vi.mocked(getAnalysis).mockResolvedValue(makeAnalysisDetail({ payload }));
+
+    render(<InitialAnalysisView sessionId="sess-a" />);
+
+    expect(await screen.findByText("Detail tambahan")).toBeTruthy();
+    expect(await screen.findByText("data_gaps_and_limitations")).toBeTruthy();
+    expect(await screen.findByText(/Gemini detail tambahan/)).toBeTruthy();
+  });
 });
 
 // -------------------------------------------------------------------

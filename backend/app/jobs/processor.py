@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Callable, Mapping, Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,12 +49,14 @@ from app.models.enums import (
     ProviderResponseStatus,
     ProviderType,
     TradeSessionStatus,
+    ValidationStage,
 )
 from app.models.provider_request import ProviderRequest as DBProviderRequest
 from app.models.provider_response import ProviderResponse as DBProviderResponse
 from app.models.trade_session import TradeSession
+from app.models.validation_attempt import ValidationAttempt
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
-from app.validation import ValidationIssue
+from app.validation import ValidationCategory, ValidationIssue, ValidationSeverity
 
 ValidationCallback = Callable[
     [dict[str, object]],
@@ -468,6 +471,7 @@ class AnalysisProcessor:
     ) -> AnalysisProcessingResult:
         partition_schemas = build_partition_schemas()
         partition_payloads: dict[str, dict[str, object]] = {}
+        validation_warnings: list[ValidationIssue] = []
 
         for attempt_number, partition in enumerate(PARTITIONS, start=1):
             validated_context = {
@@ -516,9 +520,8 @@ class AnalysisProcessor:
             )
             await self._session.flush()
 
-            partition_validate = self._make_partition_validate_callback(
+            partition_validate = self._make_partition_usable_callback(
                 partition_name=partition.name,
-                partition_schemas=partition_schemas,
             )
 
             try:
@@ -565,6 +568,13 @@ class AnalysisProcessor:
                 )
 
             await self._persist_route_attempts(db_provider_request.id, route_result.attempts)
+            partition_valid, partition_issues = validate_partition_payload(
+                payload=dict(route_result.payload),
+                partition_name=partition.name,
+                schemas=partition_schemas,
+            )
+            if not partition_valid:
+                validation_warnings.extend(partition_issues)
             partition_payloads[partition.name] = dict(route_result.payload)
 
         try:
@@ -590,19 +600,11 @@ class AnalysisProcessor:
                 error_message=job.last_error_message,
             )
 
-        validation_payload = decimalize_json_numbers_for_validation(merged_payload)
-        is_valid, issues = validate(dict(validation_payload))
-        if not is_valid:
-            code = issues[0].code if issues else "REPAIR_VALIDATION_FAILED"
-            message = (
-                "; ".join(issue.message for issue in issues if issue.message)
-                if issues
-                else "Merged INITIAL_ANALYSIS validation failed with no issue details returned."
-            )
+        if not _is_usable_initial_analysis_payload(merged_payload):
             routing_error = ProviderRoutingFailedError(
-                message="Merged INITIAL_ANALYSIS validation failed",
-                root_cause_code=code,
-                root_cause_message=message,
+                message="Merged INITIAL_ANALYSIS payload is not usable",
+                root_cause_code="INITIAL_ANALYSIS_PAYLOAD_UNUSABLE",
+                root_cause_message="Merged INITIAL_ANALYSIS payload has no usable analysis sections.",
                 retryable=False,
             )
             await self._fail_job(job, routing_error, ts, now)
@@ -617,6 +619,26 @@ class AnalysisProcessor:
                 fallback_used=False,
                 error_code=job.last_error_code,
                 error_message=job.last_error_message,
+            )
+
+        validation_payload = decimalize_json_numbers_for_validation(merged_payload)
+        _is_valid, issues = validate(dict(validation_payload))
+        validation_warnings.extend(issues)
+        if validation_warnings:
+            await self._persist_initial_analysis_validation_warnings(
+                job_id=job.id,
+                parsed_payload=merged_payload,
+                validation_payload=merged_payload,
+                issues=tuple(validation_warnings),
+            )
+            self._log.warning(
+                "Initial analysis accepted with validation warnings",
+                extra={
+                    "analysis_job_id": str(job.id),
+                    "session_id": str(job.session_id),
+                    "warning_count": len(validation_warnings),
+                    "warning_codes": [issue.code for issue in validation_warnings[:20]],
+                },
             )
 
         analysis_id = uuid.uuid4()
@@ -684,6 +706,80 @@ class AnalysisProcessor:
             )
 
         return _validate_partition
+
+    def _make_partition_usable_callback(
+        self,
+        *,
+        partition_name: str,
+    ) -> ValidationCallback:
+        partition = next(item for item in PARTITIONS if item.name == partition_name)
+
+        def _validate_partition(payload: dict[str, object]) -> tuple[bool, tuple[ValidationIssue, ...]]:
+            if not isinstance(payload, dict) or not payload:
+                return False, (
+                    ValidationIssue(
+                        code="INITIAL_ANALYSIS_PARTITION_EMPTY",
+                        category=ValidationCategory.SCHEMA,
+                        severity=ValidationSeverity.ERROR,
+                        path="",
+                        message=f"{partition.name} returned an empty or unusable JSON object.",
+                    ),
+                )
+            if not any(key in payload for key in partition.top_level_keys):
+                return False, (
+                    ValidationIssue(
+                        code="INITIAL_ANALYSIS_PARTITION_NO_USABLE_SECTION",
+                        category=ValidationCategory.SCHEMA,
+                        severity=ValidationSeverity.ERROR,
+                        path="",
+                        message=f"{partition.name} returned no usable analysis sections.",
+                    ),
+                )
+            return True, ()
+
+        return _validate_partition
+
+    async def _persist_initial_analysis_validation_warnings(
+        self,
+        *,
+        job_id: uuid.UUID,
+        parsed_payload: Mapping[str, object],
+        validation_payload: Mapping[str, object],
+        issues: Sequence[ValidationIssue],
+    ) -> None:
+        grouped: dict[ValidationStage, list[ValidationIssue]] = {
+            ValidationStage.JSON_SCHEMA: [],
+            ValidationStage.DOMAIN: [],
+        }
+        for issue in issues:
+            if issue.category.value == "DOMAIN":
+                grouped[ValidationStage.DOMAIN].append(issue)
+            else:
+                grouped[ValidationStage.JSON_SCHEMA].append(issue)
+
+        attempt_number = 1
+        for stage in (ValidationStage.JSON_SCHEMA, ValidationStage.DOMAIN):
+            stage_issues = grouped[stage]
+            if not stage_issues:
+                continue
+            self._session.add(
+                ValidationAttempt(
+                    id=uuid.uuid4(),
+                    analysis_job_id=job_id,
+                    provider_response_id=None,
+                    attempt_number=attempt_number,
+                    stage=stage,
+                    valid=True,
+                    issues={
+                        "mode": "INITIAL_ANALYSIS_NON_BLOCKING_MVP",
+                        "warning_count": len(stage_issues),
+                        "warnings": [_issue_to_warning_dict(issue) for issue in stage_issues],
+                    },
+                    parsed_payload=dict(parsed_payload),
+                    validated_payload=dict(validation_payload),
+                )
+            )
+            attempt_number += 1
 
     async def _build_fresh_provider_context(
         self,
@@ -828,3 +924,50 @@ def _normalize_provider_response_id(value: object) -> str | None:
     if isinstance(value, int):
         return str(value) if value > 0 else None
     return None
+
+
+def _is_usable_initial_analysis_payload(payload: Mapping[str, object]) -> bool:
+    if not isinstance(payload, Mapping) or not payload:
+        return False
+    usable_sections = (
+        "metadata",
+        "evidence_summary",
+        "market_snapshot",
+        "executive_summary",
+        "orderbook_analysis",
+        "chart_3_month_analysis",
+        "chart_6_month_analysis",
+        "combined_chart_analysis",
+        "price_levels",
+        "entry_plan",
+        "stop_loss_plan",
+        "target_plan",
+        "initial_thesis",
+        "trading_plan",
+        "ai_assessment",
+        "warnings_and_missing_information",
+    )
+    return any(isinstance(payload.get(section), Mapping) for section in usable_sections)
+
+
+def _issue_to_warning_dict(issue: ValidationIssue) -> dict[str, object]:
+    return {
+        "code": issue.code,
+        "category": issue.category.value,
+        "severity": ValidationSeverity.WARNING.value,
+        "original_severity": issue.severity.value,
+        "path": issue.path,
+        "message": issue.message,
+        "expected": _json_safe_warning_value(issue.expected),
+        "actual": _json_safe_warning_value(issue.actual),
+    }
+
+
+def _json_safe_warning_value(value: object) -> object:
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, list):
+        return [_json_safe_warning_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _json_safe_warning_value(item) for key, item in value.items()}
+    return value

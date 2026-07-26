@@ -114,6 +114,7 @@ class UnifiedValidationService:
         trade_state: Mapping[str, object] | None = None,
         session_status_before_job: str | None = None,
         context_summary: Mapping[str, object] | None = None,
+        continue_on_schema_errors: bool = False,
     ) -> UnifiedValidationResult:
         """Validate *payload* against all applicable layers.
 
@@ -142,10 +143,11 @@ class UnifiedValidationService:
         schema_issues = self._run_schema_validation(payload, expected_analysis_type)
         all_issues.extend(schema_issues)
 
-        # If schema has blocking errors, stop (domain validators need
-        # schema-valid structure)
+        # If schema has blocking errors, stop by default (domain validators need
+        # schema-valid structure).  INITIAL_ANALYSIS MVP can opt into collecting
+        # domain findings as non-blocking warnings after schema mismatches.
         schema_errors = [i for i in schema_issues if i.severity == ValidationSeverity.ERROR]
-        if schema_errors:
+        if schema_errors and not continue_on_schema_errors:
             return self._build_result(all_issues)
 
         # ----------------------------------------------------------

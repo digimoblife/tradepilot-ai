@@ -454,6 +454,33 @@ class TestRepairBeforeFallback:
         assert exc.value.root_cause_code == "TEST_ERROR"
         assert exc.value.root_cause_message == "Test error"
 
+    async def test_malformed_json_still_fails(self) -> None:
+        gemini = FakeProvider(
+            "gemini",
+            responses=[
+                ProviderResponse(
+                    provider="gemini",
+                    model="gemini-model",
+                    raw_output="{not json",
+                    request_id=uuid.uuid4(),
+                )
+            ],
+        )
+        router = ProviderRouter()
+
+        with pytest.raises(ProviderRoutingFailedError) as exc:
+            await router.generate_validated(
+                request=_req(),
+                providers={"gemini": gemini},
+                provider_order=["gemini"],
+                max_provider_attempts=1,
+                validate=_always_valid,
+                canonical_facts={},
+                max_repair_attempts=0,
+            )
+
+        assert exc.value.root_cause_code == "JSON_OBJECT_NOT_FOUND"
+
     async def test_repair_disabled_preserves_fallback_validation_message_when_issues_empty(self) -> None:
         gemini = FakeProvider("gemini")
         router = ProviderRouter()

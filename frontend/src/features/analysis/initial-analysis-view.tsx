@@ -143,7 +143,9 @@ export function InitialAnalysisView({ sessionId, onEmpty, onLoaded, selectedAnal
   }
 
   const { payload } = state;
-  const p = payload;
+  const rawPayload = payload as unknown as Record<string, unknown>;
+  const p = withDisplayFallbacks(rawPayload);
+  const extraTopLevelFields = additionalTopLevelFields(rawPayload);
 
   return (
     <div className="space-y-4">
@@ -869,6 +871,22 @@ export function InitialAnalysisView({ sessionId, onEmpty, onLoaded, selectedAnal
       </AnalysisSection>
 
       {/* Metadata — visually secondary */}
+      {extraTopLevelFields.length > 0 && (
+        <AnalysisSection title="Detail tambahan">
+          <div className="space-y-2 text-sm text-zinc-700">
+            {extraTopLevelFields.map(([key, value]) => (
+              <div key={key} className="rounded bg-zinc-50 px-3 py-2">
+                <span className="font-medium text-zinc-500">{key}</span>
+                <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-zinc-700">
+                  {formatUnknownValue(value)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </AnalysisSection>
+      )}
+
+      {/* Metadata — visually secondary */}
       <div className="rounded-lg border border-zinc-100 bg-zinc-50 p-3">
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-zinc-400">
           <span>
@@ -907,5 +925,257 @@ function formatTimestamp(iso: string | null | undefined): string {
     });
   } catch {
     return "—";
+  }
+}
+
+const DISPLAY_FALLBACK = "Tidak tersedia";
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  "metadata",
+  "evidence_summary",
+  "market_snapshot",
+  "executive_summary",
+  "orderbook_analysis",
+  "chart_3_month_analysis",
+  "chart_6_month_analysis",
+  "combined_chart_analysis",
+  "price_levels",
+  "entry_plan",
+  "stop_loss_plan",
+  "target_plan",
+  "initial_thesis",
+  "trading_plan",
+  "ai_assessment",
+  "warnings_and_missing_information",
+]);
+
+function withDisplayFallbacks(raw: Record<string, unknown>): InitialAnalysisPayload {
+  const metadata = asRecord(raw.metadata);
+  const schema = asRecord(metadata.schema);
+  const executiveSummary = asRecord(raw.executive_summary);
+  const orderbookAnalysis = asRecord(raw.orderbook_analysis);
+  const chart3 = asRecord(raw.chart_3_month_analysis);
+  const chart6 = asRecord(raw.chart_6_month_analysis);
+  const combinedChart = asRecord(raw.combined_chart_analysis);
+  const priceLevels = asRecord(raw.price_levels);
+  const entryPlan = asRecord(raw.entry_plan);
+  const stopLossPlan = asRecord(raw.stop_loss_plan);
+  const targetPlan = asRecord(raw.target_plan);
+  const initialThesis = asRecord(raw.initial_thesis);
+  const tradingPlan = asRecord(raw.trading_plan);
+  const aiAssessment = asRecord(raw.ai_assessment);
+  const warningsInfo = asRecord(raw.warnings_and_missing_information);
+
+  return {
+    metadata: {
+      analysis_id: asString(metadata.analysis_id),
+      session_id: asString(metadata.session_id),
+      analysis_type: asString(metadata.analysis_type),
+      ticker: asString(metadata.ticker),
+      company_name: asString(metadata.company_name),
+      analysis_timestamp: asString(metadata.analysis_timestamp),
+      language: asString(metadata.language),
+      schema: {
+        schema_name: asString(schema.schema_name),
+        schema_version: asString(schema.schema_version),
+      },
+      prompt_version: asString(metadata.prompt_version),
+      provider: asString(metadata.provider),
+      model: asString(metadata.model),
+    },
+    evidence_summary: asRecord(raw.evidence_summary),
+    market_snapshot: asRecord(raw.market_snapshot),
+    executive_summary: {
+      headline: asString(executiveSummary.headline),
+      main_opportunity: asString(executiveSummary.main_opportunity),
+      main_risk: asString(executiveSummary.main_risk),
+      setup_status: asString(executiveSummary.setup_status),
+      recommended_action: asString(executiveSummary.recommended_action),
+      summary: asString(executiveSummary.summary),
+    },
+    orderbook_analysis: {
+      market_timestamp: asString(orderbookAnalysis.market_timestamp),
+      available: asBoolean(orderbookAnalysis.available),
+      buyer_strength: asString(orderbookAnalysis.buyer_strength),
+      seller_pressure: asString(orderbookAnalysis.seller_pressure),
+      best_bid: asNumber(orderbookAnalysis.best_bid),
+      best_offer: asNumber(orderbookAnalysis.best_offer),
+      bid_support: asPriceLevel(orderbookAnalysis.bid_support),
+      offer_resistance: asPriceLevel(orderbookAnalysis.offer_resistance),
+      positive_signals: asStringArray(orderbookAnalysis.positive_signals),
+      buyer_observations: asStringArray(orderbookAnalysis.buyer_observations),
+      risk_signals: asStringArray(orderbookAnalysis.risk_signals),
+      seller_observations: asStringArray(orderbookAnalysis.seller_observations),
+      supports_entry: asBoolean(orderbookAnalysis.supports_entry),
+      conclusion: asString(orderbookAnalysis.conclusion),
+      limitations: asStringArray(orderbookAnalysis.limitations),
+    },
+    chart_3_month_analysis: chartFallback(chart3),
+    chart_6_month_analysis: chartFallback(chart6),
+    combined_chart_analysis: {
+      multi_timeframe_alignment: asString(combinedChart.multi_timeframe_alignment),
+      short_term_trend: asString(combinedChart.short_term_trend),
+      dominant_structure: asString(combinedChart.dominant_structure),
+      setup_supported: asBoolean(combinedChart.setup_supported),
+      medium_term_trend: asString(combinedChart.medium_term_trend),
+      main_confirmation: asString(combinedChart.main_confirmation),
+      main_conflict: asString(combinedChart.main_conflict),
+      conclusion: asString(combinedChart.conclusion),
+    },
+    price_levels: {
+      entry_reference: asPriceLevel(priceLevels.entry_reference),
+      invalidation_level: asPriceLevel(priceLevels.invalidation_level),
+      stop_loss_level: asPriceLevel(priceLevels.stop_loss_level),
+      target_level: asPriceLevel(priceLevels.target_level),
+      summary: asString(priceLevels.summary),
+      supports: asPriceLevelArray(priceLevels.supports),
+      resistances: asPriceLevelArray(priceLevels.resistances),
+    },
+    entry_plan: {
+      entry_recommended: asBoolean(entryPlan.entry_recommended),
+      entry_type: asString(entryPlan.entry_type),
+      entry_price: asNumber(entryPlan.entry_price),
+      confirmation_required: asBoolean(entryPlan.confirmation_required),
+      confirmation_condition: asString(entryPlan.confirmation_condition),
+      chase_risk: asString(entryPlan.chase_risk),
+      maximum_acceptable_entry: asNumber(entryPlan.maximum_acceptable_entry),
+      cancel_entry_condition: asString(entryPlan.cancel_entry_condition),
+      entry_zone_low: asNumber(entryPlan.entry_zone_low),
+      entry_zone_high: asNumber(entryPlan.entry_zone_high),
+      summary: asString(entryPlan.summary),
+    },
+    stop_loss_plan: {
+      stop_loss_recommended: asBoolean(stopLossPlan.stop_loss_recommended),
+      stop_loss_price: asNumber(stopLossPlan.stop_loss_price),
+      risk_from_reference_entry_percentage: asNumber(stopLossPlan.risk_from_reference_entry_percentage),
+      invalidation_condition: asString(stopLossPlan.invalidation_condition),
+      reason: asString(stopLossPlan.reason),
+      maximum_risk_respected: asBoolean(stopLossPlan.maximum_risk_respected),
+      summary: asString(stopLossPlan.summary),
+    },
+    target_plan: {
+      target_recommended: asBoolean(targetPlan.target_recommended),
+      target_price: asNumber(targetPlan.target_price),
+      reward_from_reference_entry_percentage: asNumber(targetPlan.reward_from_reference_entry_percentage),
+      target_basis: asString(targetPlan.target_basis),
+      primary_obstacle: asString(targetPlan.primary_obstacle),
+      required_condition: asString(targetPlan.required_condition),
+      risk_reward_ratio: asNumber(targetPlan.risk_reward_ratio),
+      summary: asString(targetPlan.summary),
+    },
+    initial_thesis: {
+      status: asString(initialThesis.status),
+      setup_reason: asString(initialThesis.setup_reason),
+      supporting_factors: asStringArray(initialThesis.supporting_factors),
+      risk_factors: asStringArray(initialThesis.risk_factors),
+      support_condition: asString(initialThesis.support_condition),
+      invalidation_price: asNumber(initialThesis.invalidation_price),
+      expected_holding_period: asString(initialThesis.expected_holding_period),
+      review_conditions: asStringArray(initialThesis.review_conditions),
+      invalidation_condition: asString(initialThesis.invalidation_condition),
+      summary: asString(initialThesis.summary),
+    },
+    trading_plan: {
+      current_action: asString(tradingPlan.current_action),
+      action_rationale: asString(tradingPlan.action_rationale),
+      entry_condition: asString(tradingPlan.entry_condition),
+      post_entry_hold_condition: asString(tradingPlan.post_entry_hold_condition),
+      post_entry_exit_condition: asString(tradingPlan.post_entry_exit_condition),
+      wait_condition: asString(tradingPlan.wait_condition),
+      next_checkpoint: asString(tradingPlan.next_checkpoint),
+      cancel_setup_condition: asString(tradingPlan.cancel_setup_condition),
+      levels_to_monitor: asStringArray(tradingPlan.levels_to_monitor),
+      requires_user_confirmation: asBoolean(tradingPlan.requires_user_confirmation),
+    },
+    ai_assessment: {
+      setup_quality: asString(aiAssessment.setup_quality),
+      setup_valid: asBoolean(aiAssessment.setup_valid),
+      bias: asString(aiAssessment.bias),
+      confidence: asNumber(aiAssessment.confidence),
+      bullish_probability: asNumber(aiAssessment.bullish_probability),
+      target_probability: asNumber(aiAssessment.target_probability),
+      downside_probability: asNumber(aiAssessment.downside_probability),
+      risk_level: asString(aiAssessment.risk_level),
+      summary: asString(aiAssessment.summary),
+    },
+    warnings_and_missing_information: {
+      missing_information: asStringArray(warningsInfo.missing_information),
+      warnings: asStringArray(warningsInfo.warnings),
+    },
+  } as InitialAnalysisPayload;
+}
+
+function chartFallback(chart: Record<string, unknown>) {
+  return {
+    available: asBoolean(chart.available),
+    timeframe: asString(chart.timeframe),
+    chart_timestamp: asString(chart.chart_timestamp),
+    momentum: asString(chart.momentum),
+    volume_condition: asString(chart.volume_condition),
+    breakout_status: asString(chart.breakout_status),
+    breakdown_status: asString(chart.breakdown_status),
+    positive_signals: asStringArray(chart.positive_signals),
+    risk_signals: asStringArray(chart.risk_signals),
+    trend: asString(chart.trend),
+    structure_status: asString(chart.structure_status),
+    nearest_support: asPriceLevel(chart.nearest_support),
+    nearest_resistance: asPriceLevel(chart.nearest_resistance),
+    conclusion: asString(chart.conclusion),
+    supports_setup: asBoolean(chart.supports_setup),
+    limitations: asStringArray(chart.limitations),
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function asString(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return DISPLAY_FALLBACK;
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function asPriceLevel(value: unknown) {
+  const record = asRecord(value);
+  const price = asNumber(record.price);
+  if (price === null && !record.summary && !record.label) return null;
+  return {
+    price,
+    label: asString(record.label),
+    summary: asString(record.summary),
+  };
+}
+
+function asPriceLevelArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map(asPriceLevel).filter((item): item is NonNullable<ReturnType<typeof asPriceLevel>> => item !== null)
+    : [];
+}
+
+function additionalTopLevelFields(raw: Record<string, unknown>): [string, unknown][] {
+  return Object.entries(raw).filter(([key]) => !KNOWN_TOP_LEVEL_KEYS.has(key));
+}
+
+function formatUnknownValue(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? DISPLAY_FALLBACK;
+  } catch {
+    return DISPLAY_FALLBACK;
   }
 }

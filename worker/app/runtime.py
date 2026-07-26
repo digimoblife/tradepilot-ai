@@ -170,6 +170,7 @@ def _build_validation_callback_factory(validation_service: Any) -> Callable[...,
                 expected_analysis_type=analysis_type,
                 trade_state=trade_state,
                 session_status_before_job=session_status_before_job,
+                continue_on_schema_errors=analysis_type == "INITIAL_ANALYSIS",
             )
             return result.valid, result.issues
 

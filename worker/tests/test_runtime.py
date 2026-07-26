@@ -301,6 +301,37 @@ def test_initial_analysis_validator_returns_concrete_issues_for_invalid_payload(
     assert any(issue.message for issue in issues)
 
 
+def test_initial_analysis_validator_continues_after_schema_errors_only_for_initial_analysis() -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeResult:
+        valid = True
+        issues: tuple[object, ...] = ()
+
+    class FakeValidationService:
+        def validate(self, payload: dict[str, object], **kwargs: object) -> FakeResult:
+            calls.append(dict(kwargs))
+            return FakeResult()
+
+    validate_factory = _build_validation_callback_factory(FakeValidationService())
+    initial_validate = validate_factory(
+        analysis_type="INITIAL_ANALYSIS",
+        session_status_before_job="READY_FOR_ANALYSIS",
+        canonical_facts={},
+    )
+    watching_validate = validate_factory(
+        analysis_type="WATCHING_UPDATE",
+        session_status_before_job="WATCHING",
+        canonical_facts={},
+    )
+
+    initial_validate({"ok": True})
+    watching_validate({"ok": True})
+
+    assert calls[0]["continue_on_schema_errors"] is True
+    assert calls[1]["continue_on_schema_errors"] is False
+
+
 def test_placeholder_validator_factory_is_rejected() -> None:
     _extend_app_namespace()
 
