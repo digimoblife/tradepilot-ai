@@ -226,7 +226,16 @@ class ProviderContextBuilder:
 
         ensure_request_supported(temp_req, provider_capabilities)  # type: ignore[arg-type]
 
-        # 7. Resolve and render prompt
+        # 7. Resolve same-ticker historical context and render prompt
+        from app.services.same_ticker_history import SameTickerHistoryService
+
+        history_svc = SameTickerHistoryService(self._session)
+        history_summary = await history_svc.build_history_summary(
+            owner_id=owner_id,
+            ticker=ts.ticker,
+            current_session_id=session_id,
+        )
+
         try:
             rendered = self._prompt_registry.render(
                 analysis_type=atype,
@@ -239,6 +248,7 @@ class ProviderContextBuilder:
                     latest_initial_analysis=latest_initial_analysis,
                     latest_watching_update=latest_watching_update,
                     latest_open_position_update=latest_open_position_update,
+                    same_ticker_history_summary=history_summary,
                 ),
             )
         except Exception as exc:
@@ -273,6 +283,14 @@ class ProviderContextBuilder:
             "evidence_batch_id": str(evidence_batch_id) if evidence_batch_id else None,
             "evidence_ids": [str(e.id) for e in ordered_evidence],
             "canonical_chart_timestamps": _build_canonical_chart_timestamps(ordered_evidence),
+            "historical_context_used": history_summary.get("historical_context_used", False),
+            "historical_session_count": history_summary.get("historical_session_count", 0),
+            "historical_source_session_ids": history_summary.get(
+                "historical_source_session_ids", []
+            ),
+            "historical_summary_generated_at": history_summary.get(
+                "historical_summary_generated_at"
+            ),
         }
 
         return ProviderContext(
@@ -445,6 +463,7 @@ def _build_prompt_variables(
     latest_initial_analysis: Analysis | None = None,
     latest_watching_update: Analysis | None = None,
     latest_open_position_update: Analysis | None = None,
+    same_ticker_history_summary: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     import json
 
@@ -520,6 +539,9 @@ def _build_prompt_variables(
 
     user_notes_json: list[dict[str, object]] = []
     variables["user_notes"] = json.dumps(user_notes_json, ensure_ascii=False)
+
+    history_json = same_ticker_history_summary or {}
+    variables["same_ticker_history_summary_json"] = json.dumps(history_json, ensure_ascii=False)
 
     return variables
 

@@ -28,6 +28,7 @@ import { FullExitModal } from "@/features/trade-actions/full-exit-modal";
 import { RequestAnalysis } from "@/features/analysis/request-analysis";
 import { JobStatus } from "@/features/jobs/job-status";
 import { actionLabel } from "./helpers";
+import { SameTickerHistoryPanel } from "./same-ticker-history-panel";
 
 interface Props {
   sessionId: string;
@@ -315,6 +316,9 @@ export function TradeSessionShell({ sessionId }: Props) {
     <div className="mx-auto w-full max-w-4xl px-4 py-8">
       <SessionHeader session={session} />
       <LifecycleStatus status={session.lifecycle_status} />
+      <div className="mt-3">
+        <SameTickerHistoryPanel sessionId={sessionId} />
+      </div>
       <div className="mt-4">
         <CanonicalPositionSummary tradeState={trade_state} />
       </div>

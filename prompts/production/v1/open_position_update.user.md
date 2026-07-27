@@ -44,6 +44,7 @@ Use the following authority order when sources conflict:
 7. Reliable evidence extraction
 8. AI interpretation
 9. Older context summaries
+10. Historical same-ticker sessions (secondary context)
 
 Do not override a higher-authority source with a lower-authority source.
 
@@ -53,6 +54,7 @@ BEGIN_CONTEXT_PACKAGE
 {market_snapshot_json}
 {evidence_manifest_json}
 {latest_analysis_json}
+{same_ticker_history_summary_json}
 {user_notes}
 END_CONTEXT_PACKAGE
 

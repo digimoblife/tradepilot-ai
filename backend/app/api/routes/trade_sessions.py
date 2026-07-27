@@ -940,3 +940,47 @@ async def request_closing_analysis(
         "previous_session_status": result.previous_session_status,
         "current_session_status": result.current_session_status,
     }
+
+
+# ---------------------------------------------------------------------------
+# GET /{session_id}/same-ticker-history
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{session_id}/same-ticker-history", response_model=dict[str, object])
+async def get_same_ticker_history(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> dict[str, object]:
+    from app.repositories.trade_session import TradeSessionRepository
+    from app.services.same_ticker_history import SameTickerHistoryService
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Trade session not found")
+
+    svc = SameTickerHistoryService(db_session)
+    summary = await svc.build_history_summary(
+        owner_id=current_user.id,
+        ticker=ts.ticker,
+        current_session_id=session_id,
+    )
+
+    return {
+        "session_id": str(session_id),
+        "ticker": ts.ticker,
+        "historical_context_used": summary["historical_context_used"],
+        "historical_session_count": summary["historical_session_count"],
+        "completed_trade_count": summary["completed_trade_count"],
+        "skipped_session_count": summary["skipped_session_count"],
+        "historical_source_session_ids": summary["historical_source_session_ids"],
+        "historical_summary_generated_at": summary["historical_summary_generated_at"],
+        "recent_outcomes": summary["recent_outcomes"],
+        "useful_lessons": summary["useful_lessons"],
+        "confidence_calibration_notes": summary["confidence_calibration_notes"],
+        "data_quality_notes": summary["data_quality_notes"],
+    }

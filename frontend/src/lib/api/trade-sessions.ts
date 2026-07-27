@@ -123,3 +123,31 @@ export function getSessionContext(sessionId: string): Promise<Record<string, unk
 export function requestClosingAnalysis(sessionId: string): Promise<Record<string, unknown>> {
   return post<Record<string, unknown>>(`/api/trade-sessions/${sessionId}/closing-analysis`);
 }
+
+export interface SameTickerHistoryResponse {
+  session_id: string;
+  ticker: string;
+  historical_context_used: boolean;
+  historical_session_count: number;
+  completed_trade_count: number;
+  skipped_session_count: number;
+  historical_source_session_ids: string[];
+  historical_summary_generated_at: string;
+  recent_outcomes: Array<{
+    session_id: string;
+    lifecycle_status: string;
+    entry_price?: string;
+    average_exit_price?: string;
+    realized_return?: string;
+    realized_pnl?: string;
+    thesis_status?: string;
+    closing_summary?: string;
+  }>;
+  useful_lessons: string[];
+  confidence_calibration_notes: string[];
+  data_quality_notes: string[];
+}
+
+export function getSameTickerHistory(sessionId: string): Promise<SameTickerHistoryResponse> {
+  return get<SameTickerHistoryResponse>(`/api/trade-sessions/${sessionId}/same-ticker-history`);
+}
