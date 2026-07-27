@@ -16,6 +16,7 @@ from app.lifecycle.restoration import restore_session_status
 from app.models.analysis_job import AnalysisJob
 from app.models.enums import AnalysisJobStatus
 from app.models.trade_session import TradeSession
+from app.services.evidence_batches import EvidenceBatchService
 
 _QUEUED = AnalysisJobStatus.QUEUED
 _PROCESSING = AnalysisJobStatus.PROCESSING
@@ -239,6 +240,7 @@ class PostgreSQLJobQueue:
                 or "Job expired after exhausting all retry attempts before provider invocation."
             )
             await self._restore_previous_session_status(job)
+            await EvidenceBatchService(self._session).fail(job.evidence_batch_id, now=now)
 
         if jobs:
             await self._session.flush()
@@ -328,6 +330,7 @@ class PostgreSQLJobQueue:
             job.status = _FAILED
             job.completed_at = now
             await self._restore_previous_session_status(job)
+            await EvidenceBatchService(self._session).fail(job.evidence_batch_id, now=now)
 
         await self._session.flush()
 

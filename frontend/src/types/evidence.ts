@@ -2,6 +2,7 @@
 export interface EvidenceItem {
   id: string;
   session_id: string;
+  evidence_batch_id?: string | null;
   evidence_type: string;
   status: string;
   original_filename: string | null;

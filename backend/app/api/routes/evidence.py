@@ -21,6 +21,7 @@ from app.evidence.validation import (
 )
 from app.models.evidence import Evidence as EvidenceModel
 from app.services.evidence import (
+    EvidenceBatchMutationRejectedError,
     EvidenceNotFoundError,
     EvidenceService,
     EvidenceServiceError,
@@ -57,6 +58,7 @@ def _evidence_to_response(ev: EvidenceModel) -> EvidenceResponse:
     return EvidenceResponse(
         id=str(ev.id),
         session_id=str(ev.session_id),
+        evidence_batch_id=str(ev.evidence_batch_id) if ev.evidence_batch_id else None,
         evidence_type=ev.evidence_type.value,
         status=ev.evidence_status.value,
         original_filename=ev.original_filename,
@@ -113,6 +115,10 @@ async def upload_evidence(
         raise HTTPException(status_code=404, detail="Trade session not found")
     except EvidenceValidationError as exc:
         return _evidence_error(exc.code, 422)
+    except EvidenceBatchMutationRejectedError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message})
     except EvidenceServiceError as exc:
         if hasattr(exc, "code") and exc.code in _INVALID_FILE_MESSAGES:
             return _evidence_error(str(exc.code), 422)
@@ -266,9 +272,14 @@ async def replace_evidence(
             original_filename=filename,
             declared_mime_type=file.content_type,
             market_timestamp=parsed_market_ts,
+            evidence_batch_id=existing.evidence_batch_id,
         )
     except EvidenceValidationError as exc:
         return _evidence_error(exc.code, 422)
+    except EvidenceBatchMutationRejectedError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message})
 
     ev = result.evidence
     return _evidence_to_response(ev)
@@ -301,6 +312,10 @@ async def deactivate_evidence(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="Evidence not found")
+    except EvidenceBatchMutationRejectedError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message})
 
     # Re-read after deactivation
     ev = await repo.get_by_id_for_user(evidence_id, current_user.id)

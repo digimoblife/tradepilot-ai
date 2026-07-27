@@ -82,6 +82,7 @@ async def get_job_status(
         last_error_code=job.last_error_code,
         last_error_message=job.last_error_message,
         analysis_id=analysis_id,
+        evidence_batch_id=str(job.evidence_batch_id) if job.evidence_batch_id else None,
         created_at=job.created_at,
         updated_at=job.updated_at,
     )

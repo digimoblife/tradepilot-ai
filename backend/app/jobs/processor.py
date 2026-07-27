@@ -57,6 +57,7 @@ from app.models.provider_response import ProviderResponse as DBProviderResponse
 from app.models.trade_session import TradeSession
 from app.models.validation_attempt import ValidationAttempt
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
+from app.services.evidence_batches import EvidenceBatchService
 from app.validation import ValidationCategory, ValidationIssue, ValidationSeverity
 
 ValidationCallback = Callable[
@@ -215,6 +216,7 @@ class AnalysisProcessor:
             session_id=job.session_id,
             owner_id=ts.owner_id,
             analysis_type=atype,
+            evidence_batch_id=job.evidence_batch_id,
             now=now,
         )
 
@@ -352,6 +354,7 @@ class AnalysisProcessor:
             ts.lifecycle_status = completion_status
             ts.stable_status = completion_status
 
+        await EvidenceBatchService(self._session).freeze(job.evidence_batch_id, now=now)
         await self._session.flush()
 
         rebuild = ContextRebuildService(self._session)
@@ -685,6 +688,7 @@ class AnalysisProcessor:
             ts.lifecycle_status = completion_status
             ts.stable_status = completion_status
 
+        await EvidenceBatchService(self._session).freeze(job.evidence_batch_id, now=now)
         await self._session.flush()
 
         rebuild = ContextRebuildService(self._session)
@@ -802,6 +806,7 @@ class AnalysisProcessor:
         session_id: uuid.UUID,
         owner_id: uuid.UUID,
         analysis_type: str,
+        evidence_batch_id: uuid.UUID | None,
         now: datetime,
     ) -> Any:
         capabilities = self._get_primary_capabilities()
@@ -820,6 +825,7 @@ class AnalysisProcessor:
                 owner_id=owner_id,
                 analysis_type=analysis_type,
                 provider_capabilities=capabilities,
+                evidence_batch_id=evidence_batch_id,
                 now=now,
             )
         except ProviderContextStaleError:
@@ -830,6 +836,7 @@ class AnalysisProcessor:
                     owner_id=owner_id,
                     analysis_type=analysis_type,
                     provider_capabilities=capabilities,
+                    evidence_batch_id=evidence_batch_id,
                     now=now,
                 )
             except Exception as exc:
@@ -906,6 +913,7 @@ class AnalysisProcessor:
         job.last_error_message = error_message
 
         await restore_session_status(self._session, ts, job.previous_session_status)
+        await EvidenceBatchService(self._session).fail(job.evidence_batch_id, now=now)
 
 
 def _always_invalid(

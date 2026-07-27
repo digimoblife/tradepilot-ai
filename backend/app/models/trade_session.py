@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.analysis_job import AnalysisJob
     from app.models.context_summary import ContextSummary
     from app.models.evidence import Evidence
+    from app.models.evidence_batch import EvidenceBatch
     from app.models.session_event import SessionEvent
     from app.models.trade_action import TradeAction
     from app.models.trade_state import TradeState
@@ -103,6 +104,9 @@ class TradeSession(Base):
         back_populates="trade_session",
     )
     evidence_items: Mapped[list[Evidence]] = relationship(
+        back_populates="trade_session",
+    )
+    evidence_batches: Mapped[list[EvidenceBatch]] = relationship(
         back_populates="trade_session",
     )
     analysis_jobs: Mapped[list[AnalysisJob]] = relationship(

@@ -19,9 +19,14 @@ from app.evidence import (
 )
 from app.models.enums import AnalysisType, EvidenceStatus, EvidenceType
 from app.models.evidence import Evidence
+from app.models.evidence_batch import EvidenceBatch
 from app.repositories.evidence import EvidenceRepository
 from app.repositories.trade_session import TradeSessionRepository
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
+from app.services.evidence_batches import (
+    EvidenceBatchImmutableError,
+    EvidenceBatchService,
+)
 from app.storage import LocalFileStorage, StoredFile
 
 # ---------------------------------------------------------------------------
@@ -108,6 +113,10 @@ class EvidenceDuplicateActiveError(EvidenceServiceError):
     code: str = "EVIDENCE_DUPLICATE_ACTIVE"
 
 
+class EvidenceBatchMutationRejectedError(EvidenceServiceError):
+    code: str = "EVIDENCE_BATCH_MUTATION_REJECTED"
+
+
 # ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
@@ -128,6 +137,7 @@ class EvidenceService:
         self._session = session
         self._session_repo = TradeSessionRepository(session)
         self._evidence_repo = EvidenceRepository(session)
+        self._batch_service = EvidenceBatchService(session)
         effective_max_size = (
             max_upload_size_bytes
             if max_upload_size_bytes is not None
@@ -154,6 +164,7 @@ class EvidenceService:
         declared_mime_type: str | None,
         market_timestamp: datetime | None = None,
         caption: str | None = None,
+        evidence_batch_id: uuid.UUID | None = None,
     ) -> EvidenceResult:
         ts = await self._session_repo.get_by_id_for_user(session_id, owner_id)
         if ts is None:
@@ -163,9 +174,27 @@ class EvidenceService:
             )
 
         validated_type = _normalize_type(evidence_type)
+        batch = (
+            await self._batch_service.get_or_create_current_draft(
+                session_id=session_id,
+                owner_id=owner_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS,
+            )
+            if evidence_batch_id is None
+            else await self._session.get(EvidenceBatch, evidence_batch_id)
+        )
+        if batch is None or batch.session_id != session_id or batch.owner_id != owner_id:
+            raise EvidenceBatchMutationRejectedError(message="Evidence Batch not found")
+        try:
+            await self._batch_service.assert_mutable(batch.id)
+        except EvidenceBatchImmutableError as exc:
+            raise EvidenceBatchMutationRejectedError(
+                code=exc.code,
+                message=exc.message,
+            ) from exc
 
-        existing = await self._evidence_repo.get_latest_active_by_type_for_user(
-            session_id,
+        existing = await self._evidence_repo.get_latest_active_by_type_in_batch_for_user(
+            batch.id,
             owner_id,
             validated_type.value,
         )
@@ -187,6 +216,7 @@ class EvidenceService:
             market_timestamp=market_timestamp,
             caption=caption,
             supersedes_id=None,
+            evidence_batch_id=batch.id,
         )
 
     # ------------------------------------------------------------------
@@ -204,6 +234,7 @@ class EvidenceService:
         declared_mime_type: str | None,
         market_timestamp: datetime | None = None,
         caption: str | None = None,
+        evidence_batch_id: uuid.UUID | None = None,
     ) -> EvidenceResult:
         ts = await self._session_repo.get_by_id_for_user(session_id, owner_id)
         if ts is None:
@@ -214,11 +245,26 @@ class EvidenceService:
 
         validated_type = _normalize_type(evidence_type)
 
-        old = await self._evidence_repo.get_latest_active_by_type_for_user(
-            session_id,
-            owner_id,
-            validated_type.value,
-        )
+        try:
+            await self._batch_service.assert_mutable(evidence_batch_id)
+        except EvidenceBatchImmutableError as exc:
+            raise EvidenceBatchMutationRejectedError(
+                code=exc.code,
+                message=exc.message,
+            ) from exc
+
+        if evidence_batch_id is None:
+            old = await self._evidence_repo.get_latest_active_by_type_for_user(
+                session_id,
+                owner_id,
+                validated_type.value,
+            )
+        else:
+            old = await self._evidence_repo.get_latest_active_by_type_in_batch_for_user(
+                evidence_batch_id,
+                owner_id,
+                validated_type.value,
+            )
 
         if old is not None and old.evidence_status != EvidenceStatus.AVAILABLE:
             raise EvidenceReplacementInvalidError(
@@ -235,6 +281,7 @@ class EvidenceService:
             market_timestamp=market_timestamp,
             caption=caption,
             supersedes_id=old.id if old is not None else None,
+            evidence_batch_id=evidence_batch_id,
         )
 
         if old is not None:
@@ -316,6 +363,13 @@ class EvidenceService:
             raise EvidenceAlreadyInactiveError(
                 message=f"Evidence is already in status {ev.evidence_status.value}",
             )
+        try:
+            await self._batch_service.assert_mutable(ev.evidence_batch_id)
+        except EvidenceBatchImmutableError as exc:
+            raise EvidenceBatchMutationRejectedError(
+                code=exc.code,
+                message=exc.message,
+            ) from exc
         ev.evidence_status = EvidenceStatus.EXCLUDED
         ev.exclusion_reason = reason
         ev.excluded_at = datetime.now(timezone.utc)
@@ -331,6 +385,7 @@ class EvidenceService:
         session_id: uuid.UUID,
         owner_id: uuid.UUID,
         analysis_type: AnalysisType | str,
+        evidence_batch_id: uuid.UUID | None = None,
     ) -> RequiredEvidenceResult:
         if isinstance(analysis_type, str):
             try:
@@ -346,10 +401,16 @@ class EvidenceService:
                 message=f"Unsupported analysis type: {analysis_type.value}",
             )
 
-        active = await self._evidence_repo.list_active_for_session_for_user(
-            session_id,
-            owner_id,
-        )
+        if evidence_batch_id is not None:
+            active = await self._evidence_repo.list_active_for_batch_for_user(
+                evidence_batch_id,
+                owner_id,
+            )
+        else:
+            active = await self._evidence_repo.list_active_for_session_for_user(
+                session_id,
+                owner_id,
+            )
         present_types = tuple(et for et in required if any(e.evidence_type == et for e in active))
         missing_types = tuple(et for et in required if et not in present_types)
         complete = len(missing_types) == 0
@@ -378,6 +439,7 @@ class EvidenceService:
         market_timestamp: datetime | None,
         caption: str | None,
         supersedes_id: uuid.UUID | None,
+        evidence_batch_id: uuid.UUID | None,
     ) -> EvidenceResult:
         validated = self._validator.validate(
             content=content,
@@ -398,6 +460,7 @@ class EvidenceService:
                 id=uuid.uuid4(),
                 session_id=session_id,
                 owner_id=owner_id,
+                evidence_batch_id=evidence_batch_id,
                 evidence_type=evidence_type,
                 evidence_status=EvidenceStatus.AVAILABLE,
                 original_filename=original_filename,

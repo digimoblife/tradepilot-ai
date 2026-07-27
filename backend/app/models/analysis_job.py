@@ -23,6 +23,7 @@ from app.models.enums import AnalysisJobStatus, AnalysisType
 
 if TYPE_CHECKING:
     from app.models.analysis import Analysis
+    from app.models.evidence_batch import EvidenceBatch
     from app.models.provider_request import ProviderRequest
     from app.models.trade_session import TradeSession
     from app.models.validation_attempt import ValidationAttempt
@@ -56,6 +57,7 @@ class AnalysisJob(Base):
             "analysis_type",
             "status",
         ),
+        Index("ix_analysis_jobs_evidence_batch", "evidence_batch_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)
@@ -64,6 +66,11 @@ class AnalysisJob(Base):
         ForeignKey("trade_sessions.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
+    )
+    evidence_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        pg_uuid(),
+        ForeignKey("evidence_batches.id", ondelete="RESTRICT"),
+        nullable=True,
     )
     analysis_type: Mapped[AnalysisType] = mapped_column(
         SAEnum(AnalysisType, name="analysis_type_enum"),
@@ -98,6 +105,9 @@ class AnalysisJob(Base):
     )
 
     trade_session: Mapped[TradeSession] = relationship(
+        back_populates="analysis_jobs",
+    )
+    evidence_batch: Mapped[EvidenceBatch | None] = relationship(
         back_populates="analysis_jobs",
     )
     provider_requests: Mapped[list[ProviderRequest]] = relationship(

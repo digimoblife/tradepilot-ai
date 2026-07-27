@@ -11,9 +11,17 @@ interface Props {
   sessionId: string;
   evidenceList: EvidenceItem[];
   onUploaded: () => void;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
-export function EvidenceUploadForm({ sessionId, evidenceList, onUploaded }: Props) {
+export function EvidenceUploadForm({
+  sessionId,
+  evidenceList,
+  onUploaded,
+  disabled = false,
+  disabledReason,
+}: Props) {
   const [selectedType, setSelectedType] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [marketTs, setMarketTs] = useState("");
@@ -26,6 +34,7 @@ export function EvidenceUploadForm({ sessionId, evidenceList, onUploaded }: Prop
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (disabled) { return; }
     if (!selectedType) { setError("Pilih tipe bukti terlebih dahulu."); return; }
     if (!file) { setError("Pilih file gambar terlebih dahulu."); return; }
 
@@ -72,7 +81,7 @@ export function EvidenceUploadForm({ sessionId, evidenceList, onUploaded }: Prop
           id="ev-type"
           value={selectedType}
           onChange={(e) => setSelectedType(e.target.value)}
-          disabled={uploading}
+          disabled={uploading || disabled}
           className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
           <option value="">Pilih tipe…</option>
@@ -91,7 +100,7 @@ export function EvidenceUploadForm({ sessionId, evidenceList, onUploaded }: Prop
           type="file"
           accept={SUPPORTED_MIME_TYPES}
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          disabled={uploading}
+          disabled={uploading || disabled}
           className="block w-full text-sm text-zinc-600 file:mr-3 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
         />
         {file && (
@@ -115,7 +124,7 @@ export function EvidenceUploadForm({ sessionId, evidenceList, onUploaded }: Prop
           type="datetime-local"
           value={marketTs}
           onChange={(e) => setMarketTs(e.target.value)}
-          disabled={uploading}
+          disabled={uploading || disabled}
           className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
       </div>
@@ -126,9 +135,15 @@ export function EvidenceUploadForm({ sessionId, evidenceList, onUploaded }: Prop
         </div>
       )}
 
+      {disabled && disabledReason && (
+        <div className="rounded bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+          {disabledReason}
+        </div>
+      )}
+
       <button
         type="submit"
-        disabled={uploading}
+        disabled={uploading || disabled}
         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {uploading ? "Mengunggah…" : "Unggah"}

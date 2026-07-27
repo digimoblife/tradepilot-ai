@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.api.schemas.trade_sessions import (
+    EvidenceBatchSummaryResponse,
     TradeSessionArchiveResponse,
     TradeSessionCreateRequest,
     TradeSessionCreateResponse,
@@ -29,6 +30,8 @@ from app.models.trade_session import TradeSession
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
 from app.services.actions.archive_session import ArchiveSessionActionService
+from app.services.evidence_batches import EvidenceBatchService
+from app.services.evidence import EvidenceService
 from app.services.trade_session import TradeSessionService
 
 router = APIRouter(prefix="/api/trade-sessions", tags=["trade-sessions"])
@@ -140,6 +143,24 @@ def _derive_allowed_actions(lifecycle_status: str) -> list[str]:
     return actions
 
 
+def _batch_to_response(batch: object) -> EvidenceBatchSummaryResponse:
+    return EvidenceBatchSummaryResponse(
+        id=str(batch.id),
+        session_id=str(batch.session_id),
+        analysis_type=batch.analysis_type.value
+        if hasattr(batch.analysis_type, "value")
+        else str(batch.analysis_type),
+        status=batch.status.value if hasattr(batch.status, "value") else str(batch.status),
+        sequence_number=batch.sequence_number,
+        label=batch.label,
+        created_at=batch.created_at,
+        ready_at=batch.ready_at,
+        processing_at=batch.processing_at,
+        frozen_at=batch.frozen_at,
+        failed_at=batch.failed_at,
+    )
+
+
 # ---------------------------------------------------------------------------
 # POST /
 # ---------------------------------------------------------------------------
@@ -234,11 +255,31 @@ async def get_trade_session(
 
     session_resp, state_resp, ts = loaded
     actions = _derive_allowed_actions(ts.lifecycle_status.value)
+    batch_svc = EvidenceBatchService(db_session)
+    current_batch = None
+    if ts.lifecycle_status == TradeSessionStatus.DRAFT:
+        current_batch = await batch_svc.get_or_create_current_draft(
+            session_id=session_id,
+            owner_id=current_user.id,
+        )
+    elif ts.lifecycle_status in {
+        TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
+        TradeSessionStatus.READY_FOR_ANALYSIS,
+        TradeSessionStatus.ANALYZING,
+        TradeSessionStatus.INITIAL_ANALYZED,
+    }:
+        current_batch = await batch_svc.get_latest_for_session(
+            session_id=session_id,
+            owner_id=current_user.id,
+        )
+    batches = await batch_svc.list_for_session(session_id=session_id, owner_id=current_user.id)
 
     return TradeSessionDetailWithActionsResponse(
         session=session_resp,
         trade_state=state_resp,
         allowed_actions=actions,
+        evidence_batches=[_batch_to_response(b) for b in batches],
+        current_evidence_batch=_batch_to_response(current_batch) if current_batch else None,
     )
 
 
@@ -316,6 +357,41 @@ async def ready_trade_session(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="Trade session not found")
+    if ts_check.lifecycle_status != TradeSessionStatus.DRAFT:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_SESSION_TRANSITION",
+                "message": "Only DRAFT sessions can be marked ready.",
+            },
+        )
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_or_create_current_draft(
+        session_id=session_id,
+        owner_id=current_user.id,
+    )
+    evidence_svc = EvidenceService(db_session)
+    required = await evidence_svc.get_required_evidence(
+        session_id=session_id,
+        owner_id=current_user.id,
+        analysis_type="INITIAL_ANALYSIS",
+        evidence_batch_id=batch.id,
+    )
+    if not required.complete:
+        from fastapi import HTTPException
+
+        missing = ", ".join(t.value for t in required.missing_types)
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
+                "message": f"Missing required evidence: {missing}",
+            },
+        )
+    await batch_svc.mark_ready(batch)
 
     lc = SessionLifecycleService(db_session)
     try:

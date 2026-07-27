@@ -89,6 +89,14 @@ class EvidenceStatus(StrEnum):
     DELETED = "DELETED"
 
 
+class EvidenceBatchStatus(StrEnum):
+    DRAFT = "DRAFT"
+    READY = "READY"
+    PROCESSING = "PROCESSING"
+    FROZEN = "FROZEN"
+    FAILED = "FAILED"
+
+
 class ExtractionStatus(StrEnum):
     NOT_REQUESTED = "NOT_REQUESTED"
     PENDING = "PENDING"

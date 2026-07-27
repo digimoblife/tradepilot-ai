@@ -2,6 +2,7 @@ from app.models.analysis import Analysis
 from app.models.analysis_job import AnalysisJob
 from app.models.context_summary import ContextSummary
 from app.models.evidence import Evidence
+from app.models.evidence_batch import EvidenceBatch
 from app.models.provider_request import ProviderRequest
 from app.models.provider_response import ProviderResponse
 from app.models.session_event import SessionEvent
@@ -16,6 +17,7 @@ __all__ = [
     "AnalysisJob",
     "ContextSummary",
     "Evidence",
+    "EvidenceBatch",
     "ProviderRequest",
     "ProviderResponse",
     "SessionEvent",

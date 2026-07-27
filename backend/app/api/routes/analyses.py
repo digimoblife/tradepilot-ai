@@ -84,6 +84,7 @@ async def request_analysis(
         available_at=datetime.now(timezone.utc),
         created_at=datetime.now(timezone.utc),
         previous_session_status=result.previous_session_status,
+        evidence_batch_id=str(result.evidence_batch_id) if result.evidence_batch_id else None,
     )
     return resp.model_dump()
 

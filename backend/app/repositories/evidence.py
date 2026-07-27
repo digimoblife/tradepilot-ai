@@ -85,6 +85,58 @@ class EvidenceRepository:
         result = await self._session.execute(query)
         return result.unique().scalars().all()
 
+    async def list_for_batch_for_user(
+        self,
+        batch_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        limit: int | None = None,
+    ) -> Sequence[Evidence]:
+        query = (
+            select(Evidence)
+            .join(TradeSession, Evidence.session_id == TradeSession.id)
+            .where(
+                Evidence.evidence_batch_id == batch_id,
+                TradeSession.owner_id == user_id,
+            )
+            .order_by(
+                nullslast(Evidence.market_timestamp.desc()),
+                Evidence.uploaded_at.desc(),
+                Evidence.id,
+            )
+        )
+        if limit is not None:
+            query = query.limit(limit)
+        result = await self._session.execute(query)
+        return result.unique().scalars().all()
+
+    async def list_active_for_batch_for_user(
+        self,
+        batch_id: uuid.UUID,
+        user_id: uuid.UUID,
+        *,
+        limit: int | None = None,
+    ) -> Sequence[Evidence]:
+        query = (
+            select(Evidence)
+            .join(TradeSession, Evidence.session_id == TradeSession.id)
+            .where(
+                Evidence.evidence_batch_id == batch_id,
+                TradeSession.owner_id == user_id,
+                Evidence.evidence_status == EvidenceStatus.AVAILABLE,
+                Evidence.deleted_at.is_(None),
+            )
+            .order_by(
+                nullslast(Evidence.market_timestamp.desc()),
+                Evidence.uploaded_at.desc(),
+                Evidence.id,
+            )
+        )
+        if limit is not None:
+            query = query.limit(limit)
+        result = await self._session.execute(query)
+        return result.unique().scalars().all()
+
     async def get_latest_active_by_type_for_user(
         self,
         session_id: uuid.UUID,
@@ -96,6 +148,31 @@ class EvidenceRepository:
             .join(TradeSession, Evidence.session_id == TradeSession.id)
             .where(
                 Evidence.session_id == session_id,
+                TradeSession.owner_id == user_id,
+                Evidence.evidence_type == evidence_type,
+                Evidence.evidence_status == EvidenceStatus.AVAILABLE,
+                Evidence.deleted_at.is_(None),
+            )
+            .order_by(
+                nullslast(Evidence.market_timestamp.desc()),
+                Evidence.uploaded_at.desc(),
+                Evidence.id,
+            )
+            .limit(1)
+        )
+        return result.unique().scalar_one_or_none()
+
+    async def get_latest_active_by_type_in_batch_for_user(
+        self,
+        batch_id: uuid.UUID,
+        user_id: uuid.UUID,
+        evidence_type: str,
+    ) -> Evidence | None:
+        result = await self._session.execute(
+            select(Evidence)
+            .join(TradeSession, Evidence.session_id == TradeSession.id)
+            .where(
+                Evidence.evidence_batch_id == batch_id,
                 TradeSession.owner_id == user_id,
                 Evidence.evidence_type == evidence_type,
                 Evidence.evidence_status == EvidenceStatus.AVAILABLE,

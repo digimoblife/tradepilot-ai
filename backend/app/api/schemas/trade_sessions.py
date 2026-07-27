@@ -108,7 +108,23 @@ class TradeSessionAllowedActions(BaseModel):
     allowed_actions: list[str]
 
 
+class EvidenceBatchSummaryResponse(BaseModel):
+    id: str
+    session_id: str
+    analysis_type: str
+    status: str
+    sequence_number: int
+    label: str | None
+    created_at: datetime
+    ready_at: datetime | None
+    processing_at: datetime | None
+    frozen_at: datetime | None
+    failed_at: datetime | None
+
+
 class TradeSessionDetailWithActionsResponse(BaseModel):
     session: TradeSessionSummaryResponse
     trade_state: TradeStateResponse
     allowed_actions: list[str]
+    evidence_batches: list[EvidenceBatchSummaryResponse] = []
+    current_evidence_batch: EvidenceBatchSummaryResponse | None = None

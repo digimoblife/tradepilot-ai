@@ -10,6 +10,7 @@ from app.models import (  # noqa: F401
     AnalysisJob,
     ContextSummary,
     Evidence,
+    EvidenceBatch,
     ProviderRequest,
     ProviderResponse,
     SessionEvent,

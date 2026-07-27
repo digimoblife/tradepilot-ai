@@ -10,6 +10,7 @@ from pydantic import BaseModel
 class EvidenceResponse(BaseModel):
     id: str
     session_id: str
+    evidence_batch_id: str | None = None
     evidence_type: str
     status: str
     original_filename: str | None

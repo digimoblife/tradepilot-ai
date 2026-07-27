@@ -109,6 +109,41 @@ async def _make_session_raw(
     return sid
 
 
+async def _seed_initial_batch_evidence(
+    engine: AsyncEngine,
+    session_id: uuid.UUID,
+    owner_id: uuid.UUID,
+) -> uuid.UUID:
+    batch_id = uuid.uuid4()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO evidence_batches "
+                "(id, session_id, owner_id, analysis_type, status, sequence_number) "
+                "VALUES (:batch_id, :session_id, :owner_id, 'INITIAL_ANALYSIS', 'DRAFT', 1)"
+            ),
+            {"batch_id": batch_id, "session_id": session_id, "owner_id": owner_id},
+        )
+        for evidence_type in ("ORDERBOOK_SCREENSHOT", "CHART_THREE_MONTH", "CHART_SIX_MONTH"):
+            await conn.execute(
+                text(
+                    "INSERT INTO evidence "
+                    "(session_id, owner_id, evidence_batch_id, evidence_type, evidence_status, "
+                    "storage_object_key, mime_type, file_size_bytes) "
+                    "VALUES (:session_id, :owner_id, :batch_id, :evidence_type, "
+                    "'AVAILABLE', :key, 'image/png', 100)"
+                ),
+                {
+                    "session_id": session_id,
+                    "owner_id": owner_id,
+                    "batch_id": batch_id,
+                    "evidence_type": evidence_type,
+                    "key": f"test/{evidence_type}.png",
+                },
+            )
+    return batch_id
+
+
 # ===================================================================
 # Fixtures
 # ===================================================================
@@ -394,6 +429,7 @@ class TestDetail:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)
         sid = await _make_session_raw(engine, uid)
+        await _seed_initial_batch_evidence(engine, sid, uid)
         cookie = await _login_user(client, email)
         resp = await client.get(
             f"/api/trade-sessions/{sid}",
@@ -408,6 +444,7 @@ class TestDetail:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)
         sid = await _make_session_raw(engine, uid)
+        await _seed_initial_batch_evidence(engine, sid, uid)
         cookie = await _login_user(client, email)
         resp = await client.get(
             f"/api/trade-sessions/{sid}",
@@ -680,6 +717,7 @@ class TestReady:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)
         sid = await _make_session_raw(engine, uid)
+        await _seed_initial_batch_evidence(engine, sid, uid)
         cookie = await _login_user(client, email)
         resp = await client.post(
             f"/api/trade-sessions/{sid}/ready",

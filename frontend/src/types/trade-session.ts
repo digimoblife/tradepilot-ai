@@ -35,6 +35,20 @@ export interface TradeState {
   state_version: number;
 }
 
+export interface EvidenceBatchSummary {
+  id: string;
+  session_id: string;
+  analysis_type: string;
+  status: string;
+  sequence_number: number;
+  label: string | null;
+  created_at: string;
+  ready_at: string | null;
+  processing_at: string | null;
+  frozen_at: string | null;
+  failed_at: string | null;
+}
+
 /** GET /api/trade-sessions */
 export interface ListTradeSessionsResponse {
   sessions: TradeSessionSummary[];
@@ -46,6 +60,8 @@ export interface TradeSessionDetail {
   session: TradeSessionSummary;
   trade_state: TradeState;
   allowed_actions: string[];
+  evidence_batches?: EvidenceBatchSummary[];
+  current_evidence_batch?: EvidenceBatchSummary | null;
 }
 
 /** POST /api/trade-sessions */

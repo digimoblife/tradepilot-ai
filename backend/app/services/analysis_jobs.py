@@ -17,6 +17,7 @@ from app.models.analysis_job import AnalysisJob
 from app.models.enums import AnalysisJobStatus, AnalysisType, TradeSessionStatus
 from app.models.trade_session import TradeSession
 from app.repositories.trade_session import TradeSessionRepository
+from app.services.evidence_batches import EvidenceBatchService
 from app.services.evidence import EvidenceService
 
 # ---------------------------------------------------------------------------
@@ -73,6 +74,7 @@ class AnalysisJobCreationResult:
     job_status: str
     previous_session_status: str
     current_session_status: str
+    evidence_batch_id: uuid.UUID | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +123,7 @@ class AnalysisJobCreationService:
         self._session = session
         self._session_repo = TradeSessionRepository(session)
         self._evidence_service = EvidenceService(session=session)
+        self._batch_service = EvidenceBatchService(session)
 
     async def create(
         self,
@@ -153,11 +156,24 @@ class AnalysisJobCreationService:
                 ),
             )
 
-        # 3. Verify required evidence
+        # 3. Prevent duplicate active job before deeper readiness checks.
+        await self._check_no_duplicate_active(session_id, owner_id, atype)
+
+        # 4. Verify required evidence
+        evidence_batch_id: uuid.UUID | None = None
+        batch = None
+        if atype == AnalysisType.INITIAL_ANALYSIS.value:
+            batch = await self._batch_service.get_ready_for_processing(
+                session_id=session_id,
+                owner_id=owner_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS,
+            )
+            evidence_batch_id = batch.id if batch is not None else None
         required = await self._evidence_service.get_required_evidence(
             session_id=session_id,
             owner_id=owner_id,
             analysis_type=atype,
+            evidence_batch_id=evidence_batch_id,
         )
         if not required.complete:
             missing_names = ", ".join(
@@ -166,9 +182,6 @@ class AnalysisJobCreationService:
             raise AnalysisRequiredEvidenceMissingError(
                 message=f"Missing required evidence: {missing_names}",
             )
-
-        # 4. Prevent duplicate active job
-        await self._check_no_duplicate_active(session_id, owner_id, atype)
 
         # 5. Ensure current context before queueing analysis
         try:
@@ -189,6 +202,7 @@ class AnalysisJobCreationService:
         job = AnalysisJob(
             id=uuid.uuid4(),
             session_id=session_id,
+            evidence_batch_id=evidence_batch_id,
             analysis_type=atype,
             status=AnalysisJobStatus.QUEUED,
             attempt_count=0,
@@ -198,6 +212,8 @@ class AnalysisJobCreationService:
             available_at=datetime.now(timezone.utc),
         )
         self._session.add(job)
+        if batch is not None:
+            await self._batch_service.mark_processing(batch)
 
         # 8. Transition session to ANALYZING
         _analyzing = TradeSessionStatus.ANALYZING
@@ -213,6 +229,7 @@ class AnalysisJobCreationService:
             job_status=AnalysisJobStatus.QUEUED.value,
             previous_session_status=prev_status,
             current_session_status=_analyzing.value,
+            evidence_batch_id=evidence_batch_id,
         )
 
     async def _check_no_duplicate_active(

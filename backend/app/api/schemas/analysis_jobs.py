@@ -17,6 +17,7 @@ class AnalysisJobCreateResponse(BaseModel):
     available_at: datetime
     created_at: datetime
     previous_session_status: str | None
+    evidence_batch_id: str | None = None
 
 
 class AnalysisJobStatusResponse(BaseModel):
@@ -32,6 +33,7 @@ class AnalysisJobStatusResponse(BaseModel):
     last_error_code: str | None
     last_error_message: str | None
     analysis_id: str | None
+    evidence_batch_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

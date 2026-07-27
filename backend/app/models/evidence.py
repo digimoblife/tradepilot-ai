@@ -27,6 +27,7 @@ from app.database.types import percentage_numeric, pg_uuid, utc_datetime
 from app.models.enums import EvidenceStatus, EvidenceType, ExtractionStatus
 
 if TYPE_CHECKING:
+    from app.models.evidence_batch import EvidenceBatch
     from app.models.trade_session import TradeSession
     from app.models.user import User
 
@@ -98,6 +99,12 @@ class Evidence(Base):
             text("market_timestamp DESC"),
         ),
         Index(
+            "ix_evidence_batch_type_status",
+            "evidence_batch_id",
+            "evidence_type",
+            "evidence_status",
+        ),
+        Index(
             "ix_evidence_active_initial",
             "session_id",
             "evidence_type",
@@ -119,6 +126,12 @@ class Evidence(Base):
         pg_uuid(),
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
+    )
+    evidence_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        pg_uuid(),
+        ForeignKey("evidence_batches.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
     )
     evidence_type: Mapped[EvidenceType] = mapped_column(
         SAEnum(EvidenceType, name="evidence_type_enum"),
@@ -169,6 +182,9 @@ class Evidence(Base):
         back_populates="evidence_items",
     )
     owner: Mapped[User] = relationship(
+        back_populates="evidence_items",
+    )
+    evidence_batch: Mapped[EvidenceBatch | None] = relationship(
         back_populates="evidence_items",
     )
     supersedes: Mapped[Evidence | None] = relationship(

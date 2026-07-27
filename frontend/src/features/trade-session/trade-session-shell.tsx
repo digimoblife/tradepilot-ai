@@ -320,7 +320,11 @@ export function TradeSessionShell({ sessionId }: Props) {
       </div>
 
       <div className="mt-6 space-y-4">
-        <EvidenceSection sessionId={sessionId} />
+        <EvidenceSection
+          sessionId={sessionId}
+          batches={state.data.evidence_batches ?? []}
+          currentBatch={state.data.current_evidence_batch ?? null}
+        />
       </div>
 
       <div className="mt-6">

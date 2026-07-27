@@ -14,6 +14,7 @@ from app.models.enums import AccountStatus
 
 if TYPE_CHECKING:
     from app.models.evidence import Evidence
+    from app.models.evidence_batch import EvidenceBatch
     from app.models.trade_session import TradeSession
 
 
@@ -48,6 +49,9 @@ class User(Base):
         back_populates="user",
     )
     evidence_items: Mapped[list[Evidence]] = relationship(
+        back_populates="owner",
+    )
+    evidence_batches: Mapped[list[EvidenceBatch]] = relationship(
         back_populates="owner",
     )
 

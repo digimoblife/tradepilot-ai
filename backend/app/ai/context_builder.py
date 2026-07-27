@@ -129,6 +129,7 @@ class ProviderContextBuilder:
         owner_id: uuid.UUID,
         analysis_type: AnalysisType | str,
         provider_capabilities: ProviderCapabilities,
+        evidence_batch_id: uuid.UUID | None = None,
         now: datetime | None = None,
     ) -> ProviderContext:
         atype = _normalize_type(analysis_type)
@@ -160,10 +161,16 @@ class ProviderContextBuilder:
         )
 
         # 5. Load active evidence (deterministic order)
-        all_active = await self._evidence_repo.list_active_for_session_for_user(
-            session_id,
-            owner_id,
-        )
+        if evidence_batch_id is None:
+            all_active = await self._evidence_repo.list_active_for_session_for_user(
+                session_id,
+                owner_id,
+            )
+        else:
+            all_active = await self._evidence_repo.list_active_for_batch_for_user(
+                evidence_batch_id,
+                owner_id,
+            )
         ordered_evidence = _order_evidence(all_active, atype)
 
         # 6. Check provider capabilities
@@ -211,6 +218,7 @@ class ProviderContextBuilder:
             "output_language": "id",
             "context_summary_id": str(context_summary.id) if context_summary else None,
             "latest_analysis_id": str(latest_analysis.id) if latest_analysis else None,
+            "evidence_batch_id": str(evidence_batch_id) if evidence_batch_id else None,
             "evidence_ids": [str(e.id) for e in ordered_evidence],
             "canonical_chart_timestamps": _build_canonical_chart_timestamps(ordered_evidence),
         }
