@@ -3,6 +3,8 @@ import type { EvidenceItem } from "@/types/evidence";
 const REQUIRED_TYPES_BY_ANALYSIS: Record<string, readonly string[]> = {
   INITIAL_ANALYSIS: ["ORDERBOOK_SCREENSHOT", "CHART_THREE_MONTH", "CHART_SIX_MONTH"],
   WATCHING_UPDATE: ["ORDERBOOK_SCREENSHOT"],
+  OPEN_POSITION_UPDATE: ["ORDERBOOK_SCREENSHOT"],
+  CLOSING_ANALYSIS: [],
 };
 
 export const EVIDENCE_TYPE_LABELS: Record<string, string> = {

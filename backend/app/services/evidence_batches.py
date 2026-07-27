@@ -7,7 +7,11 @@ from typing import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import AnalysisType, EvidenceBatchStatus
+from app.models.enums import (
+    AnalysisType,
+    EvidenceBatchStatus,
+    TradeSessionStatus,
+)
 from app.models.evidence_batch import EvidenceBatch
 from app.repositories.evidence_batch import EvidenceBatchRepository
 from app.repositories.trade_session import TradeSessionRepository
@@ -86,6 +90,19 @@ class EvidenceBatchService:
         if ts is None:
             raise EvidenceBatchSessionNotFoundError(
                 message="Trade Session not found or not owned"
+            )
+
+        _terminal = {
+            TradeSessionStatus.CLOSED,
+            TradeSessionStatus.CLOSED_TAKE_PROFIT,
+            TradeSessionStatus.CLOSED_STOP_LOSS,
+            TradeSessionStatus.CLOSED_MANUAL,
+            TradeSessionStatus.CANCELLED,
+            TradeSessionStatus.ARCHIVED,
+        }
+        if ts.lifecycle_status in _terminal:
+            raise EvidenceBatchImmutableError(
+                message=f"Cannot create evidence batch: session is {ts.lifecycle_status.value}"
             )
 
         latest_draft = await self._repo.get_latest_by_status(

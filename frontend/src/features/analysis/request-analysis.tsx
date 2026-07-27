@@ -64,7 +64,7 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
     return () => { cancelled = true; cancelledRef.current = true; };
   }, [sessionId, analysisType, currentBatch]);
 
-  const allRequiredPresent = evidenceItems.length > 0 && evidenceItems.every((e) => e.active);
+  const allRequiredPresent = evidenceItems.length === 0 || evidenceItems.every((e) => e.active);
   const missingItems = evidenceItems.filter((e) => !e.active);
 
   const handleSubmit = useCallback(async () => {

@@ -182,6 +182,22 @@ class ProviderContextBuilder:
                 analysis_type=AnalysisType.WATCHING_UPDATE.value,
             )
             latest_open_position_update = latest_analysis
+        elif atype == AnalysisType.CLOSING_ANALYSIS.value:
+            latest_initial_analysis = await self._analysis_repo.get_latest_accepted_by_type_for_user(
+                session_id=session_id,
+                user_id=owner_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS.value,
+            )
+            latest_watching_update = await self._analysis_repo.get_latest_accepted_by_type_for_user(
+                session_id=session_id,
+                user_id=owner_id,
+                analysis_type=AnalysisType.WATCHING_UPDATE.value,
+            )
+            latest_open_position_update = await self._analysis_repo.get_latest_accepted_by_type_for_user(
+                session_id=session_id,
+                user_id=owner_id,
+                analysis_type=AnalysisType.OPEN_POSITION_UPDATE.value,
+            )
 
         # 5. Load active evidence (deterministic order)
         if evidence_batch_id is None:
@@ -485,6 +501,12 @@ def _build_prompt_variables(
             "latest_watching_update": _compact_analysis(latest_watching_update),
         }
     elif analysis_type == AnalysisType.OPEN_POSITION_UPDATE.value:
+        latest_analysis_json = {
+            "initial_analysis": _compact_analysis(latest_initial_analysis),
+            "latest_watching_update": _compact_analysis(latest_watching_update),
+            "latest_open_position_update": _compact_analysis(latest_open_position_update),
+        }
+    elif analysis_type == AnalysisType.CLOSING_ANALYSIS.value:
         latest_analysis_json = {
             "initial_analysis": _compact_analysis(latest_initial_analysis),
             "latest_watching_update": _compact_analysis(latest_watching_update),

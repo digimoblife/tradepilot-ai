@@ -31,6 +31,7 @@ _ANALYSIS_TYPE_SCHEMA: dict[str, tuple[str, str]] = {
     "INITIAL_ANALYSIS": ("initial_analysis_v2", "2.0.0"),
     "WATCHING_UPDATE": ("watching_update", "1.0.0"),
     "OPEN_POSITION_UPDATE": ("open_position_update", "1.0.0"),
+    "CLOSING_ANALYSIS": ("closing_analysis", "1.0.0"),
 }
 
 _PROMPT_VERSION: dict[str, str] = {
@@ -46,6 +47,7 @@ _REQUIRED_EVIDENCE: dict[str, tuple[str, ...]] = {
     ),
     "WATCHING_UPDATE": ("ORDERBOOK_SCREENSHOT",),
     "OPEN_POSITION_UPDATE": (),
+    "CLOSING_ANALYSIS": (),
 }
 
 # Whether the analysis type requires image evidence
@@ -53,6 +55,7 @@ _REQUIRES_IMAGES: dict[str, bool] = {
     "INITIAL_ANALYSIS": True,
     "WATCHING_UPDATE": True,
     "OPEN_POSITION_UPDATE": True,
+    "CLOSING_ANALYSIS": False,
 }
 
 # ---------------------------------------------------------------------------

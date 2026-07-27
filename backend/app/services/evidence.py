@@ -17,7 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.evidence import (
     EvidenceUploadValidator,
 )
-from app.models.enums import AnalysisType, EvidenceStatus, EvidenceType, TradeSessionStatus
+from app.models.enums import (
+    AnalysisType,
+    EvidenceStatus,
+    EvidenceType,
+    TradeSessionStatus,
+)
 from app.models.evidence import Evidence
 from app.models.evidence_batch import EvidenceBatch
 from app.repositories.evidence import EvidenceRepository
@@ -171,6 +176,19 @@ class EvidenceService:
             raise EvidenceSessionNotFoundError(
                 code="EVIDENCE_SESSION_NOT_FOUND_OR_NOT_OWNED",
                 message="Trade Session not found or not owned",
+            )
+
+        _terminal = {
+            TradeSessionStatus.CLOSED,
+            TradeSessionStatus.CLOSED_TAKE_PROFIT,
+            TradeSessionStatus.CLOSED_STOP_LOSS,
+            TradeSessionStatus.CLOSED_MANUAL,
+            TradeSessionStatus.CANCELLED,
+            TradeSessionStatus.ARCHIVED,
+        }
+        if ts.lifecycle_status in _terminal:
+            raise EvidenceBatchMutationRejectedError(
+                message=f"Cannot add evidence: session is {ts.lifecycle_status.value}"
             )
 
         validated_type = _normalize_type(evidence_type)

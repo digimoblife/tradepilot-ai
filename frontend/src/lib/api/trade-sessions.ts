@@ -119,3 +119,7 @@ export function archiveSession(sessionId: string): Promise<ArchiveResponse> {
 export function getSessionContext(sessionId: string): Promise<Record<string, unknown>> {
   return get<Record<string, unknown>>(`/api/trade-sessions/${sessionId}/context`);
 }
+
+export function requestClosingAnalysis(sessionId: string): Promise<Record<string, unknown>> {
+  return post<Record<string, unknown>>(`/api/trade-sessions/${sessionId}/closing-analysis`);
+}

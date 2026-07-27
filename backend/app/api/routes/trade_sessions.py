@@ -158,8 +158,13 @@ def _derive_allowed_actions(lifecycle_status: str) -> list[str]:
                 "FULL_EXIT",
             ]
         )
-    if current == TradeSessionStatus.PARTIALLY_CLOSED:
-        actions.extend(["REQUEST_PARTIAL_EXIT_REVIEW", "FULL_EXIT"])
+    if current in {
+        TradeSessionStatus.CLOSED,
+        TradeSessionStatus.CLOSED_TAKE_PROFIT,
+        TradeSessionStatus.CLOSED_STOP_LOSS,
+        TradeSessionStatus.CLOSED_MANUAL,
+    }:
+        actions.append("REQUEST_CLOSING_ANALYSIS")
     if TradeSessionStatus.CANCELLED in allowed_targets:
         actions.append("CANCEL")
     if TradeSessionStatus.ARCHIVED in allowed_targets:
@@ -873,3 +878,65 @@ async def archive_trade_session(
         lifecycle_status=result.session_status.value,
         archived_at=datetime.now(timezone.utc),
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/closing-analysis
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{session_id}/closing-analysis", response_model=dict[str, object], status_code=202)
+async def request_closing_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> dict[str, object]:
+    from fastapi import HTTPException
+    from app.services.analysis_jobs import (
+        AnalysisJobCreationService,
+        AnalysisJobSessionNotFoundError,
+        AnalysisTypeInvalidForLifecycleError,
+        AnalysisJobAlreadyActiveError,
+        AnalysisJobAcceptedAlreadyExistsError,
+        AnalysisRequiredEvidenceMissingError,
+    )
+
+    svc = AnalysisJobCreationService(db_session)
+    try:
+        result = await svc.create(
+            session_id=session_id,
+            owner_id=current_user.id,
+            analysis_type=AnalysisType.CLOSING_ANALYSIS,
+        )
+    except AnalysisJobSessionNotFoundError:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    except AnalysisTypeInvalidForLifecycleError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "CLOSING_ANALYSIS_INVALID_SESSION_STATE",
+                "message": str(exc),
+            },
+        )
+    except (AnalysisJobAlreadyActiveError, AnalysisJobAcceptedAlreadyExistsError) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": exc.code,
+                "message": exc.message if hasattr(exc, "message") else str(exc),
+            },
+        )
+    except AnalysisRequiredEvidenceMissingError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        )
+
+    return {
+        "job_id": str(result.job_id),
+        "session_id": str(result.session_id),
+        "analysis_type": result.analysis_type,
+        "status": result.job_status,
+        "previous_session_status": result.previous_session_status,
+        "current_session_status": result.current_session_status,
+    }

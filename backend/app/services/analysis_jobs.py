@@ -43,6 +43,7 @@ _ANALYSIS_LIFECYCLE_MAP: dict[str, frozenset[str]] = {
     ),
     AnalysisType.CLOSING_ANALYSIS.value: frozenset(
         {
+            TradeSessionStatus.CLOSED.value,
             TradeSessionStatus.CLOSED_TAKE_PROFIT.value,
             TradeSessionStatus.CLOSED_STOP_LOSS.value,
             TradeSessionStatus.CLOSED_MANUAL.value,
@@ -107,6 +108,10 @@ class AnalysisJobAlreadyActiveError(AnalysisJobCreationError):
     code: str = "ANALYSIS_JOB_ALREADY_ACTIVE"
 
 
+class AnalysisJobAcceptedAlreadyExistsError(AnalysisJobCreationError):
+    code: str = "CLOSING_ANALYSIS_ALREADY_EXISTS"
+
+
 class AnalysisJobContextRebuildFailedError(AnalysisJobCreationError):
     code: str = "ANALYSIS_JOB_CONTEXT_REBUILD_FAILED"
 
@@ -156,8 +161,10 @@ class AnalysisJobCreationService:
                 ),
             )
 
-        # 3. Prevent duplicate active job before deeper readiness checks.
+        # 3. Prevent duplicate active job or duplicate accepted closing analysis
         await self._check_no_duplicate_active(session_id, owner_id, atype)
+        if atype == AnalysisType.CLOSING_ANALYSIS.value:
+            await self._check_no_duplicate_accepted(session_id, owner_id, atype)
 
         # 4. Verify required evidence
         evidence_batch_id: uuid.UUID | None = None
@@ -266,6 +273,32 @@ class AnalysisJobCreationService:
                     f"Analysis job of type {analysis_type!r} "
                     f"is already active (status {existing.status.value})"
                 ),
+            )
+
+    async def _check_no_duplicate_accepted(
+        self,
+        session_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        analysis_type: str,
+    ) -> None:
+        from app.models.analysis import Analysis
+        from app.models.enums import AcceptanceStatus
+
+        result = await self._session.execute(
+            select(Analysis)
+            .join(TradeSession, Analysis.session_id == TradeSession.id)
+            .where(
+                Analysis.session_id == session_id,
+                TradeSession.owner_id == owner_id,
+                Analysis.analysis_type == analysis_type,
+                Analysis.acceptance_status == AcceptanceStatus.ACCEPTED,
+            )
+            .limit(1)
+        )
+        existing = result.unique().scalar_one_or_none()
+        if existing is not None:
+            raise AnalysisJobAcceptedAlreadyExistsError(
+                message=f"Accepted analysis of type {analysis_type!r} already exists",
             )
 
 
