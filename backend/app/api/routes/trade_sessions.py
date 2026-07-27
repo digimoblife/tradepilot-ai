@@ -107,8 +107,30 @@ def _derive_allowed_actions(lifecycle_status: str) -> list[str]:
 
     allowed_targets = get_allowed_transitions(current)
 
-    if TradeSessionStatus.READY_FOR_ANALYSIS in allowed_targets:
+    if TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS in allowed_targets:
         actions.append("MARK_READY")
+    if current in {
+        TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
+        TradeSessionStatus.READY_FOR_ANALYSIS,
+    }:
+        actions.append("REQUEST_INITIAL_ANALYSIS")
+    if current == TradeSessionStatus.INITIAL_ANALYZED:
+        actions.extend(["OPEN_POSITION", "WAIT", "SKIP"])
+    if current == TradeSessionStatus.WATCHING:
+        actions.extend(["REQUEST_WATCHING_UPDATE", "OPEN_POSITION", "WAIT", "SKIP"])
+    if current == TradeSessionStatus.OPEN_POSITION:
+        actions.extend(
+            [
+                "REQUEST_OPEN_POSITION_UPDATE",
+                "CONFIRM_STOP",
+                "CHANGE_STOP",
+                "CONFIRM_TARGET",
+                "CHANGE_TARGET",
+                "FULL_EXIT",
+            ]
+        )
+    if current == TradeSessionStatus.PARTIALLY_CLOSED:
+        actions.extend(["REQUEST_PARTIAL_EXIT_REVIEW", "FULL_EXIT"])
     if TradeSessionStatus.CANCELLED in allowed_targets:
         actions.append("CANCEL")
     if TradeSessionStatus.ARCHIVED in allowed_targets:
@@ -300,7 +322,7 @@ async def ready_trade_session(
         ts = await lc.transition(
             session_id=session_id,
             owner_id=current_user.id,
-            target_status=TradeSessionStatus.READY_FOR_ANALYSIS,
+            target_status=TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
         )
     except InvalidSessionTransitionError as exc:
         from fastapi import HTTPException

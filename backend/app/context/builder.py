@@ -670,7 +670,7 @@ def _ps(trade_state: TradeState | None) -> str:
 
 def _is_closed_status(session: TradeSession) -> bool:
     st = _ev(session.lifecycle_status)
-    return st in ("CLOSED_TAKE_PROFIT", "CLOSED_STOP_LOSS", "CLOSED_MANUAL")
+    return st in ("CLOSED", "CLOSED_TAKE_PROFIT", "CLOSED_STOP_LOSS", "CLOSED_MANUAL")
 
 
 def _closing_reason(session: TradeSession) -> str | None:

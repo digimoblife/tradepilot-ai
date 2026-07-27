@@ -1256,7 +1256,13 @@ class TestExistingValidFixtures:
         for fixture_path in sorted(VALID_DIR.glob("*.json")):
             instance = _load_fixture(fixture_path)
             name_part = fixture_path.stem.split(".")[0]
-            result = service.validate_by_name(instance, name_part, "1.0.0")
+            metadata = instance.get("metadata") if isinstance(instance, dict) else None
+            version = (
+                metadata.get("schema_version")
+                if isinstance(metadata, dict) and isinstance(metadata.get("schema_version"), str)
+                else "1.0.0"
+            )
+            result = service.validate_by_name(instance, name_part, version)
             assert result.valid, (
                 f"{fixture_path.name} failed: {[i.message for i in result.issues]}"
             )

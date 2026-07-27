@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
-import { cancelSession } from "@/lib/api/trade-actions";
+import { cancelSession, skipDecision, waitDecision } from "@/lib/api/trade-actions";
 import { getTimeline } from "@/lib/api/timeline";
 import { listAnalyses } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
@@ -88,6 +88,10 @@ function lifecycleErrorMessage(action: string, error: unknown): string {
   const prefix =
     action === "MARK_READY"
       ? "Belum bisa menandai sesi siap"
+      : action === "WAIT"
+        ? "Belum bisa menunggu sesi"
+        : action === "SKIP"
+          ? "Belum bisa melewatkan sesi"
       : action === "CANCEL"
         ? "Belum bisa membatalkan sesi"
         : action === "ARCHIVE"
@@ -204,6 +208,12 @@ export function TradeSessionShell({ sessionId }: Props) {
       return;
     }
     if (
+      action === "SKIP" &&
+      !window.confirm("Lewatkan setup ini? Sesi akan ditutup tanpa posisi.")
+    ) {
+      return;
+    }
+    if (
       action === "ARCHIVE" &&
       !window.confirm("Arsipkan sesi trading ini? Sesi yang diarsipkan tidak lagi aktif.")
     ) {
@@ -216,6 +226,19 @@ export function TradeSessionShell({ sessionId }: Props) {
     try {
       if (action === "MARK_READY") {
         await markReady(sessionId);
+      } else if (action === "WAIT") {
+        await waitDecision({
+          session_id: sessionId,
+          idempotency_key: makeIdempotencyKey(action, sessionId),
+          confirmed_at: new Date().toISOString(),
+        });
+      } else if (action === "SKIP") {
+        await skipDecision({
+          session_id: sessionId,
+          idempotency_key: makeIdempotencyKey(action, sessionId),
+          confirmed_at: new Date().toISOString(),
+          reason: "USER_SKIPPED_SETUP",
+        });
       } else if (action === "CANCEL") {
         await cancelSession({
           session_id: sessionId,
@@ -282,7 +305,8 @@ export function TradeSessionShell({ sessionId }: Props) {
 
   const { session, trade_state, allowed_actions } = state.data;
   const availableActions =
-    session.lifecycle_status === "READY_FOR_ANALYSIS" &&
+    (session.lifecycle_status === "READY_FOR_INITIAL_ANALYSIS" ||
+      session.lifecycle_status === "READY_FOR_ANALYSIS") &&
     !allowed_actions.includes("REQUEST_INITIAL_ANALYSIS")
       ? ["REQUEST_INITIAL_ANALYSIS", ...allowed_actions]
       : allowed_actions;
@@ -501,7 +525,7 @@ function PendingActionsSection({
   error?: string;
 }) {
   const interactive = new Set(["OPEN_POSITION", "CONFIRM_STOP", "CHANGE_STOP", "CONFIRM_TARGET", "CHANGE_TARGET", "PARTIAL_EXIT", "FULL_EXIT"]);
-  const lifecycleActions = new Set(["MARK_READY", "CANCEL", "ARCHIVE"]);
+  const lifecycleActions = new Set(["MARK_READY", "WAIT", "SKIP", "CANCEL", "ARCHIVE"]);
 
   function isInteractive(action: string): boolean {
     if (interactive.has(action)) return true;

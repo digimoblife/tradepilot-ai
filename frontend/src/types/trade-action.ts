@@ -47,6 +47,19 @@ export interface FullExitRequest extends BaseActionRequest {
   note?: string | null;
 }
 
+/** POST /api/actions/wait */
+export interface WaitDecisionRequest extends BaseActionRequest {
+  confirmed_at: string;
+  note?: string | null;
+}
+
+/** POST /api/actions/skip */
+export interface SkipDecisionRequest extends BaseActionRequest {
+  confirmed_at: string;
+  reason?: string | null;
+  note?: string | null;
+}
+
 /** POST /api/actions/cancel */
 export interface CancelSessionRequest extends BaseActionRequest {
   cancelled_at: string;

@@ -130,11 +130,12 @@
       "analysis_types": [
       ],
       "valid_session_statuses": [
+        "READY_FOR_INITIAL_ANALYSIS",
         "READY_FOR_ANALYSIS",
         "ANALYZING"
       ],
       "resulting_session_statuses": [
-        "WATCHING"
+        "INITIAL_ANALYZED"
       ],
       "dependencies": [
         "common",
@@ -162,11 +163,12 @@
         "INITIAL_ANALYSIS"
       ],
       "valid_session_statuses": [
+        "READY_FOR_INITIAL_ANALYSIS",
         "READY_FOR_ANALYSIS",
         "ANALYZING"
       ],
       "resulting_session_statuses": [
-        "WATCHING"
+        "INITIAL_ANALYZED"
       ],
       "dependencies": [],
       "used_by": [
@@ -286,12 +288,14 @@
         "CLOSING_ANALYSIS"
       ],
       "valid_session_statuses": [
+        "CLOSED",
         "CLOSED_TAKE_PROFIT",
         "CLOSED_STOP_LOSS",
         "CLOSED_MANUAL",
         "CANCELLED"
       ],
       "resulting_session_statuses": [
+        "CLOSED",
         "CLOSED_TAKE_PROFIT",
         "CLOSED_STOP_LOSS",
         "CLOSED_MANUAL",
@@ -323,11 +327,15 @@
       "analysis_types": [],
       "valid_session_statuses": [
         "DRAFT",
+        "READY_FOR_INITIAL_ANALYSIS",
         "READY_FOR_ANALYSIS",
         "ANALYZING",
+        "INITIAL_ANALYZED",
         "WATCHING",
         "OPEN_POSITION",
         "PARTIALLY_CLOSED",
+        "CLOSED",
+        "CLOSED_SKIPPED",
         "CLOSED_TAKE_PROFIT",
         "CLOSED_STOP_LOSS",
         "CLOSED_MANUAL",
@@ -457,6 +465,13 @@
       "canonical_schema": "trade_state"
     },
 
+    "READY_FOR_INITIAL_ANALYSIS": {
+      "allowed_analysis_types": [
+        "INITIAL_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
     "ANALYZING": {
       "allowed_analysis_types": [
         "INITIAL_ANALYSIS",
@@ -475,6 +490,11 @@
       "canonical_schema": "trade_state"
     },
 
+    "INITIAL_ANALYZED": {
+      "allowed_analysis_types": [],
+      "canonical_schema": "trade_state"
+    },
+
     "OPEN_POSITION": {
       "allowed_analysis_types": [
         "OPEN_POSITION_UPDATE"
@@ -487,6 +507,18 @@
         "OPEN_POSITION_UPDATE",
         "PARTIAL_EXIT_REVIEW"
       ],
+      "canonical_schema": "trade_state"
+    },
+
+    "CLOSED": {
+      "allowed_analysis_types": [
+        "CLOSING_ANALYSIS"
+      ],
+      "canonical_schema": "trade_state"
+    },
+
+    "CLOSED_SKIPPED": {
+      "allowed_analysis_types": [],
       "canonical_schema": "trade_state"
     },
 

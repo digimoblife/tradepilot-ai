@@ -21,6 +21,8 @@ from app.repositories.trade_session import TradeSessionRepository
 _ELIGIBLE_FOR_ARCHIVE = frozenset(
     {
         TradeSessionStatus.CANCELLED,
+        TradeSessionStatus.CLOSED,
+        TradeSessionStatus.CLOSED_SKIPPED,
         TradeSessionStatus.CLOSED_TAKE_PROFIT,
         TradeSessionStatus.CLOSED_STOP_LOSS,
         TradeSessionStatus.CLOSED_MANUAL,

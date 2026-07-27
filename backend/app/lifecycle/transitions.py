@@ -10,7 +10,14 @@ from app.models.enums import TradeSessionStatus
 
 _TRANSITION_MAP: dict[TradeSessionStatus, set[TradeSessionStatus]] = {
     TradeSessionStatus.DRAFT: {
+        TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
         TradeSessionStatus.READY_FOR_ANALYSIS,
+        TradeSessionStatus.CANCELLED,
+        TradeSessionStatus.ARCHIVED,
+    },
+    TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS: {
+        TradeSessionStatus.DRAFT,
+        TradeSessionStatus.ANALYZING,
         TradeSessionStatus.CANCELLED,
         TradeSessionStatus.ARCHIVED,
     },
@@ -21,20 +28,31 @@ _TRANSITION_MAP: dict[TradeSessionStatus, set[TradeSessionStatus]] = {
         TradeSessionStatus.ARCHIVED,
     },
     TradeSessionStatus.ANALYZING: {
-        # to stable_status or ANALYZING itself via re-analysis
+        TradeSessionStatus.INITIAL_ANALYZED,
         TradeSessionStatus.WATCHING,
-        # Follow-up succeeds, fails, or is cancelled → previous stable status
-        # We handle ANALYZING->stable separately via the service
+        TradeSessionStatus.OPEN_POSITION,
+        TradeSessionStatus.CLOSED,
+        TradeSessionStatus.CLOSED_SKIPPED,
+    },
+    TradeSessionStatus.INITIAL_ANALYZED: {
+        TradeSessionStatus.WATCHING,
+        TradeSessionStatus.OPEN_POSITION,
+        TradeSessionStatus.CLOSED_SKIPPED,
+        TradeSessionStatus.CANCELLED,
+        TradeSessionStatus.ARCHIVED,
     },
     TradeSessionStatus.WATCHING: {
         TradeSessionStatus.ANALYZING,
+        TradeSessionStatus.WATCHING,
         TradeSessionStatus.OPEN_POSITION,
+        TradeSessionStatus.CLOSED_SKIPPED,
         TradeSessionStatus.CANCELLED,
         TradeSessionStatus.ARCHIVED,
     },
     TradeSessionStatus.OPEN_POSITION: {
         TradeSessionStatus.ANALYZING,
         TradeSessionStatus.PARTIALLY_CLOSED,
+        TradeSessionStatus.CLOSED,
         TradeSessionStatus.CLOSED_TAKE_PROFIT,
         TradeSessionStatus.CLOSED_STOP_LOSS,
         TradeSessionStatus.CLOSED_MANUAL,
@@ -42,9 +60,16 @@ _TRANSITION_MAP: dict[TradeSessionStatus, set[TradeSessionStatus]] = {
     TradeSessionStatus.PARTIALLY_CLOSED: {
         TradeSessionStatus.ANALYZING,
         TradeSessionStatus.PARTIALLY_CLOSED,  # another partial exit
+        TradeSessionStatus.CLOSED,
         TradeSessionStatus.CLOSED_TAKE_PROFIT,
         TradeSessionStatus.CLOSED_STOP_LOSS,
         TradeSessionStatus.CLOSED_MANUAL,
+    },
+    TradeSessionStatus.CLOSED: {
+        TradeSessionStatus.ARCHIVED,
+    },
+    TradeSessionStatus.CLOSED_SKIPPED: {
+        TradeSessionStatus.ARCHIVED,
     },
     # Terminal closed states: only ARCHIVED
     TradeSessionStatus.CLOSED_TAKE_PROFIT: {
@@ -74,6 +99,8 @@ TERMINAL_STATUSES: frozenset[TradeSessionStatus] = frozenset(
         TradeSessionStatus.CLOSED_TAKE_PROFIT,
         TradeSessionStatus.CLOSED_STOP_LOSS,
         TradeSessionStatus.CLOSED_MANUAL,
+        TradeSessionStatus.CLOSED,
+        TradeSessionStatus.CLOSED_SKIPPED,
         TradeSessionStatus.CANCELLED,
     }
 )
@@ -107,13 +134,6 @@ def is_transition_allowed(
     - ``ARCHIVED`` can only be restored to ``pre_archive_status`` (handled
       by the service).
     """
-    if current_status == TradeSessionStatus.ANALYZING:
-        # ANALYZING can transition to any non-transient status
-        return (
-            target_status not in TRANSIENT_STATUSES
-            or target_status == TradeSessionStatus.ANALYZING
-        )
-
     allowed = _TRANSITION_MAP.get(current_status, set())
     return target_status in allowed
 
@@ -122,8 +142,6 @@ def get_allowed_transitions(
     current_status: TradeSessionStatus,
 ) -> set[TradeSessionStatus]:
     """Return the set of allowed target statuses from *current_status*."""
-    if current_status == TradeSessionStatus.ANALYZING:
-        return set(TradeSessionStatus) - TRANSIENT_STATUSES | {TradeSessionStatus.ANALYZING}
     if current_status == TradeSessionStatus.ARCHIVED:
         return set()  # pre_archive_status handled by the service
     return _TRANSITION_MAP.get(current_status, set()).copy()

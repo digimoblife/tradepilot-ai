@@ -6,6 +6,7 @@ PostgreSQL-backed tests — no mocking.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from io import BytesIO
 
 import pytest
@@ -42,6 +43,29 @@ async def _make_session(
 ) -> tuple[uuid.UUID, str]:
     """Create a session and return (session_id, stable_status)."""
     stable = status
+    position_status = "NOT_OPENED"
+    entry_price = None
+    entry_at = None
+    original_quantity = None
+    remaining_quantity = None
+    average_exit_price = None
+    realized_pnl = None
+    if status in ("OPEN_POSITION", "PARTIALLY_CLOSED"):
+        position_status = "OPEN" if status == "OPEN_POSITION" else "PARTIALLY_CLOSED"
+        entry_price = 1000
+        entry_at = datetime(2026, 7, 24, 9, 0, tzinfo=timezone.utc)
+        original_quantity = 10
+        remaining_quantity = 10 if status == "OPEN_POSITION" else 5
+        average_exit_price = None if status == "OPEN_POSITION" else 1100
+        realized_pnl = None if status == "OPEN_POSITION" else 500
+    elif status in ("CLOSED", "CLOSED_TAKE_PROFIT", "CLOSED_STOP_LOSS", "CLOSED_MANUAL"):
+        position_status = "CLOSED"
+        entry_price = 1000
+        entry_at = datetime(2026, 7, 24, 9, 0, tzinfo=timezone.utc)
+        original_quantity = 10
+        remaining_quantity = 0
+        average_exit_price = 1100
+        realized_pnl = 1000
     async with engine.begin() as conn:
         r = await conn.execute(
             text(
@@ -55,10 +79,21 @@ async def _make_session(
         await conn.execute(
             text(
                 "INSERT INTO trade_states "
-                "(session_id, position_status, thesis_status) "
-                "VALUES (:s, 'NOT_OPENED', 'INTACT')"
+                "(session_id, position_status, thesis_status, entry_price, entry_at, "
+                "original_quantity, remaining_quantity, average_exit_price, realized_pnl) "
+                "VALUES (:s, :ps, 'INTACT', :entry_price, :entry_at, "
+                ":original_quantity, :remaining_quantity, :average_exit_price, :realized_pnl)"
             ),
-            {"s": sid},
+            {
+                "s": sid,
+                "ps": position_status,
+                "entry_price": entry_price,
+                "entry_at": entry_at,
+                "original_quantity": original_quantity,
+                "remaining_quantity": remaining_quantity,
+                "average_exit_price": average_exit_price,
+                "realized_pnl": realized_pnl,
+            },
         )
         return sid, stable
 
@@ -142,6 +177,26 @@ def factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 
 class TestValidCreation:
+    async def test_creates_initial_job_from_new_ready_status(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        sid, _ = await _make_session(engine, user_id, status="READY_FOR_INITIAL_ANALYSIS")
+        await _seed_initial_evidence(engine, sid, user_id)
+
+        async with factory() as s:
+            svc = AnalysisJobCreationService(s)
+            result = await svc.create(
+                session_id=sid,
+                owner_id=user_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS,
+            )
+            assert result.job_status == "QUEUED"
+            assert result.previous_session_status == "READY_FOR_INITIAL_ANALYSIS"
+            assert result.current_session_status == "ANALYZING"
+
     async def test_creates_queued_job(
         self,
         engine: AsyncEngine,

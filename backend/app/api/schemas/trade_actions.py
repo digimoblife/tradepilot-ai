@@ -50,6 +50,17 @@ class FullExitRequest(BaseActionRequest):
     note: str | None = None
 
 
+class WaitDecisionRequest(BaseActionRequest):
+    confirmed_at: datetime
+    note: str | None = None
+
+
+class SkipDecisionRequest(BaseActionRequest):
+    confirmed_at: datetime
+    reason: str | None = None
+    note: str | None = None
+
+
 class CancelSessionRequest(BaseActionRequest):
     cancelled_at: datetime
     reason: str | None = None

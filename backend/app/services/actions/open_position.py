@@ -108,9 +108,13 @@ class OpenPositionService:
             )
 
         # 3. Validate current state
-        if ts.lifecycle_status != TradeSessionStatus.WATCHING:
+        if ts.lifecycle_status not in {
+            TradeSessionStatus.INITIAL_ANALYZED,
+            TradeSessionStatus.WATCHING,
+        }:
             raise OpenPositionInvalidStateError(
-                f"Cannot open position: session is {ts.lifecycle_status.value}, expected WATCHING"
+                f"Cannot open position: session is {ts.lifecycle_status.value}, "
+                "expected INITIAL_ANALYZED or WATCHING"
             )
 
         # 4. Validate inputs

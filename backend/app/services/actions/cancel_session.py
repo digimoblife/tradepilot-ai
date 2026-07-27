@@ -21,8 +21,10 @@ from app.repositories.trade_session import TradeSessionRepository
 _ELIGIBLE_FOR_CANCEL = frozenset(
     {
         TradeSessionStatus.DRAFT,
+        TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
         TradeSessionStatus.READY_FOR_ANALYSIS,
         TradeSessionStatus.ANALYZING,
+        TradeSessionStatus.INITIAL_ANALYZED,
         TradeSessionStatus.WATCHING,
     }
 )

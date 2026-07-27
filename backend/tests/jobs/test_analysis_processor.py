@@ -583,6 +583,8 @@ class TestSuccessfulProcessing:
             )
             result = await proc.process(job_id=jid, worker_id="w1")
             assert result.job_status == AnalysisJobStatus.COMPLETED.value
+            assert result.restored_session_status == "WATCHING"
+            await s.commit()
             await s.commit()
 
         async with factory() as s:
@@ -1438,6 +1440,7 @@ class TestPartitionedInitialAnalysis:
             )
             result = await proc.process(job_id=jid, worker_id="w1")
             assert result.job_status == AnalysisJobStatus.COMPLETED.value
+            await s.commit()
 
         assert router.calls == [
             ("MARKET_EVIDENCE", ("user/session/file-1.png",)),
@@ -1458,6 +1461,14 @@ class TestPartitionedInitialAnalysis:
             "gemini-3.1-flash-lite",
             "gemini-3.1-flash-lite",
         ]
+        async with factory() as s:
+            status = (
+                await s.execute(
+                    text("SELECT lifecycle_status FROM trade_sessions WHERE id = :sid"),
+                    {"sid": session_id},
+                )
+            ).scalar_one()
+            assert status == "INITIAL_ANALYZED"
 
     async def test_unusable_partition_stops_before_next_request(
         self,
@@ -1492,6 +1503,14 @@ class TestPartitionedInitialAnalysis:
 
         assert router.calls == [("MARKET_EVIDENCE", ("user/session/file-1.png",))]
         assert router.validations == ["MARKET_EVIDENCE"]
+        async with factory() as s:
+            status = (
+                await s.execute(
+                    text("SELECT lifecycle_status FROM trade_sessions WHERE id = :sid"),
+                    {"sid": session_id},
+                )
+            ).scalar_one()
+            assert status == "READY_FOR_ANALYSIS"
 
     async def test_post_merge_domain_validation_warning_completes_job(
         self,

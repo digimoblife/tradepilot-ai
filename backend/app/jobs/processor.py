@@ -41,6 +41,7 @@ from app.ai.providers.router import (
 )
 from app.context import ContextFreshnessService
 from app.logging import get_logger
+from app.lifecycle.restoration import restore_session_status
 from app.models.analysis import Analysis
 from app.models.analysis_job import AnalysisJob
 from app.models.enums import (
@@ -308,8 +309,13 @@ class AnalysisProcessor:
                 error_code=job.last_error_code,
                 error_message=job.last_error_message,
             )
-        except Exception:
-            await self._fail_job(job, [], ts, atype, now)
+        except Exception as exc:
+            routing_error = ProviderRoutingFailedError(
+                message=str(exc) or exc.__class__.__name__,
+                root_cause_code=exc.__class__.__name__,
+                root_cause_message=str(exc) or exc.__class__.__name__,
+            )
+            await self._fail_job(job, routing_error, ts, now)
             await self._session.flush()
             raise
 
@@ -340,15 +346,11 @@ class AnalysisProcessor:
         job.lease_acquired_at = None
         job.lease_expires_at = None
 
-        # Restore session
         prev = job.previous_session_status
-        if prev:
-            try:
-                restored = TradeSessionStatus(prev)
-                ts.lifecycle_status = restored
-                ts.stable_status = restored
-            except ValueError:
-                pass
+        completion_status = _completion_status_for_analysis(atype, prev)
+        if completion_status is not None:
+            ts.lifecycle_status = completion_status
+            ts.stable_status = completion_status
 
         await self._session.flush()
 
@@ -376,7 +378,9 @@ class AnalysisProcessor:
             session_id=job.session_id,
             analysis_id=analysis_id,
             job_status=AnalysisJobStatus.COMPLETED.value,
-            restored_session_status=prev,
+            restored_session_status=(
+                completion_status.value if completion_status is not None else prev
+            ),
             provider=route_result.provider,
             fallback_used=route_result.fallback_used,
         )
@@ -676,13 +680,10 @@ class AnalysisProcessor:
         job.lease_expires_at = None
 
         prev = job.previous_session_status
-        if prev:
-            try:
-                restored = TradeSessionStatus(prev)
-                ts.lifecycle_status = restored
-                ts.stable_status = restored
-            except ValueError:
-                pass
+        completion_status = _completion_status_for_analysis(ctx.analysis_type, prev)
+        if completion_status is not None:
+            ts.lifecycle_status = completion_status
+            ts.stable_status = completion_status
 
         await self._session.flush()
 
@@ -699,7 +700,9 @@ class AnalysisProcessor:
             session_id=job.session_id,
             analysis_id=analysis_id,
             job_status=AnalysisJobStatus.COMPLETED.value,
-            restored_session_status=prev,
+            restored_session_status=(
+                completion_status.value if completion_status is not None else prev
+            ),
             provider=self._provider_order[0] if self._provider_order else None,
             fallback_used=False,
         )
@@ -902,20 +905,27 @@ class AnalysisProcessor:
         job.last_error_code = error_code
         job.last_error_message = error_message
 
-        prev = job.previous_session_status
-        if prev:
-            try:
-                restored = TradeSessionStatus(prev)
-                ts.lifecycle_status = restored
-                ts.stable_status = restored
-            except ValueError:
-                pass
+        await restore_session_status(self._session, ts, job.previous_session_status)
 
 
 def _always_invalid(
     payload: dict[str, object],
 ) -> tuple[bool, tuple[ValidationIssue, ...]]:
     return False, ()
+
+
+def _completion_status_for_analysis(
+    analysis_type: str,
+    previous_status: str | None,
+) -> TradeSessionStatus | None:
+    if analysis_type == "INITIAL_ANALYSIS":
+        return TradeSessionStatus.INITIAL_ANALYZED
+    if previous_status is None:
+        return None
+    try:
+        return TradeSessionStatus(previous_status)
+    except ValueError:
+        return None
 
 
 def _provider_type_from_name(provider_name: str) -> ProviderType:

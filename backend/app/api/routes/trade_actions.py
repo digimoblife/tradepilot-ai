@@ -15,10 +15,12 @@ from app.api.schemas.trade_actions import (
     FullExitRequest,
     OpenPositionRequest,
     PartialExitRequest,
+    SkipDecisionRequest,
     StopActionRequest,
     TargetActionRequest,
     TradeActionResponse,
     TradeStateSnapshot,
+    WaitDecisionRequest,
 )
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
@@ -304,6 +306,79 @@ async def full_exit(
             note=body.note,
         )
     except FullExitError as exc:
+        _map_service_error(exc)
+
+    return await _load_state_and_build(
+        db_session,
+        uuid.UUID(body.session_id),
+        current_user.id,
+        result.action,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/actions/wait
+# ---------------------------------------------------------------------------
+
+
+@router.post("/wait", response_model=ActionResultResponse)
+async def wait_decision(
+    body: WaitDecisionRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> ActionResultResponse:
+    from app.services.actions.post_initial_decision import (
+        PostInitialDecisionError,
+        PostInitialDecisionService,
+    )
+
+    svc = PostInitialDecisionService(db_session)
+    try:
+        result = await svc.wait(
+            session_id=uuid.UUID(body.session_id),
+            owner_id=current_user.id,
+            idempotency_key=body.idempotency_key,
+            confirmed_at=body.confirmed_at,
+            note=body.note,
+        )
+    except PostInitialDecisionError as exc:
+        _map_service_error(exc)
+
+    return await _load_state_and_build(
+        db_session,
+        uuid.UUID(body.session_id),
+        current_user.id,
+        result.action,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/actions/skip
+# ---------------------------------------------------------------------------
+
+
+@router.post("/skip", response_model=ActionResultResponse)
+async def skip_decision(
+    body: SkipDecisionRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> ActionResultResponse:
+    from app.services.actions.post_initial_decision import (
+        PostInitialDecisionError,
+        PostInitialDecisionService,
+    )
+
+    svc = PostInitialDecisionService(db_session)
+    try:
+        result = await svc.skip(
+            session_id=uuid.UUID(body.session_id),
+            owner_id=current_user.id,
+            idempotency_key=body.idempotency_key,
+            confirmed_at=body.confirmed_at,
+            reason=body.reason,
+            note=body.note,
+        )
+    except PostInitialDecisionError as exc:
         _map_service_error(exc)
 
     return await _load_state_and_build(

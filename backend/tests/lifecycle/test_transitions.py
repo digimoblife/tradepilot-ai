@@ -65,7 +65,7 @@ async def _make_session(
 class TestTransitionRegistry:
     def test_draft_to_ready(self) -> None:
         assert is_transition_allowed(
-            TradeSessionStatus.DRAFT, TradeSessionStatus.READY_FOR_ANALYSIS
+            TradeSessionStatus.DRAFT, TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS
         )
 
     def test_draft_to_archived(self) -> None:
@@ -78,25 +78,25 @@ class TestTransitionRegistry:
 
     def test_closed_to_draft_invalid(self) -> None:
         assert not is_transition_allowed(
-            TradeSessionStatus.CLOSED_TAKE_PROFIT, TradeSessionStatus.DRAFT
+            TradeSessionStatus.CLOSED, TradeSessionStatus.DRAFT
         )
 
     def test_closed_to_watching_invalid(self) -> None:
         assert not is_transition_allowed(
-            TradeSessionStatus.CLOSED_STOP_LOSS, TradeSessionStatus.WATCHING
+            TradeSessionStatus.CLOSED_SKIPPED, TradeSessionStatus.WATCHING
         )
 
     def test_archived_to_draft_invalid(self) -> None:
         assert not is_transition_allowed(TradeSessionStatus.ARCHIVED, TradeSessionStatus.DRAFT)
 
     def test_analyzing_to_stable_allowed(self) -> None:
-        assert is_transition_allowed(TradeSessionStatus.ANALYZING, TradeSessionStatus.WATCHING)
         assert is_transition_allowed(
-            TradeSessionStatus.ANALYZING, TradeSessionStatus.OPEN_POSITION
+            TradeSessionStatus.ANALYZING, TradeSessionStatus.INITIAL_ANALYZED
         )
+        assert is_transition_allowed(TradeSessionStatus.ANALYZING, TradeSessionStatus.WATCHING)
 
     def test_analyzing_to_analyzing_allowed(self) -> None:
-        assert is_transition_allowed(TradeSessionStatus.ANALYZING, TradeSessionStatus.ANALYZING)
+        assert not is_transition_allowed(TradeSessionStatus.ANALYZING, TradeSessionStatus.ANALYZING)
 
     def test_partial_to_partial_allowed(self) -> None:
         assert is_transition_allowed(
@@ -108,6 +108,18 @@ class TestTransitionRegistry:
             TradeSessionStatus.OPEN_POSITION, TradeSessionStatus.ANALYZING
         )
 
+    def test_initial_analyzed_decisions_allowed(self) -> None:
+        assert is_transition_allowed(TradeSessionStatus.INITIAL_ANALYZED, TradeSessionStatus.WATCHING)
+        assert is_transition_allowed(
+            TradeSessionStatus.INITIAL_ANALYZED, TradeSessionStatus.OPEN_POSITION
+        )
+        assert is_transition_allowed(
+            TradeSessionStatus.INITIAL_ANALYZED, TradeSessionStatus.CLOSED_SKIPPED
+        )
+
+    def test_open_to_closed_allowed(self) -> None:
+        assert is_transition_allowed(TradeSessionStatus.OPEN_POSITION, TradeSessionStatus.CLOSED)
+
 
 class TestLifecycleService:
     async def test_draft_to_ready(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
@@ -118,10 +130,10 @@ class TestLifecycleService:
             result = await svc.transition(
                 session_id=sid,
                 owner_id=uid,
-                target_status=TradeSessionStatus.READY_FOR_ANALYSIS,
+                target_status=TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
             )
-            assert result.lifecycle_status == TradeSessionStatus.READY_FOR_ANALYSIS
-            assert result.stable_status == TradeSessionStatus.READY_FOR_ANALYSIS
+            assert result.lifecycle_status == TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS
+            assert result.stable_status == TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS
 
     async def test_invalid_transition_error(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
         sid, uid = await _make_session(engine, user_id)
@@ -160,7 +172,7 @@ class TestLifecycleService:
 
 class TestClosedCannotReopen:
     async def test_closed_take_profit(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
-        sid, uid = await _make_session(engine, user_id, TradeSessionStatus.CLOSED_TAKE_PROFIT)
+        sid, uid = await _make_session(engine, user_id, TradeSessionStatus.CLOSED)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
             svc = SessionLifecycleService(s)
@@ -173,7 +185,7 @@ class TestClosedCannotReopen:
                     await svc.transition(session_id=sid, owner_id=uid, target_status=target)
 
     async def test_closed_stop_loss(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
-        sid, uid = await _make_session(engine, user_id, TradeSessionStatus.CLOSED_STOP_LOSS)
+        sid, uid = await _make_session(engine, user_id, TradeSessionStatus.CLOSED_SKIPPED)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with factory() as s:
             svc = SessionLifecycleService(s)
@@ -242,5 +254,5 @@ class TestOwnership:
                 await svc.transition(
                     session_id=sid,
                     owner_id=wrong_uid,
-                    target_status=TradeSessionStatus.READY_FOR_ANALYSIS,
+                    target_status=TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
                 )

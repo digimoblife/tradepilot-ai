@@ -12,8 +12,9 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.jobs.models import ClaimedJob, JobLease
+from app.lifecycle.restoration import restore_session_status
 from app.models.analysis_job import AnalysisJob
-from app.models.enums import AnalysisJobStatus, TradeSessionStatus
+from app.models.enums import AnalysisJobStatus
 from app.models.trade_session import TradeSession
 
 _QUEUED = AnalysisJobStatus.QUEUED
@@ -375,15 +376,6 @@ class PostgreSQLJobQueue:
         )
 
     async def _restore_previous_session_status(self, job: AnalysisJob) -> None:
-        prev = job.previous_session_status
-        if not prev:
-            return
-
-        try:
-            restored = TradeSessionStatus(prev)
-        except ValueError:
-            return
-
         result = await self._session.execute(
             select(TradeSession).where(TradeSession.id == job.session_id).with_for_update()
         )
@@ -391,5 +383,4 @@ class PostgreSQLJobQueue:
         if trade_session is None:
             return
 
-        trade_session.lifecycle_status = restored
-        trade_session.stable_status = restored
+        await restore_session_status(self._session, trade_session, job.previous_session_status)

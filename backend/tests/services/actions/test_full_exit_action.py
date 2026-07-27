@@ -164,7 +164,7 @@ class TestFullExitFromOpen:
 
             sess = await s.get(TradeSession, sid)
             assert sess is not None
-            assert sess.lifecycle_status == TradeSessionStatus.CLOSED_STOP_LOSS
+            assert sess.lifecycle_status == TradeSessionStatus.CLOSED
 
     async def test_action_persisted(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
         sid, uid = await _open_session(engine, user_id)
@@ -195,6 +195,7 @@ class TestFullExitFromOpen:
             assert act is not None
             assert act.action_type == ActionType.FULL_EXIT
             assert act.price == 2910
+            assert act.payload["closing_reason"] == "MANUAL_EXIT"
 
 
 class TestFullExitAfterPartial:
@@ -241,9 +242,10 @@ class TestClosingReasons:
     @pytest.mark.parametrize(
         "reason,expected_status",
         [
-            ("TAKE_PROFIT", TradeSessionStatus.CLOSED_TAKE_PROFIT),
-            ("STOP_LOSS", TradeSessionStatus.CLOSED_STOP_LOSS),
-            ("MANUAL_EXIT", TradeSessionStatus.CLOSED_MANUAL),
+            ("TAKE_PROFIT", TradeSessionStatus.CLOSED),
+            ("STOP_LOSS", TradeSessionStatus.CLOSED),
+            ("MANUAL_EXIT", TradeSessionStatus.CLOSED),
+            ("OTHER", TradeSessionStatus.CLOSED),
         ],
     )
     async def test_mapping(

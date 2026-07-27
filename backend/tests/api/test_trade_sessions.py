@@ -686,7 +686,7 @@ class TestReady:
             cookies={"tradepilot_session": cookie},
         )
         assert resp.status_code == 200
-        assert resp.json()["lifecycle_status"] == "READY_FOR_ANALYSIS"
+        assert resp.json()["lifecycle_status"] == "READY_FOR_INITIAL_ANALYSIS"
 
     async def test_invalid_ready_transition_fails(
         self, engine: AsyncEngine, client: AsyncClient

@@ -400,7 +400,7 @@ class TestFullExit:
         data = resp.json()
         remaining = data["trade_state"]["remaining_quantity"]
         assert remaining is None or "0" in str(remaining)
-        assert data["session_status"] == "CLOSED_TAKE_PROFIT"
+        assert data["session_status"] == "CLOSED"
 
 
 # ===================================================================

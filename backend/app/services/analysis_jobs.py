@@ -25,7 +25,11 @@ from app.services.evidence import EvidenceService
 
 _ANALYSIS_LIFECYCLE_MAP: dict[str, frozenset[str]] = {
     AnalysisType.INITIAL_ANALYSIS.value: frozenset(
-        {TradeSessionStatus.READY_FOR_ANALYSIS.value, TradeSessionStatus.ANALYZING.value}
+        {
+            TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS.value,
+            TradeSessionStatus.READY_FOR_ANALYSIS.value,
+            TradeSessionStatus.ANALYZING.value,
+        }
     ),
     AnalysisType.WATCHING_UPDATE.value: frozenset(
         {TradeSessionStatus.WATCHING.value, TradeSessionStatus.ANALYZING.value}

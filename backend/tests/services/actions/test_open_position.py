@@ -65,10 +65,41 @@ async def _watching_session(engine: AsyncEngine, uid: uuid.UUID) -> tuple[uuid.U
     return session.id, uid
 
 
+async def _initial_analyzed_session(
+    engine: AsyncEngine, uid: uuid.UUID
+) -> tuple[uuid.UUID, uuid.UUID]:
+    sid, uid = await _watching_session(engine, uid)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "UPDATE trade_sessions "
+                "SET lifecycle_status = 'INITIAL_ANALYZED', stable_status = 'INITIAL_ANALYZED' "
+                "WHERE id = :sid"
+            ),
+            {"sid": sid},
+        )
+    return sid, uid
+
+
 # ===================================================================
 
 
 class TestSuccessfulConfirmation:
+    async def test_initial_analyzed_to_open(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
+        sid, uid = await _initial_analyzed_session(engine, user_id)
+        factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as s:
+            result = await OpenPositionService(s).confirm(
+                session_id=sid,
+                owner_id=uid,
+                idempotency_key=f"open_initial_{uuid.uuid4().hex}",
+                entry_price=2800,
+                quantity=100,
+                execution_timestamp=NOW,
+            )
+            assert result.session_status == TradeSessionStatus.OPEN_POSITION
+            assert result.trade_state.position_status == PositionStatus.OPEN
+
     async def test_watching_to_open(self, engine: AsyncEngine, user_id: uuid.UUID) -> None:
         sid, uid = await _watching_session(engine, user_id)
         factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)

@@ -5,6 +5,8 @@ import type {
   TargetActionRequest,
   PartialExitRequest,
   FullExitRequest,
+  WaitDecisionRequest,
+  SkipDecisionRequest,
   CancelSessionRequest,
   ActionResult,
 } from "@/types/trade-action";
@@ -35,6 +37,14 @@ export function partialExit(data: PartialExitRequest): Promise<ActionResult> {
 
 export function fullExit(data: FullExitRequest): Promise<ActionResult> {
   return post<ActionResult>("/api/actions/full-exit", data);
+}
+
+export function waitDecision(data: WaitDecisionRequest): Promise<ActionResult> {
+  return post<ActionResult>("/api/actions/wait", data);
+}
+
+export function skipDecision(data: SkipDecisionRequest): Promise<ActionResult> {
+  return post<ActionResult>("/api/actions/skip", data);
 }
 
 export function cancelSession(data: CancelSessionRequest): Promise<ActionResult> {

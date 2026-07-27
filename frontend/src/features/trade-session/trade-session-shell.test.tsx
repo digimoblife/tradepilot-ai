@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { archiveSession, getSession, markReady } from "@/lib/api/trade-sessions";
-import { cancelSession } from "@/lib/api/trade-actions";
+import { cancelSession, skipDecision, waitDecision } from "@/lib/api/trade-actions";
 import { listEvidence } from "@/lib/api/evidence";
 import { getTimeline } from "@/lib/api/timeline";
 import { getJobStatus, requestAnalysis, listAnalyses, getAnalysis } from "@/lib/api/analyses";
@@ -16,6 +16,8 @@ vi.mock("@/lib/api/trade-sessions", () => ({
 
 vi.mock("@/lib/api/trade-actions", () => ({
   cancelSession: vi.fn(),
+  skipDecision: vi.fn(),
+  waitDecision: vi.fn(),
 }));
 
 vi.mock("@/lib/api/evidence", () => ({
@@ -226,6 +228,50 @@ beforeEach(async () => {
       quantity: null,
     },
     session_status: "CANCELLED",
+    trade_state: {
+      position_status: "NOT_OPENED",
+      entry_price: null,
+      original_quantity: null,
+      remaining_quantity: null,
+      active_stop_loss: null,
+      active_target: null,
+      average_exit_price: null,
+      realized_pnl: null,
+      state_version: 1,
+    },
+  });
+  vi.mocked(waitDecision).mockResolvedValue({
+    action: {
+      id: "action-wait-1",
+      session_id: "sess-1",
+      action_type: "USER_WAITED",
+      confirmed_at: "2026-07-20T12:00:00Z",
+      price: null,
+      quantity: null,
+    },
+    session_status: "WATCHING",
+    trade_state: {
+      position_status: "NOT_OPENED",
+      entry_price: null,
+      original_quantity: null,
+      remaining_quantity: null,
+      active_stop_loss: null,
+      active_target: null,
+      average_exit_price: null,
+      realized_pnl: null,
+      state_version: 1,
+    },
+  });
+  vi.mocked(skipDecision).mockResolvedValue({
+    action: {
+      id: "action-skip-1",
+      session_id: "sess-1",
+      action_type: "SESSION_SKIPPED",
+      confirmed_at: "2026-07-20T12:00:00Z",
+      price: null,
+      quantity: null,
+    },
+    session_status: "CLOSED_SKIPPED",
     trade_state: {
       position_status: "NOT_OPENED",
       entry_price: null,
@@ -583,10 +629,12 @@ describe("allowed actions", () => {
 
   it("renders lifecycle actions as semantic buttons", async () => {
     vi.mocked(getSession).mockResolvedValue(
-      makeSession({ allowed_actions: ["MARK_READY", "CANCEL", "ARCHIVE"] }),
+      makeSession({ allowed_actions: ["MARK_READY", "WAIT", "SKIP", "CANCEL", "ARCHIVE"] }),
     );
     render(<TradeSessionShell sessionId="sess-1" />);
     expect(await screen.findByRole("button", { name: "Tandai Siap" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tunggu" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Lewatkan" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Batalkan" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Arsipkan" })).toBeTruthy();
   });
@@ -716,6 +764,132 @@ describe("allowed actions", () => {
     await user.click(await screen.findByRole("button", { name: "Batalkan" }));
 
     expect(cancelSession).not.toHaveBeenCalled();
+  });
+
+  it("calls wait endpoint and refreshes to watching", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "INITIAL_ANALYZED",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: null,
+        },
+        trade_state: {
+          position_status: "NOT_OPENED",
+          thesis_status: "INTACT",
+          entry_price: null,
+          entry_at: null,
+          original_quantity: null,
+          remaining_quantity: null,
+          active_stop_loss: null,
+          active_target: null,
+          average_exit_price: null,
+          realized_pnl: null,
+          realized_return: null,
+          state_version: 1,
+        },
+        allowed_actions: ["WAIT", "SKIP"],
+      }))
+      .mockResolvedValueOnce(makeSession({ allowed_actions: ["WAIT", "SKIP"] }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Tunggu" }));
+
+    await waitFor(() => { expect(waitDecision).toHaveBeenCalledTimes(1); });
+    expect(waitDecision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: "sess-1",
+        confirmed_at: expect.any(String),
+        idempotency_key: expect.stringContaining("ui_wait_sess-1_"),
+      }),
+    );
+    expect(await screen.findByText("Dipantau")).toBeTruthy();
+  });
+
+  it("confirms skip and calls skip endpoint", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "INITIAL_ANALYZED",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: null,
+        },
+        trade_state: {
+          position_status: "NOT_OPENED",
+          thesis_status: "INTACT",
+          entry_price: null,
+          entry_at: null,
+          original_quantity: null,
+          remaining_quantity: null,
+          active_stop_loss: null,
+          active_target: null,
+          average_exit_price: null,
+          realized_pnl: null,
+          realized_return: null,
+          state_version: 1,
+        },
+        allowed_actions: ["WAIT", "SKIP"],
+      }))
+      .mockResolvedValueOnce(makeSession({
+        session: {
+          id: "sess-1",
+          ticker: "BBRI",
+          company_name: "PT Bank Rakyat Indonesia Tbk",
+          exchange: "IDX",
+          currency: "IDR",
+          title: null,
+          lifecycle_status: "CLOSED_SKIPPED",
+          created_at: "2026-07-15T09:00:00Z",
+          updated_at: "2026-07-20T12:00:00Z",
+          archived_at: null,
+        },
+        trade_state: {
+          position_status: "NOT_OPENED",
+          thesis_status: "INTACT",
+          entry_price: null,
+          entry_at: null,
+          original_quantity: null,
+          remaining_quantity: null,
+          active_stop_loss: null,
+          active_target: null,
+          average_exit_price: null,
+          realized_pnl: null,
+          realized_return: null,
+          state_version: 1,
+        },
+        allowed_actions: ["ARCHIVE"],
+      }));
+
+    render(<TradeSessionShell sessionId="sess-1" />);
+    await user.click(await screen.findByRole("button", { name: "Lewatkan" }));
+
+    await waitFor(() => { expect(skipDecision).toHaveBeenCalledTimes(1); });
+    expect(skipDecision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: "sess-1",
+        reason: "USER_SKIPPED_SETUP",
+        confirmed_at: expect.any(String),
+        idempotency_key: expect.stringContaining("ui_skip_sess-1_"),
+      }),
+    );
+    expect(await screen.findByText("Dilewatkan")).toBeTruthy();
   });
 
   it("confirms archive and calls the archive endpoint", async () => {

@@ -34,11 +34,19 @@ from app.services.context_rebuild import ContextRebuildReason, ContextRebuildSer
 # Closing reason -> session status mapping (from DOMAIN_VALIDATION_RULES.md)
 # ---------------------------------------------------------------------------
 
-CLOSING_REASON_MAP: dict[str, str] = {
-    "TAKE_PROFIT": "CLOSED_TAKE_PROFIT",
-    "STOP_LOSS": "CLOSED_STOP_LOSS",
-    "MANUAL_EXIT": "CLOSED_MANUAL",
-}
+VALID_CLOSING_REASONS = frozenset(
+    {
+        "TAKE_PROFIT",
+        "STOP_LOSS",
+        "MANUAL_EXIT",
+        "EMERGENCY",
+        "OTHER",
+        # Existing frontend/API values retained as auditable reasons.
+        "THESIS_INVALIDATED",
+        "RISK_REDUCTION",
+        "TIME_EXIT",
+    }
+)
 
 
 class FullExitError(Exception):
@@ -150,11 +158,10 @@ class FullExitActionService:
             )
 
         # Validate closing reason
-        terminal_status = CLOSING_REASON_MAP.get(closing_reason)
-        if terminal_status is None:
+        if closing_reason not in VALID_CLOSING_REASONS:
             raise FullExitInvalidReasonError(
                 f"Invalid closing reason: {closing_reason}. "
-                f"Supported: {', '.join(CLOSING_REASON_MAP)}"
+                f"Supported: {', '.join(sorted(VALID_CLOSING_REASONS))}"
             )
 
         # Validate decimal inputs
@@ -218,9 +225,6 @@ class FullExitActionService:
         total_fees: object = d_fees if d_fees is not None else Decimal("0")
         net_pnl = calculate_net_closing_pnl(gross_pnl, total_fees)  # type: ignore[arg-type]
 
-        # Set terminal session status
-        terminal_enum = TradeSessionStatus(terminal_status)
-
         # Create action
         action = TradeAction(
             session_id=session_id,
@@ -251,8 +255,8 @@ class FullExitActionService:
         tstate.last_confirmed_action_at = executed_at
 
         # Update session lifecycle
-        ts.lifecycle_status = terminal_enum
-        ts.stable_status = terminal_enum
+        ts.lifecycle_status = TradeSessionStatus.CLOSED
+        ts.stable_status = TradeSessionStatus.CLOSED
 
         # Create event
         event = SessionEvent(
