@@ -1,6 +1,7 @@
 from app.models.analysis import Analysis
 from app.models.analysis_job import AnalysisJob
 from app.models.context_summary import ContextSummary
+from app.models.evaluation_record import CompletenessStatus, EvaluationRecord
 from app.models.evidence import Evidence
 from app.models.evidence_batch import EvidenceBatch
 from app.models.provider_request import ProviderRequest
@@ -15,7 +16,9 @@ from app.models.validation_attempt import ValidationAttempt
 __all__ = [
     "Analysis",
     "AnalysisJob",
+    "CompletenessStatus",
     "ContextSummary",
+    "EvaluationRecord",
     "Evidence",
     "EvidenceBatch",
     "ProviderRequest",
