@@ -191,6 +191,35 @@ class TestFullSellConfirmation:
             assert action.payload.get("closing_reason") == "TAKE_PROFIT"
             assert tstate.realized_pnl is not None
 
+    async def test_full_exit_rollback_on_failure(
+        self,
+        engine: AsyncEngine,
+    ) -> None:
+        user_id, session_id = await _make_open_position_session(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+        async with factory() as s:
+            svc = FullExitActionService(s)
+            with pytest.raises(Exception):
+                await svc.confirm(
+                    session_id=session_id,
+                    owner_id=user_id,
+                    idempotency_key=f"sell_{uuid.uuid4().hex}",
+                    exit_price="5500",
+                    exit_quantity="999",
+                    executed_at=datetime.now(timezone.utc),
+                    closing_reason="TAKE_PROFIT",
+                )
+            await s.rollback()
+
+        async with factory() as s:
+            from app.repositories.trade_session import TradeSessionRepository
+            from app.repositories.trade_state import TradeStateRepository
+            ts = await TradeSessionRepository(s).get_by_id_for_user(session_id, user_id)
+            tstate = await TradeStateRepository(s).get_for_user(session_id, user_id)
+            assert ts is not None and ts.lifecycle_status == TradeSessionStatus.OPEN_POSITION
+            assert tstate is not None and tstate.position_status == PositionStatus.OPEN
+
 
 class TestTerminalClosedStateEnforcement:
     async def test_closed_session_rejects_evidence_upload(

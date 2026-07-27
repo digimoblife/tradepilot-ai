@@ -470,7 +470,9 @@ def _build_prompt_variables(
             "active_target",
             "thesis_status",
             "realized_pnl",
+            "realized_return",
             "average_exit_price",
+            "last_confirmed_action_at",
         ]:
             val = getattr(trade_state, col, None)
             if val is not None:
