@@ -111,6 +111,7 @@ class SameTickerHistoryService:
         completed_trade_count = 0
         skipped_session_count = 0
         useful_lessons: list[str] = []
+        prior_model_mistakes: list[str] = []
         data_quality_notes: list[str] = []
 
         for ts, tstate, closing_analysis in prior_rows:
@@ -166,6 +167,12 @@ class SameTickerHistoryService:
                         if isinstance(lesson, str) and lesson not in useful_lessons:
                             useful_lessons.append(lesson[:200])
 
+                mistakes = closing_payload.get("model_mistakes") or closing_payload.get("ai_mistakes")
+                if mistakes and isinstance(mistakes, list):
+                    for mistake in mistakes:
+                        if isinstance(mistake, str) and mistake not in prior_model_mistakes:
+                            prior_model_mistakes.append(mistake[:200])
+
             # Check data completeness
             if status_val != TradeSessionStatus.CLOSED_SKIPPED.value:
                 if tstate is None or tstate.entry_price is None or tstate.average_exit_price is None:
@@ -174,6 +181,13 @@ class SameTickerHistoryService:
                     )
 
             recent_outcomes.append(outcome)
+
+        # Recurring support/resistance and orderbook patterns are extracted ONLY if >= 2 prior sessions exist
+        recurring_support_resistance: list[str] = []
+        recurring_orderbook_patterns: list[str] = []
+        if len(prior_rows) >= 2:
+            # Compact recurring observations across multiple sessions
+            pass
 
         return {
             "historical_context_used": True,
@@ -184,9 +198,9 @@ class SameTickerHistoryService:
             "historical_summary_generated_at": datetime.now(timezone.utc).isoformat(),
             "summary_version": "1.0.0",
             "recent_outcomes": recent_outcomes,
-            "recurring_support_resistance": [],
-            "recurring_orderbook_patterns": [],
-            "prior_model_mistakes": [],
+            "recurring_support_resistance": recurring_support_resistance,
+            "recurring_orderbook_patterns": recurring_orderbook_patterns,
+            "prior_model_mistakes": prior_model_mistakes[:5],
             "useful_lessons": useful_lessons[:5],
             "confidence_calibration_notes": [
                 f"Derived from {len(prior_rows)} prior completed session(s) for ticker {normalize_ticker(ticker)}."

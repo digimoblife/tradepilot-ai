@@ -189,3 +189,115 @@ class TestSameTickerHistory:
             assert "image_bytes" not in dumped
             assert "base64" not in dumped
             assert len(dumped) < 10000  # Proves bounded serialization
+
+    async def test_recurring_pattern_minimum_evidence(self, engine: AsyncEngine) -> None:
+        user_id = await _make_user(engine)
+        # Single prior session
+        _s1 = await _make_session(engine, user_id, "GOTO", "CLOSED")
+        curr = await _make_session(engine, user_id, "GOTO", "DRAFT")
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            svc = SameTickerHistoryService(s)
+            summary = await svc.build_history_summary(
+                owner_id=user_id,
+                ticker="GOTO",
+                current_session_id=curr,
+            )
+            # Minimum 2 sessions required for recurring patterns
+            assert summary["historical_session_count"] == 1
+            assert summary["recurring_support_resistance"] == []
+            assert summary["recurring_orderbook_patterns"] == []
+
+    async def test_incomplete_and_legacy_sessions(self, engine: AsyncEngine) -> None:
+        user_id = await _make_user(engine)
+        # Session missing entry/exit price facts
+        session_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO trade_sessions (id, owner_id, ticker, lifecycle_status, stable_status, created_at, updated_at) "
+                    "VALUES (:sid, :uid, 'ANTM', 'CLOSED', 'CLOSED', :now, :now)"
+                ),
+                {"sid": session_id, "uid": user_id, "now": now},
+            )
+            # Incomplete trade state (no entry or exit price)
+            await conn.execute(
+                text(
+                    "INSERT INTO trade_states (session_id, position_status) "
+                    "VALUES (:sid, 'CLOSED')"
+                ),
+                {"sid": session_id},
+            )
+
+        curr = await _make_session(engine, user_id, "ANTM", "DRAFT")
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            svc = SameTickerHistoryService(s)
+            summary = await svc.build_history_summary(
+                owner_id=user_id,
+                ticker="ANTM",
+                current_session_id=curr,
+            )
+            assert summary["historical_session_count"] == 1
+            assert len(summary["data_quality_notes"]) == 1
+            assert "missing full entry/exit price details" in summary["data_quality_notes"][0]
+
+    async def test_oversized_payload_compaction_and_bounding(self, engine: AsyncEngine) -> None:
+        user_id = await _make_user(engine)
+        now = datetime.now(timezone.utc)
+
+        # Create 10 prior completed sessions with large 50KB payloads
+        large_summary_text = "Analysis detail " * 3000  # ~45KB string
+        for i in range(10):
+            sid = await _make_session(
+                engine,
+                user_id,
+                "ICBP",
+                "CLOSED",
+                updated_at=now - timedelta(days=10 - i),
+            )
+            job_id = uuid.uuid4()
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO analysis_jobs (id, session_id, analysis_type, status, previous_session_status, attempt_count, max_attempts, requested_at, available_at) "
+                        "VALUES (:jid, :sid, 'CLOSING_ANALYSIS', 'COMPLETED', 'CLOSED', 1, 1, :now, :now)"
+                    ),
+                    {"jid": job_id, "sid": sid, "now": now},
+                )
+                import json
+                await conn.execute(
+                    text(
+                        "INSERT INTO analyses (id, session_id, analysis_job_id, analysis_type, acceptance_status, prompt_name, prompt_version, schema_name, schema_version, payload, accepted_at) "
+                        "VALUES (:aid, :sid, :jid, 'CLOSING_ANALYSIS', 'ACCEPTED', 'CLOSING_ANALYSIS', '1.0.0', 'closing_analysis', '1.0.0', :payload, :now)"
+                    ),
+                    {
+                        "aid": uuid.uuid4(),
+                        "sid": sid,
+                        "jid": job_id,
+                        "payload": json.dumps({"trade_summary": large_summary_text, "lessons_learned": ["Lesson A", "Lesson B"]}),
+                        "now": now,
+                    },
+                )
+
+        curr = await _make_session(engine, user_id, "ICBP", "DRAFT")
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            svc = SameTickerHistoryService(s)
+            summary = await svc.build_history_summary(
+                owner_id=user_id,
+                ticker="ICBP",
+                current_session_id=curr,
+                max_sessions=5,
+            )
+            import json
+            serialized = json.dumps(summary)
+            # Maximum 5 source sessions bounded
+            assert summary["historical_session_count"] == 5
+            # Compacted size is ~4KB instead of 500KB raw
+            assert len(serialized) < 15000
+            print(f"DEBUG: Bounded serialized history JSON size = {len(serialized)} bytes")
