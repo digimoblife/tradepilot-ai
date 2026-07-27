@@ -887,7 +887,7 @@ class TestWatchingBatches:
         assert resp.json()["detail"]["code"] == "ANALYSIS_REQUIRED_EVIDENCE_MISSING"
 
     async def test_ready_watching_batch_with_orderbook(
-        self, engine: AsyncEngine, client: AsyncClient
+        self, engine: AsyncEngine, client: AsyncClient, db_session: AsyncSession
     ) -> None:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)
@@ -898,17 +898,21 @@ class TestWatchingBatches:
             cookies={"tradepilot_session": cookie},
         )
         batch_id = uuid.UUID(batch_resp.json()["id"])
-        async with engine.begin() as conn:
-            await conn.execute(
-                text(
-                    "INSERT INTO evidence "
-                    "(session_id, owner_id, evidence_batch_id, evidence_type, evidence_status, "
-                    "storage_object_key, mime_type, file_size_bytes) "
-                    "VALUES (:sid, :uid, :bid, 'ORDERBOOK_SCREENSHOT', 'AVAILABLE', "
-                    "'watching/orderbook.png', 'image/png', 100)"
-                ),
-                {"sid": sid, "uid": uid, "bid": batch_id},
-            )
+        # Insert evidence via the shared db_session (same transaction) so that the
+        # FK constraint on evidence_batch_id can see the flushed-but-not-committed
+        # evidence_batches row. Using engine.begin() here causes a deadlock because
+        # the new connection waits for the shared session's uncommitted batch row.
+        await db_session.execute(
+            text(
+                "INSERT INTO evidence "
+                "(session_id, owner_id, evidence_batch_id, evidence_type, evidence_status, "
+                "storage_object_key, mime_type, file_size_bytes) "
+                "VALUES (:sid, :uid, :bid, 'ORDERBOOK_SCREENSHOT', 'AVAILABLE', "
+                "'watching/orderbook.png', 'image/png', 100)"
+            ),
+            {"sid": sid, "uid": uid, "bid": batch_id},
+        )
+        await db_session.flush()
 
         resp = await client.post(
             f"/api/trade-sessions/{sid}/watching-batches/{batch_id}/ready",
