@@ -65,6 +65,7 @@ class EvidenceBatch(Base):
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    monitoring_slot: Mapped[str | None] = mapped_column(Text, nullable=True)
     ready_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     processing_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
     frozen_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)

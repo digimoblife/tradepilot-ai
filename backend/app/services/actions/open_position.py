@@ -17,13 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.calculations.decimal_utils import to_decimal
 from app.calculations.errors import InvalidDecimalError
 from app.models.context_summary import ContextSummary
-from app.models.enums import ActionType, PositionStatus, SessionEventType, TradeSessionStatus
+from app.models.enums import ActionType, AnalysisType, PositionStatus, SessionEventType, TradeSessionStatus
 from app.models.session_event import SessionEvent
 from app.models.trade_action import TradeAction
 from app.models.trade_state import TradeState
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
 from app.services.context_rebuild import ContextRebuildReason, ContextRebuildService
+from app.services.evidence_batches import EvidenceBatchService
 
 
 class OpenPositionError(Exception):
@@ -172,6 +173,14 @@ class OpenPositionService:
         # 7. Update session lifecycle
         ts.lifecycle_status = TradeSessionStatus.OPEN_POSITION
         ts.stable_status = TradeSessionStatus.OPEN_POSITION
+
+        # 7b. Create initial OPEN_POSITION_UPDATE DRAFT batch
+        batch_svc = EvidenceBatchService(self._session)
+        await batch_svc.get_or_create_current_draft(
+            session_id=session_id,
+            owner_id=owner_id,
+            analysis_type=AnalysisType.OPEN_POSITION_UPDATE,
+        )
 
         # 8. Create SessionEvent
         event = SessionEvent(

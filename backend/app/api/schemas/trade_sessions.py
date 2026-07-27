@@ -115,6 +115,7 @@ class EvidenceBatchSummaryResponse(BaseModel):
     status: str
     sequence_number: int
     label: str | None
+    monitoring_slot: str | None = None
     created_at: datetime
     ready_at: datetime | None
     processing_at: datetime | None
@@ -128,3 +129,33 @@ class TradeSessionDetailWithActionsResponse(BaseModel):
     allowed_actions: list[str]
     evidence_batches: list[EvidenceBatchSummaryResponse] = []
     current_evidence_batch: EvidenceBatchSummaryResponse | None = None
+
+
+class UpdateMonitoringSlotRequest(BaseModel):
+    slot: str = Field(..., description="Monitoring slot: MORNING, MIDDAY, CLOSE, UNSPECIFIED")
+
+
+class ConfirmStopRequest(BaseModel):
+    price: Decimal = Field(..., gt=0, description="Confirmed stop loss price")
+    confirmed_at: datetime | None = None
+    note: str | None = None
+    idempotency_key: str = Field(..., min_length=1, max_length=255)
+
+
+class ConfirmTargetRequest(BaseModel):
+    price: Decimal = Field(..., gt=0, description="Confirmed target price")
+    confirmed_at: datetime | None = None
+    note: str | None = None
+    idempotency_key: str = Field(..., min_length=1, max_length=255)
+
+
+class StopLossConfirmResponse(BaseModel):
+    session_id: str
+    action_type: str
+    active_stop_loss: Decimal | None
+
+
+class TargetConfirmResponse(BaseModel):
+    session_id: str
+    action_type: str
+    active_target: Decimal | None

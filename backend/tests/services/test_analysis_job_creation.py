@@ -403,9 +403,26 @@ class TestLifecycleCompatibility:
         engine: AsyncEngine,
         user_id: uuid.UUID,
         factory: async_sessionmaker[AsyncSession],
+        tmp_path,
     ) -> None:
         sid, _ = await _make_session(engine, user_id, status="OPEN_POSITION")
         async with factory() as s:
+            batch = await EvidenceBatchService(s).get_or_create_current_draft(
+                session_id=sid,
+                owner_id=user_id,
+                analysis_type=AnalysisType.OPEN_POSITION_UPDATE,
+            )
+            await EvidenceService(s, storage_root=tmp_path).create(
+                session_id=sid,
+                owner_id=user_id,
+                evidence_type="ORDERBOOK_SCREENSHOT",
+                content=_make_image_bytes(),
+                original_filename="opu-orderbook.png",
+                declared_mime_type="image/png",
+                evidence_batch_id=batch.id,
+            )
+            await EvidenceBatchService(s).mark_ready(batch)
+
             svc = AnalysisJobCreationService(s)
             result = await svc.create(
                 session_id=sid,
@@ -572,10 +589,27 @@ class TestDuplicateActive:
         engine: AsyncEngine,
         user_id: uuid.UUID,
         factory: async_sessionmaker[AsyncSession],
+        tmp_path,
     ) -> None:
         """Same-type duplicate is rejected before creating a second job."""
         sid, _ = await _make_session(engine, user_id, status="OPEN_POSITION")
         async with factory() as s:
+            batch = await EvidenceBatchService(s).get_or_create_current_draft(
+                session_id=sid,
+                owner_id=user_id,
+                analysis_type=AnalysisType.OPEN_POSITION_UPDATE,
+            )
+            await EvidenceService(s, storage_root=tmp_path).create(
+                session_id=sid,
+                owner_id=user_id,
+                evidence_type="ORDERBOOK_SCREENSHOT",
+                content=_make_image_bytes(),
+                original_filename="opu-orderbook.png",
+                declared_mime_type="image/png",
+                evidence_batch_id=batch.id,
+            )
+            await EvidenceBatchService(s).mark_ready(batch)
+
             svc = AnalysisJobCreationService(s)
             await svc.create(
                 session_id=sid,
@@ -696,9 +730,26 @@ class TestStatusTransition:
         engine: AsyncEngine,
         user_id: uuid.UUID,
         factory: async_sessionmaker[AsyncSession],
+        tmp_path,
     ) -> None:
         sid, _ = await _make_session(engine, user_id, status="OPEN_POSITION")
         async with factory() as s:
+            batch = await EvidenceBatchService(s).get_or_create_current_draft(
+                session_id=sid,
+                owner_id=user_id,
+                analysis_type=AnalysisType.OPEN_POSITION_UPDATE,
+            )
+            await EvidenceService(s, storage_root=tmp_path).create(
+                session_id=sid,
+                owner_id=user_id,
+                evidence_type="ORDERBOOK_SCREENSHOT",
+                content=_make_image_bytes(),
+                original_filename="opu-orderbook.png",
+                declared_mime_type="image/png",
+                evidence_batch_id=batch.id,
+            )
+            await EvidenceBatchService(s).mark_ready(batch)
+
             svc = AnalysisJobCreationService(s)
             result = await svc.create(
                 session_id=sid,

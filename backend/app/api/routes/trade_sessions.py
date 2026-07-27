@@ -11,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.api.schemas.trade_sessions import (
+    ConfirmStopRequest,
+    ConfirmTargetRequest,
     EvidenceBatchSummaryResponse,
+    StopLossConfirmResponse,
+    TargetConfirmResponse,
     TradeSessionArchiveResponse,
     TradeSessionCreateRequest,
     TradeSessionCreateResponse,
@@ -21,6 +25,7 @@ from app.api.schemas.trade_sessions import (
     TradeSessionSummaryResponse,
     TradeSessionUpdateRequest,
     TradeStateResponse,
+    UpdateMonitoringSlotRequest,
 )
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
@@ -33,7 +38,25 @@ from app.models.trade_session import TradeSession
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
 from app.services.actions.archive_session import ArchiveSessionActionService
-from app.services.evidence_batches import EvidenceBatchService
+from app.services.actions.stop_loss import (
+    StopLossActionService,
+    StopLossInvalidInputError,
+    StopLossInvalidRelationshipError,
+    StopLossInvalidStateError,
+    StopLossNotFoundError,
+)
+from app.services.actions.target import (
+    TargetActionService,
+    TargetInvalidInputError,
+    TargetInvalidRelationshipError,
+    TargetInvalidStateError,
+    TargetNotFoundError,
+)
+from app.services.evidence_batches import (
+    EvidenceBatchInvalidSlotError,
+    EvidenceBatchInvalidStateError,
+    EvidenceBatchService,
+)
 from app.services.evidence import EvidenceService
 from app.services.trade_session import TradeSessionService
 
@@ -142,7 +165,6 @@ def _derive_allowed_actions(lifecycle_status: str) -> list[str]:
     if TradeSessionStatus.ARCHIVED in allowed_targets:
         actions.append("ARCHIVE")
 
-    # Additional actions based on position status are derived by TP-1005
     return actions
 
 
@@ -156,6 +178,7 @@ def _batch_to_response(batch: object) -> EvidenceBatchSummaryResponse:
         status=batch.status.value if hasattr(batch.status, "value") else str(batch.status),
         sequence_number=batch.sequence_number,
         label=batch.label,
+        monitoring_slot=getattr(batch, "monitoring_slot", None),
         created_at=batch.created_at,
         ready_at=batch.ready_at,
         processing_at=batch.processing_at,
@@ -167,6 +190,8 @@ def _batch_to_response(batch: object) -> EvidenceBatchSummaryResponse:
 def _current_batch_analysis_type(status: TradeSessionStatus) -> AnalysisType | None:
     if status == TradeSessionStatus.WATCHING:
         return AnalysisType.WATCHING_UPDATE
+    if status == TradeSessionStatus.OPEN_POSITION:
+        return AnalysisType.OPEN_POSITION_UPDATE
     if status in {
         TradeSessionStatus.DRAFT,
         TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
@@ -340,7 +365,6 @@ async def update_trade_session(
 
         raise HTTPException(status_code=404, detail="Trade session not found")
 
-    # Only update mutable metadata fields
     if body.title is not None:
         ts.title = body.title
     if body.company_name is not None:
@@ -356,6 +380,7 @@ async def update_trade_session(
             raise HTTPException(status_code=422, detail=f"Invalid exchange: {body.exchange}")
     if body.currency is not None:
         from app.models.enums import Currency
+
         ts.currency = Currency(body.currency.upper())
     if body.ticker is not None:
         ts.ticker = body.ticker.strip().upper()
@@ -388,7 +413,6 @@ async def ready_trade_session(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> TradeSessionReadyResponse:
-    # Check session exists and is owned first
     repo = TradeSessionRepository(db_session)
     ts_check = await repo.get_by_id_for_user(session_id, current_user.id)
     if ts_check is None:
@@ -569,6 +593,244 @@ async def ready_watching_batch(
 
     await batch_svc.mark_ready(batch)
     return _batch_to_response(batch)
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/open-position-batches
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{session_id}/open-position-batches", response_model=EvidenceBatchSummaryResponse)
+async def create_or_resolve_open_position_batch(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    if ts.lifecycle_status != TradeSessionStatus.OPEN_POSITION:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "OPEN_POSITION_BATCH_INVALID_SESSION_STATE",
+                "message": "Open Position Update batches can only be created while OPEN_POSITION.",
+            },
+        )
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_or_create_current_draft(
+        session_id=session_id,
+        owner_id=current_user.id,
+        analysis_type=AnalysisType.OPEN_POSITION_UPDATE,
+    )
+    return _batch_to_response(batch)
+
+
+# ---------------------------------------------------------------------------
+# PATCH /{session_id}/open-position-batches/{batch_id}/slot
+# ---------------------------------------------------------------------------
+
+
+@router.patch(
+    "/{session_id}/open-position-batches/{batch_id}/slot",
+    response_model=EvidenceBatchSummaryResponse,
+)
+async def update_open_position_batch_slot(
+    session_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    body: UpdateMonitoringSlotRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_for_user(batch_id=batch_id, owner_id=current_user.id)
+    if (
+        batch is None
+        or batch.session_id != session_id
+        or batch.analysis_type != AnalysisType.OPEN_POSITION_UPDATE
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "OPEN_POSITION_BATCH_NOT_FOUND",
+                "message": "Open Position Update evidence batch not found.",
+            },
+        )
+
+    try:
+        updated = await batch_svc.update_monitoring_slot(batch, body.slot)
+    except EvidenceBatchInvalidSlotError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        )
+    except EvidenceBatchInvalidStateError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        )
+
+    return _batch_to_response(updated)
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/open-position-batches/{batch_id}/ready
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{session_id}/open-position-batches/{batch_id}/ready",
+    response_model=EvidenceBatchSummaryResponse,
+)
+async def ready_open_position_batch(
+    session_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    if ts.lifecycle_status != TradeSessionStatus.OPEN_POSITION:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "OPEN_POSITION_BATCH_INVALID_SESSION_STATE",
+                "message": "Open Position Update readiness is only allowed while OPEN_POSITION.",
+            },
+        )
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_for_user(batch_id=batch_id, owner_id=current_user.id)
+    if (
+        batch is None
+        or batch.session_id != session_id
+        or batch.analysis_type != AnalysisType.OPEN_POSITION_UPDATE
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "OPEN_POSITION_BATCH_NOT_FOUND",
+                "message": "Open Position Update evidence batch not found.",
+            },
+        )
+
+    evidence_svc = EvidenceService(db_session)
+    required = await evidence_svc.get_required_evidence(
+        session_id=session_id,
+        owner_id=current_user.id,
+        analysis_type=AnalysisType.OPEN_POSITION_UPDATE,
+        evidence_batch_id=batch.id,
+    )
+    if not required.complete:
+        missing = ", ".join(t.value for t in required.missing_types)
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
+                "message": f"Missing required evidence: {missing}",
+            },
+        )
+
+    if batch.status == EvidenceBatchStatus.READY:
+        return _batch_to_response(batch)
+    if batch.status != EvidenceBatchStatus.DRAFT:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "OPEN_POSITION_BATCH_INVALID_STATE",
+                "message": f"Cannot mark Open Position Update batch ready from {batch.status.value}.",
+            },
+        )
+
+    await batch_svc.mark_ready(batch)
+    return _batch_to_response(batch)
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/confirm-stop
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{session_id}/confirm-stop", response_model=StopLossConfirmResponse)
+async def confirm_stop_loss(
+    session_id: uuid.UUID,
+    body: ConfirmStopRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> StopLossConfirmResponse:
+    from fastapi import HTTPException
+
+    svc = StopLossActionService(db_session)
+    try:
+        result = await svc.confirm(
+            session_id=session_id,
+            owner_id=current_user.id,
+            idempotency_key=body.idempotency_key,
+            stop_loss=body.price,
+            confirmed_at=body.confirmed_at or datetime.now(timezone.utc),
+            note=body.note,
+        )
+    except StopLossNotFoundError:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    except (StopLossInvalidStateError, StopLossInvalidInputError, StopLossInvalidRelationshipError) as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)})
+
+    return StopLossConfirmResponse(
+        session_id=str(result.session_id),
+        action_type=result.action_type.value,
+        active_stop_loss=result.active_stop_loss,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/confirm-target
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{session_id}/confirm-target", response_model=TargetConfirmResponse)
+async def confirm_target(
+    session_id: uuid.UUID,
+    body: ConfirmTargetRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> TargetConfirmResponse:
+    from fastapi import HTTPException
+
+    svc = TargetActionService(db_session)
+    try:
+        result = await svc.confirm(
+            session_id=session_id,
+            owner_id=current_user.id,
+            idempotency_key=body.idempotency_key,
+            target=body.price,
+            confirmed_at=body.confirmed_at or datetime.now(timezone.utc),
+            note=body.note,
+        )
+    except TargetNotFoundError:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    except (TargetInvalidStateError, TargetInvalidInputError, TargetInvalidRelationshipError) as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)})
+
+    return TargetConfirmResponse(
+        session_id=str(result.session_id),
+        action_type=result.action_type.value,
+        active_target=result.active_target,
+    )
 
 
 # ---------------------------------------------------------------------------

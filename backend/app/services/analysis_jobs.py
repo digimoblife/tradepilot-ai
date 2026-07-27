@@ -165,6 +165,7 @@ class AnalysisJobCreationService:
         if atype in {
             AnalysisType.INITIAL_ANALYSIS.value,
             AnalysisType.WATCHING_UPDATE.value,
+            AnalysisType.OPEN_POSITION_UPDATE.value,
         }:
             batch_analysis_type = AnalysisType(atype)
             batch = await self._batch_service.get_ready_for_processing(
@@ -172,9 +173,9 @@ class AnalysisJobCreationService:
                 owner_id=owner_id,
                 analysis_type=batch_analysis_type,
             )
-            if atype == AnalysisType.WATCHING_UPDATE.value and batch is None:
+            if atype in {AnalysisType.WATCHING_UPDATE.value, AnalysisType.OPEN_POSITION_UPDATE.value} and batch is None:
                 raise AnalysisRequiredEvidenceMissingError(
-                    message="Missing ready Watching Update evidence batch",
+                    message=f"Missing ready {atype.replace('_', ' ').title()} evidence batch",
                 )
             evidence_batch_id = batch.id if batch is not None else None
         required = await self._evidence_service.get_required_evidence(

@@ -21,6 +21,8 @@ IMMUTABLE_BATCH_STATUSES = frozenset(
     }
 )
 
+VALID_MONITORING_SLOTS = frozenset({"MORNING", "MIDDAY", "CLOSE", "UNSPECIFIED"})
+
 
 @dataclass(frozen=True, slots=True)
 class EvidenceBatchSummary:
@@ -30,6 +32,7 @@ class EvidenceBatchSummary:
     status: str
     sequence_number: int
     label: str | None
+    monitoring_slot: str | None
     created_at: datetime
     ready_at: datetime | None
     processing_at: datetime | None
@@ -60,6 +63,10 @@ class EvidenceBatchInvalidStateError(EvidenceBatchServiceError):
 
 class EvidenceBatchNotFoundError(EvidenceBatchServiceError):
     code = "EVIDENCE_BATCH_NOT_FOUND"
+
+
+class EvidenceBatchInvalidSlotError(EvidenceBatchServiceError):
+    code = "EVIDENCE_BATCH_INVALID_SLOT"
 
 
 class EvidenceBatchService:
@@ -100,6 +107,7 @@ class EvidenceBatchService:
             status=EvidenceBatchStatus.DRAFT,
             sequence_number=sequence,
             label=f"{analysis_type.value.replace('_', ' ').title()} Batch {sequence}",
+            monitoring_slot="UNSPECIFIED" if analysis_type == AnalysisType.OPEN_POSITION_UPDATE else None,
         )
         return await self._repo.add(batch)
 
@@ -126,6 +134,24 @@ class EvidenceBatchService:
         batch = await self._session.get(EvidenceBatch, batch_id)
         if batch is None or batch.owner_id != owner_id:
             return None
+        return batch
+
+    async def update_monitoring_slot(
+        self,
+        batch: EvidenceBatch,
+        slot: str,
+    ) -> EvidenceBatch:
+        if batch.status != EvidenceBatchStatus.DRAFT:
+            raise EvidenceBatchInvalidStateError(
+                message=f"Cannot update monitoring slot on batch in status {batch.status.value}"
+            )
+        slot_upper = slot.upper()
+        if slot_upper not in VALID_MONITORING_SLOTS:
+            raise EvidenceBatchInvalidSlotError(
+                message=f"Invalid monitoring slot '{slot}'. Must be one of: {', '.join(sorted(VALID_MONITORING_SLOTS))}"
+            )
+        batch.monitoring_slot = slot_upper
+        await self._session.flush()
         return batch
 
     async def get_ready_for_processing(

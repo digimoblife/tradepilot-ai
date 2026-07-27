@@ -153,7 +153,7 @@ class ProviderContextBuilder:
                 message="Context Summary is stale; rebuild required",
             )
 
-        # 4. Load latest accepted analysis by type
+        # 4. Load latest accepted analyses
         latest_analysis = await self._analysis_repo.get_latest_accepted_by_type_for_user(
             session_id=session_id,
             user_id=owner_id,
@@ -161,6 +161,8 @@ class ProviderContextBuilder:
         )
         latest_initial_analysis: Analysis | None = None
         latest_watching_update: Analysis | None = None
+        latest_open_position_update: Analysis | None = None
+
         if atype == AnalysisType.WATCHING_UPDATE.value:
             latest_initial_analysis = await self._analysis_repo.get_latest_accepted_by_type_for_user(
                 session_id=session_id,
@@ -168,6 +170,18 @@ class ProviderContextBuilder:
                 analysis_type=AnalysisType.INITIAL_ANALYSIS.value,
             )
             latest_watching_update = latest_analysis
+        elif atype == AnalysisType.OPEN_POSITION_UPDATE.value:
+            latest_initial_analysis = await self._analysis_repo.get_latest_accepted_by_type_for_user(
+                session_id=session_id,
+                user_id=owner_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS.value,
+            )
+            latest_watching_update = await self._analysis_repo.get_latest_accepted_by_type_for_user(
+                session_id=session_id,
+                user_id=owner_id,
+                analysis_type=AnalysisType.WATCHING_UPDATE.value,
+            )
+            latest_open_position_update = latest_analysis
 
         # 5. Load active evidence (deterministic order)
         if evidence_batch_id is None:
@@ -208,6 +222,7 @@ class ProviderContextBuilder:
                     analysis_type=atype,
                     latest_initial_analysis=latest_initial_analysis,
                     latest_watching_update=latest_watching_update,
+                    latest_open_position_update=latest_open_position_update,
                 ),
             )
         except Exception as exc:
@@ -235,6 +250,9 @@ class ProviderContextBuilder:
             ),
             "latest_watching_update_id": (
                 str(latest_watching_update.id) if latest_watching_update else None
+            ),
+            "latest_open_position_update_id": (
+                str(latest_open_position_update.id) if latest_open_position_update else None
             ),
             "evidence_batch_id": str(evidence_batch_id) if evidence_batch_id else None,
             "evidence_ids": [str(e.id) for e in ordered_evidence],
@@ -410,6 +428,7 @@ def _build_prompt_variables(
     analysis_type: str,
     latest_initial_analysis: Analysis | None = None,
     latest_watching_update: Analysis | None = None,
+    latest_open_position_update: Analysis | None = None,
 ) -> dict[str, str]:
     import json
 
@@ -464,6 +483,12 @@ def _build_prompt_variables(
         latest_analysis_json = {
             "initial_analysis": _compact_analysis(latest_initial_analysis),
             "latest_watching_update": _compact_analysis(latest_watching_update),
+        }
+    elif analysis_type == AnalysisType.OPEN_POSITION_UPDATE.value:
+        latest_analysis_json = {
+            "initial_analysis": _compact_analysis(latest_initial_analysis),
+            "latest_watching_update": _compact_analysis(latest_watching_update),
+            "latest_open_position_update": _compact_analysis(latest_open_position_update),
         }
     elif latest_analysis is not None and latest_analysis.payload:
         latest_analysis_json = dict(latest_analysis.payload)

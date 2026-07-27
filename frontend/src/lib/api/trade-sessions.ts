@@ -9,6 +9,33 @@ import type {
   ArchiveResponse,
   EvidenceBatchSummary,
 } from "@/types/trade-session";
+
+export interface ConfirmStopRequest {
+  price: number;
+  confirmed_at?: string;
+  note?: string;
+  idempotency_key: string;
+}
+
+export interface ConfirmTargetRequest {
+  price: number;
+  confirmed_at?: string;
+  note?: string;
+  idempotency_key: string;
+}
+
+export interface StopLossConfirmResponse {
+  session_id: string;
+  action_type: string;
+  active_stop_loss: number | null;
+}
+
+export interface TargetConfirmResponse {
+  session_id: string;
+  action_type: string;
+  active_target: number | null;
+}
+
 export function createSession(data: CreateTradeSessionRequest): Promise<CreateTradeSessionResponse> {
   return post<CreateTradeSessionResponse>("/api/trade-sessions", data);
 }
@@ -45,6 +72,44 @@ export function markWatchingBatchReady(
   return post<EvidenceBatchSummary>(
     `/api/trade-sessions/${sessionId}/watching-batches/${batchId}/ready`,
   );
+}
+
+export function ensureOpenPositionBatch(sessionId: string): Promise<EvidenceBatchSummary> {
+  return post<EvidenceBatchSummary>(`/api/trade-sessions/${sessionId}/open-position-batches`);
+}
+
+export function updateOpenPositionBatchSlot(
+  sessionId: string,
+  batchId: string,
+  slot: string,
+): Promise<EvidenceBatchSummary> {
+  return patch<EvidenceBatchSummary>(
+    `/api/trade-sessions/${sessionId}/open-position-batches/${batchId}/slot`,
+    { slot },
+  );
+}
+
+export function markOpenPositionBatchReady(
+  sessionId: string,
+  batchId: string,
+): Promise<EvidenceBatchSummary> {
+  return post<EvidenceBatchSummary>(
+    `/api/trade-sessions/${sessionId}/open-position-batches/${batchId}/ready`,
+  );
+}
+
+export function confirmStop(
+  sessionId: string,
+  data: ConfirmStopRequest,
+): Promise<StopLossConfirmResponse> {
+  return post<StopLossConfirmResponse>(`/api/trade-sessions/${sessionId}/confirm-stop`, data);
+}
+
+export function confirmTarget(
+  sessionId: string,
+  data: ConfirmTargetRequest,
+): Promise<TargetConfirmResponse> {
+  return post<TargetConfirmResponse>(`/api/trade-sessions/${sessionId}/confirm-target`, data);
 }
 
 export function archiveSession(sessionId: string): Promise<ArchiveResponse> {

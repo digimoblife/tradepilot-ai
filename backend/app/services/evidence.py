@@ -40,7 +40,7 @@ _REQUIRED_EVIDENCE: dict[AnalysisType, tuple[EvidenceType, ...]] = {
         EvidenceType.CHART_SIX_MONTH,
     ),
     AnalysisType.WATCHING_UPDATE: (EvidenceType.ORDERBOOK_SCREENSHOT,),
-    AnalysisType.OPEN_POSITION_UPDATE: (),
+    AnalysisType.OPEN_POSITION_UPDATE: (EvidenceType.ORDERBOOK_SCREENSHOT,),
     AnalysisType.PARTIAL_EXIT_REVIEW: (),
     AnalysisType.CLOSING_ANALYSIS: (),
 }
