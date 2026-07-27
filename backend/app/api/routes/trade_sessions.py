@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -25,7 +26,9 @@ from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
 from app.lifecycle.service import InvalidSessionTransitionError, SessionLifecycleService
 from app.lifecycle.transitions import get_allowed_transitions
-from app.models.enums import TradeSessionStatus
+from app.models.analysis_job import AnalysisJob
+from app.models.enums import AnalysisJobStatus, AnalysisType, EvidenceBatchStatus, TradeSessionStatus
+from app.models.evidence_batch import EvidenceBatch
 from app.models.trade_session import TradeSession
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
@@ -161,6 +164,47 @@ def _batch_to_response(batch: object) -> EvidenceBatchSummaryResponse:
     )
 
 
+def _current_batch_analysis_type(status: TradeSessionStatus) -> AnalysisType | None:
+    if status == TradeSessionStatus.WATCHING:
+        return AnalysisType.WATCHING_UPDATE
+    if status in {
+        TradeSessionStatus.DRAFT,
+        TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
+        TradeSessionStatus.READY_FOR_ANALYSIS,
+        TradeSessionStatus.ANALYZING,
+        TradeSessionStatus.INITIAL_ANALYZED,
+    }:
+        return AnalysisType.INITIAL_ANALYSIS
+    return None
+
+
+async def _active_job_batch(
+    db_session: AsyncSession,
+    *,
+    session_id: uuid.UUID,
+) -> EvidenceBatch | None:
+    active_statuses = (
+        AnalysisJobStatus.CREATED,
+        AnalysisJobStatus.QUEUED,
+        AnalysisJobStatus.PROCESSING,
+        AnalysisJobStatus.RETRYING,
+    )
+    result = await db_session.execute(
+        select(AnalysisJob)
+        .where(
+            AnalysisJob.session_id == session_id,
+            AnalysisJob.status.in_(active_statuses),
+            AnalysisJob.evidence_batch_id.is_not(None),
+        )
+        .order_by(AnalysisJob.created_at.desc())
+        .limit(1)
+    )
+    job = result.unique().scalar_one_or_none()
+    if job is None or job.evidence_batch_id is None:
+        return None
+    return await db_session.get(EvidenceBatch, job.evidence_batch_id)
+
+
 # ---------------------------------------------------------------------------
 # POST /
 # ---------------------------------------------------------------------------
@@ -257,16 +301,14 @@ async def get_trade_session(
     actions = _derive_allowed_actions(ts.lifecycle_status.value)
     batch_svc = EvidenceBatchService(db_session)
     current_batch = None
-    if ts.lifecycle_status in {
-        TradeSessionStatus.DRAFT,
-        TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
-        TradeSessionStatus.READY_FOR_ANALYSIS,
-        TradeSessionStatus.ANALYZING,
-        TradeSessionStatus.INITIAL_ANALYZED,
-    }:
+    if ts.lifecycle_status == TradeSessionStatus.ANALYZING:
+        current_batch = await _active_job_batch(db_session, session_id=session_id)
+    batch_analysis_type = _current_batch_analysis_type(ts.lifecycle_status)
+    if current_batch is None and batch_analysis_type is not None:
         current_batch = await batch_svc.get_latest_for_session(
             session_id=session_id,
             owner_id=current_user.id,
+            analysis_type=batch_analysis_type,
         )
     batches = await batch_svc.list_for_session(session_id=session_id, owner_id=current_user.id)
 
@@ -415,6 +457,118 @@ async def ready_trade_session(
         id=str(ts.id),
         lifecycle_status=ts.lifecycle_status.value,
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/watching-batches
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{session_id}/watching-batches", response_model=EvidenceBatchSummaryResponse)
+async def create_or_resolve_watching_batch(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    if ts.lifecycle_status != TradeSessionStatus.WATCHING:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "WATCHING_BATCH_INVALID_SESSION_STATE",
+                "message": "Watching Update batches can only be created while WATCHING.",
+            },
+        )
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_or_create_current_draft(
+        session_id=session_id,
+        owner_id=current_user.id,
+        analysis_type=AnalysisType.WATCHING_UPDATE,
+    )
+    return _batch_to_response(batch)
+
+
+# ---------------------------------------------------------------------------
+# POST /{session_id}/watching-batches/{batch_id}/ready
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{session_id}/watching-batches/{batch_id}/ready",
+    response_model=EvidenceBatchSummaryResponse,
+)
+async def ready_watching_batch(
+    session_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    if ts.lifecycle_status != TradeSessionStatus.WATCHING:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "WATCHING_BATCH_INVALID_SESSION_STATE",
+                "message": "Watching Update readiness is only allowed while WATCHING.",
+            },
+        )
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_for_user(batch_id=batch_id, owner_id=current_user.id)
+    if (
+        batch is None
+        or batch.session_id != session_id
+        or batch.analysis_type != AnalysisType.WATCHING_UPDATE
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "WATCHING_BATCH_NOT_FOUND",
+                "message": "Watching Update evidence batch not found.",
+            },
+        )
+
+    evidence_svc = EvidenceService(db_session)
+    required = await evidence_svc.get_required_evidence(
+        session_id=session_id,
+        owner_id=current_user.id,
+        analysis_type=AnalysisType.WATCHING_UPDATE,
+        evidence_batch_id=batch.id,
+    )
+    if not required.complete:
+        missing = ", ".join(t.value for t in required.missing_types)
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
+                "message": f"Missing required evidence: {missing}",
+            },
+        )
+
+    if batch.status == EvidenceBatchStatus.READY:
+        return _batch_to_response(batch)
+    if batch.status != EvidenceBatchStatus.DRAFT:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "WATCHING_BATCH_INVALID_STATE",
+                "message": f"Cannot mark Watching Update batch ready from {batch.status.value}.",
+            },
+        )
+
+    await batch_svc.mark_ready(batch)
+    return _batch_to_response(batch)
 
 
 # ---------------------------------------------------------------------------

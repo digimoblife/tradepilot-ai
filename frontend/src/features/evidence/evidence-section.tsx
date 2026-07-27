@@ -53,7 +53,8 @@ export function EvidenceSection({ sessionId, batches = [], currentBatch = null }
   const currentBatchItems = currentBatch
     ? items.filter((item) => item.evidence_batch_id === currentBatch.id)
     : items;
-  const reqStatus = getRequiredTypesStatus(currentBatchItems);
+  const currentAnalysisType = currentBatch?.analysis_type ?? "INITIAL_ANALYSIS";
+  const reqStatus = getRequiredTypesStatus(currentBatchItems, currentAnalysisType);
   const canMutateCurrentBatch = !currentBatch || currentBatch.status === "DRAFT";
   const disabledReason = currentBatch && currentBatch.status !== "DRAFT"
     ? `Batch ${currentBatch.sequence_number} berstatus ${currentBatch.status}. Bukti tidak dapat diubah.`
@@ -86,7 +87,7 @@ export function EvidenceSection({ sessionId, batches = [], currentBatch = null }
       )}
 
       <div className="mb-4 space-y-1">
-        <p className="text-xs font-medium text-zinc-600">Bukti awal yang diperlukan:</p>
+        <p className="text-xs font-medium text-zinc-600">Bukti yang diperlukan:</p>
         {reqStatus.map((r) => (
           <div key={r.type} className="flex items-center gap-2 text-sm">
             <span className={r.active ? "text-green-600" : "text-zinc-400"}>

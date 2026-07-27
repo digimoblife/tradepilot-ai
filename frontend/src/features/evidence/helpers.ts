@@ -1,6 +1,9 @@
 import type { EvidenceItem } from "@/types/evidence";
 
-const REQ_TYPES = ["ORDERBOOK_SCREENSHOT", "CHART_THREE_MONTH", "CHART_SIX_MONTH"] as const;
+const REQUIRED_TYPES_BY_ANALYSIS: Record<string, readonly string[]> = {
+  INITIAL_ANALYSIS: ["ORDERBOOK_SCREENSHOT", "CHART_THREE_MONTH", "CHART_SIX_MONTH"],
+  WATCHING_UPDATE: ["ORDERBOOK_SCREENSHOT"],
+};
 
 export const EVIDENCE_TYPE_LABELS: Record<string, string> = {
   ORDERBOOK_SCREENSHOT: "Screenshot Orderbook",
@@ -42,8 +45,12 @@ export interface RequiredTypeStatus {
   active: boolean;
 }
 
-export function getRequiredTypesStatus(items: EvidenceItem[]): RequiredTypeStatus[] {
-  return REQ_TYPES.map((t) => ({
+export function getRequiredTypesStatus(
+  items: EvidenceItem[],
+  analysisType = "INITIAL_ANALYSIS",
+): RequiredTypeStatus[] {
+  const requiredTypes = REQUIRED_TYPES_BY_ANALYSIS[analysisType] ?? [];
+  return requiredTypes.map((t) => ({
     type: t,
     label: evidenceTypeLabel(t),
     active: items.some((e) => e.evidence_type === t && e.status === "AVAILABLE"),

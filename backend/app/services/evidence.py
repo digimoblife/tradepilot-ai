@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.evidence import (
     EvidenceUploadValidator,
 )
-from app.models.enums import AnalysisType, EvidenceStatus, EvidenceType
+from app.models.enums import AnalysisType, EvidenceStatus, EvidenceType, TradeSessionStatus
 from app.models.evidence import Evidence
 from app.models.evidence_batch import EvidenceBatch
 from app.repositories.evidence import EvidenceRepository
@@ -39,7 +39,7 @@ _REQUIRED_EVIDENCE: dict[AnalysisType, tuple[EvidenceType, ...]] = {
         EvidenceType.CHART_THREE_MONTH,
         EvidenceType.CHART_SIX_MONTH,
     ),
-    AnalysisType.WATCHING_UPDATE: (),
+    AnalysisType.WATCHING_UPDATE: (EvidenceType.ORDERBOOK_SCREENSHOT,),
     AnalysisType.OPEN_POSITION_UPDATE: (),
     AnalysisType.PARTIAL_EXIT_REVIEW: (),
     AnalysisType.CLOSING_ANALYSIS: (),
@@ -174,11 +174,12 @@ class EvidenceService:
             )
 
         validated_type = _normalize_type(evidence_type)
+        batch_analysis_type = _default_batch_analysis_type(ts)
         batch = (
             await self._batch_service.get_or_create_current_draft(
                 session_id=session_id,
                 owner_id=owner_id,
-                analysis_type=AnalysisType.INITIAL_ANALYSIS,
+                analysis_type=batch_analysis_type,
             )
             if evidence_batch_id is None
             else await self._session.get(EvidenceBatch, evidence_batch_id)
@@ -490,3 +491,10 @@ def _normalize_type(evidence_type: EvidenceType | str) -> EvidenceType:
             code="EVIDENCE_TYPE_UNSUPPORTED",
             message=f"Unrecognised evidence type: {evidence_type}",
         )
+
+
+def _default_batch_analysis_type(ts: object) -> AnalysisType:
+    lifecycle_status = getattr(ts, "lifecycle_status", None)
+    if lifecycle_status == TradeSessionStatus.WATCHING:
+        return AnalysisType.WATCHING_UPDATE
+    return AnalysisType.INITIAL_ANALYSIS

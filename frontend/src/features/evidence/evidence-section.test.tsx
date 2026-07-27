@@ -74,6 +74,54 @@ describe("initial requirements", () => {
     const checks = await screen.findAllByText("✓");
     expect(checks.length).toBe(3);
   });
+
+  it("shows only orderbook as required for watching update batch", async () => {
+    vi.mocked(listEvidence).mockResolvedValue({
+      evidence: [
+        makeItem({
+          id: "ev-watch",
+          evidence_batch_id: "batch-watch",
+          evidence_type: "ORDERBOOK_SCREENSHOT",
+        }),
+      ],
+      total: 1,
+    });
+    render(
+      <EvidenceSection
+        sessionId="sess-1"
+        currentBatch={{
+          id: "batch-watch",
+          session_id: "sess-1",
+          analysis_type: "WATCHING_UPDATE",
+          status: "DRAFT",
+          sequence_number: 2,
+          label: null,
+          created_at: "",
+          ready_at: null,
+          processing_at: null,
+          frozen_at: null,
+          failed_at: null,
+        }}
+        batches={[{
+          id: "batch-watch",
+          session_id: "sess-1",
+          analysis_type: "WATCHING_UPDATE",
+          status: "DRAFT",
+          sequence_number: 2,
+          label: null,
+          created_at: "",
+          ready_at: null,
+          processing_at: null,
+          frozen_at: null,
+          failed_at: null,
+        }]}
+      />,
+    );
+    const checks = await screen.findAllByText("✓");
+    const missing = screen.queryAllByText("○");
+    expect(checks.length).toBe(1);
+    expect(missing.length).toBe(0);
+  });
 });
 
 // -------------------------------------------------------------------

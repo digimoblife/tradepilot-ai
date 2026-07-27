@@ -159,6 +159,15 @@ class ProviderContextBuilder:
             user_id=owner_id,
             analysis_type=atype,
         )
+        latest_initial_analysis: Analysis | None = None
+        latest_watching_update: Analysis | None = None
+        if atype == AnalysisType.WATCHING_UPDATE.value:
+            latest_initial_analysis = await self._analysis_repo.get_latest_accepted_by_type_for_user(
+                session_id=session_id,
+                user_id=owner_id,
+                analysis_type=AnalysisType.INITIAL_ANALYSIS.value,
+            )
+            latest_watching_update = latest_analysis
 
         # 5. Load active evidence (deterministic order)
         if evidence_batch_id is None:
@@ -196,6 +205,9 @@ class ProviderContextBuilder:
                     trade_state,
                     context_summary,
                     latest_analysis,
+                    analysis_type=atype,
+                    latest_initial_analysis=latest_initial_analysis,
+                    latest_watching_update=latest_watching_update,
                 ),
             )
         except Exception as exc:
@@ -218,6 +230,12 @@ class ProviderContextBuilder:
             "output_language": "id",
             "context_summary_id": str(context_summary.id) if context_summary else None,
             "latest_analysis_id": str(latest_analysis.id) if latest_analysis else None,
+            "latest_initial_analysis_id": (
+                str(latest_initial_analysis.id) if latest_initial_analysis else None
+            ),
+            "latest_watching_update_id": (
+                str(latest_watching_update.id) if latest_watching_update else None
+            ),
             "evidence_batch_id": str(evidence_batch_id) if evidence_batch_id else None,
             "evidence_ids": [str(e.id) for e in ordered_evidence],
             "canonical_chart_timestamps": _build_canonical_chart_timestamps(ordered_evidence),
@@ -388,6 +406,10 @@ def _build_prompt_variables(
     trade_state: TradeState | None,
     context_summary: ContextSummary | None,
     latest_analysis: Analysis | None,
+    *,
+    analysis_type: str,
+    latest_initial_analysis: Analysis | None = None,
+    latest_watching_update: Analysis | None = None,
 ) -> dict[str, str]:
     import json
 
@@ -437,8 +459,13 @@ def _build_prompt_variables(
             market_snapshot_json = dict(ms)
     variables["market_snapshot_json"] = json.dumps(market_snapshot_json, ensure_ascii=False)
 
-    latest_analysis_json = {}
-    if latest_analysis is not None and latest_analysis.payload:
+    latest_analysis_json: dict[str, object] = {}
+    if analysis_type == AnalysisType.WATCHING_UPDATE.value:
+        latest_analysis_json = {
+            "initial_analysis": _compact_analysis(latest_initial_analysis),
+            "latest_watching_update": _compact_analysis(latest_watching_update),
+        }
+    elif latest_analysis is not None and latest_analysis.payload:
         latest_analysis_json = dict(latest_analysis.payload)
     variables["latest_analysis_json"] = json.dumps(latest_analysis_json, ensure_ascii=False)
 
@@ -446,6 +473,44 @@ def _build_prompt_variables(
     variables["user_notes"] = json.dumps(user_notes_json, ensure_ascii=False)
 
     return variables
+
+
+def _compact_analysis(analysis: Analysis | None) -> dict[str, object] | None:
+    if analysis is None:
+        return None
+    payload = dict(analysis.payload or {})
+    compact_payload: dict[str, object] = {}
+    for key in (
+        "recommendation",
+        "decision",
+        "setup_quality",
+        "setup_summary",
+        "thesis",
+        "thesis_update",
+        "risk_assessment",
+        "trade_plan",
+        "watching_update",
+        "next_action",
+        "reasoning",
+        "warnings",
+    ):
+        if key in payload:
+            compact_payload[key] = payload[key]
+    if not compact_payload:
+        for key, value in payload.items():
+            if key.startswith("_"):
+                continue
+            compact_payload[key] = value
+            if len(compact_payload) >= 6:
+                break
+    return {
+        "analysis_id": str(analysis.id),
+        "analysis_type": analysis.analysis_type.value
+        if hasattr(analysis.analysis_type, "value")
+        else str(analysis.analysis_type),
+        "accepted_at": analysis.accepted_at.isoformat() if analysis.accepted_at else None,
+        "payload": compact_payload,
+    }
 
 
 def _resolve_structured_schema(schema_name: str) -> dict[str, object]:

@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.ai.context_builder import ProviderContextBuilder
 from app.ai.providers import ProviderCapabilities
+from app.models.analysis import Analysis
 from app.models.analysis_job import AnalysisJob
-from app.models.enums import AnalysisType, EvidenceBatchStatus
+from app.models.enums import AcceptanceStatus, AnalysisType, EvidenceBatchStatus
 from app.models.evidence import Evidence
 from app.models.evidence_batch import EvidenceBatch
 from app.services.analysis_jobs import AnalysisJobCreationService
@@ -152,6 +153,107 @@ async def test_concurrent_draft_creation_resolves_to_one_batch(
     assert draft_count == 1
 
 
+async def test_concurrent_watching_draft_creation_resolves_to_one_batch(
+    engine: AsyncEngine,
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    owner_id, session_id = await _make_user_and_session(engine, status="WATCHING")
+
+    async def create_draft() -> uuid.UUID:
+        async with factory() as s:
+            batch = await EvidenceBatchService(s).get_or_create_current_draft(
+                session_id=session_id,
+                owner_id=owner_id,
+                analysis_type=AnalysisType.WATCHING_UPDATE,
+            )
+            await s.commit()
+            return batch.id
+
+    batch_ids = await asyncio.gather(*(create_draft() for _ in range(8)))
+
+    async with factory() as s:
+        rows = await s.execute(
+            select(EvidenceBatch).where(
+                EvidenceBatch.session_id == session_id,
+                EvidenceBatch.analysis_type == AnalysisType.WATCHING_UPDATE,
+            )
+        )
+        batches = rows.scalars().all()
+
+    assert len(set(batch_ids)) == 1
+    assert len(batches) == 1
+    assert batches[0].sequence_number == 1
+
+
+async def test_watching_upload_uses_watching_batch_by_default(
+    engine: AsyncEngine,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path,
+) -> None:
+    owner_id, session_id = await _make_user_and_session(engine, status="WATCHING")
+
+    async with factory() as s:
+        result = await EvidenceService(s, storage_root=tmp_path).create(
+            session_id=session_id,
+            owner_id=owner_id,
+            evidence_type="ORDERBOOK_SCREENSHOT",
+            content=_png_bytes(),
+            original_filename="watching-orderbook.png",
+            declared_mime_type="image/png",
+            market_timestamp=datetime.now(timezone.utc),
+        )
+        batch = await s.get(EvidenceBatch, result.evidence.evidence_batch_id)
+
+        assert batch is not None
+        assert batch.analysis_type == AnalysisType.WATCHING_UPDATE
+        assert batch.status == EvidenceBatchStatus.DRAFT
+
+
+async def test_watching_readiness_is_isolated_to_selected_batch(
+    engine: AsyncEngine,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path,
+) -> None:
+    owner_id, session_id = await _make_user_and_session(engine, status="WATCHING")
+
+    async with factory() as s:
+        evidence_svc = EvidenceService(s, storage_root=tmp_path)
+        batch_svc = EvidenceBatchService(s)
+        created = await evidence_svc.create(
+            session_id=session_id,
+            owner_id=owner_id,
+            evidence_type="ORDERBOOK_SCREENSHOT",
+            content=_png_bytes(),
+            original_filename="orderbook.png",
+            declared_mime_type="image/png",
+        )
+        first_batch = await s.get(EvidenceBatch, created.evidence.evidence_batch_id)
+        assert first_batch is not None
+        complete = await evidence_svc.get_required_evidence(
+            session_id,
+            owner_id,
+            AnalysisType.WATCHING_UPDATE,
+            evidence_batch_id=first_batch.id,
+        )
+        assert complete.complete
+
+        await batch_svc.mark_ready(first_batch)
+        second_batch = await batch_svc.get_or_create_current_draft(
+            session_id=session_id,
+            owner_id=owner_id,
+            analysis_type=AnalysisType.WATCHING_UPDATE,
+        )
+        isolated = await evidence_svc.get_required_evidence(
+            session_id,
+            owner_id,
+            AnalysisType.WATCHING_UPDATE,
+            evidence_batch_id=second_batch.id,
+        )
+
+        assert second_batch.id != first_batch.id
+        assert not isolated.complete
+
+
 async def test_readiness_is_isolated_to_selected_batch(
     engine: AsyncEngine,
     factory: async_sessionmaker[AsyncSession],
@@ -283,6 +385,82 @@ async def test_provider_context_loads_only_job_batch_evidence(
         assert set(ctx.metadata["evidence_ids"]) == selected_ids
         assert str(extra.evidence.id) not in ctx.metadata["evidence_ids"]
         assert ctx.metadata["evidence_batch_id"] == str(selected_batch_id)
+
+
+async def test_watching_provider_context_uses_batch_and_compact_prior_analyses(
+    engine: AsyncEngine,
+    factory: async_sessionmaker[AsyncSession],
+    tmp_path,
+) -> None:
+    owner_id, session_id = await _make_user_and_session(engine, status="WATCHING")
+
+    async with factory() as s:
+        initial = Analysis(
+            session_id=session_id,
+            analysis_type=AnalysisType.INITIAL_ANALYSIS,
+            acceptance_status=AcceptanceStatus.ACCEPTED,
+            accepted_at=datetime.now(timezone.utc),
+            prompt_name="initial_analysis",
+            prompt_version="2.0.0",
+            schema_name="initial_analysis_v2",
+            schema_version="2.0.0",
+            payload={"recommendation": "WAIT", "trade_plan": {"entry": 1000}},
+        )
+        watching = Analysis(
+            session_id=session_id,
+            analysis_type=AnalysisType.WATCHING_UPDATE,
+            acceptance_status=AcceptanceStatus.ACCEPTED,
+            accepted_at=datetime.now(timezone.utc),
+            prompt_name="watching_update",
+            prompt_version="1.0.0",
+            schema_name="watching_update",
+            schema_version="1.0.0",
+            payload={"next_action": "WAIT", "thesis_update": "Still valid"},
+        )
+        s.add_all([initial, watching])
+        await s.flush()
+
+        evidence_svc = EvidenceService(s, storage_root=tmp_path)
+        batch_svc = EvidenceBatchService(s)
+        selected = await evidence_svc.create(
+            session_id=session_id,
+            owner_id=owner_id,
+            evidence_type="ORDERBOOK_SCREENSHOT",
+            content=_png_bytes(),
+            original_filename="selected-orderbook.png",
+            declared_mime_type="image/png",
+        )
+        selected_batch_id = selected.evidence.evidence_batch_id
+        selected_batch = await s.get(EvidenceBatch, selected_batch_id)
+        assert selected_batch is not None
+        await batch_svc.mark_ready(selected_batch)
+        extra = await evidence_svc.create(
+            session_id=session_id,
+            owner_id=owner_id,
+            evidence_type="ORDERBOOK_SCREENSHOT",
+            content=_png_bytes(),
+            original_filename="extra-orderbook.png",
+            declared_mime_type="image/png",
+        )
+
+        ctx = await ProviderContextBuilder(s).build(
+            session_id=session_id,
+            owner_id=owner_id,
+            analysis_type=AnalysisType.WATCHING_UPDATE,
+            provider_capabilities=ProviderCapabilities(
+                supports_images=True,
+                supports_multi_image=True,
+                maximum_images=10,
+            ),
+            evidence_batch_id=selected_batch_id,
+        )
+
+        assert ctx.metadata["evidence_ids"] == [str(selected.evidence.id)]
+        assert str(extra.evidence.id) not in ctx.metadata["evidence_ids"]
+        assert ctx.metadata["latest_initial_analysis_id"] == str(initial.id)
+        assert ctx.metadata["latest_watching_update_id"] == str(watching.id)
+        assert str(initial.id) in ctx.user_prompt
+        assert str(watching.id) in ctx.user_prompt
 
 
 async def test_processing_batches_freeze_or_fail_without_touching_legacy(

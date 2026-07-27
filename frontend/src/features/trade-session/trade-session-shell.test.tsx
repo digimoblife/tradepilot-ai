@@ -938,7 +938,8 @@ describe("allowed actions", () => {
 
   it("prevents duplicate lifecycle submits", async () => {
     const user = userEvent.setup();
-    let resolveReady: ((value: { id: string; lifecycle_status: string }) => void) | null = null;
+    type ResolveReady = (value: { id: string; lifecycle_status: string }) => void;
+    let resolveReady: ResolveReady | null = null;
     vi.mocked(markReady).mockImplementation(
       () => new Promise((resolve) => { resolveReady = resolve; }),
     );
@@ -955,7 +956,10 @@ describe("allowed actions", () => {
     expect(screen.getByRole("button", { name: "Memproses…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Batalkan" })).toBeDisabled();
 
-    resolveReady?.({ id: "sess-1", lifecycle_status: "READY_FOR_ANALYSIS" });
+    (resolveReady as unknown as ResolveReady)({
+      id: "sess-1",
+      lifecycle_status: "READY_FOR_ANALYSIS",
+    });
     await waitFor(() => { expect(getSession).toHaveBeenCalledTimes(2); });
   });
 });
@@ -1008,7 +1012,8 @@ describe("initial analysis trigger", () => {
 
   it("prevents duplicate initial analysis submits", async () => {
     const user = userEvent.setup();
-    let resolveRequest: ((value: Awaited<ReturnType<typeof requestAnalysis>>) => void) | null = null;
+    type ResolveRequest = (value: Awaited<ReturnType<typeof requestAnalysis>>) => void;
+    let resolveRequest: ResolveRequest | null = null;
     vi.mocked(getSession).mockResolvedValue(makeReadySession());
     mockEvidenceComplete();
     vi.mocked(requestAnalysis).mockImplementation(
@@ -1026,7 +1031,7 @@ describe("initial analysis trigger", () => {
     expect(requestAnalysis).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("button", { name: "Mengirim…" })).toBeDisabled();
 
-    resolveRequest?.({
+    (resolveRequest as unknown as ResolveRequest)({
       job_id: "job-1",
       session_id: "sess-1",
       analysis_type: "INITIAL_ANALYSIS",

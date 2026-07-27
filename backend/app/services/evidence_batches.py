@@ -117,6 +117,17 @@ class EvidenceBatchService:
             EvidenceBatchStatus.DRAFT,
         )
 
+    async def get_for_user(
+        self,
+        *,
+        batch_id: uuid.UUID,
+        owner_id: uuid.UUID,
+    ) -> EvidenceBatch | None:
+        batch = await self._session.get(EvidenceBatch, batch_id)
+        if batch is None or batch.owner_id != owner_id:
+            return None
+        return batch
+
     async def get_ready_for_processing(
         self,
         *,

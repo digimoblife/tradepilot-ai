@@ -7,6 +7,7 @@ import type {
   UpdateTradeSessionRequest,
   ReadyResponse,
   ArchiveResponse,
+  EvidenceBatchSummary,
 } from "@/types/trade-session";
 export function createSession(data: CreateTradeSessionRequest): Promise<CreateTradeSessionResponse> {
   return post<CreateTradeSessionResponse>("/api/trade-sessions", data);
@@ -31,6 +32,19 @@ export function updateSession(
 
 export function markReady(sessionId: string): Promise<ReadyResponse> {
   return post<ReadyResponse>(`/api/trade-sessions/${sessionId}/ready`);
+}
+
+export function ensureWatchingBatch(sessionId: string): Promise<EvidenceBatchSummary> {
+  return post<EvidenceBatchSummary>(`/api/trade-sessions/${sessionId}/watching-batches`);
+}
+
+export function markWatchingBatchReady(
+  sessionId: string,
+  batchId: string,
+): Promise<EvidenceBatchSummary> {
+  return post<EvidenceBatchSummary>(
+    `/api/trade-sessions/${sessionId}/watching-batches/${batchId}/ready`,
+  );
 }
 
 export function archiveSession(sessionId: string): Promise<ArchiveResponse> {

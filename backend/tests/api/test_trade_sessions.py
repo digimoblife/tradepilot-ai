@@ -449,6 +449,29 @@ class TestDetail:
             )
             assert count == 0
 
+    async def test_repeated_watching_get_does_not_create_evidence_batch(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="WATCHING")
+        cookie = await _login_user(client, email)
+
+        for _ in range(2):
+            resp = await client.get(
+                f"/api/trade-sessions/{sid}",
+                cookies={"tradepilot_session": cookie},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["current_evidence_batch"] is None
+
+        async with engine.begin() as conn:
+            count = await conn.scalar(
+                text("SELECT COUNT(*) FROM evidence_batches WHERE session_id = :sid"),
+                {"sid": sid},
+            )
+            assert count == 0
+
     async def test_owner_retrieves(self, engine: AsyncEngine, client: AsyncClient) -> None:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)
@@ -812,6 +835,88 @@ class TestReady:
                 {"sid": sid},
             )
             assert row.first()[0] == "OPEN_POSITION"
+
+
+# ===================================================================
+# POST /{session_id}/watching-batches
+# ===================================================================
+
+
+class TestWatchingBatches:
+    async def test_create_or_resolve_watching_batch(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="WATCHING")
+        cookie = await _login_user(client, email)
+
+        first = await client.post(
+            f"/api/trade-sessions/{sid}/watching-batches",
+            cookies={"tradepilot_session": cookie},
+        )
+        second = await client.post(
+            f"/api/trade-sessions/{sid}/watching-batches",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["id"] == second.json()["id"]
+        assert first.json()["analysis_type"] == "WATCHING_UPDATE"
+        assert first.json()["status"] == "DRAFT"
+
+    async def test_ready_watching_batch_requires_orderbook(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="WATCHING")
+        cookie = await _login_user(client, email)
+        batch = await client.post(
+            f"/api/trade-sessions/{sid}/watching-batches",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/watching-batches/{batch.json()['id']}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["code"] == "ANALYSIS_REQUIRED_EVIDENCE_MISSING"
+
+    async def test_ready_watching_batch_with_orderbook(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="WATCHING")
+        cookie = await _login_user(client, email)
+        batch_resp = await client.post(
+            f"/api/trade-sessions/{sid}/watching-batches",
+            cookies={"tradepilot_session": cookie},
+        )
+        batch_id = uuid.UUID(batch_resp.json()["id"])
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO evidence "
+                    "(session_id, owner_id, evidence_batch_id, evidence_type, evidence_status, "
+                    "storage_object_key, mime_type, file_size_bytes) "
+                    "VALUES (:sid, :uid, :bid, 'ORDERBOOK_SCREENSHOT', 'AVAILABLE', "
+                    "'watching/orderbook.png', 'image/png', 100)"
+                ),
+                {"sid": sid, "uid": uid, "bid": batch_id},
+            )
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/watching-batches/{batch_id}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "READY"
 
 
 # ===================================================================

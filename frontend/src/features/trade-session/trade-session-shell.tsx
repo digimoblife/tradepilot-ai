@@ -410,6 +410,7 @@ export function TradeSessionShell({ sessionId }: Props) {
         <RequestAnalysis
           sessionId={sessionId}
           analysisType={actionModal.replace("REQUEST_", "")}
+          currentBatch={state.data.current_evidence_batch ?? null}
           onSuccess={(job) => { handleJobCreated(job); setActionModal(null); handleActionSuccess(); }}
           onClose={() => setActionModal(null)}
         />

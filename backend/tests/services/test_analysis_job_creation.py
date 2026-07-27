@@ -17,7 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.models.analysis_job import AnalysisJob
 from app.models.enums import (
     AnalysisType,
+    EvidenceBatchStatus,
 )
+from app.models.evidence_batch import EvidenceBatch
 from app.services.analysis_jobs import (
     AnalysisJobAlreadyActiveError,
     AnalysisJobCreationResult,
@@ -26,6 +28,8 @@ from app.services.analysis_jobs import (
     AnalysisRequiredEvidenceMissingError,
     AnalysisTypeInvalidForLifecycleError,
 )
+from app.services.evidence import EvidenceService
+from app.services.evidence_batches import EvidenceBatchService
 
 pytestmark = pytest.mark.database
 
@@ -255,6 +259,60 @@ class TestValidCreation:
             assert job is not None
             assert job.attempt_count == 0
             assert job.max_attempts == 1
+
+    async def test_creates_watching_update_job_from_ready_watching_batch(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+        tmp_path,
+    ) -> None:
+        sid, _ = await _make_session(engine, user_id, status="WATCHING")
+
+        async with factory() as s:
+            evidence = await EvidenceService(s, storage_root=tmp_path).create(
+                session_id=sid,
+                owner_id=user_id,
+                evidence_type="ORDERBOOK_SCREENSHOT",
+                content=_make_image_bytes(),
+                original_filename="watching-orderbook.png",
+                declared_mime_type="image/png",
+            )
+            batch = await s.get(EvidenceBatch, evidence.evidence.evidence_batch_id)
+            assert batch is not None
+            await EvidenceBatchService(s).mark_ready(batch)
+
+            result = await AnalysisJobCreationService(s).create(
+                session_id=sid,
+                owner_id=user_id,
+                analysis_type=AnalysisType.WATCHING_UPDATE,
+            )
+            job = await s.get(AnalysisJob, result.job_id)
+            await s.refresh(batch)
+
+            assert result.evidence_batch_id == batch.id
+            assert result.previous_session_status == "WATCHING"
+            assert result.current_session_status == "ANALYZING"
+            assert job is not None
+            assert job.evidence_batch_id == batch.id
+            assert batch.status == EvidenceBatchStatus.PROCESSING
+
+    async def test_watching_update_requires_ready_watching_batch(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        sid, _ = await _make_session(engine, user_id, status="WATCHING")
+        await _add_evidence(engine, sid, user_id, "ORDERBOOK_SCREENSHOT")
+
+        async with factory() as s:
+            with pytest.raises(AnalysisRequiredEvidenceMissingError):
+                await AnalysisJobCreationService(s).create(
+                    session_id=sid,
+                    owner_id=user_id,
+                    analysis_type=AnalysisType.WATCHING_UPDATE,
+                )
 
     async def test_no_lease_owner(
         self,
@@ -609,9 +667,22 @@ class TestStatusTransition:
         engine: AsyncEngine,
         user_id: uuid.UUID,
         factory: async_sessionmaker[AsyncSession],
+        tmp_path,
     ) -> None:
         sid, _ = await _make_session(engine, user_id, status="WATCHING")
         async with factory() as s:
+            evidence = await EvidenceService(s, storage_root=tmp_path).create(
+                session_id=sid,
+                owner_id=user_id,
+                evidence_type="ORDERBOOK_SCREENSHOT",
+                content=_make_image_bytes(),
+                original_filename="watching-orderbook.png",
+                declared_mime_type="image/png",
+            )
+            batch = await s.get(EvidenceBatch, evidence.evidence.evidence_batch_id)
+            assert batch is not None
+            await EvidenceBatchService(s).mark_ready(batch)
+
             svc = AnalysisJobCreationService(s)
             result = await svc.create(
                 session_id=sid,

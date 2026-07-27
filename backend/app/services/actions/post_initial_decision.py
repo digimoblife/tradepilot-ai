@@ -10,10 +10,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.context_summary import ContextSummary
-from app.models.enums import ActionType, SessionEventType, TradeSessionStatus
+from app.models.enums import ActionType, AnalysisType, SessionEventType, TradeSessionStatus
 from app.models.session_event import SessionEvent
 from app.models.trade_action import TradeAction
 from app.repositories.trade_session import TradeSessionRepository
+from app.services.evidence_batches import EvidenceBatchService
 
 _DECISION_SOURCES = frozenset(
     {
@@ -46,6 +47,7 @@ class PostInitialDecisionService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._repo = TradeSessionRepository(session)
+        self._batch_service = EvidenceBatchService(session)
 
     async def wait(
         self,
@@ -66,6 +68,7 @@ class PostInitialDecisionService:
             target_status=TradeSessionStatus.WATCHING,
             summary="User chose to wait",
             note=note,
+            create_watching_batch=True,
         )
 
     async def skip(
@@ -104,6 +107,7 @@ class PostInitialDecisionService:
         summary: str,
         note: str | None,
         payload: dict[str, object] | None = None,
+        create_watching_batch: bool = False,
     ) -> PostInitialDecisionResult:
         ts = await self._repo.get_by_id_for_user_for_update(session_id, owner_id)
         if ts is None:
@@ -124,6 +128,12 @@ class PostInitialDecisionService:
             .scalar_one_or_none()
         )
         if existing is not None:
+            if create_watching_batch and ts.lifecycle_status == TradeSessionStatus.WATCHING:
+                await self._batch_service.get_or_create_current_draft(
+                    session_id=session_id,
+                    owner_id=owner_id,
+                    analysis_type=AnalysisType.WATCHING_UPDATE,
+                )
             return PostInitialDecisionResult(
                 session_id=session_id,
                 action=existing,
@@ -147,6 +157,13 @@ class PostInitialDecisionService:
 
         ts.lifecycle_status = target_status
         ts.stable_status = target_status
+
+        if create_watching_batch:
+            await self._batch_service.get_or_create_current_draft(
+                session_id=session_id,
+                owner_id=owner_id,
+                analysis_type=AnalysisType.WATCHING_UPDATE,
+            )
 
         self._session.add(
             SessionEvent(

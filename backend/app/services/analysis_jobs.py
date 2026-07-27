@@ -162,12 +162,20 @@ class AnalysisJobCreationService:
         # 4. Verify required evidence
         evidence_batch_id: uuid.UUID | None = None
         batch = None
-        if atype == AnalysisType.INITIAL_ANALYSIS.value:
+        if atype in {
+            AnalysisType.INITIAL_ANALYSIS.value,
+            AnalysisType.WATCHING_UPDATE.value,
+        }:
+            batch_analysis_type = AnalysisType(atype)
             batch = await self._batch_service.get_ready_for_processing(
                 session_id=session_id,
                 owner_id=owner_id,
-                analysis_type=AnalysisType.INITIAL_ANALYSIS,
+                analysis_type=batch_analysis_type,
             )
+            if atype == AnalysisType.WATCHING_UPDATE.value and batch is None:
+                raise AnalysisRequiredEvidenceMissingError(
+                    message="Missing ready Watching Update evidence batch",
+                )
             evidence_batch_id = batch.id if batch is not None else None
         required = await self._evidence_service.get_required_evidence(
             session_id=session_id,

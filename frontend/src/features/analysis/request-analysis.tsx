@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { requestAnalysis } from "@/lib/api/analyses";
 import { listEvidence } from "@/lib/api/evidence";
+import { ensureWatchingBatch, markWatchingBatchReady } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import { getRequiredTypesStatus } from "@/features/evidence/helpers";
 import type { AnalysisJobCreated } from "@/types/analysis-job";
+import type { EvidenceBatchSummary } from "@/types/trade-session";
 
 const ANALYSIS_TYPE_LABEL: Record<string, string> = {
   INITIAL_ANALYSIS: "Analisis Awal",
@@ -18,15 +20,17 @@ const ANALYSIS_TYPE_LABEL: Record<string, string> = {
 interface Props {
   sessionId: string;
   analysisType: string;
+  currentBatch?: EvidenceBatchSummary | null;
   onSuccess?: (job: AnalysisJobCreated) => void;
   onClose?: () => void;
 }
 
-export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }: Props) {
+export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSuccess, onClose }: Props) {
   const [evidenceItems, setEvidenceItems] = useState<ReturnType<typeof getRequiredTypesStatus>>([]);
   const [evidenceLoading, setEvidenceLoading] = useState(true);
   const [submitState, setSubmitState] = useState<"idle" | "pending" | { type: "error"; message: string }>("idle");
   const [jobResult, setJobResult] = useState<AnalysisJobCreated | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<EvidenceBatchSummary | null>(currentBatch ?? null);
   const cancelledRef = useRef(false);
   const submittingRef = useRef(false);
 
@@ -35,21 +39,30 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
   // Load evidence to check requirements
   useEffect(() => {
     let cancelled = false;
-    listEvidence(sessionId)
-      .then((res) => {
+    async function load() {
+      try {
+        const batch = analysisType === "WATCHING_UPDATE"
+          ? await ensureWatchingBatch(sessionId)
+          : (currentBatch ?? null);
+        const res = await listEvidence(sessionId);
         if (!cancelled) {
-          setEvidenceItems(getRequiredTypesStatus(res.evidence));
+          const scopedEvidence = batch
+            ? res.evidence.filter((item) => item.evidence_batch_id === batch.id)
+            : res.evidence;
+          setSelectedBatch(batch);
+          setEvidenceItems(getRequiredTypesStatus(scopedEvidence, analysisType));
           setEvidenceLoading(false);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setEvidenceItems([]);
           setEvidenceLoading(false);
         }
-      });
+      }
+    }
+    load();
     return () => { cancelled = true; cancelledRef.current = true; };
-  }, [sessionId]);
+  }, [sessionId, analysisType, currentBatch]);
 
   const allRequiredPresent = evidenceItems.length > 0 && evidenceItems.every((e) => e.active);
   const missingItems = evidenceItems.filter((e) => !e.active);
@@ -59,6 +72,14 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
     submittingRef.current = true;
     setSubmitState("pending");
     try {
+      let batch = selectedBatch;
+      if (analysisType === "WATCHING_UPDATE") {
+        batch = batch ?? await ensureWatchingBatch(sessionId);
+        if (batch.status === "DRAFT") {
+          batch = await markWatchingBatchReady(sessionId, batch.id);
+          setSelectedBatch(batch);
+        }
+      }
       const job = await requestAnalysis(sessionId, { analysis_type: analysisType });
       if (cancelledRef.current) return;
       setJobResult(job);
@@ -80,7 +101,7 @@ export function RequestAnalysis({ sessionId, analysisType, onSuccess, onClose }:
     } finally {
       submittingRef.current = false;
     }
-  }, [sessionId, analysisType, submitState, onSuccess, typeLabel]);
+  }, [sessionId, analysisType, selectedBatch, submitState, onSuccess, typeLabel]);
 
   const submitError = typeof submitState === "object" && "type" in submitState ? submitState.message : null;
 

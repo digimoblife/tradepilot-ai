@@ -76,6 +76,16 @@ class TestWaitDecision:
             )
             assert result.session_status == TradeSessionStatus.WATCHING
             assert result.action.action_type == ActionType.USER_WAITED
+            batch = (
+                await s.execute(
+                    text(
+                        "SELECT analysis_type, status, sequence_number "
+                        "FROM evidence_batches WHERE session_id = :sid"
+                    ),
+                    {"sid": sid},
+                )
+            ).first()
+            assert batch == ("WATCHING_UPDATE", "DRAFT", 1)
 
     async def test_watching_to_watching_is_auditable(
         self,
@@ -107,7 +117,18 @@ class TestWaitDecision:
                 )
             ).scalar_one()
             state = await s.get(TradeState, sid)
+            batch_count = (
+                await s.execute(
+                    text(
+                        "SELECT COUNT(*) FROM evidence_batches "
+                        "WHERE session_id = :sid AND analysis_type = 'WATCHING_UPDATE' "
+                        "AND status = 'DRAFT'"
+                    ),
+                    {"sid": sid},
+                )
+            ).scalar_one()
             assert count == 2
+            assert batch_count == 1
             assert state.position_status == PositionStatus.NOT_OPENED
 
 

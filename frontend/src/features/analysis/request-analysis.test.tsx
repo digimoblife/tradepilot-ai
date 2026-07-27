@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { requestAnalysis } from "@/lib/api/analyses";
 import { listEvidence } from "@/lib/api/evidence";
+import { ensureWatchingBatch, markWatchingBatchReady } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 
 vi.mock("@/lib/api/analyses", () => ({
@@ -11,6 +12,11 @@ vi.mock("@/lib/api/analyses", () => ({
 
 vi.mock("@/lib/api/evidence", () => ({
   listEvidence: vi.fn(),
+}));
+
+vi.mock("@/lib/api/trade-sessions", () => ({
+  ensureWatchingBatch: vi.fn(),
+  markWatchingBatchReady: vi.fn(),
 }));
 
 import { RequestAnalysis } from "./request-analysis";
@@ -37,6 +43,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requestAnalysis).mockReset();
   vi.mocked(listEvidence).mockReset();
+  vi.mocked(ensureWatchingBatch).mockReset();
+  vi.mocked(markWatchingBatchReady).mockReset();
 });
 
 // -------------------------------------------------------------------
@@ -99,6 +107,33 @@ describe("evidence blocking", () => {
     render(<RequestAnalysis sessionId="sess-a" analysisType="INITIAL_ANALYSIS" />);
     expect(await screen.findByText(/Unggah evidence yang diperlukan/)).toBeTruthy();
   });
+
+  it("checks only orderbook for watching update batch", async () => {
+    vi.mocked(ensureWatchingBatch).mockResolvedValue({
+      id: "batch-watch",
+      session_id: "sess-a",
+      analysis_type: "WATCHING_UPDATE",
+      status: "DRAFT",
+      sequence_number: 2,
+      label: null,
+      created_at: "",
+      ready_at: null,
+      processing_at: null,
+      frozen_at: null,
+      failed_at: null,
+    });
+    vi.mocked(listEvidence).mockResolvedValue({
+      evidence: [
+        { id: "e1", session_id: "sess-a", evidence_batch_id: "batch-watch", evidence_type: "ORDERBOOK_SCREENSHOT", status: "AVAILABLE", original_filename: null, mime_type: null, file_size_bytes: null, checksum_sha256: null, market_timestamp: null, uploaded_at: "", caption: null, supersedes_evidence_id: null },
+      ],
+      total: 1,
+    });
+    render(<RequestAnalysis sessionId="sess-a" analysisType="WATCHING_UPDATE" />);
+
+    expect(await screen.findByText("Screenshot Orderbook")).toBeTruthy();
+    expect(screen.queryByText("Chart 3 Bulan")).toBeNull();
+    expect(screen.getByText("Jalankan Update Pemantauan")).toBeEnabled();
+  });
 });
 
 // -------------------------------------------------------------------
@@ -145,6 +180,54 @@ describe("submission", () => {
     await userEvent.click(btn);
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledWith(job);
+    });
+  });
+
+  it("marks draft watching batch ready before request", async () => {
+    vi.mocked(ensureWatchingBatch).mockResolvedValue({
+      id: "batch-watch",
+      session_id: "sess-a",
+      analysis_type: "WATCHING_UPDATE",
+      status: "DRAFT",
+      sequence_number: 2,
+      label: null,
+      created_at: "",
+      ready_at: null,
+      processing_at: null,
+      frozen_at: null,
+      failed_at: null,
+    });
+    vi.mocked(markWatchingBatchReady).mockResolvedValue({
+      id: "batch-watch",
+      session_id: "sess-a",
+      analysis_type: "WATCHING_UPDATE",
+      status: "READY",
+      sequence_number: 2,
+      label: null,
+      created_at: "",
+      ready_at: "",
+      processing_at: null,
+      frozen_at: null,
+      failed_at: null,
+    });
+    vi.mocked(listEvidence).mockResolvedValue({
+      evidence: [
+        { id: "e1", session_id: "sess-a", evidence_batch_id: "batch-watch", evidence_type: "ORDERBOOK_SCREENSHOT", status: "AVAILABLE", original_filename: null, mime_type: null, file_size_bytes: null, checksum_sha256: null, market_timestamp: null, uploaded_at: "", caption: null, supersedes_evidence_id: null },
+      ],
+      total: 1,
+    });
+    vi.mocked(requestAnalysis).mockResolvedValue({
+      job_id: "job-1", session_id: "sess-a", analysis_type: "WATCHING_UPDATE",
+      status: "PENDING", attempt_count: 0, max_attempts: 3,
+      available_at: "", created_at: "", previous_session_status: null,
+    });
+
+    render(<RequestAnalysis sessionId="sess-a" analysisType="WATCHING_UPDATE" />);
+    await userEvent.click(await screen.findByText("Jalankan Update Pemantauan"));
+
+    await waitFor(() => {
+      expect(markWatchingBatchReady).toHaveBeenCalledWith("sess-a", "batch-watch");
+      expect(requestAnalysis).toHaveBeenCalledWith("sess-a", { analysis_type: "WATCHING_UPDATE" });
     });
   });
 });

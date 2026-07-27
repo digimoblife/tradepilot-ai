@@ -44,12 +44,14 @@ _REQUIRED_EVIDENCE: dict[str, tuple[str, ...]] = {
         "CHART_THREE_MONTH",
         "CHART_SIX_MONTH",
     ),
+    "WATCHING_UPDATE": ("ORDERBOOK_SCREENSHOT",),
     "OPEN_POSITION_UPDATE": (),
 }
 
 # Whether the analysis type requires image evidence
 _REQUIRES_IMAGES: dict[str, bool] = {
     "INITIAL_ANALYSIS": True,
+    "WATCHING_UPDATE": True,
     "OPEN_POSITION_UPDATE": True,
 }
 
