@@ -76,6 +76,7 @@ class TargetActionService:
         target: object,
         confirmed_at: datetime,
         note: str | None = None,
+        source_analysis_id: uuid.UUID | str | None = None,
     ) -> TargetActionResult:
         ts = await self._session_repo.get_by_id_for_user_for_update(session_id, owner_id)
         if ts is None:
@@ -139,7 +140,8 @@ class TargetActionService:
             idempotency_key=idempotency_key,
             note=note,
             payload={
-                "previous_target": str(tstate.active_target) if tstate.active_target else None
+                "previous_target": str(tstate.active_target) if tstate.active_target else None,
+                "source_analysis_id": str(source_analysis_id) if source_analysis_id else None,
             },
         )
         self._session.add(action)

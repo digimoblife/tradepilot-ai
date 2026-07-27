@@ -76,6 +76,7 @@ class StopLossActionService:
         stop_loss: object,
         confirmed_at: datetime,
         note: str | None = None,
+        source_analysis_id: uuid.UUID | str | None = None,
     ) -> StopLossActionResult:
         ts = await self._session_repo.get_by_id_for_user_for_update(session_id, owner_id)
         if ts is None:
@@ -141,7 +142,8 @@ class StopLossActionService:
             idempotency_key=idempotency_key,
             note=note,
             payload={
-                "previous_stop": str(tstate.active_stop_loss) if tstate.active_stop_loss else None
+                "previous_stop": str(tstate.active_stop_loss) if tstate.active_stop_loss else None,
+                "source_analysis_id": str(source_analysis_id) if source_analysis_id else None,
             },
         )
         self._session.add(action)
