@@ -75,20 +75,21 @@ class EvidenceBatchService:
         owner_id: uuid.UUID,
         analysis_type: AnalysisType = AnalysisType.INITIAL_ANALYSIS,
     ) -> EvidenceBatch:
-        ts = await self._session_repo.get_by_id_for_user(session_id, owner_id)
+        ts = await self._session_repo.get_by_id_for_user_for_update(session_id, owner_id)
         if ts is None:
             raise EvidenceBatchSessionNotFoundError(
                 message="Trade Session not found or not owned"
             )
 
-        latest = await self._repo.get_latest_for_session(
+        latest_draft = await self._repo.get_latest_by_status(
             session_id,
             owner_id,
             analysis_type,
+            EvidenceBatchStatus.DRAFT,
             for_update=True,
         )
-        if latest is not None and latest.status == EvidenceBatchStatus.DRAFT:
-            return latest
+        if latest_draft is not None:
+            return latest_draft
 
         sequence = await self._repo.next_sequence(session_id, analysis_type)
         batch = EvidenceBatch(
@@ -101,6 +102,20 @@ class EvidenceBatchService:
             label=f"{analysis_type.value.replace('_', ' ').title()} Batch {sequence}",
         )
         return await self._repo.add(batch)
+
+    async def get_current_draft(
+        self,
+        *,
+        session_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        analysis_type: AnalysisType = AnalysisType.INITIAL_ANALYSIS,
+    ) -> EvidenceBatch | None:
+        return await self._repo.get_latest_by_status(
+            session_id,
+            owner_id,
+            analysis_type,
+            EvidenceBatchStatus.DRAFT,
+        )
 
     async def get_ready_for_processing(
         self,

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Text, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, Text, UniqueConstraint, func, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +32,13 @@ class EvidenceBatch(Base):
         ),
         Index("ix_evidence_batches_session_created", "session_id", "created_at"),
         Index("ix_evidence_batches_session_status", "session_id", "status"),
+        Index(
+            "uq_evidence_batches_one_draft_per_session_analysis",
+            "session_id",
+            "analysis_type",
+            unique=True,
+            postgresql_where=text("status = 'DRAFT'::evidence_batch_status_enum"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(pg_uuid(), primary_key=True, default=uuid.uuid4)

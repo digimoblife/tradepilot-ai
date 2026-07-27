@@ -425,6 +425,30 @@ class TestList:
 
 
 class TestDetail:
+    async def test_repeated_get_does_not_create_evidence_batch(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid)
+        cookie = await _login_user(client, email)
+
+        for _ in range(2):
+            resp = await client.get(
+                f"/api/trade-sessions/{sid}",
+                cookies={"tradepilot_session": cookie},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["evidence_batches"] == []
+            assert resp.json()["current_evidence_batch"] is None
+
+        async with engine.begin() as conn:
+            count = await conn.scalar(
+                text("SELECT COUNT(*) FROM evidence_batches WHERE session_id = :sid"),
+                {"sid": sid},
+            )
+            assert count == 0
+
     async def test_owner_retrieves(self, engine: AsyncEngine, client: AsyncClient) -> None:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)

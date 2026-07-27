@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import uuid
 from datetime import datetime, timezone
 
 import pytest
 from PIL import Image
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.ai.context_builder import ProviderContextBuilder
@@ -110,6 +111,45 @@ async def test_uploads_create_one_draft_batch_and_enforce_batch_scoped_duplicate
                 original_filename="duplicate.png",
                 declared_mime_type="image/png",
             )
+
+
+async def test_concurrent_draft_creation_resolves_to_one_batch(
+    engine: AsyncEngine,
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    owner_id, session_id = await _make_user_and_session(engine)
+
+    async def create_draft() -> uuid.UUID:
+        async with factory() as s:
+            batch = await EvidenceBatchService(s).get_or_create_current_draft(
+                session_id=session_id,
+                owner_id=owner_id,
+            )
+            await s.commit()
+            return batch.id
+
+    batch_ids = await asyncio.gather(*(create_draft() for _ in range(8)))
+
+    async with factory() as s:
+        rows = await s.execute(
+            select(EvidenceBatch).where(
+                EvidenceBatch.session_id == session_id,
+                EvidenceBatch.analysis_type == AnalysisType.INITIAL_ANALYSIS,
+            )
+        )
+        batches = rows.scalars().all()
+        draft_count = await s.scalar(
+            select(func.count(EvidenceBatch.id)).where(
+                EvidenceBatch.session_id == session_id,
+                EvidenceBatch.analysis_type == AnalysisType.INITIAL_ANALYSIS,
+                EvidenceBatch.status == EvidenceBatchStatus.DRAFT,
+            )
+        )
+
+    assert len(set(batch_ids)) == 1
+    assert len(batches) == 1
+    assert batches[0].sequence_number == 1
+    assert draft_count == 1
 
 
 async def test_readiness_is_isolated_to_selected_batch(

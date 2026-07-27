@@ -257,12 +257,8 @@ async def get_trade_session(
     actions = _derive_allowed_actions(ts.lifecycle_status.value)
     batch_svc = EvidenceBatchService(db_session)
     current_batch = None
-    if ts.lifecycle_status == TradeSessionStatus.DRAFT:
-        current_batch = await batch_svc.get_or_create_current_draft(
-            session_id=session_id,
-            owner_id=current_user.id,
-        )
-    elif ts.lifecycle_status in {
+    if ts.lifecycle_status in {
+        TradeSessionStatus.DRAFT,
         TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
         TradeSessionStatus.READY_FOR_ANALYSIS,
         TradeSessionStatus.ANALYZING,
@@ -369,10 +365,20 @@ async def ready_trade_session(
         )
 
     batch_svc = EvidenceBatchService(db_session)
-    batch = await batch_svc.get_or_create_current_draft(
+    batch = await batch_svc.get_current_draft(
         session_id=session_id,
         owner_id=current_user.id,
     )
+    if batch is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
+                "message": "Missing Initial Analysis evidence batch",
+            },
+        )
     evidence_svc = EvidenceService(db_session)
     required = await evidence_svc.get_required_evidence(
         session_id=session_id,

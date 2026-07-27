@@ -42,8 +42,10 @@ from app.models.analysis_job import AnalysisJob
 from app.models.enums import (
     AcceptanceStatus,
     AnalysisJobStatus,
+    EvidenceBatchStatus,
 )
 from app.models.trade_session import TradeSession
+from app.services.evidence_batches import EvidenceBatchService
 from app.validation import (
     ValidationCategory,
     ValidationIssue,
@@ -306,19 +308,21 @@ async def _make_claimed_job(
     lease_expires: datetime | None = None,
     prev_status: str = "WATCHING",
     analysis_type: str = "WATCHING_UPDATE",
+    evidence_batch_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
     async with engine.begin() as conn:
         r = await conn.execute(
             text(
                 "INSERT INTO analysis_jobs "
-                "(session_id, analysis_type, status, attempt_count, "
+                "(session_id, evidence_batch_id, analysis_type, status, attempt_count, "
                 "max_attempts, lease_owner, lease_expires_at, "
                 "lease_acquired_at, previous_session_status, available_at) "
-                "VALUES (:sid, :atype, :st, :ac, :ma, "
+                "VALUES (:sid, :batch_id, :atype, :st, :ac, :ma, "
                 ":lo, :lea, :now, :ps, :now) RETURNING id"
             ),
             {
                 "sid": session_id,
+                "batch_id": evidence_batch_id,
                 "atype": analysis_type,
                 "st": status,
                 "ac": attempt_count,
@@ -439,6 +443,76 @@ def factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 
 class TestSuccessfulProcessing:
+    async def test_freeze_failure_rolls_back_accepted_analysis(
+        self,
+        engine: AsyncEngine,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        factory: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        batch_id = uuid.uuid4()
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO evidence_batches "
+                    "(id, session_id, owner_id, analysis_type, status, sequence_number) "
+                    "VALUES (:id, :sid, :owner_id, 'WATCHING_UPDATE', 'PROCESSING', 1)"
+                ),
+                {"id": batch_id, "sid": session_id, "owner_id": user_id},
+            )
+        jid = await _make_claimed_job(
+            engine,
+            session_id,
+            analysis_type="WATCHING_UPDATE",
+            evidence_batch_id=batch_id,
+        )
+        await _add_context_summary(engine, session_id)
+
+        async def fail_freeze(
+            self: EvidenceBatchService,
+            batch_id: uuid.UUID | None,
+            *,
+            now: datetime | None = None,
+        ) -> None:
+            raise RuntimeError("freeze failed")
+
+        monkeypatch.setattr(EvidenceBatchService, "freeze", fail_freeze)
+
+        async with factory() as s:
+            proc = AnalysisProcessor(
+                session=s,
+                router=FakeRouter(),
+                validate=_always_valid,
+            )
+            with pytest.raises(RuntimeError, match="freeze failed"):
+                await proc.process(job_id=jid, worker_id="w1")
+            await s.rollback()
+
+        async with factory() as s:
+            analysis_count = (
+                await s.execute(
+                    text("SELECT COUNT(*) FROM analyses WHERE analysis_job_id = :jid"),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+            job_status = (
+                await s.execute(
+                    text("SELECT status FROM analysis_jobs WHERE id = :jid"),
+                    {"jid": jid},
+                )
+            ).scalar_one()
+            batch_status = (
+                await s.execute(
+                    text("SELECT status FROM evidence_batches WHERE id = :batch_id"),
+                    {"batch_id": batch_id},
+                )
+            ).scalar_one()
+
+        assert analysis_count == 0
+        assert job_status == AnalysisJobStatus.PROCESSING.value
+        assert batch_status == EvidenceBatchStatus.PROCESSING.value
+
     async def test_processes_claimed_job(
         self,
         engine: AsyncEngine,
