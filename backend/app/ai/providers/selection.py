@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping
 
 from app.ai.providers.base import AIProvider
 from app.ai.providers.capabilities import ProviderCapabilities
 from app.ai.providers.deepseek import DeepSeekProvider
-from app.ai.providers.gemini import GeminiProvider, load_initial_analysis_response_schema
+from app.ai.providers.gemini import GeminiProvider, _convert_gemini_schema_document
+from app.schemas.manifest import REQUIRED_ANALYSIS_TYPES, load_production_manifest
+from app.schemas.registry import LocalSchemaRegistry
 from app.storage import create_file_storage
 
 
@@ -139,12 +142,12 @@ def _build_gemini(config: Any) -> GeminiProvider:
             f"Gemini model {model_name} is not approved for production analysis"
         )
     try:
-        initial_analysis_schema = load_initial_analysis_response_schema(
+        response_schemas = _load_gemini_response_schemas(
             getattr(config, "schema_package_root", "schemas/production/v1")
         )
     except Exception as exc:
         raise AnalysisProviderConfigurationError(
-            f"Initial Analysis Gemini response schema is invalid: {exc}"
+            f"Gemini response schema registration is invalid: {exc}"
         ) from exc
 
     storage = create_file_storage(config)
@@ -155,8 +158,45 @@ def _build_gemini(config: Any) -> GeminiProvider:
         timeout_seconds=int(getattr(config, "gemini_timeout_seconds", 120)),
         image_loader=lambda image: storage.read(file_reference=image.storage_reference),
         capabilities=capabilities,
-        response_schemas={"initial_analysis_v2": initial_analysis_schema},
+        response_schemas=response_schemas,
     )
+
+
+def _load_gemini_response_schemas(
+    schema_package_root: str | Path,
+) -> dict[str, dict[str, object]]:
+    """Load the active lifecycle response schemas from the canonical manifest."""
+    package_root = Path(schema_package_root)
+    manifest = load_production_manifest(package_root)
+    registry = LocalSchemaRegistry(manifest, package_root)
+    response_schemas: dict[str, dict[str, object]] = {}
+
+    for analysis_type in REQUIRED_ANALYSIS_TYPES:
+        registration = manifest.analysis_type_registry.get(analysis_type)
+        if registration is None:
+            raise ValueError(f"Manifest is missing analysis type: {analysis_type}")
+
+        entry = manifest.get_schema(registration.schema_name, registration.schema_version)
+        if entry is None or not entry.active:
+            raise ValueError(
+                f"Manifest schema for {analysis_type} is missing or inactive: "
+                f"{registration.schema_name}/{registration.schema_version}"
+            )
+        if entry.category != "AI_ANALYSIS" or not entry.root_schema:
+            raise ValueError(
+                f"Manifest schema for {analysis_type} is not an active response schema: "
+                f"{entry.name}"
+            )
+
+        registered = registry.get(entry.name, entry.version)
+        converted = _convert_gemini_schema_document(
+            dict(registered.document),
+            schema_path=registered.path,
+            package_root=package_root,
+        )
+        response_schemas[entry.name] = converted
+
+    return response_schemas
 
 
 def _build_deepseek(config: Any) -> DeepSeekProvider:

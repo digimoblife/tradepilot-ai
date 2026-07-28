@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from types import SimpleNamespace
 
@@ -76,7 +77,55 @@ def test_production_selection_is_gemini_only(monkeypatch: pytest.MonkeyPatch) ->
     assert provider_config.providers["gemini"].model == "gemini-3.1-flash-lite"
     assert provider_config.providers["gemini"].capabilities.supports_images is True
     assert provider_config.providers["gemini"].capabilities.supports_text_output is True
-    assert "initial_analysis_v2" in provider_config.providers["gemini"].response_schemas
+    assert set(provider_config.providers["gemini"].response_schemas) == {
+        "initial_analysis_v2",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+    }
+
+
+def test_gemini_registered_schema_names_match_manifest_stage_contracts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
+    provider = build_analysis_provider_config(_config()).providers["gemini"]
+
+    assert set(provider.response_schemas) == {
+        "initial_analysis_v2",
+        "watching_update",
+        "open_position_update",
+        "partial_exit_review",
+        "closing_analysis",
+    }
+    assert "common" not in provider.response_schemas
+    assert "initial_analysis" not in provider.response_schemas
+    for name, schema in provider.response_schemas.items():
+        assert '"$ref"' not in json.dumps(schema)
+
+
+def test_gemini_registration_fails_when_active_manifest_schema_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ai.providers.selection as selection
+
+    monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
+    monkeypatch.setattr(
+        selection,
+        "_load_gemini_response_schemas",
+        lambda schema_package_root: (_ for _ in ()).throw(
+            ValueError("Manifest schema for WATCHING_UPDATE is missing or inactive")
+        ),
+    )
+
+    with pytest.raises(
+        AnalysisProviderConfigurationError,
+        match="Gemini response schema registration is invalid.*WATCHING_UPDATE",
+    ):
+        build_analysis_provider_config(_config())
 
 
 def test_gemini_model_override_still_builds_selected_model(
@@ -232,12 +281,12 @@ def test_startup_validation_fails_when_initial_analysis_schema_cannot_convert(
     monkeypatch.setattr(selection, "GeminiProvider", _FakeGeminiProvider)
     monkeypatch.setattr(
         selection,
-        "load_initial_analysis_response_schema",
+        "_load_gemini_response_schemas",
         lambda schema_package_root: (_ for _ in ()).throw(RuntimeError("unsupported keyword: not")),
     )
 
     with pytest.raises(
         AnalysisProviderConfigurationError,
-        match="Initial Analysis Gemini response schema is invalid",
+        match="Gemini response schema registration is invalid",
     ):
         validate_analysis_provider_startup(_config())
