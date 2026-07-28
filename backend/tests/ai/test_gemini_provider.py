@@ -1421,7 +1421,10 @@ class TestImmutability:
 
 
 class TestSchemaConversion:
-    def test_request_level_schema_takes_precedence(self, provider: GeminiProvider) -> None:
+    def test_registered_initial_analysis_schema_takes_precedence(
+        self,
+        provider: GeminiProvider,
+    ) -> None:
         custom_schema = {
             "type": "object",
             "properties": {"test_field": {"type": "string"}},
@@ -1439,7 +1442,128 @@ class TestSchemaConversion:
         )
         resolved = provider._resolve_response_schema(req)
         assert resolved is not None
-        assert "test_field" in resolved.get("properties", {})
+        assert "test_field" not in resolved.get("properties", {})
+        assert "metadata" in resolved.get("properties", {})
+
+    @pytest.mark.parametrize(
+        ("schema_name", "marker"),
+        [
+            ("watching_update", "watching"),
+            ("open_position_update", "open_position"),
+            ("closing_analysis", "closing"),
+            ("partial_exit_review", "partial_exit"),
+        ],
+    )
+    def test_registered_stage_schema_takes_precedence(
+        self,
+        schema_name: str,
+        marker: str,
+    ) -> None:
+        registered_schema = {
+            "type": "object",
+            "properties": {"registered_marker": {"const": marker}},
+            "required": ["registered_marker"],
+        }
+        provider = GeminiProvider(
+            api_key="fake-key",
+            model=FakeGeminiModel(),
+            response_schemas={schema_name: registered_schema},
+        )
+        request_schema = {
+            "type": "object",
+            "properties": {"request_marker": {"const": marker}},
+            "required": ["request_marker"],
+        }
+        req = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="WATCHING_UPDATE",
+            prompt_version="1.0.0",
+            user_prompt="test",
+            expected_schema_name=schema_name,
+            expected_schema_version="1.0.0",
+            system_prompt="system",
+            structured_output_schema=request_schema,
+        )
+
+        resolved = provider._resolve_response_schema(req)
+
+        assert resolved is not None
+        assert "registered_marker" in resolved.get("properties", {})
+        assert "request_marker" not in resolved.get("properties", {})
+
+    def test_dynamic_request_schema_used_without_expected_name(self) -> None:
+        provider = GeminiProvider(api_key="fake-key", model=FakeGeminiModel())
+        req = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="CUSTOM",
+            prompt_version="1.0.0",
+            user_prompt="test",
+            expected_schema_name=None,
+            expected_schema_version=None,
+            system_prompt="system",
+            structured_output_schema={
+                "type": "object",
+                "properties": {"dynamic": {"type": "string"}},
+            },
+        )
+
+        resolved = provider._resolve_response_schema(req)
+
+        assert resolved is not None
+        assert "dynamic" in resolved.get("properties", {})
+
+    def test_dynamic_request_schema_used_for_unregistered_name(self) -> None:
+        provider = GeminiProvider(api_key="fake-key", model=FakeGeminiModel())
+        req = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="CUSTOM",
+            prompt_version="1.0.0",
+            user_prompt="test",
+            expected_schema_name="custom_schema",
+            expected_schema_version="1.0.0",
+            system_prompt="system",
+            structured_output_schema={
+                "type": "object",
+                "properties": {"dynamic": {"type": "string"}},
+            },
+        )
+
+        resolved = provider._resolve_response_schema(req)
+
+        assert resolved is not None
+        assert "dynamic" in resolved.get("properties", {})
+
+    def test_missing_registered_schema_and_request_schema_fails_clearly(self) -> None:
+        provider = GeminiProvider(api_key="fake-key", model=FakeGeminiModel())
+        req = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="WATCHING_UPDATE",
+            prompt_version="1.0.0",
+            user_prompt="test",
+            expected_schema_name="watching_update",
+            expected_schema_version="1.0.0",
+            system_prompt="system",
+        )
+
+        with pytest.raises(
+            GeminiConfigurationError,
+            match="not registered and no request-level schema was supplied",
+        ):
+            provider._resolve_response_schema(req)
+
+    def test_unknown_production_stage_does_not_use_initial_analysis(self, provider: GeminiProvider) -> None:
+        req = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="WATCHING_UPDATE",
+            prompt_version="1.0.0",
+            user_prompt="test",
+            expected_schema_name="watching_update",
+            expected_schema_version="1.0.0",
+            system_prompt="system",
+        )
+
+        with pytest.raises(GeminiConfigurationError, match="watching_update"):
+            provider._resolve_response_schema(req)
 
     def test_nested_local_defs_resolution(self) -> None:
         doc = {
@@ -1555,4 +1679,3 @@ class TestSchemaConversion:
                 schema_path=Path("schemas/production/v1/test.schema.json"),
                 package_root=Path("schemas/production/v1"),
             )
-

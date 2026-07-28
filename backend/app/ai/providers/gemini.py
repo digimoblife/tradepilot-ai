@@ -313,6 +313,12 @@ class GeminiProvider(AIProvider):
         return config
 
     def _resolve_response_schema(self, request: ProviderRequest) -> dict[str, object] | None:
+        if request.expected_schema_name in self._response_schemas:
+            schema = self._response_schemas[request.expected_schema_name]
+            if request.expected_schema_name == "initial_analysis":
+                return build_initial_analysis_transport_schema(schema)
+            return _strip_schema_metadata(schema)
+
         if request.structured_output_schema is not None:
             package_root = Path("schemas/production/v1")
             schema_name = request.expected_schema_name or "schema"
@@ -322,25 +328,14 @@ class GeminiProvider(AIProvider):
                 schema_path=schema_path,
                 package_root=package_root,
             )
-        if request.expected_schema_name in self._response_schemas:
-            schema = self._response_schemas[request.expected_schema_name]
-            if request.expected_schema_name == "initial_analysis":
-                return build_initial_analysis_transport_schema(schema)
-            return _strip_schema_metadata(schema)
-        if request.expected_schema_name == "initial_analysis":
-            schema = self._response_schemas.get("initial_analysis")
-            if schema is None:
-                raise GeminiConfigurationError(
-                    message="Initial Analysis Gemini response schema is not configured",
-                )
-            return build_initial_analysis_transport_schema(schema)
-        if request.expected_schema_name == "initial_analysis_v2":
-            schema = self._response_schemas.get("initial_analysis_v2")
-            if schema is None:
-                raise GeminiConfigurationError(
-                    message="Initial Analysis v2 Gemini response schema is not configured",
-                )
-            return _strip_schema_metadata(schema)
+
+        if request.expected_schema_name:
+            raise GeminiConfigurationError(
+                message=(
+                    f"Gemini response schema is not registered and no request-level schema "
+                    f"was supplied: {request.expected_schema_name}"
+                ),
+            )
         return None
 
     @staticmethod
