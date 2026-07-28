@@ -794,6 +794,122 @@ class TestReady:
         assert resp.status_code == 200
         assert resp.json()["lifecycle_status"] == "READY_FOR_INITIAL_ANALYSIS"
 
+    async def test_ready_initial_batch_from_already_ready_session(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="READY_FOR_INITIAL_ANALYSIS")
+        batch_id = await _seed_initial_batch_evidence(engine, sid, uid)
+        cookie = await _login_user(client, email)
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/initial-batches/{batch_id}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "READY"
+        async with engine.begin() as conn:
+            row = await conn.execute(
+                text("SELECT lifecycle_status FROM trade_sessions WHERE id=:sid"),
+                {"sid": sid},
+            )
+            assert row.scalar_one() == "READY_FOR_INITIAL_ANALYSIS"
+
+    async def test_initial_batch_ready_does_not_create_analysis_job(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="READY_FOR_INITIAL_ANALYSIS")
+        batch_id = await _seed_initial_batch_evidence(engine, sid, uid)
+        cookie = await _login_user(client, email)
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/initial-batches/{batch_id}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 200
+        async with engine.begin() as conn:
+            row = await conn.execute(
+                text("SELECT COUNT(*) FROM analysis_jobs WHERE session_id=:sid"),
+                {"sid": sid},
+            )
+            assert row.scalar_one() == 0
+
+    async def test_initial_batch_ready_rejects_incomplete_evidence(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="READY_FOR_INITIAL_ANALYSIS")
+        batch_id = uuid.uuid4()
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO evidence_batches "
+                    "(id, session_id, owner_id, analysis_type, status, sequence_number) "
+                    "VALUES (:bid, :sid, :uid, 'INITIAL_ANALYSIS', 'DRAFT', 1)"
+                ),
+                {"bid": batch_id, "sid": sid, "uid": uid},
+            )
+        cookie = await _login_user(client, email)
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/initial-batches/{batch_id}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["code"] == "ANALYSIS_REQUIRED_EVIDENCE_MISSING"
+        async with engine.begin() as conn:
+            row = await conn.execute(
+                text("SELECT status FROM evidence_batches WHERE id=:bid"),
+                {"bid": batch_id},
+            )
+            assert row.scalar_one() == "DRAFT"
+
+    async def test_initial_batch_ready_rejects_cross_session_batch(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="READY_FOR_INITIAL_ANALYSIS")
+        other_sid = await _make_session_raw(engine, uid, status="READY_FOR_INITIAL_ANALYSIS")
+        other_batch_id = await _seed_initial_batch_evidence(engine, other_sid, uid)
+        cookie = await _login_user(client, email)
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/initial-batches/{other_batch_id}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 404
+        async with engine.begin() as conn:
+            row = await conn.execute(
+                text("SELECT status FROM evidence_batches WHERE id=:bid"),
+                {"bid": other_batch_id},
+            )
+            assert row.scalar_one() == "DRAFT"
+
+    async def test_session_ready_endpoint_rejects_already_ready_session(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session_raw(engine, uid, status="READY_FOR_INITIAL_ANALYSIS")
+        cookie = await _login_user(client, email)
+
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/ready",
+            cookies={"tradepilot_session": cookie},
+        )
+
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["code"] == "INVALID_SESSION_TRANSITION"
+
     async def test_invalid_ready_transition_fails(
         self, engine: AsyncEngine, client: AsyncClient
     ) -> None:

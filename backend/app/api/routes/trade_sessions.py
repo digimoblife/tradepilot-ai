@@ -490,6 +490,86 @@ async def ready_trade_session(
 
 
 # ---------------------------------------------------------------------------
+# POST /{session_id}/initial-batches/{batch_id}/ready
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{session_id}/initial-batches/{batch_id}/ready",
+    response_model=EvidenceBatchSummaryResponse,
+)
+async def ready_initial_analysis_batch(
+    session_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    if ts.lifecycle_status != TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INITIAL_BATCH_INVALID_SESSION_STATE",
+                "message": (
+                    "Initial Analysis batch readiness is only allowed while "
+                    "READY_FOR_INITIAL_ANALYSIS."
+                ),
+            },
+        )
+
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_for_user(batch_id=batch_id, owner_id=current_user.id)
+    if (
+        batch is None
+        or batch.session_id != session_id
+        or batch.analysis_type != AnalysisType.INITIAL_ANALYSIS
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "INITIAL_BATCH_NOT_FOUND",
+                "message": "Initial Analysis evidence batch not found.",
+            },
+        )
+
+    evidence_svc = EvidenceService(db_session)
+    required = await evidence_svc.get_required_evidence(
+        session_id=session_id,
+        owner_id=current_user.id,
+        analysis_type=AnalysisType.INITIAL_ANALYSIS,
+        evidence_batch_id=batch.id,
+    )
+    if not required.complete:
+        missing = ", ".join(t.value for t in required.missing_types)
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
+                "message": f"Missing required evidence: {missing}",
+            },
+        )
+
+    if batch.status == EvidenceBatchStatus.READY:
+        return _batch_to_response(batch)
+    if batch.status != EvidenceBatchStatus.DRAFT:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INITIAL_BATCH_INVALID_STATE",
+                "message": f"Cannot mark Initial Analysis batch ready from {batch.status.value}.",
+            },
+        )
+
+    await batch_svc.mark_ready(batch)
+    return _batch_to_response(batch)
+
+
+# ---------------------------------------------------------------------------
 # POST /{session_id}/watching-batches
 # ---------------------------------------------------------------------------
 
