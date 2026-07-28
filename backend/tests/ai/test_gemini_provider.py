@@ -1445,6 +1445,31 @@ class TestSchemaConversion:
         assert "test_field" not in resolved.get("properties", {})
         assert "metadata" in resolved.get("properties", {})
 
+    def test_partition_request_uses_derived_schema_without_broadening_registration(
+        self,
+        provider: GeminiProvider,
+    ) -> None:
+        request = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="INITIAL_ANALYSIS",
+            prompt_version="2.0.0",
+            user_prompt="partition",
+            expected_schema_name="initial_analysis_v2",
+            expected_schema_version="2.0.0",
+            structured_output_schema={
+                "type": "object",
+                "properties": {"market_facts": {"type": "object"}},
+                "required": ["market_facts"],
+            },
+            metadata={"partition_name": "MARKET_EVIDENCE"},
+        )
+
+        resolved = provider._resolve_response_schema(request)
+
+        assert resolved is not None
+        assert resolved["required"] == ["market_facts"]
+        assert "metadata" not in resolved["properties"]
+
     @pytest.mark.parametrize(
         ("schema_name", "marker"),
         [

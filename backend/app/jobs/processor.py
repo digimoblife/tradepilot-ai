@@ -780,6 +780,22 @@ class AnalysisProcessor:
                         message=f"{partition.name} returned an empty or unusable JSON object.",
                     ),
                 )
+            unexpected = sorted(set(payload) - set(partition.top_level_keys))
+            if unexpected:
+                return False, tuple(
+                    ValidationIssue(
+                        code="SCHEMA_UNKNOWN_PROPERTY",
+                        category=ValidationCategory.ADDITIONAL_PROPERTY,
+                        severity=ValidationSeverity.ERROR,
+                        path=f"/{key}",
+                        message=(
+                            f"Partition {partition.name} contains unexpected top-level key: {key}"
+                        ),
+                        expected="partition-owned top-level keys only",
+                        actual=payload.get(key),
+                    )
+                    for key in unexpected
+                )
             if not any(key in payload for key in partition.top_level_keys):
                 return False, (
                     ValidationIssue(

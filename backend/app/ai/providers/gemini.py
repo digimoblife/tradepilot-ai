@@ -313,6 +313,19 @@ class GeminiProvider(AIProvider):
         return config
 
     def _resolve_response_schema(self, request: ProviderRequest) -> dict[str, object] | None:
+        partition_request = (
+            isinstance(request.metadata, Mapping)
+            and bool(request.metadata.get("partition_name"))
+        )
+        if partition_request and request.structured_output_schema is not None:
+            package_root = Path("schemas/production/v1")
+            schema_name = request.expected_schema_name or "schema"
+            schema_path = package_root / f"{schema_name}.schema.json"
+            return _convert_gemini_schema_document(
+                dict(request.structured_output_schema),
+                schema_path=schema_path,
+                package_root=package_root,
+            )
         if request.expected_schema_name in self._response_schemas:
             schema = self._response_schemas[request.expected_schema_name]
             if request.expected_schema_name == "initial_analysis":

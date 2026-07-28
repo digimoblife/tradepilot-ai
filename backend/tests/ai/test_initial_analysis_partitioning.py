@@ -97,6 +97,15 @@ def _images() -> tuple[ProviderImage, ProviderImage, ProviderImage]:
     )
 
 
+def _has_path(payload: object, path: str) -> bool:
+    current = payload
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return False
+        current = current[part]
+    return True
+
+
 class TestPartitionSchemas:
     def test_each_partition_schema_contains_only_allowed_top_level_keys(self) -> None:
         schemas = build_partition_schemas(_schema_root())
@@ -115,6 +124,22 @@ class TestPartitionSchemas:
         assert "trade_plan.nearest_support" in seen
         assert "trade_plan.stop_loss" in seen
         assert "decision" in seen
+
+    def test_every_canonical_context_path_routes_once_without_drops(self) -> None:
+        payload = _valid_v2_payload()
+        routed_paths = {
+            partition.name: set(partition.required_paths)
+            for partition in PARTITIONS
+        }
+        expected_paths = {
+            path
+            for partition in PARTITIONS
+            for path in partition.required_paths
+        }
+
+        assert set().union(*routed_paths.values()) == expected_paths
+        assert sum(len(paths) for paths in routed_paths.values()) == len(expected_paths)
+        assert all(_has_path(payload, path) for path in expected_paths)
 
     def test_partition_validation_rejects_unexpected_nested_fields(self) -> None:
         schemas = build_partition_schemas(_schema_root())
