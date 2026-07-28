@@ -1413,3 +1413,146 @@ class TestImmutability:
         provider = _provider_with_schema(api_key="fake-key", model=fake_model)
         req = _text_request()
         await provider.generate(req)
+
+
+# ===================================================================
+# Schema Conversion Verification Tests (P9.4a)
+# ===================================================================
+
+
+class TestSchemaConversion:
+    def test_request_level_schema_takes_precedence(self, provider: GeminiProvider) -> None:
+        custom_schema = {
+            "type": "object",
+            "properties": {"test_field": {"type": "string"}},
+            "required": ["test_field"],
+        }
+        req = ProviderRequest(
+            request_id=uuid.uuid4(),
+            analysis_type="INITIAL_ANALYSIS",
+            prompt_version="2.0.0",
+            user_prompt="test",
+            expected_schema_name="initial_analysis_v2",
+            expected_schema_version="2.0.0",
+            system_prompt="system",
+            structured_output_schema=custom_schema,
+        )
+        resolved = provider._resolve_response_schema(req)
+        assert resolved is not None
+        assert "test_field" in resolved.get("properties", {})
+
+    def test_nested_local_defs_resolution(self) -> None:
+        doc = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": {
+                "subType": {"type": "string"}
+            },
+            "type": "object",
+            "properties": {
+                "sub": {"$ref": "#/$defs/subType"}
+            }
+        }
+        converted = _convert_gemini_schema_document(
+            doc,
+            schema_path=Path("schemas/production/v1/test.schema.json"),
+            package_root=Path("schemas/production/v1"),
+        )
+        assert converted["properties"]["sub"]["type"] == "string"
+        assert "$ref" not in converted["properties"]["sub"]
+
+    def test_external_nested_ref_with_local_defs(self) -> None:
+        package_root = Path("schemas/production/v1")
+        watching_schema_path = package_root / "watching_update.schema.json"
+        with open(watching_schema_path, encoding="utf-8") as f:
+            raw_schema = json.load(f)
+        converted = _convert_gemini_schema_document(
+            raw_schema,
+            schema_path=watching_schema_path,
+            package_root=package_root,
+        )
+        chart_update = converted["properties"]["chart_update"]
+        breakdown_status = chart_update["properties"]["breakdown_status"]
+        assert "$ref" not in breakdown_status
+        assert "enum" in breakdown_status or "type" in breakdown_status
+
+    def test_watching_update_schema_conversion(self) -> None:
+        package_root = Path("schemas/production/v1")
+        schema_path = package_root / "watching_update.schema.json"
+        with open(schema_path, encoding="utf-8") as f:
+            raw_schema = json.load(f)
+        converted = _convert_gemini_schema_document(
+            raw_schema,
+            schema_path=schema_path,
+            package_root=package_root,
+        )
+        assert isinstance(converted, dict)
+        assert "$defs" not in converted
+        assert "$schema" not in converted
+
+    def test_no_unresolved_refs_in_converted_schema(self) -> None:
+        package_root = Path("schemas/production/v1")
+        for schema_file in ["initial_analysis.schema.json", "watching_update.schema.json", "open_position_update.schema.json", "closing_analysis.schema.json"]:
+            schema_path = package_root / schema_file
+            with open(schema_path, encoding="utf-8") as f:
+                raw_schema = json.load(f)
+            converted = _convert_gemini_schema_document(
+                raw_schema,
+                schema_path=schema_path,
+                package_root=package_root,
+            )
+            converted_str = json.dumps(converted)
+            assert '"$ref"' not in converted_str
+
+    def test_initial_analysis_schema_regression(self) -> None:
+        package_root = Path("schemas/production/v1")
+        schema_path = package_root / "initial_analysis.schema.json"
+        with open(schema_path, encoding="utf-8") as f:
+            raw_schema = json.load(f)
+        converted = _convert_gemini_schema_document(
+            raw_schema,
+            schema_path=schema_path,
+            package_root=package_root,
+        )
+        assert isinstance(converted, dict)
+        assert "metadata" in converted.get("properties", {})
+
+    def test_open_position_update_schema_regression(self) -> None:
+        package_root = Path("schemas/production/v1")
+        schema_path = package_root / "open_position_update.schema.json"
+        with open(schema_path, encoding="utf-8") as f:
+            raw_schema = json.load(f)
+        converted = _convert_gemini_schema_document(
+            raw_schema,
+            schema_path=schema_path,
+            package_root=package_root,
+        )
+        assert isinstance(converted, dict)
+        assert "metadata" in converted.get("properties", {})
+
+    def test_closing_analysis_schema_regression(self) -> None:
+        package_root = Path("schemas/production/v1")
+        schema_path = package_root / "closing_analysis.schema.json"
+        with open(schema_path, encoding="utf-8") as f:
+            raw_schema = json.load(f)
+        converted = _convert_gemini_schema_document(
+            raw_schema,
+            schema_path=schema_path,
+            package_root=package_root,
+        )
+        assert isinstance(converted, dict)
+        assert "metadata" in converted.get("properties", {})
+
+    def test_missing_reference_failure(self) -> None:
+        doc = {
+            "type": "object",
+            "properties": {
+                "bad": {"$ref": "https://schemas.tradepilot.local/production/v1/nonexistent.schema.json#/$defs/missing"}
+            }
+        }
+        with pytest.raises(GeminiSchemaConversionError):
+            _convert_gemini_schema_document(
+                doc,
+                schema_path=Path("schemas/production/v1/test.schema.json"),
+                package_root=Path("schemas/production/v1"),
+            )
+

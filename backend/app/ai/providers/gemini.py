@@ -314,7 +314,19 @@ class GeminiProvider(AIProvider):
 
     def _resolve_response_schema(self, request: ProviderRequest) -> dict[str, object] | None:
         if request.structured_output_schema is not None:
-            return dict(request.structured_output_schema)
+            package_root = Path("schemas/production/v1")
+            schema_name = request.expected_schema_name or "schema"
+            schema_path = package_root / f"{schema_name}.schema.json"
+            return _convert_gemini_schema_document(
+                dict(request.structured_output_schema),
+                schema_path=schema_path,
+                package_root=package_root,
+            )
+        if request.expected_schema_name in self._response_schemas:
+            schema = self._response_schemas[request.expected_schema_name]
+            if request.expected_schema_name == "initial_analysis":
+                return build_initial_analysis_transport_schema(schema)
+            return _strip_schema_metadata(schema)
         if request.expected_schema_name == "initial_analysis":
             schema = self._response_schemas.get("initial_analysis")
             if schema is None:
@@ -935,6 +947,7 @@ def _require_string_array(section_name: str, field_name: str, value: object) -> 
 
 _IGNORED_SCHEMA_KEYS = frozenset(
     {
+        "additionalProperties",
         "examples",
         "default",
         "minLength",
@@ -997,6 +1010,9 @@ def _convert_gemini_schema_document(
     )
     if not isinstance(converted, dict):
         raise GeminiSchemaConversionError(message="Converted Gemini schema must be an object")
+    # Clean top-level keys not recognized by Gemini SDK OpenAPI schema converter
+    for key in ("$schema", "$id", "$defs", "$anchor"):
+        converted.pop(key, None)
     return converted
 
 
@@ -1031,6 +1047,13 @@ def _convert_schema_node(
         for key, value in node.items():
             if key != "$ref":
                 merged[key] = value
+        # If inlining into a document that contains local $defs, preserve $defs in resolved_document if missing
+        resolved_document = dict(resolved_document)
+        if "$defs" in document:
+            local_defs = dict(document["$defs"])
+            if "$defs" in resolved_document and isinstance(resolved_document["$defs"], dict):
+                local_defs.update(resolved_document["$defs"])
+            resolved_document["$defs"] = local_defs
         return _convert_schema_node(
             merged,
             schema_path=resolved_path,
@@ -1050,9 +1073,9 @@ def _convert_schema_node(
     converted: dict[str, object] = {}
 
     for key, value in node.items():
-        if key in _IGNORED_SCHEMA_KEYS:
+        if key in _IGNORED_SCHEMA_KEYS or key in {"$schema", "$id", "$anchor"}:
             continue
-        if key in {"$schema", "$id", "$anchor", "title", "description", "format", "propertyOrdering"}:
+        if key in {"title", "description", "format", "propertyOrdering"}:
             converted[key] = value
             continue
         if key == "type":
@@ -1128,6 +1151,25 @@ def _convert_schema_node(
                 raise GeminiSchemaConversionError(
                     message=f"Schema {key} must be an array in {schema_path.name}",
                 )
+            non_null_items = [
+                item for item in value
+                if isinstance(item, dict) and item.get("type") != "null"
+            ]
+            if len(non_null_items) == 1:
+                # Nullable field simplification for Gemini SDK: pick the primary non-null schema branch
+                single_converted = _convert_schema_node(
+                    non_null_items[0],
+                    schema_path=schema_path,
+                    package_root=package_root,
+                    document=document,
+                )
+                if isinstance(single_converted, dict):
+                    converted.update(single_converted)
+                    continue
+            elif len(non_null_items) > 1:
+                # Gemini OpenAPI schema converter does not accept oneOf arrays; collapse scalar unions to string
+                converted["type"] = "string"
+                continue
             converted[key] = [
                 _convert_schema_node(
                     item,
