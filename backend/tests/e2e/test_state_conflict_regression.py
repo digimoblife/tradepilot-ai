@@ -90,14 +90,17 @@ class TestStateConflictRegression:
         factory = async_sessionmaker(bind=engine, expire_on_commit=False)
         async with factory() as session:
             for tbl in (
+                "evaluation_records",
                 "session_events",
                 "trade_actions",
                 "validation_attempts",
+                "provider_responses",
                 "provider_requests",
                 "context_summaries",
                 "analyses",
                 "analysis_jobs",
                 "evidence",
+                "evidence_batches",
                 "trade_states",
                 "trade_sessions",
                 "user_sessions",

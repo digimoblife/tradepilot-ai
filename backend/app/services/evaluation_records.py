@@ -49,11 +49,12 @@ class EvaluationRecordService:
             return existing
 
         payload = analysis.payload or {}
+        decision_obj = payload.get("decision") if isinstance(payload.get("decision"), dict) else {}
 
         prediction_data: dict[str, Any] = {
-            "recommendation": payload.get("recommendation") or payload.get("recommendation_type"),
+            "recommendation": payload.get("recommendation") or payload.get("recommendation_type") or decision_obj.get("recommendation"),
             "recommended_action": payload.get("recommended_action") or payload.get("suggested_action"),
-            "confidence": payload.get("confidence") or payload.get("confidence_score"),
+            "confidence": payload.get("confidence") or payload.get("confidence_score") or decision_obj.get("confidence"),
             "bullish_probability": payload.get("bullish_probability"),
             "neutral_probability": payload.get("neutral_probability"),
             "bearish_probability": payload.get("bearish_probability"),

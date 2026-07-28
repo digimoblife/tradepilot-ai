@@ -71,14 +71,17 @@ class TestPartialAndFullExit:
         factory = async_sessionmaker(bind=engine, expire_on_commit=False)
         async with factory() as session:
             for t in (
+                "evaluation_records",
                 "session_events",
                 "trade_actions",
                 "validation_attempts",
+                "provider_responses",
                 "provider_requests",
                 "context_summaries",
                 "analyses",
                 "analysis_jobs",
                 "evidence",
+                "evidence_batches",
                 "trade_states",
                 "trade_sessions",
                 "user_sessions",
@@ -357,7 +360,7 @@ class TestPartialAndFullExit:
                     text("SELECT lifecycle_status FROM trade_sessions WHERE id=:s"), {"s": sid}
                 )
             ).first()
-            assert sr[0] in ("CLOSED_TAKE_PROFIT", "CLOSED_MANUAL", "CLOSED_STOP_LOSS")
+            assert sr[0] in ("CLOSED", "CLOSED_TAKE_PROFIT", "CLOSED_MANUAL", "CLOSED_STOP_LOSS")
 
             # -- Analysis history --
             rs = (

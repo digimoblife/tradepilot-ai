@@ -45,14 +45,17 @@ class TestInitialToEntry:
         async with factory() as session:
             # Clean stale data
             for tbl in (
+                "evaluation_records",
                 "session_events",
                 "trade_actions",
                 "validation_attempts",
+                "provider_responses",
                 "provider_requests",
                 "context_summaries",
                 "analyses",
                 "analysis_jobs",
                 "evidence",
+                "evidence_batches",
                 "trade_states",
                 "trade_sessions",
                 "user_sessions",
