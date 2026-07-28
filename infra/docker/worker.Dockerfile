@@ -21,9 +21,11 @@ COPY prompts prompts/
 # both the worker's own modules and backend shared modules (e.g. app.jobs)
 # are importable under the same 'app' namespace.
 RUN for dir in ai context calculations database models repositories \
-           schemas services storage validation auth jobs; do \
+           schemas services storage validation auth jobs lifecycle; do \
         ln -s "/app/backend/app/$dir" "/app/worker/app/$dir"; \
     done
+
+RUN PYTHONPATH=/app/worker python -c "import app.lifecycle"
 
 ENV PYTHONPATH=/app/worker
 
