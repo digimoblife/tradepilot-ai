@@ -43,6 +43,7 @@ class TradeSessionService:
         owner_id: uuid.UUID,
         ticker: str,
         currency: str = "IDR",
+        company_name: str | None = None,
         title: str | None = None,
     ) -> TradeSession:
         """Create a Trade Session in DRAFT with an empty canonical Trade State.
@@ -57,6 +58,8 @@ class TradeSessionService:
             The trading currency (default ``"IDR"``).
         title:
             Optional session title.
+        company_name:
+            Optional application-supplied display name for the ticker.
 
         Returns
         -------
@@ -82,6 +85,10 @@ class TradeSessionService:
                 f"Supported: {', '.join(sorted(_SUPPORTED_CURRENCIES))}"
             )
 
+        normalized_company_name = (
+            company_name.strip() if company_name and company_name.strip() else None
+        )
+
         # Generate IDs explicitly for atomic creation
         session_id = uuid.uuid4()
         state_id = session_id  # TradeState uses session_id as PK
@@ -91,6 +98,7 @@ class TradeSessionService:
             owner_id=owner_id,
             ticker=normalized_ticker,
             currency=normalized_currency,
+            company_name=normalized_company_name,
             title=title,
             lifecycle_status=TradeSessionStatus.DRAFT,
             stable_status=TradeSessionStatus.DRAFT,

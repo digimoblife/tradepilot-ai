@@ -138,6 +138,7 @@ def test_transport_normalizes_to_valid_canonical_watching_payload() -> None:
     errors = list(registry.get("watching_update", "1.0.0").validator.iter_errors(payload))
     assert errors == []
     assert payload["metadata"]["session_id"] == _application_metadata()["session_id"]
+    assert payload["metadata"]["company_name"] == "Bank Rakyat Indonesia"
     assert payload["market_snapshot"]["last"] == 101
     assert payload["warnings_and_missing_information"]["warnings"][-1].startswith(
         "Transport Watching output"

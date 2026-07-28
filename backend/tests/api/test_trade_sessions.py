@@ -241,6 +241,27 @@ class TestAuthProtection:
 
 
 class TestCreate:
+    async def test_company_name_is_persisted_for_context_metadata(
+        self, engine: AsyncEngine, client: AsyncClient
+    ) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            "/api/trade-sessions",
+            json={"ticker": "BBRI", "company_name": "Bank Rakyat Indonesia"},
+            cookies={"tradepilot_session": cookie},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["company_name"] == "Bank Rakyat Indonesia"
+
+        detail = await client.get(
+            f"/api/trade-sessions/{resp.json()['id']}",
+            cookies={"tradepilot_session": cookie},
+        )
+        assert detail.status_code == 200
+        assert detail.json()["session"]["company_name"] == "Bank Rakyat Indonesia"
+
     async def test_valid_create(self, engine: AsyncEngine, client: AsyncClient) -> None:
         uid, email = await _make_user(engine)
         await _ensure_user_sessions_table(engine)

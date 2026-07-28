@@ -251,12 +251,13 @@ async def create_trade_session(
         owner_id=current_user.id,
         ticker=body.ticker,
         currency=body.currency,
+        company_name=body.company_name,
         title=body.title,
     )
     return TradeSessionCreateResponse(
         id=str(ts.id),
         ticker=ts.ticker,
-        company_name=body.company_name,
+        company_name=ts.company_name,
         exchange=ts.market.value if hasattr(ts.market, "value") else str(ts.market),
         currency=ts.currency.value if hasattr(ts.currency, "value") else str(ts.currency),
         title=ts.title,

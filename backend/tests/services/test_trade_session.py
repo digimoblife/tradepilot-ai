@@ -79,6 +79,24 @@ class TestCreateSession:
         session = await service.create_session(owner_id=uid, ticker="BBRI", currency=" usd ")
         assert session.currency == Currency.USD
 
+    async def test_company_name_is_application_owned_and_normalized(
+        self, svc: tuple[TradeSessionService, AsyncSession, uuid.UUID]
+    ) -> None:
+        service, _, uid = svc
+        session = await service.create_session(
+            owner_id=uid,
+            ticker="BBRI",
+            company_name="  Bank Rakyat Indonesia  ",
+        )
+        assert session.company_name == "Bank Rakyat Indonesia"
+
+    async def test_missing_company_name_remains_missing(
+        self, svc: tuple[TradeSessionService, AsyncSession, uuid.UUID]
+    ) -> None:
+        service, _, uid = svc
+        session = await service.create_session(owner_id=uid, ticker="BBRI", company_name="  ")
+        assert session.company_name is None
+
 
 class TestEmptyTradeState:
     async def test_state_created(
