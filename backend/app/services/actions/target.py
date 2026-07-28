@@ -177,6 +177,18 @@ class TargetActionService:
             source_id=action.id,
         )
 
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            action_name = "CHANGE_TARGET" if has_existing else "CONFIRM_TARGET"
+            await eval_svc.record_user_decision(
+                ts,
+                action_name,
+                {"confirmed_target": str(d_target), "confirmed_at": confirmed_at.isoformat()},
+            )
+        except Exception:
+            pass
+
         return TargetActionResult(
             session_id=session_id,
             action=action,

@@ -217,3 +217,52 @@ class TestEvaluationRecordService:
             records = await backfill_svc.backfill_session(ts.id, user_id)
             for r in records:
                 assert r.legacy_source is True
+
+    async def test_ai_recommendation_user_decision_mismatch(self, engine: AsyncEngine) -> None:
+        user_id = await _make_user(engine)
+        ts, tstate = await _make_session_and_state(engine, user_id, status="CLOSED")
+        job_id = await _make_job(engine, ts.id)
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            analysis = Analysis(
+                id=uuid.uuid4(),
+                session_id=ts.id,
+                analysis_job_id=job_id,
+                analysis_type="INITIAL_ANALYSIS",
+                acceptance_status=AcceptanceStatus.ACCEPTED,
+                prompt_name="initial_analysis",
+                prompt_version="1.0.0",
+                schema_name="initial_analysis",
+                schema_version="1.0.0",
+                payload={"recommendation": "BUY"},
+            )
+            s.add(analysis)
+            await s.flush()
+
+            svc = EvaluationRecordService(s)
+            # Record AI recommendation BUY
+            await svc.record_prediction_from_analysis(analysis, ts)
+            # Record User action SKIP (mismatch)
+            await svc.record_user_decision(ts, "SKIP", {"reason": "risk too high"})
+            rec_outcome = await svc.record_outcome_on_closure(ts, tstate)
+            assert rec_outcome is not None
+            assert rec_outcome.prediction_data["recommendation"] == "BUY"
+            assert rec_outcome.user_decision_data["user_action"] == "SKIP"
+            assert rec_outcome.outcome_data["recommendation_user_agreement"] is False
+
+    async def test_repeated_decisions_auditable(self, engine: AsyncEngine) -> None:
+        user_id = await _make_user(engine)
+        ts, _ = await _make_session_and_state(engine, user_id)
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            svc = EvaluationRecordService(s)
+            await svc.record_user_decision(ts, "WAIT", {"confirmed_at": "2026-07-28T08:00:00Z"})
+            rec = await svc.record_user_decision(ts, "WAIT", {"confirmed_at": "2026-07-28T09:00:00Z"})
+            assert rec is not None
+            confirmed = rec.user_decision_data.get("confirmed_actions", [])
+            assert len(confirmed) == 2
+            assert confirmed[0]["action"] == "WAIT"
+            assert confirmed[1]["action"] == "WAIT"
+

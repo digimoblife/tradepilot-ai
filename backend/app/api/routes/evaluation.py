@@ -138,6 +138,13 @@ async def export_evaluation_records_json(
     )
 
 
+def _sanitize_csv(val: Any) -> str:
+    s = str(val) if val is not None else ""
+    if s.startswith(("=", "+", "-", "@")):
+        return "'" + s
+    return s
+
+
 @router.get("/export/csv")
 async def export_evaluation_records_csv(
     ticker: str | None = Query(None),
@@ -179,18 +186,18 @@ async def export_evaluation_records_csv(
         dec = r.user_decision_data or {}
         out = r.outcome_data or {}
         writer.writerow([
-            str(r.id),
-            str(r.session_id),
-            r.ticker,
-            r.analysis_type,
-            pred.get("recommendation") or "",
-            dec.get("user_action") or "",
-            dec.get("actual_entry_price") or "",
-            dec.get("actual_exit_price") or "",
-            out.get("realized_return") or "",
-            out.get("session_status") or "",
-            r.completeness_status,
-            r.created_at.isoformat() if hasattr(r.created_at, "isoformat") else str(r.created_at),
+            _sanitize_csv(r.id),
+            _sanitize_csv(r.session_id),
+            _sanitize_csv(r.ticker),
+            _sanitize_csv(r.analysis_type),
+            _sanitize_csv(pred.get("recommendation") or ""),
+            _sanitize_csv(dec.get("user_action") or ""),
+            _sanitize_csv(dec.get("actual_entry_price") or ""),
+            _sanitize_csv(dec.get("actual_exit_price") or ""),
+            _sanitize_csv(out.get("realized_return") or ""),
+            _sanitize_csv(out.get("session_status") or ""),
+            _sanitize_csv(r.completeness_status),
+            _sanitize_csv(r.created_at.isoformat() if hasattr(r.created_at, "isoformat") else str(r.created_at)),
         ])
 
     output.seek(0)

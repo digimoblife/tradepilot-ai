@@ -182,6 +182,16 @@ class PostInitialDecisionService:
         )
         await self._session.flush()
 
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            action_name = "WAIT" if action_type == ActionType.USER_WAITED else "SKIP"
+            await eval_svc.record_user_decision(ts, action_name, payload or {"note": note})
+            if action_name == "SKIP":
+                await eval_svc.record_outcome_on_closure(ts, None)
+        except Exception:
+            pass
+
         return PostInitialDecisionResult(
             session_id=session_id,
             action=action,

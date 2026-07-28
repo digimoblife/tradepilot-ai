@@ -213,6 +213,23 @@ class OpenPositionService:
             source_id=action.id,
         )
 
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            await eval_svc.record_user_decision(
+                ts,
+                "BUY",
+                {
+                    "entry_price": str(d_entry),
+                    "quantity": str(d_qty),
+                    "entry_timestamp": execution_timestamp.isoformat(),
+                    "confirmed_stop_loss": str(d_stop) if d_stop else None,
+                    "confirmed_target": str(d_target) if d_target else None,
+                },
+            )
+        except Exception:
+            pass
+
         return OpenPositionResult(
             session_id=session_id,
             action=action,

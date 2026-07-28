@@ -365,6 +365,19 @@ class AnalysisProcessor:
             source_id=analysis_id,
         )
 
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            await eval_svc.record_prediction_from_analysis(analysis, ts)
+            if atype == "CLOSING_ANALYSIS":
+                tstate = await self._session.get(TradeState, job.session_id)
+                await eval_svc.record_outcome_on_closure(ts, tstate)
+        except Exception as eval_exc:
+            self._log.warning(
+                "Evaluation record projection error during analysis completion",
+                extra={"session_id": str(job.session_id), "error": str(eval_exc)},
+            )
+
         self._log.info(
             "Analysis job processed successfully",
             extra={
@@ -698,6 +711,16 @@ class AnalysisProcessor:
             reason=ContextRebuildReason.ANALYSIS_ACCEPTED,
             source_id=analysis_id,
         )
+
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            await eval_svc.record_prediction_from_analysis(analysis, ts)
+        except Exception as eval_exc:
+            self._log.warning(
+                "Evaluation record projection error during initial analysis completion",
+                extra={"session_id": str(job.session_id), "error": str(eval_exc)},
+            )
 
         return AnalysisProcessingResult(
             job_id=job.id,

@@ -286,6 +286,23 @@ class FullExitActionService:
             source_id=action.id,
         )
 
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            await eval_svc.record_user_decision(
+                ts,
+                "SELL",
+                {
+                    "exit_price": str(d_price),
+                    "exit_quantity": str(d_qty),
+                    "exit_timestamp": executed_at.isoformat(),
+                    "closing_reason": closing_reason,
+                },
+            )
+            await eval_svc.record_outcome_on_closure(ts, tstate)
+        except Exception:
+            pass
+
         return FullExitResult(
             session_id=session_id,
             action=action,

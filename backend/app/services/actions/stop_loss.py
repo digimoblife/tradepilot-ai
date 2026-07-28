@@ -179,6 +179,18 @@ class StopLossActionService:
             source_id=action.id,
         )
 
+        try:
+            from app.services.evaluation_records import EvaluationRecordService
+            eval_svc = EvaluationRecordService(self._session)
+            action_name = "CHANGE_STOP" if has_existing else "CONFIRM_STOP"
+            await eval_svc.record_user_decision(
+                ts,
+                action_name,
+                {"confirmed_stop_loss": str(d_stop), "confirmed_at": confirmed_at.isoformat()},
+            )
+        except Exception:
+            pass
+
         return StopLossActionResult(
             session_id=session_id,
             action=action,

@@ -178,3 +178,33 @@ class TestEvaluationAPI:
             finally:
                 app.dependency_overrides.pop(get_current_user, None)
                 app.dependency_overrides.pop(get_db_session, None)
+
+    async def test_csv_formula_injection_sanitization(self, engine: AsyncEngine) -> None:
+        user_id, email = await _make_user(engine)
+        # Create record with formula injection payload e.g. =1+1
+        await _make_eval_record(engine, user_id, ticker="=SUM(A1:A10)")
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            from app.api.dependencies import get_current_user
+            from app.auth import AuthenticatedUser
+            from app.database.session import get_db_session
+
+            async def _override_db():
+                factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+                async with factory() as session:
+                    yield session
+
+            def _override_owner():
+                return AuthenticatedUser(id=user_id, email=email)
+
+            app.dependency_overrides[get_db_session] = _override_db
+            app.dependency_overrides[get_current_user] = _override_owner
+            try:
+                res_csv = await client.get("/api/evaluation-records/export/csv")
+                assert res_csv.status_code == 200
+                assert "'=SUM(A1:A10)" in res_csv.text
+            finally:
+                app.dependency_overrides.pop(get_current_user, None)
+                app.dependency_overrides.pop(get_db_session, None)
+
