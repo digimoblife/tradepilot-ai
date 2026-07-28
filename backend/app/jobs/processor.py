@@ -338,6 +338,39 @@ class AnalysisProcessor:
         # Persist provider responses
         await self._persist_route_attempts(db_provider_request.id, route_result.attempts)
 
+        try:
+            execution_provider, execution_model = _resolve_execution_attribution(
+                ((route_result.provider, route_result.response.model),)
+            )
+            persisted_payload = _with_application_analysis_metadata(
+                dict(route_result.payload),
+                canonical_facts=ctx.canonical_facts,
+                provider=execution_provider,
+                model=execution_model,
+                analysis_timestamp=now,
+                require_company_name=False,
+            )
+        except ValueError as exc:
+            routing_error = ProviderRoutingFailedError(
+                message="Analysis execution metadata is unusable",
+                root_cause_code="ANALYSIS_EXECUTION_METADATA_INVALID",
+                root_cause_message=str(exc),
+                retryable=False,
+            )
+            await self._fail_job(job, routing_error, ts, now)
+            await self._session.flush()
+            return AnalysisProcessingResult(
+                job_id=job_id,
+                session_id=job.session_id,
+                analysis_id=None,
+                job_status=job.status.value,
+                restored_session_status=job.previous_session_status,
+                provider=None,
+                fallback_used=False,
+                error_code=job.last_error_code,
+                error_message=job.last_error_message,
+            )
+
         # Create accepted Analysis
         analysis = Analysis(
             id=analysis_id,
@@ -349,7 +382,7 @@ class AnalysisProcessor:
             prompt_version=ctx.prompt_version,
             schema_name=ctx.expected_schema_name,
             schema_version=ctx.expected_schema_version,
-            payload=dict(route_result.payload),
+            payload=persisted_payload,
             accepted_at=now,
         )
         self._session.add(analysis)
@@ -505,6 +538,7 @@ class AnalysisProcessor:
         partition_schemas = build_partition_schemas()
         partition_payloads: dict[str, dict[str, object]] = {}
         validation_warnings: list[ValidationIssue] = []
+        partition_attributions: list[tuple[str | None, str | None]] = []
 
         for attempt_number, partition in enumerate(PARTITIONS, start=1):
             validated_context = {
@@ -613,6 +647,9 @@ class AnalysisProcessor:
                 )
 
             await self._persist_route_attempts(db_provider_request.id, route_result.attempts)
+            partition_attributions.append(
+                (route_result.provider, route_result.response.model)
+            )
             partition_valid, partition_issues = validate_partition_payload(
                 payload=dict(route_result.payload),
                 partition_name=partition.name,
@@ -621,6 +658,31 @@ class AnalysisProcessor:
             if not partition_valid:
                 validation_warnings.extend(partition_issues)
             partition_payloads[partition.name] = dict(route_result.payload)
+
+        try:
+            execution_provider, execution_model = _resolve_execution_attribution(
+                partition_attributions
+            )
+        except ValueError as exc:
+            routing_error = ProviderRoutingFailedError(
+                message="Initial Analysis partition attribution is unusable",
+                root_cause_code="INITIAL_ANALYSIS_EXECUTION_METADATA_INVALID",
+                root_cause_message=str(exc),
+                retryable=False,
+            )
+            await self._fail_job(job, routing_error, ts, now)
+            await self._session.flush()
+            return AnalysisProcessingResult(
+                job_id=job.id,
+                session_id=job.session_id,
+                analysis_id=None,
+                job_status=job.status.value,
+                restored_session_status=job.previous_session_status,
+                provider=None,
+                fallback_used=False,
+                error_code=job.last_error_code,
+                error_message=job.last_error_message,
+            )
 
         try:
             merged_payload = merge_partition_payloads(partition_payloads)
@@ -687,6 +749,35 @@ class AnalysisProcessor:
             )
 
         analysis_id = uuid.uuid4()
+        try:
+            merged_payload = _with_application_analysis_metadata(
+                merged_payload,
+                canonical_facts=ctx.canonical_facts,
+                provider=execution_provider,
+                model=execution_model,
+                analysis_timestamp=now,
+                require_company_name=True,
+            )
+        except ValueError as exc:
+            routing_error = ProviderRoutingFailedError(
+                message="Initial Analysis application metadata is missing",
+                root_cause_code="INITIAL_ANALYSIS_APPLICATION_METADATA_MISSING",
+                root_cause_message=str(exc),
+                retryable=False,
+            )
+            await self._fail_job(job, routing_error, ts, now)
+            await self._session.flush()
+            return AnalysisProcessingResult(
+                job_id=job.id,
+                session_id=job.session_id,
+                analysis_id=None,
+                job_status=job.status.value,
+                restored_session_status=job.previous_session_status,
+                provider=None,
+                fallback_used=False,
+                error_code=job.last_error_code,
+                error_message=job.last_error_message,
+            )
         analysis = Analysis(
             id=analysis_id,
             session_id=job.session_id,
@@ -1070,6 +1161,57 @@ def _provider_request_metadata_for_partition(
     if partition_name == "CHART_ANALYSIS" and canonical_chart_timestamps:
         metadata["canonical_chart_timestamps"] = dict(canonical_chart_timestamps)
     return metadata
+
+
+def _resolve_execution_attribution(
+    attributions: Sequence[tuple[str | None, str | None]],
+) -> tuple[str, str]:
+    """Resolve one unambiguous provider/model pair for an accepted analysis."""
+    if not attributions:
+        raise ValueError("No provider execution metadata was recorded")
+
+    providers = {str(provider) for provider, _ in attributions if provider}
+    models = {str(model) for _, model in attributions if model}
+    if len(providers) != 1 or len(models) != 1:
+        raise ValueError("Provider partitions must use one provider and one model")
+    if any(not provider or not model for provider, model in attributions):
+        raise ValueError("Every provider partition must report provider and model")
+
+    return next(iter(providers)), next(iter(models))
+
+
+def _with_application_analysis_metadata(
+    payload: Mapping[str, object],
+    *,
+    canonical_facts: Mapping[str, object],
+    provider: str,
+    model: str,
+    analysis_timestamp: datetime,
+    require_company_name: bool,
+) -> dict[str, object]:
+    """Attach authoritative application and execution metadata to an analysis."""
+    ticker = canonical_facts.get("ticker")
+    company_name = canonical_facts.get("company_name")
+    if require_company_name and (not ticker or not company_name):
+        raise ValueError("Application metadata requires ticker and company_name")
+
+    persisted = dict(payload)
+    metadata = persisted.get("metadata")
+    application_metadata = dict(metadata) if isinstance(metadata, Mapping) else {}
+    application_metadata.update(
+        {
+            "session_id": canonical_facts.get("session_id"),
+            "analysis_timestamp": analysis_timestamp.isoformat(),
+            "provider": provider,
+            "model": model,
+        }
+    )
+    if ticker:
+        application_metadata["ticker"] = ticker
+    if company_name:
+        application_metadata["company_name"] = company_name
+    persisted["metadata"] = application_metadata
+    return persisted
 
 
 def _issue_to_warning_dict(issue: ValidationIssue) -> dict[str, object]:

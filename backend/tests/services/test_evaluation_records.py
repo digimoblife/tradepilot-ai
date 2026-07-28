@@ -88,6 +88,72 @@ async def _make_job(engine: AsyncEngine, session_id: uuid.UUID) -> uuid.UUID:
 
 
 class TestEvaluationRecordService:
+    async def test_actual_execution_model_is_persisted(self, engine: AsyncEngine) -> None:
+        user_id = await _make_user(engine)
+        ts, _ = await _make_session_and_state(engine, user_id)
+        job_id = await _make_job(engine, ts.id)
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            analysis = Analysis(
+                id=uuid.uuid4(),
+                session_id=ts.id,
+                analysis_job_id=job_id,
+                analysis_type="INITIAL_ANALYSIS",
+                acceptance_status=AcceptanceStatus.ACCEPTED,
+                prompt_name="initial_analysis",
+                prompt_version="2.0.0",
+                schema_name="initial_analysis_v2",
+                schema_version="2.0.0",
+                payload={
+                    "metadata": {
+                        "provider": "gemini",
+                        "model": "gemini-3.1-flash-lite",
+                        "ticker": "BBRI",
+                        "company_name": "Bank Rakyat Indonesia",
+                    },
+                    "recommendation": "BUY",
+                },
+            )
+            s.add(analysis)
+            await s.flush()
+
+            record = await EvaluationRecordService(s).record_prediction_from_analysis(analysis, ts)
+
+            assert record is not None
+            assert record.provider == "gemini"
+            assert record.model == "gemini-3.1-flash-lite"
+
+    async def test_metadata_model_overrides_legacy_default_only_with_actual_value(
+        self, engine: AsyncEngine
+    ) -> None:
+        user_id = await _make_user(engine)
+        ts, _ = await _make_session_and_state(engine, user_id)
+        job_id = await _make_job(engine, ts.id)
+
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as s:
+            analysis = Analysis(
+                id=uuid.uuid4(),
+                session_id=ts.id,
+                analysis_job_id=job_id,
+                analysis_type="INITIAL_ANALYSIS",
+                acceptance_status=AcceptanceStatus.ACCEPTED,
+                prompt_name="initial_analysis",
+                prompt_version="2.0.0",
+                schema_name="initial_analysis_v2",
+                schema_version="2.0.0",
+                payload={"metadata": {"provider": "gemini", "model": "gemini-3.1-flash-lite"}},
+            )
+            s.add(analysis)
+            await s.flush()
+
+            record = await EvaluationRecordService(s).record_prediction_from_analysis(analysis, ts)
+
+            assert record is not None
+            assert record.model != "gemini-2.5-flash"
+            assert record.model == "gemini-3.1-flash-lite"
+
     async def test_record_prediction_from_accepted_analysis(self, engine: AsyncEngine) -> None:
         user_id = await _make_user(engine)
         ts, _ = await _make_session_and_state(engine, user_id)
@@ -265,4 +331,3 @@ class TestEvaluationRecordService:
             assert len(confirmed) == 2
             assert confirmed[0]["action"] == "WAIT"
             assert confirmed[1]["action"] == "WAIT"
-

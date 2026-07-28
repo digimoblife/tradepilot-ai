@@ -49,6 +49,7 @@ class EvaluationRecordService:
             return existing
 
         payload = analysis.payload or {}
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
         decision_obj = payload.get("decision") if isinstance(payload.get("decision"), dict) else {}
 
         prediction_data: dict[str, Any] = {
@@ -88,8 +89,8 @@ class EvaluationRecordService:
             prompt_version=analysis.prompt_version,
             schema_name=analysis.schema_name,
             schema_version=analysis.schema_version,
-            provider=getattr(analysis, "provider", None) or "gemini",
-            model=getattr(analysis, "model", None) or "gemini-2.5-flash",
+            provider=metadata.get("provider") or getattr(analysis, "provider", None),
+            model=metadata.get("model") or getattr(analysis, "model", None),
             prediction_data=prediction_data,
             user_decision_data={},
             outcome_data={},

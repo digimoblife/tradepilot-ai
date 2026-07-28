@@ -37,6 +37,10 @@ from app.jobs import (
     AnalysisProcessorLeaseExpiredError,
     AnalysisProcessorLeaseNotOwnedError,
 )
+from app.jobs.processor import (
+    _resolve_execution_attribution,
+    _with_application_analysis_metadata,
+)
 from app.models.analysis import Analysis
 from app.models.analysis_job import AnalysisJob
 from app.models.enums import (
@@ -158,7 +162,11 @@ class FakeInitialAnalysisContextBuilder:
             expected_schema_name="initial_analysis_v2",
             expected_schema_version="2.0.0",
             structured_output_schema={},
-            canonical_facts={},
+            canonical_facts={
+                "session_id": str(kwargs["session_id"]),
+                "ticker": "BBRI",
+                "company_name": "Bank Rakyat Indonesia",
+            },
             images=self.images,
             metadata={
                 "session_id": str(kwargs["session_id"]),
@@ -1487,6 +1495,54 @@ class TestBoundaries:
 
 
 class TestPartitionedInitialAnalysis:
+    def test_application_metadata_overrides_provider_company_name(self) -> None:
+        payload = {
+            "metadata": {
+                "ticker": "WRONG",
+                "company_name": "Gemini supplied name",
+            }
+        }
+
+        result = _with_application_analysis_metadata(
+            payload,
+            canonical_facts={
+                "session_id": "session-1",
+                "ticker": "BBRI",
+                "company_name": "Bank Rakyat Indonesia",
+            },
+            provider="gemini",
+            model="gemini-3.1-flash-lite",
+            analysis_timestamp=datetime(2026, 7, 28, tzinfo=timezone.utc),
+            require_company_name=True,
+        )
+
+        assert result["metadata"]["ticker"] == "BBRI"
+        assert result["metadata"]["company_name"] == "Bank Rakyat Indonesia"
+
+    def test_missing_application_company_name_fails_clearly(self) -> None:
+        with pytest.raises(ValueError, match="ticker and company_name"):
+            _with_application_analysis_metadata(
+                {},
+                canonical_facts={"ticker": "BBRI"},
+                provider="gemini",
+                model="gemini-3.1-flash-lite",
+                analysis_timestamp=datetime(2026, 7, 28, tzinfo=timezone.utc),
+                require_company_name=True,
+            )
+
+    def test_partition_attribution_requires_one_provider_and_model(self) -> None:
+        assert _resolve_execution_attribution(
+            [("gemini", "gemini-3.1-flash-lite")] * 4
+        ) == ("gemini", "gemini-3.1-flash-lite")
+
+        with pytest.raises(ValueError, match="one provider and one model"):
+            _resolve_execution_attribution(
+                [
+                    ("gemini", "gemini-3.1-flash-lite"),
+                    ("gemini", "gemini-2.5-flash"),
+                ]
+            )
+
     async def test_images_routed_only_to_required_partitions(
         self,
         engine: AsyncEngine,
@@ -1543,6 +1599,37 @@ class TestPartitionedInitialAnalysis:
                 )
             ).scalar_one()
             assert status == "INITIAL_ANALYZED"
+            analysis_row = (
+                await s.execute(
+                    text(
+                        "SELECT payload->'metadata'->>'ticker', "
+                        "payload->'metadata'->>'company_name', "
+                        "payload->'metadata'->>'provider', "
+                        "payload->'metadata'->>'model' "
+                        "FROM analyses WHERE analysis_job_id = :jid"
+                    ),
+                    {"jid": jid},
+                )
+            ).one()
+            evaluation_row = (
+                await s.execute(
+                    text(
+                        "SELECT provider, model FROM evaluation_records "
+                        "WHERE source_analysis_id = ("
+                        "SELECT id FROM analyses WHERE analysis_job_id = :jid"
+                        ")"
+                    ),
+                    {"jid": jid},
+                )
+            ).one()
+
+        assert analysis_row == (
+            "BBRI",
+            "Bank Rakyat Indonesia",
+            "gemini",
+            "gemini-3.1-flash-lite",
+        )
+        assert evaluation_row == ("gemini", "gemini-3.1-flash-lite")
 
     async def test_unusable_partition_stops_before_next_request(
         self,
