@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -52,6 +53,10 @@ _SUPPORTED_GEMINI_MODELS: Mapping[str, ProviderCapabilities] = {
         supports_multi_image=True,
         maximum_images=10,
     )
+}
+
+_GEMINI_TRANSPORT_SCHEMA_FILES: Mapping[str, str] = {
+    "watching_update": "watching_update_gemini_transport_v1.schema.json",
 }
 
 
@@ -189,9 +194,20 @@ def _load_gemini_response_schemas(
             )
 
         registered = registry.get(entry.name, entry.version)
+        schema_document = dict(registered.document)
+        schema_path = registered.path
+        transport_filename = _GEMINI_TRANSPORT_SCHEMA_FILES.get(entry.name)
+        if transport_filename is not None:
+            transport_path = package_root / transport_filename
+            if not transport_path.is_file():
+                raise ValueError(
+                    f"Gemini transport schema for {entry.name} is missing: {transport_path}"
+                )
+            schema_document = json.loads(transport_path.read_text(encoding="utf-8"))
+            schema_path = transport_path
         converted = _convert_gemini_schema_document(
-            dict(registered.document),
-            schema_path=registered.path,
+            schema_document,
+            schema_path=schema_path,
             package_root=package_root,
         )
         response_schemas[entry.name] = converted

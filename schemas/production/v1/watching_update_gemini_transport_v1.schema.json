@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/watching_update_gemini_transport_v1.schema.json",
+  "title": "TradePilot AI Watching Update Gemini Transport v1",
+  "type": "object",
+  "required": [
+    "decision",
+    "evidence_findings",
+    "trade_plan",
+    "probabilities",
+    "scenarios",
+    "next_action"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "language": {"type": "string"},
+        "summary": {"type": "string"}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": ["recommendation", "bias", "confidence", "setup_quality", "risk_level", "summary"],
+      "properties": {
+        "recommendation": {"type": "string", "enum": ["WAIT", "SKIP", "ENTER_IF_CONFIRMED", "UNCERTAIN"]},
+        "bias": {"type": "string", "enum": ["STRONGLY_BULLISH", "BULLISH", "NEUTRAL", "BEARISH", "STRONGLY_BEARISH", "UNCERTAIN"]},
+        "confidence": {"type": "integer"},
+        "setup_quality": {"type": "string", "enum": ["EXCELLENT", "GOOD", "FAIR", "WEAK", "INVALID", "UNKNOWN"]},
+        "risk_level": {"type": "string", "enum": ["LOW", "MODERATE", "HIGH", "VERY_HIGH", "UNKNOWN"]},
+        "summary": {"type": "string"}
+      }
+    },
+    "market_facts": {
+      "type": "object",
+      "properties": {
+        "open": {"type": "number"},
+        "high": {"type": "number"},
+        "low": {"type": "number"},
+        "current_price": {"type": "number"},
+        "average": {"type": "number"},
+        "best_bid": {"type": "number"},
+        "best_offer": {"type": "number"},
+        "change_percentage": {"type": "number"},
+        "summary": {"type": "string"}
+      }
+    },
+    "evidence_findings": {
+      "type": "object",
+      "required": ["orderbook", "chart", "limitations"],
+      "properties": {
+        "orderbook": {"type": "array", "items": {"type": "string"}},
+        "chart": {"type": "array", "items": {"type": "string"}},
+        "limitations": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "trade_plan": {
+      "type": "object",
+      "required": ["rationale", "wait_condition", "monitoring"],
+      "properties": {
+        "entry_zone_low": {"type": "number"},
+        "entry_zone_high": {"type": "number"},
+        "chase_limit": {"type": "number"},
+        "invalidation": {"type": "number"},
+        "proposed_stop_loss": {"type": "number"},
+        "proposed_target": {"type": "number"},
+        "risk_reward": {"type": "string", "enum": ["FAVORABLE", "ACCEPTABLE", "UNFAVORABLE", "UNAVAILABLE"]},
+        "rationale": {"type": "string"},
+        "wait_condition": {"type": "string"},
+        "monitoring": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "probabilities": {
+      "type": "object",
+      "required": ["bullish", "target", "downside"],
+      "properties": {
+        "bullish": {"type": "integer"},
+        "target": {"type": "integer"},
+        "downside": {"type": "integer"}
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "required": ["bullish", "neutral", "bearish"],
+      "properties": {
+        "bullish": {"type": "string"},
+        "neutral": {"type": "string"},
+        "bearish": {"type": "string"}
+      }
+    },
+    "next_action": {
+      "type": "object",
+      "required": ["action", "reasons", "wait_condition", "monitoring"],
+      "properties": {
+        "action": {"type": "string", "enum": ["WAIT", "SKIP", "ENTER_IF_CONFIRMED", "REFRESH_DATA", "UNCERTAIN"]},
+        "reasons": {"type": "array", "items": {"type": "string"}},
+        "wait_condition": {"type": "string"},
+        "monitoring": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

@@ -239,6 +239,19 @@ class AnalysisProcessor:
                 validate=validate,
             )
 
+        analysis_id = uuid.uuid4()
+        request_metadata = dict(ctx.metadata)
+        request_metadata.update(
+            {
+                "canonical_analysis_id": str(analysis_id),
+                "canonical_analysis_timestamp": now.isoformat(),
+                "provider_model": selected_provider_model,
+                "canonical_facts": dict(ctx.canonical_facts),
+                "ticker": ctx.canonical_facts.get("ticker"),
+                "company_name": ctx.canonical_facts.get("company_name"),
+            }
+        )
+
         db_provider_request = self._create_provider_request_record(
             job_id=job_id,
             provider=selected_provider_name,
@@ -251,7 +264,7 @@ class AnalysisProcessor:
             system_prompt=ctx.system_prompt,
             user_prompt=ctx.user_prompt,
             images=ctx.images,
-            metadata=dict(ctx.metadata),
+            metadata=request_metadata,
         )
         self._session.add(db_provider_request)
 
@@ -265,6 +278,7 @@ class AnalysisProcessor:
             system_prompt=ctx.system_prompt,
             images=ctx.images,
             structured_output_schema=ctx.structured_output_schema,
+            metadata=request_metadata,
         )
         await self._session.flush()  # ensure DB record exists before router call
 
@@ -325,7 +339,6 @@ class AnalysisProcessor:
         await self._persist_route_attempts(db_provider_request.id, route_result.attempts)
 
         # Create accepted Analysis
-        analysis_id = uuid.uuid4()
         analysis = Analysis(
             id=analysis_id,
             session_id=job.session_id,
