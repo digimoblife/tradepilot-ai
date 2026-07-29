@@ -39,6 +39,7 @@ from app.ai.providers.router import (
     ProviderRoutingFailedError,
     ProviderRoutingResult,
 )
+from app.json_safe import to_json_safe
 from app.context import ContextFreshnessService
 from app.logging import get_logger
 from app.lifecycle.restoration import restore_session_status
@@ -521,7 +522,7 @@ class AnalysisProcessor:
                 "user_prompt": user_prompt,
                 "images": [img.storage_reference for img in images],
             },
-            request_metadata=dict(metadata),
+            request_metadata=to_json_safe(metadata),
         )
 
     async def _process_partitioned_initial_analysis(
