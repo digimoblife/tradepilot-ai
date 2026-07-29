@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.tradepilot.local/production/v1/open_position_update_gemini_transport_v1.schema.json",
+  "title": "TradePilot AI Open Position Update Gemini Transport v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "evidence_findings", "position_assessment", "trade_plan", "probabilities", "next_action"],
+  "properties": {
+    "metadata": {"type": "object", "additionalProperties": false, "properties": {"summary": {"type": "string"}}},
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["bias", "confidence", "summary"],
+      "properties": {
+        "bias": {"type": "string", "enum": ["STRONGLY_BULLISH", "BULLISH", "NEUTRAL", "BEARISH", "STRONGLY_BEARISH", "UNCERTAIN"]},
+        "confidence": {"type": "integer"},
+        "summary": {"type": "string"},
+        "recommendation": {"type": "string", "enum": ["HOLD", "HOLD_WITH_CAUTION", "REDUCE_RISK", "REVIEW_EXIT", "NO_ACTION"]}
+      }
+    },
+    "market_facts": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "open": {"type": "number"}, "high": {"type": "number"}, "low": {"type": "number"},
+        "current_price": {"type": "number"}, "average": {"type": "number"},
+        "best_bid": {"type": "number"}, "best_offer": {"type": "number"},
+        "change_percentage": {"type": "number"}, "summary": {"type": "string"}
+      }
+    },
+    "evidence_findings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["orderbook", "limitations"],
+      "properties": {
+        "orderbook": {"type": "array", "items": {"type": "string"}},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+        "chart": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "position_assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["health", "summary"],
+      "properties": {
+        "health": {"type": "string", "enum": ["HEALTHY", "HEALTHY_WITH_CAUTION", "UNDER_PRESSURE", "AT_RISK", "UNKNOWN"]},
+        "summary": {"type": "string"},
+        "current_price": {"type": "number"},
+        "unrealized_return_percentage": {"type": "number"},
+        "target_realism": {"type": "string", "enum": ["HIGHLY_REALISTIC", "REALISTIC", "POSSIBLE_BUT_CHALLENGING", "UNLIKELY", "NO_LONGER_REALISTIC", "NOT_APPLICABLE", "UNKNOWN"]},
+        "target_obstacle": {"type": "string"}, "target_condition": {"type": "string"}, "target_summary": {"type": "string"}
+      }
+    },
+    "trade_plan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["current_action", "rationale", "monitoring"],
+      "properties": {
+        "current_action": {"type": "string", "enum": ["HOLD", "HOLD_WITH_CAUTION", "REDUCE_RISK", "REVIEW_EXIT", "NO_ACTION"]},
+        "rationale": {"type": "string"},
+        "monitoring": {"type": "array", "items": {"type": "string"}},
+        "hold_condition": {"type": "string"},
+        "reduce_risk_condition": {"type": "string"},
+        "exit_condition": {"type": "string"},
+        "proposed_stop_loss": {"type": "number"},
+        "proposed_target": {"type": "number"}
+      }
+    },
+    "probabilities": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target", "downside"],
+      "properties": {"bullish": {"type": "integer"}, "target": {"type": "integer"}, "downside": {"type": "integer"}}
+    },
+    "scenarios": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"bullish": {"type": "string"}, "base": {"type": "string"}, "bearish": {"type": "string"}}
+    },
+    "next_action": {
+      "type": "object", "additionalProperties": false,
+      "required": ["monitoring"],
+      "properties": {
+        "monitoring": {"type": "array", "items": {"type": "string"}},
+        "checkpoint": {"type": "string"}, "rationale": {"type": "string"}
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

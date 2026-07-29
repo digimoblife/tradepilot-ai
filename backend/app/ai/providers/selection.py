@@ -57,6 +57,7 @@ _SUPPORTED_GEMINI_MODELS: Mapping[str, ProviderCapabilities] = {
 
 _GEMINI_TRANSPORT_SCHEMA_FILES: Mapping[str, str] = {
     "watching_update": "watching_update_gemini_transport_v1.schema.json",
+    "open_position_update": "open_position_update_gemini_transport_v1.schema.json",
 }
 
 

@@ -14,6 +14,7 @@ from app.ai.parsing import extract_and_parse_json
 from app.ai.providers.base import AIProvider
 from app.ai.providers.gemini import normalize_initial_analysis_transport_payload
 from app.ai.providers.watching_transport import normalize_watching_update_transport_payload
+from app.ai.providers.open_position_transport import normalize_open_position_update_transport_payload
 from app.ai.providers.capabilities import ensure_request_supported
 from app.ai.providers.models import ProviderRequest, ProviderResponse
 from app.ai.repair import (
@@ -453,6 +454,11 @@ def _normalize_payload(
     response: ProviderResponse,
     parsed: Mapping[str, object],
 ) -> Mapping[str, object]:
+    if response.provider == "gemini" and request.expected_schema_name == "open_position_update":
+        return normalize_open_position_update_transport_payload(
+            parsed,
+            application_metadata=request.metadata,
+        )
     if response.provider == "gemini" and request.expected_schema_name == "watching_update":
         return normalize_watching_update_transport_payload(
             parsed,
