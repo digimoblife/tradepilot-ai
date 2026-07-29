@@ -511,3 +511,20 @@ class TestMiddlewareBackendURL:
         worker_section = compose.split("  worker:", 1)[1].split("  frontend:", 1)[0]
         assert "COPY prompts prompts/" in dockerfile
         assert "./prompts:/app/prompts:ro" in worker_section
+
+    def test_worker_packages_canonical_runtime_modules(self) -> None:
+        """Worker image must expose root-level and shared processor modules."""
+        dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
+        assert "ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py" in dockerfile
+        assert "import app.main" in dockerfile
+        assert "import app.json_safe" in dockerfile
+        assert "import app.lifecycle" in dockerfile
+        assert "import app.jobs.processor" in dockerfile
+
+    def test_worker_build_assertion_covers_entrypoint_import_chain(self) -> None:
+        """Worker build must fail if a required runtime import is omitted."""
+        dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
+        assertion = 'PYTHONPATH=/app/worker python -c "'
+        assert assertion in dockerfile
+        for module in ("app.main", "app.json_safe", "app.lifecycle", "app.jobs.processor"):
+            assert f"import {module}" in dockerfile

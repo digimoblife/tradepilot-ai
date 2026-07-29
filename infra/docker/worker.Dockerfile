@@ -24,8 +24,9 @@ RUN for dir in ai context calculations database models repositories \
            schemas services storage validation auth jobs lifecycle; do \
         ln -s "/app/backend/app/$dir" "/app/worker/app/$dir"; \
     done
+RUN ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py
 
-RUN PYTHONPATH=/app/worker python -c "import app.lifecycle"
+RUN PYTHONPATH=/app/worker python -c "import app.main; import app.json_safe; import app.lifecycle; import app.jobs.processor"
 
 ENV PYTHONPATH=/app/worker
 
