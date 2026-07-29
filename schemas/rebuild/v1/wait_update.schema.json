@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WAIT Update",
+  "description": "Compact advisory WAIT Update output. All user-facing text values MUST be written in Indonesian. The current price is an echo of the authoritative user-entered value.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "update_summary": {
+      "type": "string",
+      "description": "Concise summary of the latest waiting observation in Indonesian."
+    },
+    "current_price": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Echo of the user-entered current price for display; it is not inferred by Gemini."
+    },
+    "orderbook_assessment": {
+      "type": "string",
+      "description": "Concise assessment of the latest orderbook in Indonesian."
+    },
+    "change_from_previous_analysis": {
+      "type": "string",
+      "description": "Concise Indonesian description of what improved, weakened, or remained unchanged."
+    },
+    "current_entry_condition": {
+      "type": "string",
+      "description": "Concise Indonesian assessment of current entry readiness; it does not create a BUY decision."
+    },
+    "upside_probability": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Advisory upside probability from 0 to 100; it need not sum to 100 with downside_probability."
+    },
+    "downside_probability": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Advisory downside probability from 0 to 100; it need not sum to 100 with upside_probability."
+    },
+    "key_risks": {
+      "type": "array",
+      "description": "Concise key risks in Indonesian.",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "recommended_action": {
+      "type": "string",
+      "enum": ["BUY", "WAIT", "SKIP"],
+      "description": "Advisory recommendation only; it does not persist or execute a user decision."
+    },
+    "next_plan": {
+      "type": "string",
+      "description": "Concise advisory follow-up plan in Indonesian."
+    },
+    "conclusion": {
+      "type": "string",
+      "description": "Concise final advisory assessment in Indonesian."
+    }
+  },
+  "required": [
+    "update_summary",
+    "current_price",
+    "orderbook_assessment",
+    "change_from_previous_analysis",
+    "current_entry_condition",
+    "upside_probability",
+    "downside_probability",
+    "key_risks",
+    "recommended_action",
+    "next_plan",
+    "conclusion"
+  ]
+}

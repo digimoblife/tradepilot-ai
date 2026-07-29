@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Position Update",
+  "description": "Compact advisory Position Update output. All user-facing text values MUST be written in Indonesian. Current price and confirmed position facts remain user-owned and authoritative.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "update_summary": {
+      "type": "string",
+      "description": "Concise summary of the current position update in Indonesian."
+    },
+    "current_price": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Echo of the user-entered current price for display; it is not inferred by Gemini."
+    },
+    "position_condition": {
+      "type": "string",
+      "description": "Concise Indonesian assessment of the existing position; it does not change position facts."
+    },
+    "orderbook_assessment": {
+      "type": "string",
+      "description": "Concise assessment of the latest orderbook in Indonesian."
+    },
+    "change_from_previous_analysis": {
+      "type": "string",
+      "description": "Concise Indonesian description of material change from earlier analysis."
+    },
+    "target_realism": {
+      "type": "string",
+      "description": "Concise advisory Indonesian assessment of whether the confirmed target remains realistic; it does not replace the target."
+    },
+    "downside_risk": {
+      "type": "string",
+      "description": "Concise advisory downside-risk assessment in Indonesian."
+    },
+    "target_probability": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Advisory probability of reaching the confirmed target from 0 to 100."
+    },
+    "trading_plan": {
+      "type": "string",
+      "description": "Concise advisory plan in Indonesian; it does not execute CLOSE or modify position facts."
+    },
+    "monitoring_points": {
+      "type": "array",
+      "description": "Concise items to monitor in Indonesian.",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Concise warnings in Indonesian.",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "conclusion": {
+      "type": "string",
+      "description": "Concise final advisory assessment in Indonesian."
+    }
+  },
+  "required": [
+    "update_summary",
+    "current_price",
+    "position_condition",
+    "orderbook_assessment",
+    "change_from_previous_analysis",
+    "target_realism",
+    "downside_risk",
+    "target_probability",
+    "trading_plan",
+    "monitoring_points",
+    "warnings",
+    "conclusion"
+  ]
+}

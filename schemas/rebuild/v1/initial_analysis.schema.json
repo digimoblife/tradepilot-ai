@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Initial Analysis",
+  "description": "Compact advisory Initial Analysis output. All user-facing text values MUST be written in Indonesian. This response does not create or confirm a position or user decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Concise overall assessment in Indonesian."
+    },
+    "orderbook_analysis": {
+      "type": "string",
+      "description": "Concise observations from the initial orderbook image in Indonesian."
+    },
+    "three_month_chart_analysis": {
+      "type": "string",
+      "description": "Concise observations from the three-month chart in Indonesian."
+    },
+    "six_month_chart_analysis": {
+      "type": "string",
+      "description": "Concise observations from the six-month chart in Indonesian."
+    },
+    "support": {
+      "type": "object",
+      "description": "Advisory support area or level only; not a confirmed user fact.",
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "type": ["number", "null"],
+          "description": "Optional lower support level."
+        },
+        "high": {
+          "type": ["number", "null"],
+          "description": "Optional upper support level."
+        },
+        "note": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of the advisory support area."
+        }
+      },
+      "required": ["low", "high", "note"]
+    },
+    "resistance": {
+      "type": "object",
+      "description": "Advisory resistance area or level only; not a confirmed user fact.",
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "type": ["number", "null"],
+          "description": "Optional lower resistance level."
+        },
+        "high": {
+          "type": ["number", "null"],
+          "description": "Optional upper resistance level."
+        },
+        "note": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of the advisory resistance area."
+        }
+      },
+      "required": ["low", "high", "note"]
+    },
+    "entry_area": {
+      "type": "object",
+      "description": "Advisory entry area only; it does not create or confirm an entry.",
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "type": ["number", "null"],
+          "description": "Optional lower advisory entry level."
+        },
+        "high": {
+          "type": ["number", "null"],
+          "description": "Optional upper advisory entry level."
+        },
+        "note": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of the advisory entry area."
+        }
+      },
+      "required": ["low", "high", "note"]
+    },
+    "stop_recommendation": {
+      "type": "object",
+      "description": "Advisory stop recommendation only; it does not set a confirmed stop loss.",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": ["number", "null"],
+          "description": "Optional advisory stop level."
+        },
+        "note": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of the advisory stop recommendation."
+        }
+      },
+      "required": ["level", "note"]
+    },
+    "target_recommendation": {
+      "type": "object",
+      "description": "Advisory target recommendation only; it does not set a confirmed target price.",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": ["number", "null"],
+          "description": "Optional advisory target level."
+        },
+        "note": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of the advisory target recommendation."
+        }
+      },
+      "required": ["level", "note"]
+    },
+    "probabilities": {
+      "type": "object",
+      "description": "Compact advisory probabilities; they need not sum to 100.",
+      "additionalProperties": false,
+      "properties": {
+        "upside": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Advisory upside probability from 0 to 100."
+        },
+        "downside": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Advisory downside probability from 0 to 100."
+        }
+      },
+      "required": ["upside", "downside"]
+    },
+    "risks": {
+      "type": "array",
+      "description": "Concise relevant risks in Indonesian.",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "trading_plan": {
+      "type": "string",
+      "description": "Concise advisory next-step plan in Indonesian; it does not execute a decision."
+    },
+    "conclusion": {
+      "type": "string",
+      "description": "Concise final advisory conclusion in Indonesian."
+    }
+  },
+  "required": [
+    "summary",
+    "orderbook_analysis",
+    "three_month_chart_analysis",
+    "six_month_chart_analysis",
+    "support",
+    "resistance",
+    "entry_area",
+    "stop_recommendation",
+    "target_recommendation",
+    "probabilities",
+    "risks",
+    "trading_plan",
+    "conclusion"
+  ]
+}
