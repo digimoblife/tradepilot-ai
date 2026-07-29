@@ -31,6 +31,22 @@ def normalize_open_position_update_transport_payload(
     entry = _number(canonical_facts.get("entry_price"))
     stop = _number(canonical_facts.get("active_stop_loss"))
     target = _number(canonical_facts.get("active_target"))
+    revised_stop, proposed_stop = _revision_proposal(
+        plan,
+        intent_field="stop_revision_proposed",
+        proposal_field="proposed_stop_loss",
+        confirmed_value=stop,
+        label="stop loss",
+        warnings=warnings,
+    )
+    revised_target, proposed_target = _revision_proposal(
+        plan,
+        intent_field="target_revision_proposed",
+        proposal_field="proposed_target",
+        confirmed_value=target,
+        label="target",
+        warnings=warnings,
+    )
     current = _number(position.get("current_price")) or _number(snapshot.get("last")) or _number(market.get("current_price"))
     if current is None:
         raise GeminiNormalizationError(
@@ -56,8 +72,8 @@ def normalize_open_position_update_transport_payload(
         "chart_update": {"updated_chart_available": False, "using_historical_context": False, "chart_context_timestamp": None, "short_term_trend": "UNKNOWN", "medium_term_trend": "UNKNOWN", "structure_status": "UNKNOWN", "nearest_support": None, "nearest_resistance": None, "breakout_status": "UNKNOWN", "breakdown_status": "UNKNOWN", "supports_position": None, "conclusion": " ".join(chart) or "Chart terbaru tidak tersedia pada transport minimal.", "limitations": _strings(findings.get("limitations")) or ["Konteks chart tidak tersedia pada transport minimal."]},
         "position_assessment": {"entry_price": entry, "current_price": current, "remaining_quantity": _number(canonical_facts.get("remaining_quantity")), "active_stop_loss": stop, "active_target": target, "unrealized_profit_loss": None, "unrealized_return_percentage": _number(position.get("unrealized_return_percentage")), "distance_to_stop_percentage": None, "distance_to_target_percentage": None, "holding_duration_days": 0, "health": _enum(position.get("health"), "UNKNOWN", {"HEALTHY", "HEALTHY_WITH_CAUTION", "UNDER_PRESSURE", "AT_RISK", "UNKNOWN"}), "summary": _text(position.get("summary"), "position_assessment.summary")},
         "thesis_assessment": {"status": "UNDER_REVIEW", "remains_valid": True, "summary": " ".join(scenario_lines) or summary, "strengthening_evidence": [scenarios["bullish"]] if isinstance(scenarios.get("bullish"), str) else [], "weakening_evidence": [scenarios["bearish"]] if isinstance(scenarios.get("bearish"), str) else [], "invalidation_condition": str(plan.get("exit_condition") or "Tinjau posisi bila kondisi risiko terkonfirmasi."), "invalidation_price": stop, "invalidation_triggered": False},
-        "target_assessment": {"target_price": target, "still_realistic": True, "realism": _enum(position.get("target_realism"), "UNKNOWN", {"HIGHLY_REALISTIC", "REALISTIC", "POSSIBLE_BUT_CHALLENGING", "UNLIKELY", "NO_LONGER_REALISTIC", "NOT_APPLICABLE", "UNKNOWN"}), "target_probability": target_probability, "distance_to_target_percentage": None, "primary_obstacle": str(position.get("target_obstacle") or "Belum ditentukan oleh transport."), "required_condition": str(position.get("target_condition") or "Pantau kondisi pasar dan orderbook."), "revised_target_proposed": False, "proposed_target": _number(plan.get("proposed_target")), "summary": str(position.get("target_summary") or "Realistisnya target dinilai dari observasi transport.")},
-        "stop_loss_assessment": {"stop_loss_price": stop, "still_appropriate": True, "distance_to_stop_percentage": None, "approached": False, "triggered": False, "risk_if_unchanged": "UNKNOWN", "revised_stop_proposed": False, "proposed_stop_loss": _number(plan.get("proposed_stop_loss")), "summary": "Stop loss canonical dipertahankan sebagai fakta aplikasi."},
+        "target_assessment": {"target_price": target, "still_realistic": True, "realism": _enum(position.get("target_realism"), "UNKNOWN", {"HIGHLY_REALISTIC", "REALISTIC", "POSSIBLE_BUT_CHALLENGING", "UNLIKELY", "NO_LONGER_REALISTIC", "NOT_APPLICABLE", "UNKNOWN"}), "target_probability": target_probability, "distance_to_target_percentage": None, "primary_obstacle": str(position.get("target_obstacle") or "Belum ditentukan oleh transport."), "required_condition": str(position.get("target_condition") or "Pantau kondisi pasar dan orderbook."), "revised_target_proposed": revised_target, "proposed_target": proposed_target, "summary": str(position.get("target_summary") or "Realistisnya target dinilai dari observasi transport.")},
+        "stop_loss_assessment": {"stop_loss_price": stop, "still_appropriate": True, "distance_to_stop_percentage": None, "approached": False, "triggered": False, "risk_if_unchanged": "UNKNOWN", "revised_stop_proposed": revised_stop, "proposed_stop_loss": proposed_stop, "summary": "Stop loss canonical dipertahankan sebagai fakta aplikasi."},
         "trading_plan": {"current_action": _enum(plan.get("current_action"), "HOLD", {"HOLD", "HOLD_WITH_CAUTION", "REDUCE_RISK", "REVIEW_EXIT", "NO_ACTION"}), "action_rationale": summary, "plan_for_next_session": str(plan.get("rationale") or summary), "hold_condition": str(plan.get("hold_condition") or "Pertahankan selama kondisi posisi tetap valid."), "reduce_risk_condition": str(plan.get("reduce_risk_condition") or "Tinjau risiko bila tekanan turun meningkat."), "exit_condition": str(plan.get("exit_condition") or "Tinjau exit bila stop loss terpicu."), "add_position_condition": None, "levels_to_monitor": [], "requires_user_confirmation": True},
         "ai_assessment": {"bias": _enum(decision.get("bias"), "UNCERTAIN", {"STRONGLY_BULLISH", "BULLISH", "NEUTRAL", "BEARISH", "STRONGLY_BEARISH", "UNCERTAIN"}), "confidence": _number(decision.get("confidence")) or 0, "bullish_probability": _number(probabilities.get("bullish")), "target_probability": target_probability, "downside_probability": downside_probability, "risk_level": "UNKNOWN", "summary": summary},
         "changes_from_previous": [],
@@ -90,6 +106,31 @@ def _mapping_or_empty(value: object) -> Mapping[str, object]:
 
 def _strings(value: object) -> list[str]:
     return [str(item) for item in value] if isinstance(value, list) else []
+
+
+def _revision_proposal(
+    plan: Mapping[str, object],
+    *,
+    intent_field: str,
+    proposal_field: str,
+    confirmed_value: int | float | None,
+    label: str,
+    warnings: list[str],
+) -> tuple[bool, int | float | None]:
+    """Map explicit revision intent without treating confirmed facts as proposals."""
+    proposed = _number(plan.get(proposal_field))
+    if plan.get(intent_field) is not True:
+        if proposed is not None:
+            warnings.append(f"Usulan {label} diabaikan karena intent revisi bernilai false.")
+        return False, None
+    if proposed is None:
+        raise GeminiNormalizationError(
+            message=f"Open Position transport requires numeric {proposal_field} when {intent_field} is true",
+        )
+    if confirmed_value is not None and proposed == confirmed_value:
+        warnings.append(f"Usulan {label} sama dengan fakta confirmed dan dinormalisasi sebagai tanpa revisi.")
+        return False, None
+    return True, proposed
 
 
 def _scenario_lines(scenarios: Mapping[str, object]) -> list[str]:

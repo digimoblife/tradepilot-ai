@@ -57,7 +57,9 @@
         "hold_condition": {"type": "string"},
         "reduce_risk_condition": {"type": "string"},
         "exit_condition": {"type": "string"},
+        "stop_revision_proposed": {"type": "boolean"},
         "proposed_stop_loss": {"type": "number"},
+        "target_revision_proposed": {"type": "boolean"},
         "proposed_target": {"type": "number"}
       }
     },

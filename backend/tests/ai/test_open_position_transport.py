@@ -15,6 +15,7 @@ from app.ai.providers.router import _normalize_payload
 from app.ai.providers.selection import _load_gemini_response_schemas
 from app.schemas.manifest import load_production_manifest
 from app.schemas.registry import LocalSchemaRegistry
+from app.validation.state_consistency import validate_state_consistency
 
 ROOT = Path("schemas/production/v1")
 
@@ -112,6 +113,84 @@ def test_application_position_facts_override_provider_values() -> None:
     assert position["active_target"] == 4500
     assert position["remaining_quantity"] == 100
     assert "entry_at" not in json.dumps(normalized)
+
+
+def test_no_revision_keeps_confirmed_levels_and_canonical_proposals_null() -> None:
+    normalized = normalize_open_position_update_transport_payload(
+        _transport(), application_metadata=_metadata()
+    )
+    assert normalized["position_assessment"]["active_stop_loss"] == 3900
+    assert normalized["position_assessment"]["active_target"] == 4500
+    assert normalized["stop_loss_assessment"]["revised_stop_proposed"] is False
+    assert normalized["stop_loss_assessment"]["proposed_stop_loss"] is None
+    assert normalized["target_assessment"]["revised_target_proposed"] is False
+    assert normalized["target_assessment"]["proposed_target"] is None
+    assert _canonical(normalized) == []
+
+
+def test_explicit_stop_and_target_revisions_are_canonical_recommendations_only() -> None:
+    payload = _transport()
+    payload["trade_plan"].update(
+        {
+            "stop_revision_proposed": True,
+            "proposed_stop_loss": 3950,
+            "target_revision_proposed": True,
+            "proposed_target": 4600,
+        }
+    )
+    normalized = normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    assert normalized["stop_loss_assessment"]["revised_stop_proposed"] is True
+    assert normalized["stop_loss_assessment"]["proposed_stop_loss"] == 3950
+    assert normalized["target_assessment"]["revised_target_proposed"] is True
+    assert normalized["target_assessment"]["proposed_target"] == 4600
+    assert normalized["position_assessment"]["active_stop_loss"] == 3900
+    assert normalized["position_assessment"]["active_target"] == 4500
+    assert _canonical(normalized) == []
+
+
+def test_inconsistent_or_equal_revision_proposals_are_normalized_safely() -> None:
+    payload = _transport()
+    payload["trade_plan"].update(
+        {
+            "stop_revision_proposed": False,
+            "proposed_stop_loss": 3950,
+            "target_revision_proposed": True,
+            "proposed_target": 4500,
+        }
+    )
+    normalized = normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    assert normalized["stop_loss_assessment"]["proposed_stop_loss"] is None
+    assert normalized["target_assessment"]["proposed_target"] is None
+    assert any("diabaikan" in warning for warning in normalized["warnings_and_missing_information"]["warnings"])
+    assert any("sama dengan fakta confirmed" in warning for warning in normalized["warnings_and_missing_information"]["warnings"])
+    assert _canonical(normalized) == []
+
+
+def test_revision_intent_without_numeric_proposal_is_unusable() -> None:
+    payload = _transport()
+    payload["trade_plan"]["stop_revision_proposed"] = True
+    with pytest.raises(GeminiNormalizationError, match="proposed_stop_loss"):
+        normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+
+
+def test_domain_state_consistency_runs_after_normalization() -> None:
+    normalized = normalize_open_position_update_transport_payload(
+        _transport(), application_metadata=_metadata()
+    )
+    result = validate_state_consistency(
+        normalized,
+        {
+            "session_id": _metadata()["session_id"],
+            "ticker": "BBRI",
+            "position": {
+                "entry_price": 4100,
+                "remaining_quantity": 100,
+                "active_stop_loss": 3900,
+                "active_target": 4500,
+            },
+        },
+    )
+    assert result.valid
 
 
 def test_missing_optional_values_do_not_fabricate_facts_but_unusable_output_is_blocked() -> None:
