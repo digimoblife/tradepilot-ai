@@ -4,18 +4,25 @@ from __future__ import annotations
 
 import json
 import uuid
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from app.ai.providers.gemini import GeminiNormalizationError
 from app.ai.providers.models import ProviderRequest, ProviderResponse
-from app.ai.providers.open_position_transport import normalize_open_position_update_transport_payload
+from app.ai.providers.open_position_transport import (
+    _market_numeric,
+    normalize_open_position_update_transport_payload,
+)
 from app.ai.providers.router import _normalize_payload
 from app.ai.providers.selection import _load_gemini_response_schemas
 from app.schemas.manifest import load_production_manifest
 from app.schemas.registry import LocalSchemaRegistry
 from app.validation.state_consistency import validate_state_consistency
+from app.validation.market_snapshot import validate_market_snapshot
+from app.calculations.decimal_utils import CurrencyCode
+from app.json_safe import to_json_safe
 
 ROOT = Path("schemas/production/v1")
 
@@ -112,7 +119,7 @@ def test_application_position_facts_override_provider_values() -> None:
     assert position["active_stop_loss"] == 3900
     assert position["active_target"] == 4500
     assert position["remaining_quantity"] == 100
-    assert "entry_at" not in json.dumps(normalized)
+    assert "entry_at" not in json.dumps(to_json_safe(normalized))
 
 
 def test_no_revision_keeps_confirmed_levels_and_canonical_proposals_null() -> None:
@@ -191,6 +198,51 @@ def test_domain_state_consistency_runs_after_normalization() -> None:
         },
     )
     assert result.valid
+
+
+def test_spread_percentage_uses_canonical_decimal_precision_and_domain_accepts_it() -> None:
+    payload = _transport()
+    payload["market_facts"]["best_bid"] = 4095
+    payload["market_facts"]["best_offer"] = 4100
+    payload["market_facts"]["current_price"] = 4100
+    normalized = normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    spread_percentage = normalized["market_snapshot"]["spread_percentage"]
+    assert isinstance(spread_percentage, Decimal)
+    assert spread_percentage == Decimal("0.12")
+    assert spread_percentage != 0.12195121951219512
+    assert validate_market_snapshot(normalized["market_snapshot"]).valid
+    assert _canonical(normalized) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(0.0, Decimal("0.00")), (-0.72, Decimal("-0.72")), (Decimal("0.121951"), Decimal("0.12")), ("0.121951", Decimal("0.12"))],
+)
+def test_market_numeric_precision_and_sign_are_deterministic(
+    value: object, expected: Decimal
+) -> None:
+    assert _market_numeric(value, kind="percentage", currency=CurrencyCode.IDR) == expected
+
+
+def test_market_numeric_null_is_preserved_and_invalid_values_are_rejected() -> None:
+    assert _market_numeric(None, kind="percentage", currency=CurrencyCode.IDR) is None
+    for invalid in (float("nan"), float("inf"), float("-inf"), True):
+        with pytest.raises(GeminiNormalizationError):
+            _market_numeric(invalid, kind="percentage", currency=CurrencyCode.IDR)
+
+
+def test_market_numeric_price_volume_and_position_authority_remain_canonical() -> None:
+    payload = _transport()
+    payload["market_facts"].update({"open": 4100.4, "high": 4200.5, "low": 4000.4, "average": "4150.5"})
+    normalized = normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    market = normalized["market_snapshot"]
+    assert market["open"] == Decimal("4100")
+    assert market["high"] == Decimal("4201")
+    assert market["low"] == Decimal("4000")
+    assert market["average"] == Decimal("4151")
+    assert normalized["position_assessment"]["entry_price"] == 4100
+    assert normalized["position_assessment"]["active_stop_loss"] == 3900
+    assert normalized["position_assessment"]["active_target"] == 4500
 
 
 def test_missing_optional_values_do_not_fabricate_facts_but_unusable_output_is_blocked() -> None:

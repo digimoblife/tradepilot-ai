@@ -3,8 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
+from math import isfinite
 from typing import Any
 
+from app.calculations.decimal_utils import (
+    CurrencyCode,
+    quantize_money,
+    quantize_percentage,
+    quantize_price,
+    quantize_quantity,
+    to_decimal,
+)
+from app.calculations.errors import InvalidDecimalError
 from app.ai.providers.gemini import GeminiNormalizationError
 
 
@@ -47,17 +58,26 @@ def normalize_open_position_update_transport_payload(
         label="target",
         warnings=warnings,
     )
-    current = _number(position.get("current_price")) or _number(snapshot.get("last")) or _number(market.get("current_price"))
+    currency = _currency(canonical_facts.get("currency"))
+    current = (
+        _market_numeric(position.get("current_price"), kind="price", currency=currency)
+        or _market_numeric(snapshot.get("last"), kind="price", currency=currency)
+        or _market_numeric(market.get("current_price"), kind="price", currency=currency)
+    )
     if current is None:
         raise GeminiNormalizationError(
             message="Open Position transport must provide current_price for canonical validation",
         )
     target_probability = _number(probabilities.get("target"))
     downside_probability = _number(probabilities.get("downside"))
-    best_bid = _number(market.get("best_bid"))
-    best_offer = _number(market.get("best_offer"))
-    spread = best_offer - best_bid if best_bid is not None and best_offer is not None else 0
-    spread_percentage = (spread / current * 100) if current else 0
+    best_bid = _market_numeric(market.get("best_bid"), kind="price", currency=currency)
+    best_offer = _market_numeric(market.get("best_offer"), kind="price", currency=currency)
+    spread = best_offer - best_bid if best_bid is not None and best_offer is not None else None
+    spread_percentage = (
+        _market_numeric((spread / best_offer) * Decimal("100"), kind="percentage", currency=currency)
+        if spread is not None and best_offer not in (None, Decimal("0"))
+        else None
+    )
     summary = _text(decision.get("summary"), "decision.summary")
     scenarios = _mapping_or_empty(payload.get("scenarios"))
     scenario_lines = _scenario_lines(scenarios)
@@ -66,9 +86,9 @@ def normalize_open_position_update_transport_payload(
         "update_period": "AD_HOC",
         "comparison": {"comparison_available": False, "previous_analysis_id": None, "previous_analysis_timestamp": None, "previous_update_period": None, "summary": "Perbandingan sebelumnya tidak diisi oleh transport."},
         "evidence_summary": {"evidence_ids": list(application_metadata.get("evidence_ids") or []), "orderbook_available": bool(orderbook), "chart_3_month_available": bool(chart), "chart_6_month_available": False, "latest_orderbook_timestamp": None, "latest_chart_timestamp": None, "has_unreadable_evidence": False, "has_stale_evidence": False, "summary": "Temuan evidence dinormalisasi dari output Open Position transport.", "limitations": _strings(findings.get("limitations"))},
-        "market_snapshot": {"trading_date": None, "market_timestamp": None, "update_period": "AD_HOC", "currency": str(canonical_facts.get("currency") or "IDR"), "data_available": bool(market or snapshot), "open": _number(market.get("open")), "high": _number(market.get("high")), "low": _number(market.get("low")), "last": current, "close": None, "previous_close": None, "average": _number(market.get("average")), "change": None, "change_percentage": _number(market.get("change_percentage")), "volume": None, "transaction_value": None, "best_bid": best_bid, "best_offer": best_offer, "spread": spread, "spread_percentage": spread_percentage, "summary": str(market.get("summary") or "Fakta pasar terbaru belum tersedia secara lengkap."), "source": "MIXED" if market else "UNAVAILABLE", "limitations": ["Fakta pasar canonical tidak tersedia lengkap pada transport minimal."]},
-        "today_summary": {"open": _number(market.get("open")), "high": _number(market.get("high")), "low": _number(market.get("low")), "last_or_close": current, "average": _number(market.get("average")), "change_percentage": _number(market.get("change_percentage")), "position_in_daily_range": "UNKNOWN", "summary": str(market.get("summary") or "Ringkasan pasar dinormalisasi dari observasi transport.")},
-        "orderbook_analysis": {"available": bool(orderbook), "buyer_strength": "UNKNOWN", "seller_pressure": "UNKNOWN", "best_bid": _number(market.get("best_bid")), "best_offer": _number(market.get("best_offer")), "bid_support": None, "offer_resistance": None, "spread_observation": "Spread tidak tersedia pada transport.", "buyer_observations": orderbook, "seller_observations": [], "important_changes": [], "supports_position": None, "conclusion": " ".join(orderbook) or "Belum ada temuan orderbook yang dapat dinormalisasi.", "limitations": _strings(findings.get("limitations"))},
+        "market_snapshot": {"trading_date": None, "market_timestamp": None, "update_period": "AD_HOC", "currency": currency.value, "data_available": bool(market or snapshot), "open": _market_numeric(market.get("open"), kind="price", currency=currency), "high": _market_numeric(market.get("high"), kind="price", currency=currency), "low": _market_numeric(market.get("low"), kind="price", currency=currency), "last": current, "close": None, "previous_close": None, "average": _market_numeric(market.get("average"), kind="price", currency=currency), "change": None, "change_percentage": _market_numeric(market.get("change_percentage"), kind="percentage", currency=currency), "volume": _market_numeric(market.get("volume"), kind="quantity", currency=currency), "transaction_value": _market_numeric(market.get("transaction_value"), kind="money", currency=currency), "best_bid": best_bid, "best_offer": best_offer, "spread": spread, "spread_percentage": spread_percentage, "summary": str(market.get("summary") or "Fakta pasar terbaru belum tersedia secara lengkap."), "source": "MIXED" if market else "UNAVAILABLE", "limitations": ["Fakta pasar canonical tidak tersedia lengkap pada transport minimal."]},
+        "today_summary": {"open": _market_numeric(market.get("open"), kind="price", currency=currency), "high": _market_numeric(market.get("high"), kind="price", currency=currency), "low": _market_numeric(market.get("low"), kind="price", currency=currency), "last_or_close": current, "average": _market_numeric(market.get("average"), kind="price", currency=currency), "change_percentage": _market_numeric(market.get("change_percentage"), kind="percentage", currency=currency), "position_in_daily_range": "UNKNOWN", "summary": str(market.get("summary") or "Ringkasan pasar dinormalisasi dari observasi transport.")},
+        "orderbook_analysis": {"available": bool(orderbook), "buyer_strength": "UNKNOWN", "seller_pressure": "UNKNOWN", "best_bid": best_bid, "best_offer": best_offer, "bid_support": None, "offer_resistance": None, "spread_observation": "Spread tidak tersedia pada transport.", "buyer_observations": orderbook, "seller_observations": [], "important_changes": [], "supports_position": None, "conclusion": " ".join(orderbook) or "Belum ada temuan orderbook yang dapat dinormalisasi.", "limitations": _strings(findings.get("limitations"))},
         "chart_update": {"updated_chart_available": False, "using_historical_context": False, "chart_context_timestamp": None, "short_term_trend": "UNKNOWN", "medium_term_trend": "UNKNOWN", "structure_status": "UNKNOWN", "nearest_support": None, "nearest_resistance": None, "breakout_status": "UNKNOWN", "breakdown_status": "UNKNOWN", "supports_position": None, "conclusion": " ".join(chart) or "Chart terbaru tidak tersedia pada transport minimal.", "limitations": _strings(findings.get("limitations")) or ["Konteks chart tidak tersedia pada transport minimal."]},
         "position_assessment": {"entry_price": entry, "current_price": current, "remaining_quantity": _number(canonical_facts.get("remaining_quantity")), "active_stop_loss": stop, "active_target": target, "unrealized_profit_loss": None, "unrealized_return_percentage": _number(position.get("unrealized_return_percentage")), "distance_to_stop_percentage": None, "distance_to_target_percentage": None, "holding_duration_days": 0, "health": _enum(position.get("health"), "UNKNOWN", {"HEALTHY", "HEALTHY_WITH_CAUTION", "UNDER_PRESSURE", "AT_RISK", "UNKNOWN"}), "summary": _text(position.get("summary"), "position_assessment.summary")},
         "thesis_assessment": {"status": "UNDER_REVIEW", "remains_valid": True, "summary": " ".join(scenario_lines) or summary, "strengthening_evidence": [scenarios["bullish"]] if isinstance(scenarios.get("bullish"), str) else [], "weakening_evidence": [scenarios["bearish"]] if isinstance(scenarios.get("bearish"), str) else [], "invalidation_condition": str(plan.get("exit_condition") or "Tinjau posisi bila kondisi risiko terkonfirmasi."), "invalidation_price": stop, "invalidation_triggered": False},
@@ -147,6 +167,46 @@ def _number(value: object) -> int | float | None:
         except ValueError:
             return None
     return None
+
+
+def _currency(value: object) -> CurrencyCode:
+    return CurrencyCode.USD if value == CurrencyCode.USD else CurrencyCode.IDR
+
+
+def _market_numeric(
+    value: object,
+    *,
+    kind: str,
+    currency: CurrencyCode,
+) -> Decimal | None:
+    """Convert provider market values into the Decimal representation domain validators require."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise GeminiNormalizationError(message="Open Position market numeric values cannot be boolean")
+    try:
+        decimal_value = (
+            Decimal(str(value))
+            if isinstance(value, float) and isfinite(value)
+            else to_decimal(value)  # type: ignore[arg-type]
+        )
+    except (InvalidDecimalError, ValueError):
+        raise GeminiNormalizationError(
+            message=f"Open Position market numeric value is invalid: {value!r}"
+        ) from None
+    if not decimal_value.is_finite():
+        raise GeminiNormalizationError(
+            message=f"Open Position market numeric value is non-finite: {value!r}"
+        )
+    if kind == "percentage":
+        return quantize_percentage(decimal_value)
+    if kind == "price":
+        return quantize_price(decimal_value, currency)
+    if kind == "money":
+        return quantize_money(decimal_value, currency)
+    if kind == "quantity":
+        return quantize_quantity(decimal_value)
+    raise ValueError(f"Unknown market numeric kind: {kind}")
 
 
 def _enum(value: object, default: str, allowed: set[str]) -> str:
