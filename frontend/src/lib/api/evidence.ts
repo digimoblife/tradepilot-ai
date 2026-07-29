@@ -6,10 +6,14 @@ export function uploadEvidence(
   file: File,
   evidenceType: string,
   marketTimestamp?: string,
+  batchId?: string,
 ): Promise<EvidenceItem> {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("evidence_type", evidenceType);
+  if (batchId) {
+    fd.append("batch_id", batchId);
+  }
   if (marketTimestamp) {
     fd.append("market_timestamp", marketTimestamp);
   }

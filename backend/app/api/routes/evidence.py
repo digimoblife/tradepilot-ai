@@ -22,6 +22,7 @@ from app.evidence.validation import (
 from app.models.evidence import Evidence as EvidenceModel
 from app.services.evidence import (
     EvidenceBatchMutationRejectedError,
+    EvidenceDuplicateActiveError,
     EvidenceNotFoundError,
     EvidenceService,
     EvidenceServiceError,
@@ -84,6 +85,7 @@ async def upload_evidence(
     session_id: uuid.UUID,
     file: UploadFile = File(...),
     evidence_type: str = Form(...),
+    batch_id: uuid.UUID | None = Form(None),
     market_timestamp: str | None = Form(None),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
@@ -108,6 +110,7 @@ async def upload_evidence(
             original_filename=filename,
             declared_mime_type=file.content_type,
             market_timestamp=parsed_market_ts,
+            evidence_batch_id=batch_id,
         )
     except EvidenceSessionNotFoundError:
         from fastapi import HTTPException
@@ -116,6 +119,10 @@ async def upload_evidence(
     except EvidenceValidationError as exc:
         return _evidence_error(exc.code, 422)
     except EvidenceBatchMutationRejectedError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message})
+    except EvidenceDuplicateActiveError as exc:
         from fastapi import HTTPException
 
         raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message})

@@ -106,6 +106,7 @@ export function EvidenceSection({ sessionId, batches = [], currentBatch = null }
         <EvidenceUploadForm
           sessionId={sessionId}
           evidenceList={currentBatchItems}
+          batchId={currentBatch?.id}
           onUploaded={() => setRefreshKey((k) => k + 1)}
           disabled={!canMutateCurrentBatch}
           disabledReason={disabledReason}
@@ -122,6 +123,7 @@ export function EvidenceSection({ sessionId, batches = [], currentBatch = null }
           <EvidenceUploadForm
             sessionId={sessionId}
             evidenceList={currentBatchItems}
+            batchId={currentBatch?.id}
             onUploaded={() => setRefreshKey((k) => k + 1)}
             disabled={!canMutateCurrentBatch}
             disabledReason={disabledReason}

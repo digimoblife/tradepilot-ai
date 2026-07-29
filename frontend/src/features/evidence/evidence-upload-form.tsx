@@ -10,6 +10,7 @@ import { EVIDENCE_TYPE_LABELS, SUPPORTED_MIME_TYPES } from "./helpers";
 interface Props {
   sessionId: string;
   evidenceList: EvidenceItem[];
+  batchId?: string;
   onUploaded: () => void;
   disabled?: boolean;
   disabledReason?: string;
@@ -18,6 +19,7 @@ interface Props {
 export function EvidenceUploadForm({
   sessionId,
   evidenceList,
+  batchId,
   onUploaded,
   disabled = false,
   disabledReason,
@@ -48,7 +50,7 @@ export function EvidenceUploadForm({
       if (selectedType === "ORDERBOOK_SCREENSHOT" && orderbookActive) {
         result = await replaceEvidence(orderbookActive.id, file, selectedType, ts);
       } else {
-        result = await uploadEvidence(sessionId, file, selectedType, ts);
+        result = await uploadEvidence(sessionId, file, selectedType, ts, batchId);
       }
 
       if (result) {

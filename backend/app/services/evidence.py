@@ -19,6 +19,7 @@ from app.evidence import (
 )
 from app.models.enums import (
     AnalysisType,
+    EvidenceBatchStatus,
     EvidenceStatus,
     EvidenceType,
     TradeSessionStatus,
@@ -192,18 +193,49 @@ class EvidenceService:
             )
 
         validated_type = _normalize_type(evidence_type)
-        batch_analysis_type = _default_batch_analysis_type(ts)
-        batch = (
-            await self._batch_service.get_or_create_current_draft(
+        targeted_batch = evidence_batch_id is not None
+        if evidence_batch_id is None:
+            if ts.lifecycle_status not in {
+                TradeSessionStatus.DRAFT,
+                TradeSessionStatus.READY_FOR_INITIAL_ANALYSIS,
+                TradeSessionStatus.READY_FOR_ANALYSIS,
+                TradeSessionStatus.INITIAL_ANALYZED,
+            }:
+                raise EvidenceBatchMutationRejectedError(
+                    code="EVIDENCE_BATCH_TARGET_REQUIRED",
+                    message="An explicit evidence batch is required for post-initial uploads.",
+                )
+            batch_analysis_type = _default_batch_analysis_type(ts)
+            batch = await self._batch_service.get_or_create_current_draft(
                 session_id=session_id,
                 owner_id=owner_id,
                 analysis_type=batch_analysis_type,
             )
-            if evidence_batch_id is None
-            else await self._session.get(EvidenceBatch, evidence_batch_id)
-        )
-        if batch is None or batch.session_id != session_id or batch.owner_id != owner_id:
-            raise EvidenceBatchMutationRejectedError(message="Evidence Batch not found")
+        else:
+            batch = await self._session.get(EvidenceBatch, evidence_batch_id)
+            if (
+                batch is None
+                or batch.session_id != session_id
+                or batch.owner_id != owner_id
+            ):
+                raise EvidenceBatchMutationRejectedError(
+                    code="EVIDENCE_BATCH_NOT_FOUND",
+                    message="Evidence Batch not found.",
+                )
+        allowed_types = _REQUIRED_EVIDENCE.get(batch.analysis_type, ())
+        if targeted_batch and validated_type not in allowed_types:
+            raise EvidenceBatchMutationRejectedError(
+                code="EVIDENCE_TYPE_NOT_ALLOWED_FOR_BATCH",
+                message=(
+                    f"Evidence type {validated_type.value} is not allowed for "
+                    f"{batch.analysis_type.value} batches."
+                ),
+            )
+        if batch.status != EvidenceBatchStatus.DRAFT:
+            raise EvidenceBatchMutationRejectedError(
+                code="EVIDENCE_BATCH_NOT_MUTABLE",
+                message=f"Cannot add evidence to batch in status {batch.status.value}.",
+            )
         try:
             await self._batch_service.assert_mutable(batch.id)
         except EvidenceBatchImmutableError as exc:

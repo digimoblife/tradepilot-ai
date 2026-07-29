@@ -72,18 +72,44 @@ async def _make_user(
     return uid, unique_email
 
 
-async def _make_session(engine: AsyncEngine, uid: uuid.UUID) -> uuid.UUID:
+async def _make_session(
+    engine: AsyncEngine,
+    uid: uuid.UUID,
+    *,
+    lifecycle_status: str = "DRAFT",
+) -> uuid.UUID:
     sid = uuid.uuid4()
     async with engine.begin() as conn:
         await conn.execute(
             text(
                 "INSERT INTO trade_sessions "
                 "(id, owner_id, ticker, lifecycle_status, stable_status) "
-                "VALUES (:id, :oid, 'BBRI', 'WATCHING', 'WATCHING')"
+                "VALUES (:id, :oid, 'BBRI', :status, :status)"
             ),
-            {"id": sid, "oid": uid},
+            {"id": sid, "oid": uid, "status": lifecycle_status},
         )
     return sid
+
+
+async def _make_batch(
+    engine: AsyncEngine,
+    sid: uuid.UUID,
+    uid: uuid.UUID,
+    *,
+    analysis_type: str = "OPEN_POSITION_UPDATE",
+    status: str = "DRAFT",
+) -> uuid.UUID:
+    bid = uuid.uuid4()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO evidence_batches "
+                "(id, session_id, owner_id, analysis_type, status, sequence_number) "
+                "VALUES (:id, :sid, :uid, :atype, :status, 1)"
+            ),
+            {"id": bid, "sid": sid, "uid": uid, "atype": analysis_type, "status": status},
+        )
+    return bid
 
 
 async def _login_user(client: AsyncClient, email: str, password: str = "testpass123") -> str:
@@ -301,6 +327,118 @@ class TestUpload:
             data={"evidence_type": "ORDERBOOK_SCREENSHOT"},
             cookies={"tradepilot_session": cookie},
         )
+        assert resp.status_code == 422
+
+    async def test_upload_targets_explicit_open_position_batch(self, engine, client) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session(engine, uid)
+        bid = await _make_batch(engine, sid, uid)
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/evidence",
+            files={"file": ("orderbook.png", _make_png_bytes(), "image/png")},
+            data={"evidence_type": "ORDERBOOK_SCREENSHOT", "batch_id": str(bid)},
+            cookies={"tradepilot_session": cookie},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["evidence_batch_id"] == str(bid)
+        row = await client.get(f"/api/evidence/{resp.json()['id']}", cookies={"tradepilot_session": cookie})
+        assert row.json()["evidence_batch_id"] == str(bid)
+
+    async def test_explicit_batch_rejects_cross_session_and_cross_user(self, engine, client) -> None:
+        uid1, email1 = await _make_user(engine)
+        uid2, email2 = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid1 = await _make_session(engine, uid1)
+        sid2 = await _make_session(engine, uid2)
+        bid2 = await _make_batch(engine, sid2, uid2)
+        cookie1 = await _login_user(client, email1)
+        payload = {"evidence_type": "ORDERBOOK_SCREENSHOT", "batch_id": str(bid2)}
+        resp = await client.post(
+            f"/api/trade-sessions/{sid1}/evidence",
+            files={"file": ("orderbook.png", _make_png_bytes(), "image/png")},
+            data=payload,
+            cookies={"tradepilot_session": cookie1},
+        )
+        assert resp.status_code == 422
+        cookie2 = await _login_user(client, email2)
+        resp = await client.post(
+            f"/api/trade-sessions/{sid1}/evidence",
+            files={"file": ("orderbook.png", _make_png_bytes(), "image/png")},
+            data=payload,
+            cookies={"tradepilot_session": cookie2},
+        )
+        assert resp.status_code == 404
+
+    async def test_explicit_batch_rejects_frozen_and_unsupported_type(self, engine, client) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session(engine, uid)
+        frozen = await _make_batch(engine, sid, uid, status="FROZEN")
+        draft = await _make_batch(engine, sid, uid, analysis_type="WATCHING_UPDATE")
+        cookie = await _login_user(client, email)
+        for bid, evidence_type in ((frozen, "ORDERBOOK_SCREENSHOT"), (draft, "CHART_THREE_MONTH")):
+            resp = await client.post(
+                f"/api/trade-sessions/{sid}/evidence",
+                files={"file": ("orderbook.png", _make_png_bytes(), "image/png")},
+                data={"evidence_type": evidence_type, "batch_id": str(bid)},
+                cookies={"tradepilot_session": cookie},
+            )
+            assert resp.status_code == 422
+
+    async def test_post_initial_upload_requires_explicit_batch(self, engine, client) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session(engine, uid, lifecycle_status="WATCHING")
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/evidence",
+            files={"file": ("orderbook.png", _make_png_bytes(), "image/png")},
+            data={"evidence_type": "ORDERBOOK_SCREENSHOT"},
+            cookies={"tradepilot_session": cookie},
+        )
+        assert resp.status_code == 422
+        assert resp.json()["error"]["code"] == "EVIDENCE_BATCH_TARGET_REQUIRED"
+
+    async def test_initial_upload_without_target_remains_compatible(self, engine, client) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = uuid.uuid4()
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "INSERT INTO trade_sessions "
+                    "(id, owner_id, ticker, lifecycle_status, stable_status) "
+                    "VALUES (:id, :uid, 'BBRI', 'DRAFT', 'DRAFT')"
+                ),
+                {"id": sid, "uid": uid},
+            )
+        cookie = await _login_user(client, email)
+        resp = await client.post(
+            f"/api/trade-sessions/{sid}/evidence",
+            files={"file": ("chart.png", _make_png_bytes(), "image/png")},
+            data={"evidence_type": "CHART_THREE_MONTH"},
+            cookies={"tradepilot_session": cookie},
+        )
+        assert resp.status_code == 201
+
+    async def test_duplicate_active_evidence_in_explicit_batch_rejected(self, engine, client) -> None:
+        uid, email = await _make_user(engine)
+        await _ensure_user_sessions_table(engine)
+        sid = await _make_session(engine, uid)
+        bid = await _make_batch(engine, sid, uid)
+        cookie = await _login_user(client, email)
+        data = {"evidence_type": "ORDERBOOK_SCREENSHOT", "batch_id": str(bid)}
+        for _ in range(2):
+            resp = await client.post(
+                f"/api/trade-sessions/{sid}/evidence",
+                files={"file": ("orderbook.png", _make_png_bytes(), "image/png")},
+                data=data,
+                cookies={"tradepilot_session": cookie},
+            )
+            if resp.status_code != 201:
+                break
         assert resp.status_code == 422
 
 

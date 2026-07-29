@@ -185,7 +185,7 @@ async def test_concurrent_watching_draft_creation_resolves_to_one_batch(
     assert batches[0].sequence_number == 1
 
 
-async def test_watching_upload_uses_watching_batch_by_default(
+async def test_watching_upload_uses_explicit_watching_batch(
     engine: AsyncEngine,
     factory: async_sessionmaker[AsyncSession],
     tmp_path,
@@ -193,6 +193,11 @@ async def test_watching_upload_uses_watching_batch_by_default(
     owner_id, session_id = await _make_user_and_session(engine, status="WATCHING")
 
     async with factory() as s:
+        batch = await EvidenceBatchService(s).get_or_create_current_draft(
+            session_id=session_id,
+            owner_id=owner_id,
+            analysis_type=AnalysisType.WATCHING_UPDATE,
+        )
         result = await EvidenceService(s, storage_root=tmp_path).create(
             session_id=session_id,
             owner_id=owner_id,
@@ -201,6 +206,7 @@ async def test_watching_upload_uses_watching_batch_by_default(
             original_filename="watching-orderbook.png",
             declared_mime_type="image/png",
             market_timestamp=datetime.now(timezone.utc),
+            evidence_batch_id=batch.id,
         )
         batch = await s.get(EvidenceBatch, result.evidence.evidence_batch_id)
 
@@ -219,6 +225,11 @@ async def test_watching_readiness_is_isolated_to_selected_batch(
     async with factory() as s:
         evidence_svc = EvidenceService(s, storage_root=tmp_path)
         batch_svc = EvidenceBatchService(s)
+        first_batch = await batch_svc.get_or_create_current_draft(
+            session_id=session_id,
+            owner_id=owner_id,
+            analysis_type=AnalysisType.WATCHING_UPDATE,
+        )
         created = await evidence_svc.create(
             session_id=session_id,
             owner_id=owner_id,
@@ -226,6 +237,7 @@ async def test_watching_readiness_is_isolated_to_selected_batch(
             content=_png_bytes(),
             original_filename="orderbook.png",
             declared_mime_type="image/png",
+            evidence_batch_id=first_batch.id,
         )
         first_batch = await s.get(EvidenceBatch, created.evidence.evidence_batch_id)
         assert first_batch is not None
@@ -422,6 +434,11 @@ async def test_watching_provider_context_uses_batch_and_compact_prior_analyses(
 
         evidence_svc = EvidenceService(s, storage_root=tmp_path)
         batch_svc = EvidenceBatchService(s)
+        selected_batch = await batch_svc.get_or_create_current_draft(
+            session_id=session_id,
+            owner_id=owner_id,
+            analysis_type=AnalysisType.WATCHING_UPDATE,
+        )
         selected = await evidence_svc.create(
             session_id=session_id,
             owner_id=owner_id,
@@ -429,6 +446,7 @@ async def test_watching_provider_context_uses_batch_and_compact_prior_analyses(
             content=_png_bytes(),
             original_filename="selected-orderbook.png",
             declared_mime_type="image/png",
+            evidence_batch_id=selected_batch.id,
         )
         selected_batch_id = selected.evidence.evidence_batch_id
         selected_batch = await s.get(EvidenceBatch, selected_batch_id)
@@ -441,6 +459,13 @@ async def test_watching_provider_context_uses_batch_and_compact_prior_analyses(
             content=_png_bytes(),
             original_filename="extra-orderbook.png",
             declared_mime_type="image/png",
+            evidence_batch_id=(
+                await batch_svc.get_or_create_current_draft(
+                    session_id=session_id,
+                    owner_id=owner_id,
+                    analysis_type=AnalysisType.WATCHING_UPDATE,
+                )
+            ).id,
         )
 
         ctx = await ProviderContextBuilder(s).build(

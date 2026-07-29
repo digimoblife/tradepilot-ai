@@ -156,7 +156,13 @@ describe("upload form", () => {
     await user.upload(fileInput, file);
     await user.click(screen.getAllByText("Unggah")[0]);
 
-    expect(uploadEvidence).toHaveBeenCalledWith("sess-1", file, "CHART_THREE_MONTH", undefined);
+    expect(uploadEvidence).toHaveBeenCalledWith(
+      "sess-1",
+      file,
+      "CHART_THREE_MONTH",
+      undefined,
+      undefined,
+    );
   });
 
   it("shows error when type not selected", async () => {
