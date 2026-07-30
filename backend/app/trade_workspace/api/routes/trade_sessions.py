@@ -25,6 +25,8 @@ from app.trade_workspace.api.schemas import (
     TradeSessionListResponse,
     TradeSessionResponse,
     WaitDecisionResponse,
+    WaitUpdateAnalysisReadResponse,
+    WaitUpdateAnalysisRecoveryResponse,
     WaitUpdateAnalysisSubmissionResponse,
     WaitUpdateInputResponse,
 )
@@ -60,6 +62,14 @@ from app.trade_workspace.services.trade_sessions import RebuildTradeSessionServi
 from app.trade_workspace.services.wait_decision import (
     WaitDecisionError,
     WaitDecisionService,
+)
+from app.trade_workspace.services.wait_update_analysis_read import (
+    WaitUpdateAnalysisReadError,
+    WaitUpdateAnalysisReadService,
+)
+from app.trade_workspace.services.wait_update_analysis_retry import (
+    WaitUpdateAnalysisRetryError,
+    WaitUpdateAnalysisRetryService,
 )
 from app.trade_workspace.services.wait_update_analysis_submission import (
     WaitUpdateAnalysisSubmissionError,
@@ -302,6 +312,78 @@ async def submit_wait_update_analysis(
         evidence_id=str(result.evidence_id),
         observation_period=result.observation_period.value,
         session_status=result.session_status.value,
+        created_at=result.created_at,
+    )
+
+
+@router.get(
+    "/{session_id}/wait-update-analysis",
+    response_model=WaitUpdateAnalysisReadResponse,
+)
+async def read_wait_update_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> WaitUpdateAnalysisReadResponse:
+    try:
+        result = await WaitUpdateAnalysisReadService(db_session).get_latest(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except WaitUpdateAnalysisReadError as exc:
+        raise _not_found() from exc
+    return WaitUpdateAnalysisReadResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        session_status=result.session_status.value,
+        processed_response=result.processed_response,
+        error_code=result.error_code,
+        error_message=result.error_message,
+        observation_period=(
+            result.observation_period.value if result.observation_period is not None else None
+        ),
+        created_at=result.created_at,
+        started_at=result.started_at,
+        completed_at=result.completed_at,
+    )
+
+
+@router.post(
+    "/{session_id}/wait-update-analysis/retry",
+    response_model=WaitUpdateAnalysisRecoveryResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retry_wait_update_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+    queue: object = Depends(get_rebuild_analysis_queue),
+) -> WaitUpdateAnalysisRecoveryResponse:
+    try:
+        result = await WaitUpdateAnalysisRetryService(db_session, queue).retry(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except WaitUpdateAnalysisRetryError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return WaitUpdateAnalysisRecoveryResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        session_status=result.session_status.value,
+        observation_period=(
+            result.observation_period.value
+            if hasattr(result.observation_period, "value")
+            else None
+        ),
         created_at=result.created_at,
     )
 
