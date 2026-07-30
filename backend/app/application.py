@@ -28,6 +28,7 @@ from app.config import AppConfig
 from app.logging import configure_logging, get_logger
 from app.schemas.manifest import load_production_manifest
 from app.schemas.registry import LocalSchemaRegistry
+from app.trade_workspace.api.routes.trade_sessions import router as rebuild_trade_sessions_router
 
 log = get_logger(__name__)
 
@@ -97,6 +98,7 @@ def create_application() -> FastAPI:
     app.include_router(timeline_router)
     app.include_router(trade_actions_router)
     app.include_router(trade_sessions_router)
+    app.include_router(rebuild_trade_sessions_router)
     app.include_router(evaluation_router)
 
     return app
