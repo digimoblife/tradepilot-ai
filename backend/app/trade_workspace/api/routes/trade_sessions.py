@@ -10,6 +10,7 @@ from app.api.errors import SESSION_NOT_FOUND, get_error_message
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
 from app.trade_workspace.api.schemas import (
+    InitialAnalysisReadResponse,
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
@@ -22,6 +23,10 @@ from app.trade_workspace.services.evidence_uploads import (
     InitialEvidenceInput,
     InitialEvidenceUploadError,
     InitialEvidenceUploadService,
+)
+from app.trade_workspace.services.initial_analysis_read import (
+    InitialAnalysisReadError,
+    InitialAnalysisReadService,
 )
 from app.trade_workspace.services.initial_analysis_submission import (
     InitialAnalysisSubmissionError,
@@ -180,6 +185,37 @@ async def submit_initial_analysis(
         request_status=result.request_status.value,
         session_status=result.session_status.value,
         created_at=result.created_at,
+    )
+
+
+@router.get(
+    "/{session_id}/initial-analysis",
+    response_model=InitialAnalysisReadResponse,
+)
+async def read_initial_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> InitialAnalysisReadResponse:
+    try:
+        result = await InitialAnalysisReadService(db_session).get_latest(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except InitialAnalysisReadError as exc:
+        raise _not_found() from exc
+    return InitialAnalysisReadResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        session_status=result.session_status.value,
+        processed_response=result.processed_response,
+        error_code=result.error_code,
+        error_message=result.error_message,
+        created_at=result.created_at,
+        started_at=result.started_at,
+        completed_at=result.completed_at,
     )
 
 
