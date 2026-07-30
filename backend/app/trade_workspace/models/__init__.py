@@ -5,6 +5,7 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Type,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
+from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.session_decision import (
     SessionDecisionV2,
     SessionDecisionV2Decision,
@@ -22,6 +23,8 @@ __all__ = [
     "SessionDecisionV2",
     "SessionDecisionV2Decision",
     "SessionDecisionV2Reason",
+    "PositionV2",
+    "PositionV2Status",
     "TradeSessionV2",
     "TradeSessionV2Status",
 ]
