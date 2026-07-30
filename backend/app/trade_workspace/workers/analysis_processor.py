@@ -31,6 +31,11 @@ from app.trade_workspace.ai.prompt_loader import (
     RebuildPrompt,
     RebuildPromptLoader,
 )
+from app.trade_workspace.ai.response_validator import (
+    RebuildResponseValidator,
+    ResponseValidationError,
+    critical_validation_error,
+)
 from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2,
     AnalysisRequestV2Status,
@@ -114,6 +119,7 @@ class RebuildAnalysisProcessor:
         image_resolver: AnalysisImageResolver,
         context_builder: RebuildAnalysisContextBuilder | None = None,
         prompt_loader: RebuildPromptLoader | None = None,
+        validator: RebuildResponseValidator | None = None,
         adapter_factory: Callable[[str], GeminiAdapter] | None = None,
         schemas_root: Path | None = None,
     ) -> None:
@@ -121,17 +127,28 @@ class RebuildAnalysisProcessor:
         self._image_resolver = image_resolver
         self._context_builder = context_builder
         self._prompt_loader = prompt_loader or RebuildPromptLoader()
+        self._validator = validator or RebuildResponseValidator()
         self._adapter_factory = adapter_factory or (lambda model: GeminiAdapter(model=model))
         repository_root = Path(__file__).resolve().parents[4]
         self._schemas_root = schemas_root or repository_root / "schemas" / "rebuild" / "v1"
 
     async def process(self, *, analysis_request_id: uuid.UUID) -> AnalysisProcessorResult:
         claim = await self._claim(analysis_request_id)
+        result: GeminiAdapterResult | None = None
         try:
             result = await self._run(claim)
+            validation = self._validator.validate(claim.analysis_type, result.processed_response)
+            if not validation.is_valid:
+                raise critical_validation_error(claim.analysis_type, validation)
         except Exception as exc:
             error_code, error_message = _sanitize_failure(exc)
-            await self._mark_failed(claim.request_id, error_code, error_message)
+            raw_response = _json_safe(result.raw_response) if result is not None else None
+            await self._mark_failed(
+                claim.request_id,
+                error_code,
+                error_message,
+                raw_response=raw_response,
+            )
             return AnalysisProcessorResult(
                 request_id=claim.request_id,
                 status=AnalysisRequestV2Status.FAILED,
@@ -246,6 +263,7 @@ class RebuildAnalysisProcessor:
         request_id: uuid.UUID,
         error_code: str,
         error_message: str,
+        raw_response: object | None = None,
     ) -> None:
         request = await self._session.scalar(
             select(AnalysisRequestV2)
@@ -258,6 +276,9 @@ class RebuildAnalysisProcessor:
         request.completed_at = datetime.now(timezone.utc)
         request.error_code = error_code
         request.error_message = error_message
+        if raw_response is not None:
+            request.raw_response = raw_response
+        request.processed_response = None
         try:
             await self._session.flush()
             await self._session.commit()
@@ -329,6 +350,8 @@ def _sanitize_failure(exc: Exception) -> tuple[str, str]:
         return "UNSUPPORTED_ANALYSIS_TYPE", "Unsupported rebuild analysis type"
     if isinstance(exc, CompletionPersistenceError):
         return "RESPONSE_PERSISTENCE_FAILED", "Analysis response could not be persisted"
+    if isinstance(exc, ResponseValidationError):
+        return "RESPONSE_VALIDATION_FAILED", str(exc)[:500]
     if isinstance(exc, AnalysisProcessorError):
         return "PROCESSING_FAILED", "Rebuild analysis processing failed"
     return "PROCESSING_FAILED", f"Rebuild analysis processing failed ({type(exc).__name__})"

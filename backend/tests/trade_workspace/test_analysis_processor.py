@@ -26,6 +26,7 @@ from app.trade_workspace.ai.prompt_loader import (
     RebuildPrompt,
     RebuildPromptType,
 )
+from app.trade_workspace.ai.response_validator import ResponseValidationResult
 from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2,
     AnalysisRequestV2ObservationPeriod,
@@ -90,6 +91,20 @@ class FakeImageResolver:
         )
 
 
+class RecordingValidator:
+    def __init__(self, result: ResponseValidationResult) -> None:
+        self.result = result
+        self.calls: list[tuple[object, object]] = []
+
+    def validate(
+        self,
+        analysis_type: object,
+        processed_response: object,
+    ) -> ResponseValidationResult:
+        self.calls.append((analysis_type, processed_response))
+        return self.result
+
+
 class FakeAdapter:
     def __init__(
         self,
@@ -102,7 +117,37 @@ class FakeAdapter:
             provider="gemini",
             model=model,
             raw_response={"raw": model},
-            processed_response={"summary": "hasil"},
+            processed_response={
+                "summary": "Ringkasan",
+                "orderbook_analysis": "Orderbook",
+                "three_month_chart_analysis": "Chart 3M",
+                "six_month_chart_analysis": "Chart 6M",
+                "support": {"low": 100},
+                "resistance": {"high": 110},
+                "entry_area": {"low": 102},
+                "stop_recommendation": {"level": 99},
+                "target_recommendation": {"level": 115},
+                "probabilities": {"upside": 0.6},
+                "risks": ["risk"],
+                "trading_plan": "plan",
+                "conclusion": "WAIT",
+                "update_summary": "Update",
+                "current_price": 105,
+                "orderbook_assessment": "Orderbook",
+                "change_from_previous_analysis": "Stable",
+                "current_entry_condition": "Wait",
+                "upside_probability": 0.6,
+                "downside_probability": 0.4,
+                "key_risks": ["risk"],
+                "recommended_action": "WAIT",
+                "next_plan": "Monitor",
+                "position_condition": "Open",
+                "target_realism": "Realistic",
+                "downside_risk": "Limited",
+                "target_probability": 0.6,
+                "monitoring_points": ["support"],
+                "warnings": ["volatility"],
+            },
         )
         self.error = error
         self.calls: list[dict[str, object]] = []
@@ -224,6 +269,7 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     context_builder = FakeContextBuilder(_context(RebuildAnalysisType.WAIT_UPDATE))
     prompt_loader = FakePromptLoader()
     image_resolver = FakeImageResolver()
+    validator = RecordingValidator(ResponseValidationResult(is_valid=True))
     adapters: list[FakeAdapter] = []
     observed_claim_status: list[AnalysisRequestV2Status] = []
 
@@ -259,6 +305,7 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
             image_resolver=image_resolver,  # type: ignore[arg-type]
             context_builder=context_builder,  # type: ignore[arg-type]
             prompt_loader=prompt_loader,  # type: ignore[arg-type]
+            validator=validator,  # type: ignore[arg-type]
             adapter_factory=observing_factory,  # type: ignore[arg-type]
         )
         result = await processor.process(analysis_request_id=request_id)
@@ -266,6 +313,7 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     assert result.status is AnalysisRequestV2Status.COMPLETED
     assert observed_claim_status == [AnalysisRequestV2Status.PROCESSING]
     assert len(context_builder.calls) == 1
+    assert len(validator.calls) == 1
     assert context_builder.calls[0] == {
         "user_id": user_id,
         "session_id": session_id,
@@ -287,7 +335,7 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     persisted = await _read_request(factory, request_id)
     assert persisted.status is AnalysisRequestV2Status.COMPLETED
     assert persisted.raw_response == {"raw": "gemini-persisted"}
-    assert persisted.processed_response == {"summary": "hasil"}
+    assert persisted.processed_response["summary"] == "Ringkasan"
     assert persisted.completed_at is not None
     assert persisted.error_code is None
     assert persisted.error_message is None
@@ -298,6 +346,41 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
         assert session is not None
         assert session.status.value == "DRAFT"
 
+    await _cleanup(factory, user_id, session_id, request_id)
+
+
+@pytest.mark.database
+async def test_critical_validation_failure_preserves_raw_response(engine) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, request_id = await _setup_request(
+        factory, analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS
+    )
+    adapter = FakeAdapter(
+        "gemini-persisted",
+        result=GeminiAdapterResult(
+            provider="gemini",
+            model="gemini-persisted",
+            raw_response={"raw": "safe"},
+            processed_response={"summary": "only"},
+        ),
+    )
+    async with factory() as session:
+        processor = RebuildAnalysisProcessor(
+            session,
+            image_resolver=FakeImageResolver(),  # type: ignore[arg-type]
+            context_builder=FakeContextBuilder(_context(RebuildAnalysisType.INITIAL_ANALYSIS)),  # type: ignore[arg-type]
+            adapter_factory=lambda model: adapter,  # type: ignore[arg-type]
+        )
+        result = await processor.process(analysis_request_id=request_id)
+
+    assert result.status is AnalysisRequestV2Status.FAILED
+    assert len(adapter.calls) == 1
+    persisted = await _read_request(factory, request_id)
+    assert persisted.status is AnalysisRequestV2Status.FAILED
+    assert persisted.error_code == "RESPONSE_VALIDATION_FAILED"
+    assert persisted.raw_response == {"raw": "safe"}
+    assert persisted.processed_response is None
+    assert persisted.completed_at is not None
     await _cleanup(factory, user_id, session_id, request_id)
 
 
