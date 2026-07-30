@@ -10,6 +10,7 @@ from app.api.errors import SESSION_NOT_FOUND, get_error_message
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
 from app.trade_workspace.api.schemas import (
+    DecisionAvailabilityResponse,
     InitialAnalysisReadResponse,
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
@@ -19,6 +20,7 @@ from app.trade_workspace.api.schemas import (
     TradeSessionResponse,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
+from app.trade_workspace.services.decision_availability import DecisionAvailabilityService
 from app.trade_workspace.services.evidence_uploads import (
     InitialEvidenceInput,
     InitialEvidenceUploadError,
@@ -265,6 +267,28 @@ async def list_trade_sessions(
         user_id=current_user.id
     )
     return TradeSessionListResponse(sessions=[_to_response(item) for item in sessions])
+
+
+@router.get(
+    "/{session_id}/available-actions",
+    response_model=DecisionAvailabilityResponse,
+)
+async def get_available_actions(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> DecisionAvailabilityResponse:
+    result = await DecisionAvailabilityService(db_session).get_owned(
+        user_id=current_user.id,
+        session_id=session_id,
+    )
+    if result is None:
+        raise _not_found()
+    return DecisionAvailabilityResponse(
+        session_id=str(result.session_id),
+        session_status=result.session_status.value,
+        available_actions=list(result.available_actions),
+    )
 
 
 @router.get("/{session_id}", response_model=TradeSessionResponse)

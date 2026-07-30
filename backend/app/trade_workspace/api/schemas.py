@@ -35,6 +35,12 @@ class TradeSessionListResponse(BaseModel):
     sessions: list[TradeSessionResponse]
 
 
+class DecisionAvailabilityResponse(BaseModel):
+    session_id: str
+    session_status: str
+    available_actions: list[str]
+
+
 class InitialEvidenceResponse(BaseModel):
     id: str
     evidence_type: str
