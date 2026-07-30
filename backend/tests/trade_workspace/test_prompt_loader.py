@@ -75,3 +75,70 @@ def test_wait_and_position_prompts_protect_their_authority_rules() -> None:
     assert "confirmed entry price" in position_text
     assert "must not be changed" in position_text
     assert "must not close the position" in position_text
+
+
+def test_initial_analysis_prompt_has_the_approved_contract() -> None:
+    text = RebuildPromptLoader().load(RebuildPromptType.INITIAL_ANALYSIS).prompt_text
+    lowered = " ".join(text.lower().split())
+
+    for phrase in (
+        "ticker",
+        "company name",
+        "optional initial note",
+        "one orderbook image",
+        "one three-month chart image",
+        "one six-month chart image",
+        "current price is not supplied separately",
+        "no position exists",
+        "initial orderbook screenshot",
+        "three-month chart screenshot",
+        "six-month chart screenshot",
+        "exactly one json object",
+        "no extra fields",
+        "do not use markdown code fences",
+        "do not use markdown code fences, a markdown wrapper, or prose before or after the json",
+        "only the user may make and confirm a trading decision",
+        "must not claim that an order was executed",
+        "must not invent an entry price, quantity, or execution timestamp",
+        "must not create a position",
+        "must not be persisted as user decisions",
+        "dashboard-oriented",
+        "tidak tersedia",
+        "tidak dapat disimpulkan",
+        "bukti visual belum cukup jelas",
+        "partial exit",
+        "closing analysis",
+        "wait update",
+        "position update",
+    ):
+        assert phrase in lowered
+
+    assert lowered.index("initial orderbook screenshot") < lowered.index(
+        "three-month chart screenshot"
+    ) < lowered.index("six-month chart screenshot")
+
+
+def test_initial_analysis_prompt_covers_exact_schema_sections() -> None:
+    text = RebuildPromptLoader().load(RebuildPromptType.INITIAL_ANALYSIS).prompt_text.lower()
+    for section in (
+        "summary",
+        "orderbook_analysis",
+        "three_month_chart_analysis",
+        "six_month_chart_analysis",
+        "support",
+        "resistance",
+        "entry_area",
+        "stop_recommendation",
+        "target_recommendation",
+        "probabilities",
+        "risks",
+        "trading_plan",
+        "conclusion",
+    ):
+        assert section in text
+
+
+def test_initial_analysis_prompt_has_no_provider_or_fallback_instruction() -> None:
+    text = RebuildPromptLoader().load(RebuildPromptType.INITIAL_ANALYSIS).prompt_text.lower()
+    assert "provider" not in text
+    assert "fallback" not in text
