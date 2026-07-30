@@ -3,13 +3,14 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
-from app.database.types import pg_uuid, utc_datetime
+from app.database.types import pg_uuid, price_numeric, utc_datetime
 from app.trade_workspace.models.analysis_request import AnalysisRequestV2ObservationPeriod
 
 
@@ -58,6 +59,10 @@ class EvidenceUploadV2(Base):
             native_enum=True,
         ),
         nullable=True,
+    )
+    current_price: Mapped[Decimal | None] = mapped_column(price_numeric(), nullable=True)
+    observation_timestamp: Mapped[datetime | None] = mapped_column(
+        utc_datetime(), nullable=True
     )
     file_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
