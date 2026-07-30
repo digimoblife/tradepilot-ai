@@ -49,6 +49,15 @@ class WaitDecisionResponse(BaseModel):
     session_status: str
 
 
+class SkipDecisionResponse(BaseModel):
+    decision_id: str
+    session_id: str
+    decision_type: str
+    decision_at: datetime
+    session_status: str
+    closed_at: datetime
+
+
 class InitialEvidenceResponse(BaseModel):
     id: str
     evidence_type: str

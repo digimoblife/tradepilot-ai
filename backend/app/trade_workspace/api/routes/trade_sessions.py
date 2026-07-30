@@ -15,6 +15,7 @@ from app.trade_workspace.api.schemas import (
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
+    SkipDecisionResponse,
     TradeSessionCreateRequest,
     TradeSessionListResponse,
     TradeSessionResponse,
@@ -38,6 +39,10 @@ from app.trade_workspace.services.initial_analysis_retry import (
 from app.trade_workspace.services.initial_analysis_submission import (
     InitialAnalysisSubmissionError,
     InitialAnalysisSubmissionService,
+)
+from app.trade_workspace.services.skip_decision import (
+    SkipDecisionError,
+    SkipDecisionService,
 )
 from app.trade_workspace.services.trade_sessions import RebuildTradeSessionService
 from app.trade_workspace.services.wait_decision import (
@@ -324,6 +329,38 @@ async def create_wait_decision(
         decision_type=result.decision_type.value,
         decision_at=result.decision_at,
         session_status=result.session_status.value,
+    )
+
+
+@router.post(
+    "/{session_id}/decisions/skip",
+    response_model=SkipDecisionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_skip_decision(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> SkipDecisionResponse:
+    try:
+        result = await SkipDecisionService(db_session).create(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except SkipDecisionError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return SkipDecisionResponse(
+        decision_id=str(result.decision_id),
+        session_id=str(result.session_id),
+        decision_type=result.decision_type.value,
+        decision_at=result.decision_at,
+        session_status=result.session_status.value,
+        closed_at=result.closed_at,
     )
 
 
