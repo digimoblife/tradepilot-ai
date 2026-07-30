@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -10,6 +10,7 @@ from app.api.errors import SESSION_NOT_FOUND, get_error_message
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
 from app.trade_workspace.api.schemas import (
+    InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
     TradeSessionCreateRequest,
@@ -22,9 +23,23 @@ from app.trade_workspace.services.evidence_uploads import (
     InitialEvidenceUploadError,
     InitialEvidenceUploadService,
 )
+from app.trade_workspace.services.initial_analysis_submission import (
+    InitialAnalysisSubmissionError,
+    InitialAnalysisSubmissionService,
+)
 from app.trade_workspace.services.trade_sessions import RebuildTradeSessionService
 
 router = APIRouter(prefix="/api/v2/trade-sessions", tags=["rebuild-trade-sessions"])
+
+
+def get_rebuild_analysis_queue(request: Request) -> object:
+    queue = getattr(request.app.state, "rebuild_analysis_queue", None)
+    if queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "QUEUE_UNAVAILABLE", "message": "Analysis queue is unavailable"},
+        )
+    return queue
 
 
 def _to_response(trade_session: object) -> TradeSessionResponse:
@@ -135,6 +150,37 @@ async def upload_initial_evidence(
     except InitialEvidenceUploadError as exc:
         raise _upload_error(exc) from exc
     return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
+
+
+@router.post(
+    "/{session_id}/initial-analysis",
+    response_model=InitialAnalysisSubmissionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def submit_initial_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+    queue: object = Depends(get_rebuild_analysis_queue),
+) -> InitialAnalysisSubmissionResponse:
+    try:
+        result = await InitialAnalysisSubmissionService(db_session, queue).submit(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except InitialAnalysisSubmissionError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return InitialAnalysisSubmissionResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        session_status=result.session_status.value,
+        created_at=result.created_at,
+    )
 
 
 @router.get("", response_model=TradeSessionListResponse)

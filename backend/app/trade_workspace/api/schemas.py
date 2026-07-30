@@ -46,3 +46,12 @@ class InitialEvidenceResponse(BaseModel):
 
 class InitialEvidenceUploadResponse(BaseModel):
     evidence: list[InitialEvidenceResponse]
+
+
+class InitialAnalysisSubmissionResponse(BaseModel):
+    analysis_request_id: str
+    session_id: str
+    analysis_type: str
+    request_status: str
+    session_status: str
+    created_at: datetime
