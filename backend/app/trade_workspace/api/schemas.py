@@ -127,6 +127,19 @@ class PositionUpdateInputResponse(BaseModel):
     position_status: str
 
 
+class PositionUpdateAnalysisSubmissionResponse(BaseModel):
+    analysis_request_id: str
+    session_id: str
+    position_id: str
+    analysis_type: str
+    request_status: str
+    evidence_id: str
+    observation_period: str
+    session_status: str
+    position_status: str
+    created_at: datetime
+
+
 class InitialEvidenceResponse(BaseModel):
     id: str
     evidence_type: str

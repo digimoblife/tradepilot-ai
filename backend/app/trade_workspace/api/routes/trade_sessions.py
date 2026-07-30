@@ -19,6 +19,7 @@ from app.trade_workspace.api.schemas import (
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
+    PositionUpdateAnalysisSubmissionResponse,
     PositionUpdateInputResponse,
     SkipDecisionRequest,
     SkipDecisionResponse,
@@ -54,6 +55,10 @@ from app.trade_workspace.services.initial_analysis_retry import (
 from app.trade_workspace.services.initial_analysis_submission import (
     InitialAnalysisSubmissionError,
     InitialAnalysisSubmissionService,
+)
+from app.trade_workspace.services.position_update_analysis_submission import (
+    PositionUpdateAnalysisSubmissionError,
+    PositionUpdateAnalysisSubmissionService,
 )
 from app.trade_workspace.services.position_update_input import (
     PositionUpdateInputError,
@@ -301,6 +306,43 @@ async def submit_position_update_input(
         uploaded_at=result.uploaded_at,
         session_status=result.session_status.value,
         position_status=result.position_status.value,
+    )
+
+
+@router.post(
+    "/{session_id}/position-update-analysis",
+    response_model=PositionUpdateAnalysisSubmissionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def submit_position_update_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+    queue: object = Depends(get_rebuild_analysis_queue),
+) -> PositionUpdateAnalysisSubmissionResponse:
+    try:
+        result = await PositionUpdateAnalysisSubmissionService(db_session, queue).submit(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except PositionUpdateAnalysisSubmissionError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return PositionUpdateAnalysisSubmissionResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        position_id=str(result.position_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        evidence_id=str(result.evidence_id),
+        observation_period=result.observation_period.value,
+        session_status=result.session_status.value,
+        position_status=result.position_status.value,
+        created_at=result.created_at,
     )
 
 
