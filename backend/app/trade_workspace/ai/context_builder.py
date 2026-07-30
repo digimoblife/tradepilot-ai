@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 
 from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,24 +187,37 @@ class RebuildAnalysisContextBuilder:
                 position=None,
             )
 
-        observation = self._observation_facts(request)
-        orderbook = self._latest_orderbook(linked_evidence)
-        current_position = await self._load_positions(session_id)
-
         if resolved_type is RebuildAnalysisType.WAIT_UPDATE:
+            current_evidence = self._wait_update_evidence(linked_evidence, request.id)
+            observation = self._wait_update_observation_facts(request, current_evidence)
+            current_position = await self._load_positions(session_id)
             if current_position:
                 raise UnexpectedPositionError(
                     "WAIT_UPDATE context cannot be built for a session with a position"
                 )
-            position = None
-        else:
-            if not current_position:
-                raise MissingPositionError("POSITION_UPDATE context requires one position")
-            if len(current_position) > 1:
-                raise MultiplePositionsError(
-                    "POSITION_UPDATE context requires exactly one position"
-                )
-            position = self._position_facts(current_position[0], session_id)
+            initial_analysis, prior_wait = await self._load_wait_update_history(
+                session_id=session_id,
+                current_request=request,
+            )
+            return AnalysisContext(
+                analysis_type=resolved_type,
+                session=session_facts,
+                current_observation=observation,
+                evidence=(self._evidence_reference(current_evidence),),
+                initial_analysis=initial_analysis,
+                history=(prior_wait,) if prior_wait is not None else (),
+                position=None,
+            )
+
+        observation = self._observation_facts(request)
+        orderbook = self._latest_orderbook(linked_evidence)
+        current_position = await self._load_positions(session_id)
+
+        if not current_position:
+            raise MissingPositionError("POSITION_UPDATE context requires one position")
+        if len(current_position) > 1:
+            raise MultiplePositionsError("POSITION_UPDATE context requires exactly one position")
+        position = self._position_facts(current_position[0], session_id)
 
         history = await self._load_history(session_id, request.id, resolved_type)
         initial_analysis = self._find_initial_analysis(history)
@@ -323,6 +337,52 @@ class RebuildAnalysisContextBuilder:
         return RebuildAnalysisContextBuilder._evidence_reference(orderbooks[-1])
 
     @staticmethod
+    def _wait_update_evidence(
+        linked_evidence: list[EvidenceUploadV2],
+        analysis_request_id: uuid.UUID,
+    ) -> EvidenceUploadV2:
+        if len(linked_evidence) != 1:
+            raise MissingRequiredEvidenceError(
+                "WAIT_UPDATE requires exactly one linked current evidence record"
+            )
+        evidence = linked_evidence[0]
+        if (
+            evidence.analysis_request_id != analysis_request_id
+            or evidence.session_id is None
+            or evidence.evidence_type is not EvidenceUploadV2Type.ORDERBOOK
+            or evidence.current_price is None
+            or evidence.observation_period is None
+            or evidence.observation_timestamp is None
+            or not evidence.file_path.strip()
+            or Path(evidence.file_path).is_absolute()
+        ):
+            raise MissingRequiredEvidenceError(
+                "WAIT_UPDATE current evidence is missing required persisted facts"
+            )
+        return evidence
+
+    @staticmethod
+    def _wait_update_observation_facts(
+        request: AnalysisRequestV2,
+        evidence: EvidenceUploadV2,
+    ) -> ObservationFacts:
+        request_observation = RebuildAnalysisContextBuilder._observation_facts(request)
+        if (
+            evidence.current_price != request_observation.current_price
+            or evidence.observation_period is not request_observation.observation_period
+            or evidence.observation_timestamp != request_observation.observation_at
+        ):
+            raise MissingObservationFactsError(
+                "WAIT_UPDATE request and evidence observation facts do not match"
+            )
+        return ObservationFacts(
+            current_price=evidence.current_price,
+            observation_period=evidence.observation_period,
+            observation_at=evidence.observation_timestamp,
+            user_note=request_observation.user_note,
+        )
+
+    @staticmethod
     def _evidence_reference(evidence: EvidenceUploadV2) -> EvidenceReference:
         return EvidenceReference(
             evidence_id=evidence.id,
@@ -384,6 +444,57 @@ class RebuildAnalysisContextBuilder:
                 "No completed Initial Analysis is available for this session"
             )
         return _bound_history(summaries, initial)
+
+    async def _load_wait_update_history(
+        self,
+        *,
+        session_id: uuid.UUID,
+        current_request: AnalysisRequestV2,
+    ) -> tuple[AnalysisSummary, AnalysisSummary | None]:
+        initial_request = await self._session.scalar(
+            select(AnalysisRequestV2)
+            .where(
+                AnalysisRequestV2.session_id == session_id,
+                AnalysisRequestV2.analysis_type == AnalysisRequestV2Type.INITIAL_ANALYSIS,
+                AnalysisRequestV2.status == AnalysisRequestV2Status.COMPLETED,
+                AnalysisRequestV2.processed_response.is_not(None),
+            )
+            .order_by(
+                AnalysisRequestV2.completed_at.desc().nullslast(),
+                AnalysisRequestV2.created_at.desc(),
+                AnalysisRequestV2.id.desc(),
+            )
+            .limit(1)
+        )
+        if initial_request is None:
+            raise MissingInitialAnalysisError(
+                "No completed Initial Analysis is available for this session"
+            )
+
+        prior_request = await self._session.scalar(
+            select(AnalysisRequestV2)
+            .where(
+                AnalysisRequestV2.session_id == session_id,
+                AnalysisRequestV2.id != current_request.id,
+                AnalysisRequestV2.analysis_type == AnalysisRequestV2Type.WAIT_UPDATE,
+                AnalysisRequestV2.status == AnalysisRequestV2Status.COMPLETED,
+                AnalysisRequestV2.processed_response.is_not(None),
+                (AnalysisRequestV2.created_at < current_request.created_at)
+                | (
+                    (AnalysisRequestV2.created_at == current_request.created_at)
+                    & (AnalysisRequestV2.id < current_request.id)
+                ),
+            )
+            .order_by(
+                AnalysisRequestV2.completed_at.desc().nullslast(),
+                AnalysisRequestV2.created_at.desc(),
+                AnalysisRequestV2.id.desc(),
+            )
+            .limit(1)
+        )
+        return self._analysis_summary(initial_request), (
+            self._analysis_summary(prior_request) if prior_request is not None else None
+        )
 
     @staticmethod
     def _find_initial_analysis(

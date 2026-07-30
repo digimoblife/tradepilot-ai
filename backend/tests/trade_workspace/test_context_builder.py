@@ -280,6 +280,9 @@ async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> N
                     analysis_request_id=current_wait.id,
                     file_path="local/current-wait.png",
                     original_filename="current-wait.png",
+                    current_price=current_wait.current_price,
+                    observation_period=current_wait.observation_period,
+                    observation_timestamp=current_wait.observation_at,
                 )
             )
             current_position_orderbook = EvidenceUploadV2(
@@ -296,6 +299,9 @@ async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> N
                     missing_initial_session_id,
                     EvidenceUploadV2Type.ORDERBOOK,
                     analysis_request_id=missing_initial_request.id,
+                    current_price=missing_initial_request.current_price,
+                    observation_period=missing_initial_request.observation_period,
+                    observation_timestamp=missing_initial_request.observation_at,
                 )
             )
             missing_position_orderbook = EvidenceUploadV2(
