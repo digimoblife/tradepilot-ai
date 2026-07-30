@@ -12,6 +12,7 @@ from app.trade_workspace.models.position import PositionV2
 from app.trade_workspace.models.session_decision import (
     SessionDecisionV2,
     SessionDecisionV2Decision,
+    SessionDecisionV2Reason,
 )
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
@@ -46,6 +47,8 @@ class SkipDecisionResult:
     decision_id: uuid.UUID
     session_id: uuid.UUID
     decision_type: SessionDecisionV2Decision
+    reason: SessionDecisionV2Reason
+    note: str | None
     decision_at: datetime
     session_status: TradeSessionV2Status
     closed_at: datetime
@@ -58,7 +61,12 @@ class SkipDecisionService:
         self._session = session
 
     async def create(
-        self, *, user_id: uuid.UUID, session_id: uuid.UUID
+        self,
+        *,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        reason: SessionDecisionV2Reason,
+        note: str | None,
     ) -> SkipDecisionResult:
         await self._session.execute(
             select(func.pg_advisory_xact_lock(_session_lock_key(session_id)))
@@ -91,6 +99,8 @@ class SkipDecisionService:
         decision = SessionDecisionV2(
             session_id=session_id,
             decision=SessionDecisionV2Decision.SKIP,
+            reason=reason,
+            note=note,
         )
         self._session.add(decision)
         trade_session.status = TradeSessionV2Status.CLOSED_SKIPPED
@@ -107,6 +117,8 @@ class SkipDecisionService:
             decision_id=decision.id,
             session_id=trade_session.id,
             decision_type=decision.decision,
+            reason=decision.reason,
+            note=decision.note,
             decision_at=decision.created_at,
             session_status=trade_session.status,
             closed_at=trade_session.closed_at,

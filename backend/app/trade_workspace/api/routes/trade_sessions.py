@@ -15,6 +15,7 @@ from app.trade_workspace.api.schemas import (
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
+    SkipDecisionRequest,
     SkipDecisionResponse,
     TradeSessionCreateRequest,
     TradeSessionListResponse,
@@ -339,6 +340,7 @@ async def create_wait_decision(
 )
 async def create_skip_decision(
     session_id: uuid.UUID,
+    body: SkipDecisionRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> SkipDecisionResponse:
@@ -346,6 +348,8 @@ async def create_skip_decision(
         result = await SkipDecisionService(db_session).create(
             user_id=current_user.id,
             session_id=session_id,
+            reason=body.reason,
+            note=body.note,
         )
     except SkipDecisionError as exc:
         if exc.code == "SESSION_NOT_FOUND":
@@ -358,6 +362,8 @@ async def create_skip_decision(
         decision_id=str(result.decision_id),
         session_id=str(result.session_id),
         decision_type=result.decision_type.value,
+        reason=result.reason.value,
+        note=result.note,
         decision_at=result.decision_at,
         session_status=result.session_status.value,
         closed_at=result.closed_at,

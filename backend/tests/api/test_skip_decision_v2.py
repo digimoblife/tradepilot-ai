@@ -27,6 +27,7 @@ from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.session_decision import (
     SessionDecisionV2,
     SessionDecisionV2Decision,
+    SessionDecisionV2Reason,
 )
 from app.trade_workspace.models.trade_closure import TradeClosureV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
@@ -107,6 +108,7 @@ async def _post_skip(
     db_session: AsyncSession,
     session_id: uuid.UUID,
     email: str | None,
+    body: dict[str, object] | None = None,
 ) -> tuple[int, dict[str, object]]:
     app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -117,7 +119,8 @@ async def _post_skip(
             )
             assert login.status_code == 200
         response = await client.post(
-            f"/api/v2/trade-sessions/{session_id}/decisions/skip"
+            f"/api/v2/trade-sessions/{session_id}/decisions/skip",
+            json=body if body is not None else {"reason": "USER_DECISION"},
         )
     return response.status_code, response.json()
 
@@ -342,3 +345,69 @@ async def test_concurrent_skip_calls_create_only_one_decision(
     assert session is not None
     assert session.status is TradeSessionV2Status.CLOSED_SKIPPED
     assert session.closed_at is not None
+
+
+@pytest.mark.parametrize("reason", list(SessionDecisionV2Reason))
+async def test_every_approved_skip_reason_is_persisted_and_returned(
+    engine: AsyncEngine, db_session: AsyncSession, reason: SessionDecisionV2Reason
+) -> None:
+    _, session_id, email = await _seed(engine, TradeSessionV2Status.ANALYZED)
+    code, payload = await _post_skip(
+        db_session, session_id, email, {"reason": reason.value}
+    )
+    assert code == 201
+    assert payload["reason"] == reason.value
+    assert payload["note"] is None
+    decision = await db_session.scalar(
+        select(SessionDecisionV2).where(SessionDecisionV2.id == uuid.UUID(payload["decision_id"]))
+    )
+    assert decision is not None
+    assert decision.reason is reason
+    assert decision.note is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"reason": "OTHER", "note": "catatan pengguna"},
+        {"reason": "OTHER", "note": None},
+        {"reason": "OTHER"},
+    ],
+)
+async def test_skip_note_is_optional_and_preserved(
+    engine: AsyncEngine,
+    db_session: AsyncSession,
+    body: dict[str, object],
+) -> None:
+    _, session_id, email = await _seed(engine, TradeSessionV2Status.ANALYZED)
+    code, payload = await _post_skip(db_session, session_id, email, body)
+    assert code == 201
+    expected_note = body.get("note")
+    assert payload["note"] == expected_note
+    decision = await db_session.scalar(
+        select(SessionDecisionV2).where(SessionDecisionV2.id == uuid.UUID(payload["decision_id"]))
+    )
+    assert decision is not None
+    assert decision.note == expected_note
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"reason": "NOT_APPROVED"}, {"reason": "buy"}, {"reason": "OTHER", "extra": "nope"}],
+)
+async def test_skip_rejects_missing_unsupported_or_extra_reason_input(
+    engine: AsyncEngine,
+    db_session: AsyncSession,
+    body: dict[str, object],
+) -> None:
+    _, session_id, email = await _seed(engine, TradeSessionV2Status.ANALYZED)
+    code, payload = await _post_skip(db_session, session_id, email, body)
+    assert code == 422
+    assert payload["error"]["code"] == "VALIDATION_ERROR"
+    assert await _count(db_session, SessionDecisionV2, session_id) == 0
+    session = await db_session.scalar(
+        select(TradeSessionV2).where(TradeSessionV2.id == session_id)
+    )
+    assert session is not None
+    assert session.status is TradeSessionV2Status.ANALYZED
+    assert session.closed_at is None

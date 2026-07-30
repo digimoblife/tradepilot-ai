@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.trade_workspace.models.session_decision import SessionDecisionV2Reason
+
 
 class TradeSessionCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -53,9 +55,18 @@ class SkipDecisionResponse(BaseModel):
     decision_id: str
     session_id: str
     decision_type: str
+    reason: str
+    note: str | None
     decision_at: datetime
     session_status: str
     closed_at: datetime
+
+
+class SkipDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: SessionDecisionV2Reason
+    note: str | None = None
 
 
 class InitialEvidenceResponse(BaseModel):
