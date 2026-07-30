@@ -1,5 +1,5 @@
 import { publicEnv } from "@/lib/env";
-import type { BuyDecisionResult, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult } from "./types";
+import type { BuyDecisionResult, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, { ...options, credentials: "include" });
@@ -25,6 +25,17 @@ export function uploadInitialEvidence(id: string, files: { orderbook: File; char
 export function submitInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return request(`${base}/${id}/initial-analysis`, { method: "POST" }); }
 export function readInitialAnalysis(id: string): Promise<InitialAnalysisRead> { return request(`${base}/${id}/initial-analysis`); }
 export function retryInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return request(`${base}/${id}/initial-analysis/retry`, { method: "POST" }); }
+export function uploadWaitUpdateInput(id: string, input: { orderbook: File; current_price: string; observation_period: ObservationPeriod; observation_timestamp: string }): Promise<WaitUpdateInputResponse> {
+  const body = new FormData();
+  body.append("orderbook", input.orderbook);
+  body.append("current_price", input.current_price);
+  body.append("observation_period", input.observation_period);
+  body.append("observation_timestamp", input.observation_timestamp);
+  return request(`${base}/${id}/wait-update-input`, { method: "POST", body });
+}
+export function submitWaitUpdateAnalysis(id: string): Promise<WaitUpdateAnalysisSubmission> { return request(`${base}/${id}/wait-update-analysis`, { method: "POST" }); }
+export function readWaitUpdateAnalysis(id: string): Promise<WaitUpdateAnalysisRead> { return request(`${base}/${id}/wait-update-analysis`); }
+export function retryWaitUpdateAnalysis(id: string): Promise<WaitUpdateRecoveryResponse> { return request(`${base}/${id}/wait-update-analysis/retry`, { method: "POST" }); }
 export function getAvailableActions(id: string): Promise<DecisionAvailability> { return request(`${base}/${id}/available-actions`); }
 export function waitDecision(id: string): Promise<WaitDecisionResult> { return request(`${base}/${id}/decisions/wait`, { method: "POST" }); }
 export function skipDecision(id: string, body: { reason: SkipReason; note?: string | null }): Promise<SkipDecisionResult> {

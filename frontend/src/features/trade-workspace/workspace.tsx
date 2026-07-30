@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buyDecision,
   getAvailableActions,
@@ -21,6 +21,7 @@ import type {
   TradeSession,
 } from "./types";
 import { InitialAnalysisResultView } from "./result";
+import { WaitUpdatePanel } from "./wait-update";
 
 const skipReasons: Array<{ value: SkipReason; label: string }> = [
   { value: "RISK_TOO_HIGH", label: "Risiko terlalu tinggi" },
@@ -56,6 +57,8 @@ export function SessionWorkspace({
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [decisionSuccess, setDecisionSuccess] = useState<string | null>(null);
   const [buyResult, setBuyResult] = useState<BuyDecisionResult | null>(null);
+  const [waitPanelActive, setWaitPanelActive] = useState(false);
+  const [waitCycle, setWaitCycle] = useState(0);
   const [skipReason, setSkipReason] = useState<SkipReason | "">("");
   const [skipNote, setSkipNote] = useState("");
   const [buyForm, setBuyForm] = useState({
@@ -69,14 +72,23 @@ export function SessionWorkspace({
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
-  async function refreshDecisionWorkspace() {
+  const refreshDecisionWorkspace = useCallback(async () => {
     const [nextSession, nextAvailability] = await Promise.all([
       getSession(sessionId),
       getAvailableActions(sessionId),
     ]);
     setSession(nextSession);
     setAvailability(nextAvailability);
-  }
+    if (nextSession.status !== "WAITING" && nextSession.status !== "ANALYZING") {
+      setWaitPanelActive(false);
+    }
+  }, [sessionId]);
+
+  const handleWaitProcessing = useCallback(() => {
+    setWaitPanelActive(true);
+    setSession((current) => current ? { ...current, status: "ANALYZING" } : current);
+    setAvailability((current) => current ? { ...current, session_status: "ANALYZING", available_actions: [] } : current);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,6 +203,8 @@ export function SessionWorkspace({
     setDecisionSuccess(null);
     try {
       await waitDecision(sessionId);
+      setWaitPanelActive(true);
+      setWaitCycle((current) => current + 1);
       await refreshDecisionWorkspace();
       setDecisionSuccess("Keputusan WAIT tersimpan.");
     } catch (reason: unknown) {
@@ -270,6 +284,7 @@ export function SessionWorkspace({
       {actions.includes("SKIP") && <form onSubmit={submitSkip} className="mt-5 space-y-3 border-t border-zinc-100 pt-5"><h4 className="font-medium">Tutup tanpa posisi</h4><label className="block text-sm font-medium" htmlFor="skip-reason">Alasan SKIP<select id="skip-reason" required value={skipReason} onChange={(event) => setSkipReason(event.target.value as SkipReason | "")} className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"><option value="">Pilih alasan</option>{skipReasons.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}</select></label><label className="block text-sm font-medium" htmlFor="skip-note">Catatan SKIP (opsional)<textarea id="skip-note" value={skipNote} onChange={(event) => setSkipNote(event.target.value)} className="mt-1 block min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><button type="submit" disabled={decisionSubmitting !== null} className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{decisionSubmitting === "SKIP" ? "Menyimpan…" : "Konfirmasi SKIP"}</button></form>}
       {actions.includes("BUY") && <form onSubmit={submitBuy} className="mt-5 space-y-3 border-t border-zinc-100 pt-5"><h4 className="font-medium">Konfirmasi posisi BUY</h4><div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium" htmlFor="buy-entry-price">Harga entry<input id="buy-entry-price" required inputMode="decimal" value={buyForm.entry_price} onChange={(event) => setBuyForm((current) => ({ ...current, entry_price: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-entry-timestamp">Waktu entry<input id="buy-entry-timestamp" required type="text" placeholder="2026-07-30T09:15:00Z" value={buyForm.entry_timestamp} onChange={(event) => setBuyForm((current) => ({ ...current, entry_timestamp: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-quantity">Kuantitas<input id="buy-quantity" required inputMode="decimal" value={buyForm.quantity} onChange={(event) => setBuyForm((current) => ({ ...current, quantity: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-stop-loss">Stop loss<input id="buy-stop-loss" required inputMode="decimal" value={buyForm.stop_loss} onChange={(event) => setBuyForm((current) => ({ ...current, stop_loss: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-target-price">Target price<input id="buy-target-price" required inputMode="decimal" value={buyForm.target_price} onChange={(event) => setBuyForm((current) => ({ ...current, target_price: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label></div><label className="block text-sm font-medium" htmlFor="buy-note">Catatan BUY (opsional)<textarea id="buy-note" value={buyForm.note} onChange={(event) => setBuyForm((current) => ({ ...current, note: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><button type="submit" disabled={decisionSubmitting !== null} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{decisionSubmitting === "BUY" ? "Menyimpan…" : "Konfirmasi BUY"}</button></form>}
     </section>}
+    {(waitPanelActive || session.status === "WAITING") && <WaitUpdatePanel key={`${sessionId}-${waitCycle}`} sessionId={sessionId} sessionStatus={session.status} onProcessing={handleWaitProcessing} onFinished={refreshDecisionWorkspace} />}
     {buyResult && session.status === "OPEN_POSITION" && <section aria-label="Posisi terbuka" className="rounded-xl border border-emerald-200 bg-emerald-50 p-5"><h3 className="font-semibold text-emerald-950">Posisi OPEN</h3><dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><div><dt className="text-emerald-800">Harga entry</dt><dd className="font-medium">{buyResult.entry_price}</dd></div><div><dt className="text-emerald-800">Waktu entry</dt><dd className="font-medium">{buyResult.entry_timestamp}</dd></div><div><dt className="text-emerald-800">Kuantitas</dt><dd className="font-medium">{buyResult.quantity}</dd></div><div><dt className="text-emerald-800">Stop loss</dt><dd className="font-medium">{buyResult.stop_loss}</dd></div><div><dt className="text-emerald-800">Target price</dt><dd className="font-medium">{buyResult.target_price}</dd></div></dl></section>}
     {!analysis && session.status === "DRAFT" && knownEvidence.length === 0 && <form onSubmit={upload} className="rounded-xl border bg-white p-5 shadow-sm"><h3 className="font-semibold">Evidence Initial Analysis</h3><p className="mt-1 text-sm text-zinc-500">Unggah tepat tiga gambar: order book, grafik 3 bulan, dan grafik 6 bulan.</p><div className="mt-4 grid gap-3">{([['orderbook', 'Order Book'], ['chart_3_month', 'Grafik 3 Bulan'], ['chart_6_month', 'Grafik 6 Bulan']] as const).map(([key, label]) => <label key={key} className="text-sm font-medium">{label}<input type="file" accept="image/*" required onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles((current) => ({ ...current, [key]: file })); }} className="mt-1 block w-full text-sm" /></label>)}</div><button disabled={busy} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mengunggah…" : "Unggah Evidence"}</button></form>}
     {knownEvidence.length > 0 && session.status === "DRAFT" && !analysis && <section className="rounded-xl border bg-white p-5"><h3 className="font-semibold">Evidence siap</h3><p className="mt-1 text-sm text-zinc-600">{knownEvidence.length} file diterima.</p><button disabled={busy} onClick={submitAnalysis} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mengirim…" : "Minta Initial Analysis"}</button></section>}

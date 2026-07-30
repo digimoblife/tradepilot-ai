@@ -36,6 +36,72 @@ export interface InitialAnalysisRead extends InitialAnalysisSubmission {
   started_at: string | null; completed_at: string | null;
 }
 
+export type ObservationPeriod = "MORNING" | "MIDDAY" | "AFTERNOON";
+
+export interface WaitUpdateInputResponse {
+  evidence_id: string;
+  session_id: string;
+  evidence_type: "ORDERBOOK";
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  current_price: string;
+  observation_period: ObservationPeriod;
+  observation_timestamp: string;
+  uploaded_at: string;
+  session_status: "WAITING";
+}
+
+export interface WaitUpdateAnalysisSubmission {
+  analysis_request_id: string;
+  session_id: string;
+  analysis_type: "WAIT_UPDATE";
+  request_status: RequestStatus;
+  evidence_id: string;
+  observation_period: ObservationPeriod;
+  session_status: SessionStatus;
+  created_at: string;
+}
+
+export interface WaitUpdateAnalysisRead {
+  analysis_request_id: string;
+  session_id: string;
+  analysis_type: "WAIT_UPDATE";
+  request_status: RequestStatus;
+  session_status: SessionStatus;
+  processed_response: WaitUpdateResult | null;
+  error_code: string | null;
+  error_message: string | null;
+  observation_period: ObservationPeriod | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface WaitUpdateRecoveryResponse {
+  analysis_request_id: string;
+  session_id: string;
+  analysis_type: "WAIT_UPDATE";
+  request_status: RequestStatus;
+  session_status: SessionStatus;
+  observation_period: ObservationPeriod | null;
+  created_at: string;
+}
+
+export interface WaitUpdateResult {
+  update_summary: unknown;
+  current_price: unknown;
+  orderbook_assessment: unknown;
+  change_from_previous_analysis: unknown;
+  current_entry_condition: unknown;
+  upside_probability: unknown;
+  downside_probability: unknown;
+  key_risks: unknown;
+  recommended_action: unknown;
+  next_plan: unknown;
+  conclusion: unknown;
+}
+
 export interface DecisionAvailability {
   session_id: string;
   session_status: SessionStatus;
