@@ -10,6 +10,8 @@ from app.api.errors import SESSION_NOT_FOUND, get_error_message
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
 from app.trade_workspace.api.schemas import (
+    BuyDecisionRequest,
+    BuyDecisionResponse,
     DecisionAvailabilityResponse,
     InitialAnalysisReadResponse,
     InitialAnalysisSubmissionResponse,
@@ -23,6 +25,10 @@ from app.trade_workspace.api.schemas import (
     WaitDecisionResponse,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
+from app.trade_workspace.services.buy_decision import (
+    BuyDecisionError,
+    BuyDecisionService,
+)
 from app.trade_workspace.services.decision_availability import DecisionAvailabilityService
 from app.trade_workspace.services.evidence_uploads import (
     InitialEvidenceInput,
@@ -329,6 +335,52 @@ async def create_wait_decision(
         session_id=str(result.session_id),
         decision_type=result.decision_type.value,
         decision_at=result.decision_at,
+        session_status=result.session_status.value,
+    )
+
+
+@router.post(
+    "/{session_id}/decisions/buy",
+    response_model=BuyDecisionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_buy_decision(
+    session_id: uuid.UUID,
+    body: BuyDecisionRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> BuyDecisionResponse:
+    try:
+        result = await BuyDecisionService(db_session).create(
+            user_id=current_user.id,
+            session_id=session_id,
+            entry_price=body.entry_price,
+            entry_timestamp=body.entry_timestamp,
+            quantity=body.quantity,
+            stop_loss=body.stop_loss,
+            target_price=body.target_price,
+            note=body.note,
+        )
+    except BuyDecisionError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return BuyDecisionResponse(
+        decision_id=str(result.decision_id),
+        session_id=str(result.session_id),
+        decision_type=result.decision_type.value,
+        decision_at=result.decision_at,
+        position_id=str(result.position_id),
+        position_status=result.position_status.value,
+        entry_price=result.entry_price,
+        entry_timestamp=result.entry_timestamp,
+        quantity=result.quantity,
+        stop_loss=result.stop_loss,
+        target_price=result.target_price,
+        note=result.note,
         session_status=result.session_status.value,
     )
 

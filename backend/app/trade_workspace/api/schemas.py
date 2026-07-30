@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -67,6 +68,33 @@ class SkipDecisionRequest(BaseModel):
 
     reason: SessionDecisionV2Reason
     note: str | None = None
+
+
+class BuyDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entry_price: Decimal = Field(gt=0)
+    entry_timestamp: datetime
+    quantity: Decimal = Field(gt=0)
+    stop_loss: Decimal = Field(gt=0)
+    target_price: Decimal = Field(gt=0)
+    note: str | None = None
+
+
+class BuyDecisionResponse(BaseModel):
+    decision_id: str
+    session_id: str
+    decision_type: str
+    decision_at: datetime
+    position_id: str
+    position_status: str
+    entry_price: Decimal
+    entry_timestamp: datetime
+    quantity: Decimal
+    stop_loss: Decimal
+    target_price: Decimal
+    note: str | None
+    session_status: str
 
 
 class InitialEvidenceResponse(BaseModel):
