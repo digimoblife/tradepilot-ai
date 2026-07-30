@@ -18,6 +18,7 @@ from app.trade_workspace.api.schemas import (
     TradeSessionCreateRequest,
     TradeSessionListResponse,
     TradeSessionResponse,
+    WaitDecisionResponse,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
 from app.trade_workspace.services.decision_availability import DecisionAvailabilityService
@@ -39,6 +40,10 @@ from app.trade_workspace.services.initial_analysis_submission import (
     InitialAnalysisSubmissionService,
 )
 from app.trade_workspace.services.trade_sessions import RebuildTradeSessionService
+from app.trade_workspace.services.wait_decision import (
+    WaitDecisionError,
+    WaitDecisionService,
+)
 
 router = APIRouter(prefix="/api/v2/trade-sessions", tags=["rebuild-trade-sessions"])
 
@@ -288,6 +293,37 @@ async def get_available_actions(
         session_id=str(result.session_id),
         session_status=result.session_status.value,
         available_actions=list(result.available_actions),
+    )
+
+
+@router.post(
+    "/{session_id}/decisions/wait",
+    response_model=WaitDecisionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_wait_decision(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> WaitDecisionResponse:
+    try:
+        result = await WaitDecisionService(db_session).create(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except WaitDecisionError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return WaitDecisionResponse(
+        decision_id=str(result.decision_id),
+        session_id=str(result.session_id),
+        decision_type=result.decision_type.value,
+        decision_at=result.decision_at,
+        session_status=result.session_status.value,
     )
 
 

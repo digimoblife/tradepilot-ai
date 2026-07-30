@@ -41,6 +41,14 @@ class DecisionAvailabilityResponse(BaseModel):
     available_actions: list[str]
 
 
+class WaitDecisionResponse(BaseModel):
+    decision_id: str
+    session_id: str
+    decision_type: str
+    decision_at: datetime
+    session_status: str
+
+
 class InitialEvidenceResponse(BaseModel):
     id: str
     evidence_type: str
