@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
+from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -23,7 +25,9 @@ from app.trade_workspace.api.schemas import (
     TradeSessionListResponse,
     TradeSessionResponse,
     WaitDecisionResponse,
+    WaitUpdateInputResponse,
 )
+from app.trade_workspace.models.analysis_request import AnalysisRequestV2ObservationPeriod
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
 from app.trade_workspace.services.buy_decision import (
     BuyDecisionError,
@@ -55,6 +59,10 @@ from app.trade_workspace.services.trade_sessions import RebuildTradeSessionServi
 from app.trade_workspace.services.wait_decision import (
     WaitDecisionError,
     WaitDecisionService,
+)
+from app.trade_workspace.services.wait_update_input import (
+    WaitUpdateInputError,
+    WaitUpdateInputService,
 )
 
 router = APIRouter(prefix="/api/v2/trade-sessions", tags=["rebuild-trade-sessions"])
@@ -178,6 +186,53 @@ async def upload_initial_evidence(
     except InitialEvidenceUploadError as exc:
         raise _upload_error(exc) from exc
     return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
+
+
+@router.post(
+    "/{session_id}/wait-update-input",
+    response_model=WaitUpdateInputResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_wait_update_input(
+    session_id: uuid.UUID,
+    orderbook: UploadFile = File(...),
+    current_price: Decimal = Form(...),
+    observation_period: AnalysisRequestV2ObservationPeriod = Form(...),
+    observation_timestamp: datetime = Form(...),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> WaitUpdateInputResponse:
+    try:
+        result = await WaitUpdateInputService(db_session).submit(
+            user_id=current_user.id,
+            session_id=session_id,
+            original_filename=_safe_original_filename(orderbook.filename),
+            mime_type=orderbook.content_type or "",
+            content=await orderbook.read(),
+            current_price=current_price,
+            observation_period=observation_period,
+            observation_timestamp=observation_timestamp,
+        )
+    except WaitUpdateInputError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return WaitUpdateInputResponse(
+        evidence_id=str(result.evidence_id),
+        session_id=str(result.session_id),
+        evidence_type=result.evidence_type.value,
+        original_filename=result.original_filename,
+        mime_type=result.mime_type,
+        size_bytes=result.size_bytes,
+        current_price=result.current_price,
+        observation_period=result.observation_period.value,
+        observation_timestamp=result.observation_timestamp,
+        uploaded_at=result.uploaded_at,
+        session_status=result.session_status.value,
+    )
 
 
 @router.post(

@@ -97,6 +97,20 @@ class BuyDecisionResponse(BaseModel):
     session_status: str
 
 
+class WaitUpdateInputResponse(BaseModel):
+    evidence_id: str
+    session_id: str
+    evidence_type: str
+    original_filename: str
+    mime_type: str
+    size_bytes: int
+    current_price: Decimal
+    observation_period: str
+    observation_timestamp: datetime
+    uploaded_at: datetime
+    session_status: str
+
+
 class InitialEvidenceResponse(BaseModel):
     id: str
     evidence_type: str
