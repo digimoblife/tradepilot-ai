@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -77,7 +78,8 @@ class FakePromptLoader:
 
 
 class FakeImageResolver:
-    def __init__(self, *, error: Exception | None = None) -> None:
+    def __init__(self, *, count: int = 2, error: Exception | None = None) -> None:
+        self.count = count
         self.error = error
         self.calls: list[tuple[object, ...]] = []
 
@@ -85,10 +87,11 @@ class FakeImageResolver:
         self.calls.append(evidence)
         if self.error is not None:
             raise self.error
-        return (
+        parts = (
             GeminiImagePart(data=b"first", mime_type="image/png"),
             GeminiImagePart(data=b"second", mime_type="image/jpeg"),
         )
+        return parts[: self.count]
 
 
 class RecordingValidator:
@@ -195,6 +198,11 @@ def _context(analysis_type: RebuildAnalysisType) -> AnalysisContext:
     )
 
 
+def _wait_context() -> AnalysisContext:
+    context = _context(RebuildAnalysisType.WAIT_UPDATE)
+    return dataclasses.replace(context, evidence=context.evidence[:1])
+
+
 async def _setup_request(
     factory: async_sessionmaker[AsyncSession],
     *,
@@ -266,11 +274,13 @@ async def _read_request(
 async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     user_id, session_id, request_id = await _setup_request(
-        factory, analysis_type=AnalysisRequestV2Type.WAIT_UPDATE
+        factory,
+        analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+        session_status=TradeSessionV2Status.ANALYZING,
     )
-    context_builder = FakeContextBuilder(_context(RebuildAnalysisType.WAIT_UPDATE))
+    context_builder = FakeContextBuilder(_wait_context())
     prompt_loader = FakePromptLoader()
-    image_resolver = FakeImageResolver()
+    image_resolver = FakeImageResolver(count=1)
     validator = RecordingValidator(ResponseValidationResult(is_valid=True))
     adapters: list[FakeAdapter] = []
     observed_claim_status: list[AnalysisRequestV2Status] = []
@@ -329,7 +339,6 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     assert len(adapters[0].calls) == 1
     assert adapters[0].calls[0]["image_parts"] == (
         GeminiImagePart(data=b"first", mime_type="image/png"),
-        GeminiImagePart(data=b"second", mime_type="image/jpeg"),
     )
     assert adapters[0].calls[0]["output_schema"]
     assert "Approved prompt text" in str(adapters[0].calls[0]["prompt_text"])
@@ -346,9 +355,107 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
             select(TradeSessionV2).where(TradeSessionV2.id == session_id)
         )
         assert session is not None
-        assert session.status.value == "DRAFT"
+        assert session.status is TradeSessionV2Status.WAITING
 
     await _cleanup(factory, user_id, session_id, request_id)
+
+
+@pytest.mark.database
+@pytest.mark.parametrize("failure", ["context", "prompt", "images", "adapter", "response"])
+async def test_wait_update_failure_is_terminal_and_returns_session_to_waiting(
+    engine, failure: str
+) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, request_id = await _setup_request(
+        factory,
+        analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+        session_status=TradeSessionV2Status.ANALYZING,
+    )
+    adapter = FakeAdapter(
+        "gemini-persisted",
+        error=GeminiAdapterError("api_key=secret"),
+    )
+    validator = RecordingValidator(ResponseValidationResult(is_valid=failure != "response"))
+    async with factory() as session:
+        processor = RebuildAnalysisProcessor(
+            session,
+            image_resolver=FakeImageResolver(count=2 if failure == "images" else 1),
+            context_builder=FakeContextBuilder(
+                _wait_context()
+                if failure != "context"
+                else None,
+                error=RuntimeError("authorization=secret") if failure == "context" else None,
+            ),
+            prompt_loader=FakePromptLoader(
+                error=PromptLoaderError("token=secret") if failure == "prompt" else None
+            ),
+            validator=validator,
+            adapter_factory=lambda model: adapter,
+        )
+        result = await processor.process(analysis_request_id=request_id)
+
+    assert result.status is AnalysisRequestV2Status.FAILED
+    persisted = await _read_request(factory, request_id)
+    assert persisted.status is AnalysisRequestV2Status.FAILED
+    assert persisted.completed_at is not None
+    assert persisted.processed_response is None
+    assert "secret" not in (persisted.error_message or "")
+    assert len(adapter.calls) == (1 if failure in {"adapter", "response"} else 0)
+    async with factory() as verify:
+        trade_session = await verify.scalar(
+            select(TradeSessionV2).where(TradeSessionV2.id == session_id)
+        )
+        assert trade_session is not None
+        assert trade_session.status is TradeSessionV2Status.WAITING
+    await _cleanup(factory, user_id, session_id, request_id)
+
+
+@pytest.mark.database
+async def test_wait_update_duplicate_delivery_calls_adapter_once_and_is_session_scoped(
+    engine,
+) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    first_user, first_session, first_request = await _setup_request(
+        factory,
+        analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+        session_status=TradeSessionV2Status.ANALYZING,
+    )
+    second_user, second_session, second_request = await _setup_request(
+        factory,
+        analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+        session_status=TradeSessionV2Status.ANALYZING,
+    )
+    adapter = FakeAdapter("gemini-persisted")
+    async with factory() as session:
+        processor = RebuildAnalysisProcessor(
+            session,
+            image_resolver=FakeImageResolver(count=1),
+            context_builder=FakeContextBuilder(_wait_context()),
+            adapter_factory=lambda model: adapter,
+        )
+        first_result = await processor.process(analysis_request_id=first_request)
+        with pytest.raises(AnalysisRequestNotPendingError):
+            await processor.process(analysis_request_id=first_request)
+
+    assert first_result.status is AnalysisRequestV2Status.COMPLETED
+    assert len(adapter.calls) == 1
+    first_persisted = await _read_request(factory, first_request)
+    second_persisted = await _read_request(factory, second_request)
+    assert first_persisted.status is AnalysisRequestV2Status.COMPLETED
+    assert second_persisted.status is AnalysisRequestV2Status.PENDING
+    async with factory() as verify:
+        first_trade_session = await verify.scalar(
+            select(TradeSessionV2).where(TradeSessionV2.id == first_session)
+        )
+        second_trade_session = await verify.scalar(
+            select(TradeSessionV2).where(TradeSessionV2.id == second_session)
+        )
+        assert first_trade_session is not None
+        assert second_trade_session is not None
+        assert first_trade_session.status is TradeSessionV2Status.WAITING
+        assert second_trade_session.status is TradeSessionV2Status.ANALYZING
+    await _cleanup(factory, first_user, first_session, first_request)
+    await _cleanup(factory, second_user, second_session, second_request)
 
 
 @pytest.mark.database
@@ -460,16 +567,26 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
         analysis_type=analysis_type,
         session_status=(
             TradeSessionV2Status.ANALYZING
-            if analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS
+            if analysis_type in {
+                AnalysisRequestV2Type.INITIAL_ANALYSIS,
+                AnalysisRequestV2Type.WAIT_UPDATE,
+            }
             else TradeSessionV2Status.DRAFT
         ),
     )
     adapter = FakeAdapter("gemini-persisted")
+    context = (
+        _wait_context()
+        if rebuild_type is RebuildAnalysisType.WAIT_UPDATE
+        else _context(rebuild_type)
+    )
     async with factory() as session:
         processor = RebuildAnalysisProcessor(
             session,
-            image_resolver=FakeImageResolver(),  # type: ignore[arg-type]
-            context_builder=FakeContextBuilder(_context(rebuild_type)),  # type: ignore[arg-type]
+            image_resolver=FakeImageResolver(
+                count=1 if rebuild_type is RebuildAnalysisType.WAIT_UPDATE else 2
+            ),  # type: ignore[arg-type]
+            context_builder=FakeContextBuilder(context),  # type: ignore[arg-type]
             adapter_factory=lambda model: adapter,  # type: ignore[arg-type]
         )
         result = await processor.process(analysis_request_id=request_id)
