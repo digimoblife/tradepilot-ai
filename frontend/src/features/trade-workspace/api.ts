@@ -1,5 +1,5 @@
 import { publicEnv } from "@/lib/env";
-import type { EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, TradeSession } from "./types";
+import type { BuyDecisionResult, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, { ...options, credentials: "include" });
@@ -25,5 +25,13 @@ export function uploadInitialEvidence(id: string, files: { orderbook: File; char
 export function submitInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return request(`${base}/${id}/initial-analysis`, { method: "POST" }); }
 export function readInitialAnalysis(id: string): Promise<InitialAnalysisRead> { return request(`${base}/${id}/initial-analysis`); }
 export function retryInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return request(`${base}/${id}/initial-analysis/retry`, { method: "POST" }); }
+export function getAvailableActions(id: string): Promise<DecisionAvailability> { return request(`${base}/${id}/available-actions`); }
+export function waitDecision(id: string): Promise<WaitDecisionResult> { return request(`${base}/${id}/decisions/wait`, { method: "POST" }); }
+export function skipDecision(id: string, body: { reason: SkipReason; note?: string | null }): Promise<SkipDecisionResult> {
+  return request(`${base}/${id}/decisions/skip`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+export function buyDecision(id: string, body: { entry_price: string; entry_timestamp: string; quantity: string; stop_loss: string; target_price: string; note?: string | null }): Promise<BuyDecisionResult> {
+  return request(`${base}/${id}/decisions/buy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
 
 export type { EvidenceFile };
