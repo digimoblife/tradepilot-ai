@@ -72,6 +72,14 @@ class MultiplePositionsError(ContextBuilderError):
     pass
 
 
+class PositionNotOpenError(ContextBuilderError):
+    pass
+
+
+class PositionRequestMismatchError(ContextBuilderError):
+    pass
+
+
 class MissingInitialAnalysisError(ContextBuilderError):
     pass
 
@@ -130,7 +138,6 @@ class PositionFacts:
     stop_loss: Decimal
     target_price: Decimal
     status: PositionV2Status
-    note: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,26 +216,27 @@ class RebuildAnalysisContextBuilder:
                 position=None,
             )
 
-        observation = self._observation_facts(request)
-        orderbook = self._latest_orderbook(linked_evidence)
         current_position = await self._load_positions(session_id)
-
-        if not current_position:
-            raise MissingPositionError("POSITION_UPDATE context requires one position")
-        if len(current_position) > 1:
-            raise MultiplePositionsError("POSITION_UPDATE context requires exactly one position")
-        position = self._position_facts(current_position[0], session_id)
-
-        history = await self._load_history(session_id, request.id, resolved_type)
-        initial_analysis = self._find_initial_analysis(history)
+        position = self._position_update_position(current_position, request, session_id)
+        current_evidence = self._position_update_evidence(linked_evidence, request.id)
+        observation = self._position_update_observation_facts(request, current_evidence)
+        (
+            initial_analysis,
+            prior_wait,
+            prior_position_update,
+        ) = await self._load_position_update_history(
+            session_id=session_id,
+            current_request=request,
+        )
+        history = tuple(item for item in (prior_wait, prior_position_update) if item is not None)
 
         return AnalysisContext(
             analysis_type=resolved_type,
             session=session_facts,
             current_observation=observation,
-            evidence=(orderbook,),
+            evidence=(self._evidence_reference(current_evidence),),
             initial_analysis=initial_analysis,
-            history=tuple(history),
+            history=history,
             position=position,
         )
 
@@ -383,6 +391,52 @@ class RebuildAnalysisContextBuilder:
         )
 
     @staticmethod
+    def _position_update_evidence(
+        linked_evidence: list[EvidenceUploadV2],
+        analysis_request_id: uuid.UUID,
+    ) -> EvidenceUploadV2:
+        if len(linked_evidence) != 1:
+            raise MissingRequiredEvidenceError(
+                "POSITION_UPDATE requires exactly one linked current evidence record"
+            )
+        evidence = linked_evidence[0]
+        if (
+            evidence.analysis_request_id != analysis_request_id
+            or evidence.session_id is None
+            or evidence.evidence_type is not EvidenceUploadV2Type.ORDERBOOK
+            or evidence.current_price is None
+            or evidence.observation_period is None
+            or evidence.observation_timestamp is None
+            or not evidence.file_path.strip()
+            or Path(evidence.file_path).is_absolute()
+        ):
+            raise MissingRequiredEvidenceError(
+                "POSITION_UPDATE current evidence is missing required persisted facts"
+            )
+        return evidence
+
+    @staticmethod
+    def _position_update_observation_facts(
+        request: AnalysisRequestV2,
+        evidence: EvidenceUploadV2,
+    ) -> ObservationFacts:
+        request_observation = RebuildAnalysisContextBuilder._observation_facts(request)
+        if (
+            evidence.current_price != request_observation.current_price
+            or evidence.observation_period is not request_observation.observation_period
+            or evidence.observation_timestamp != request_observation.observation_at
+        ):
+            raise MissingObservationFactsError(
+                "POSITION_UPDATE request and evidence observation facts do not match"
+            )
+        return ObservationFacts(
+            current_price=evidence.current_price,
+            observation_period=evidence.observation_period,
+            observation_at=evidence.observation_timestamp,
+            user_note=request_observation.user_note,
+        )
+
+    @staticmethod
     def _evidence_reference(evidence: EvidenceUploadV2) -> EvidenceReference:
         return EvidenceReference(
             evidence_id=evidence.id,
@@ -496,6 +550,65 @@ class RebuildAnalysisContextBuilder:
             self._analysis_summary(prior_request) if prior_request is not None else None
         )
 
+    async def _load_position_update_history(
+        self,
+        *,
+        session_id: uuid.UUID,
+        current_request: AnalysisRequestV2,
+    ) -> tuple[AnalysisSummary, AnalysisSummary | None, AnalysisSummary | None]:
+        initial_request = await self._session.scalar(
+            select(AnalysisRequestV2)
+            .where(
+                AnalysisRequestV2.session_id == session_id,
+                AnalysisRequestV2.analysis_type == AnalysisRequestV2Type.INITIAL_ANALYSIS,
+                AnalysisRequestV2.status == AnalysisRequestV2Status.COMPLETED,
+                AnalysisRequestV2.processed_response.is_not(None),
+            )
+            .order_by(
+                AnalysisRequestV2.completed_at.desc().nullslast(),
+                AnalysisRequestV2.created_at.desc(),
+                AnalysisRequestV2.id.desc(),
+            )
+            .limit(1)
+        )
+        if initial_request is None:
+            raise MissingInitialAnalysisError(
+                "No completed Initial Analysis is available for this session"
+            )
+
+        prior_filter = (AnalysisRequestV2.created_at < current_request.created_at) | (
+            (AnalysisRequestV2.created_at == current_request.created_at)
+            & (AnalysisRequestV2.id < current_request.id)
+        )
+
+        async def latest_completed(
+            analysis_type: AnalysisRequestV2Type,
+        ) -> AnalysisSummary | None:
+            prior_request = await self._session.scalar(
+                select(AnalysisRequestV2)
+                .where(
+                    AnalysisRequestV2.session_id == session_id,
+                    AnalysisRequestV2.id != current_request.id,
+                    AnalysisRequestV2.analysis_type == analysis_type,
+                    AnalysisRequestV2.status == AnalysisRequestV2Status.COMPLETED,
+                    AnalysisRequestV2.processed_response.is_not(None),
+                    prior_filter,
+                )
+                .order_by(
+                    AnalysisRequestV2.completed_at.desc().nullslast(),
+                    AnalysisRequestV2.created_at.desc(),
+                    AnalysisRequestV2.id.desc(),
+                )
+                .limit(1)
+            )
+            return self._analysis_summary(prior_request) if prior_request is not None else None
+
+        return (
+            self._analysis_summary(initial_request),
+            await latest_completed(AnalysisRequestV2Type.WAIT_UPDATE),
+            await latest_completed(AnalysisRequestV2Type.POSITION_UPDATE),
+        )
+
     @staticmethod
     def _find_initial_analysis(
         summaries: list[AnalysisSummary] | tuple[AnalysisSummary, ...],
@@ -549,8 +662,38 @@ class RebuildAnalysisContextBuilder:
             stop_loss=position.stop_loss,
             target_price=position.target_price,
             status=position.status,
-            note=position.note,
         )
+
+    @staticmethod
+    def _position_update_position(
+        positions: list[PositionV2],
+        request: AnalysisRequestV2,
+        session_id: uuid.UUID,
+    ) -> PositionFacts:
+        if not positions:
+            raise MissingPositionError("POSITION_UPDATE context requires one position")
+        if len(positions) > 1:
+            raise MultiplePositionsError("POSITION_UPDATE context requires exactly one position")
+
+        position = positions[0]
+        if position.session_id != session_id:
+            raise OwnershipMismatchError("Position ownership mismatch")
+        if position.status is not PositionV2Status.OPEN:
+            raise PositionNotOpenError("POSITION_UPDATE context requires an OPEN position")
+
+        snapshot = request.input_snapshot
+        position_id = snapshot.get("position_id") if isinstance(snapshot, Mapping) else None
+        try:
+            expected_position_id = uuid.UUID(str(position_id))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise PositionRequestMismatchError(
+                "POSITION_UPDATE request has no valid position reference"
+            ) from exc
+        if position.id != expected_position_id:
+            raise PositionRequestMismatchError(
+                "POSITION_UPDATE request position reference does not match the session position"
+            )
+        return RebuildAnalysisContextBuilder._position_facts(position, session_id)
 
     @staticmethod
     def _resolve_analysis_type(

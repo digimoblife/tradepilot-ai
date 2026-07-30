@@ -292,6 +292,9 @@ async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> N
                     analysis_request_id=current_position.id,
                     file_path="local/current-position.png",
                     original_filename="current-position.png",
+                    current_price=current_position.current_price,
+                    observation_period=current_position.observation_period,
+                    observation_timestamp=current_position.observation_at,
                 )
             )
             missing_initial_orderbook = EvidenceUploadV2(
@@ -374,6 +377,10 @@ async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> N
             position = PositionV2(**position_data(session_id))
             session.add(position)
             await session.flush()
+            current_position.input_snapshot = {
+                "note": "Perhatikan resistance",
+                "position_id": str(position.id),
+            }
 
             position_context = await builder.build(
                 user_id=user_id,
