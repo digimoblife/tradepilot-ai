@@ -28,6 +28,10 @@ from app.trade_workspace.services.initial_analysis_read import (
     InitialAnalysisReadError,
     InitialAnalysisReadService,
 )
+from app.trade_workspace.services.initial_analysis_retry import (
+    InitialAnalysisRetryError,
+    InitialAnalysisRetryService,
+)
 from app.trade_workspace.services.initial_analysis_submission import (
     InitialAnalysisSubmissionError,
     InitialAnalysisSubmissionService,
@@ -216,6 +220,39 @@ async def read_initial_analysis(
         created_at=result.created_at,
         started_at=result.started_at,
         completed_at=result.completed_at,
+    )
+
+
+@router.post(
+    "/{session_id}/initial-analysis/retry",
+    response_model=InitialAnalysisSubmissionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retry_initial_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+    queue: object = Depends(get_rebuild_analysis_queue),
+) -> InitialAnalysisSubmissionResponse:
+    try:
+        result = await InitialAnalysisRetryService(db_session, queue).retry(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except InitialAnalysisRetryError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return InitialAnalysisSubmissionResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        session_status=result.session_status.value,
+        created_at=result.created_at,
     )
 
 
