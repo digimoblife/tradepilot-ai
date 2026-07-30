@@ -41,7 +41,7 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Status,
     AnalysisRequestV2Type,
 )
-from app.trade_workspace.models.trade_session import TradeSessionV2
+from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
 
 class AnalysisImageResolver(Protocol):
@@ -243,12 +243,30 @@ class RebuildAnalysisProcessor:
             raise CompletionPersistenceError(
                 "Rebuild analysis request disappeared before completion"
             )
+        trade_session = await self._session.scalar(
+            select(TradeSessionV2)
+            .where(TradeSessionV2.id == request.session_id)
+            .with_for_update()
+        )
+        if trade_session is None:
+            await self._session.rollback()
+            raise CompletionPersistenceError(
+                "Rebuild analysis session disappeared before completion"
+            )
+        if request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS:
+            if trade_session.status is not TradeSessionV2Status.ANALYZING:
+                await self._session.rollback()
+                raise CompletionPersistenceError(
+                    "Initial Analysis session is not in ANALYZING status"
+                )
         request.raw_response = _json_safe(result.raw_response)
         request.processed_response = _json_safe(result.processed_response)
         request.status = AnalysisRequestV2Status.COMPLETED
         request.completed_at = datetime.now(timezone.utc)
         request.error_code = None
         request.error_message = None
+        if request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS:
+            trade_session.status = TradeSessionV2Status.ANALYZED
         try:
             await self._session.flush()
             await self._session.commit()
@@ -272,6 +290,11 @@ class RebuildAnalysisProcessor:
         )
         if request is None:
             return
+        trade_session = await self._session.scalar(
+            select(TradeSessionV2)
+            .where(TradeSessionV2.id == request.session_id)
+            .with_for_update()
+        )
         request.status = AnalysisRequestV2Status.FAILED
         request.completed_at = datetime.now(timezone.utc)
         request.error_code = error_code
@@ -279,6 +302,12 @@ class RebuildAnalysisProcessor:
         if raw_response is not None:
             request.raw_response = raw_response
         request.processed_response = None
+        if (
+            request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS
+            and trade_session is not None
+            and trade_session.status is TradeSessionV2Status.ANALYZING
+        ):
+            trade_session.status = TradeSessionV2Status.DRAFT
         try:
             await self._session.flush()
             await self._session.commit()

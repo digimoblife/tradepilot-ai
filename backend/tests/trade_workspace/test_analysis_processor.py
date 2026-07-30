@@ -33,7 +33,7 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Status,
     AnalysisRequestV2Type,
 )
-from app.trade_workspace.models.trade_session import TradeSessionV2
+from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 from app.trade_workspace.workers.analysis_processor import (
     AnalysisRequestNotFoundError,
     AnalysisRequestNotPendingError,
@@ -200,6 +200,7 @@ async def _setup_request(
     *,
     analysis_type: AnalysisRequestV2Type,
     status: AnalysisRequestV2Status = AnalysisRequestV2Status.PENDING,
+    session_status: TradeSessionV2Status = TradeSessionV2Status.DRAFT,
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
     user_id = uuid.uuid4()
     session_id = uuid.uuid4()
@@ -216,6 +217,7 @@ async def _setup_request(
                     user_id=user_id,
                     ticker="BBRI",
                     company_name="Bank BRI",
+                    status=session_status,
                 )
             )
             await session.flush()
@@ -350,10 +352,49 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
 
 
 @pytest.mark.database
+async def test_initial_analysis_success_persists_response_and_analyzes_session(engine) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, request_id = await _setup_request(
+        factory,
+        analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+        session_status=TradeSessionV2Status.ANALYZING,
+    )
+    adapter = FakeAdapter("gemini-persisted")
+    async with factory() as session:
+        processor = RebuildAnalysisProcessor(
+            session,
+            image_resolver=FakeImageResolver(),  # type: ignore[arg-type]
+            context_builder=FakeContextBuilder(_context(RebuildAnalysisType.INITIAL_ANALYSIS)),  # type: ignore[arg-type]
+            adapter_factory=lambda model: adapter,  # type: ignore[arg-type]
+        )
+        result = await processor.process(analysis_request_id=request_id)
+
+    assert result.status is AnalysisRequestV2Status.COMPLETED
+    persisted = await _read_request(factory, request_id)
+    assert persisted.status is AnalysisRequestV2Status.COMPLETED
+    assert persisted.raw_response == {"raw": "gemini-persisted"}
+    assert persisted.processed_response is not None
+    assert persisted.completed_at is not None
+    assert persisted.error_code is None
+    assert persisted.error_message is None
+    async with factory() as verify:
+        trade_session = await verify.scalar(
+            select(TradeSessionV2).where(TradeSessionV2.id == session_id)
+        )
+        assert trade_session is not None
+        assert trade_session.status is TradeSessionV2Status.ANALYZED
+        assert trade_session.closed_at is None
+
+    await _cleanup(factory, user_id, session_id, request_id)
+
+
+@pytest.mark.database
 async def test_critical_validation_failure_preserves_raw_response(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     user_id, session_id, request_id = await _setup_request(
-        factory, analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS
+        factory,
+        analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+        session_status=TradeSessionV2Status.ANALYZING,
     )
     adapter = FakeAdapter(
         "gemini-persisted",
@@ -381,6 +422,12 @@ async def test_critical_validation_failure_preserves_raw_response(engine) -> Non
     assert persisted.raw_response == {"raw": "safe"}
     assert persisted.processed_response is None
     assert persisted.completed_at is not None
+    async with factory() as verify:
+        trade_session = await verify.scalar(
+            select(TradeSessionV2).where(TradeSessionV2.id == session_id)
+        )
+        assert trade_session is not None
+        assert trade_session.status is TradeSessionV2Status.DRAFT
     await _cleanup(factory, user_id, session_id, request_id)
 
 
@@ -409,7 +456,13 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
 ) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     user_id, session_id, request_id = await _setup_request(
-        factory, analysis_type=analysis_type
+        factory,
+        analysis_type=analysis_type,
+        session_status=(
+            TradeSessionV2Status.ANALYZING
+            if analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS
+            else TradeSessionV2Status.DRAFT
+        ),
     )
     adapter = FakeAdapter("gemini-persisted")
     async with factory() as session:
@@ -451,7 +504,9 @@ async def test_processor_rejects_duplicate_delivery_and_sanitizes_failures(engin
         await _cleanup(factory, user_id, session_id, request_id)
 
     user_id, session_id, request_id = await _setup_request(
-        factory, analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS
+        factory,
+        analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+        session_status=TradeSessionV2Status.ANALYZING,
     )
     prompt_loader = FakePromptLoader(version="v2")
     adapter = FakeAdapter("gemini-persisted")
@@ -481,7 +536,9 @@ async def test_processor_rejects_duplicate_delivery_and_sanitizes_failures(engin
     )
     for label, component in failures:
         user_id, session_id, request_id = await _setup_request(
-            factory, analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS
+            factory,
+            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+            session_status=TradeSessionV2Status.ANALYZING,
         )
         context_builder = (
             component
@@ -518,6 +575,12 @@ async def test_processor_rejects_duplicate_delivery_and_sanitizes_failures(engin
         assert persisted.completed_at is not None
         assert persisted.error_code is not None
         assert "secret" not in (persisted.error_message or "")
+        async with factory() as verify:
+            trade_session = await verify.scalar(
+                select(TradeSessionV2).where(TradeSessionV2.id == session_id)
+            )
+            assert trade_session is not None
+            assert trade_session.status is TradeSessionV2Status.DRAFT
         if label == "adapter":
             assert len(adapter.calls) == 1
         else:
