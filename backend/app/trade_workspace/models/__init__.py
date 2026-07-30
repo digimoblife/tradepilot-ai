@@ -11,6 +11,7 @@ from app.trade_workspace.models.session_decision import (
     SessionDecisionV2Decision,
     SessionDecisionV2Reason,
 )
+from app.trade_workspace.models.trade_closure import TradeClosureV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "SessionDecisionV2Reason",
     "PositionV2",
     "PositionV2Status",
+    "TradeClosureV2",
     "TradeSessionV2",
     "TradeSessionV2Status",
 ]
