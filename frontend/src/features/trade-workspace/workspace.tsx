@@ -7,7 +7,7 @@ import { InitialAnalysisResultView } from "./result";
 export function SessionWorkspace({ sessionId, knownEvidence, onEvidence }: { sessionId: string; knownEvidence: EvidenceFile[]; onEvidence: (files: EvidenceFile[]) => void }) {
   const [session, setSession] = useState<TradeSession | null>(null); const [analysis, setAnalysis] = useState<InitialAnalysisRead | null>(null); const [files, setFiles] = useState<Record<string, File>>({});
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const inFlight = useRef(false);
-  useEffect(() => { let cancelled = false; setSession(null); setAnalysis(null); setError(null); getSession(sessionId).then(x => { if (!cancelled) setSession(x); }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Sesi tidak dapat dimuat."); });
+  useEffect(() => { let cancelled = false; getSession(sessionId).then(x => { if (!cancelled) setSession(x); }).catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Sesi tidak dapat dimuat."); });
     readInitialAnalysis(sessionId).then(x => { if (!cancelled) setAnalysis(x); }).catch(() => { /* no request yet */ }); return () => { cancelled = true; }; }, [sessionId]);
   useEffect(() => { if (!session || !["ANALYZING"].includes(session.status) || analysis?.request_status === "COMPLETED" || analysis?.request_status === "FAILED") return;
     let cancelled = false; let timer: ReturnType<typeof setTimeout>;
