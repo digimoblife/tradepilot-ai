@@ -133,6 +133,17 @@ class InitialAnalysisSubmissionResponse(BaseModel):
     created_at: datetime
 
 
+class WaitUpdateAnalysisSubmissionResponse(BaseModel):
+    analysis_request_id: str
+    session_id: str
+    analysis_type: str
+    request_status: str
+    evidence_id: str
+    observation_period: str
+    session_status: str
+    created_at: datetime
+
+
 class InitialAnalysisReadResponse(BaseModel):
     analysis_request_id: str
     session_id: str

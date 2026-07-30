@@ -25,6 +25,7 @@ from app.trade_workspace.api.schemas import (
     TradeSessionListResponse,
     TradeSessionResponse,
     WaitDecisionResponse,
+    WaitUpdateAnalysisSubmissionResponse,
     WaitUpdateInputResponse,
 )
 from app.trade_workspace.models.analysis_request import AnalysisRequestV2ObservationPeriod
@@ -59,6 +60,10 @@ from app.trade_workspace.services.trade_sessions import RebuildTradeSessionServi
 from app.trade_workspace.services.wait_decision import (
     WaitDecisionError,
     WaitDecisionService,
+)
+from app.trade_workspace.services.wait_update_analysis_submission import (
+    WaitUpdateAnalysisSubmissionError,
+    WaitUpdateAnalysisSubmissionService,
 )
 from app.trade_workspace.services.wait_update_input import (
     WaitUpdateInputError,
@@ -261,6 +266,41 @@ async def submit_initial_analysis(
         session_id=str(result.session_id),
         analysis_type=result.analysis_type.value,
         request_status=result.request_status.value,
+        session_status=result.session_status.value,
+        created_at=result.created_at,
+    )
+
+
+@router.post(
+    "/{session_id}/wait-update-analysis",
+    response_model=WaitUpdateAnalysisSubmissionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def submit_wait_update_analysis(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+    queue: object = Depends(get_rebuild_analysis_queue),
+) -> WaitUpdateAnalysisSubmissionResponse:
+    try:
+        result = await WaitUpdateAnalysisSubmissionService(db_session, queue).submit(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except WaitUpdateAnalysisSubmissionError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return WaitUpdateAnalysisSubmissionResponse(
+        analysis_request_id=str(result.analysis_request_id),
+        session_id=str(result.session_id),
+        analysis_type=result.analysis_type.value,
+        request_status=result.request_status.value,
+        evidence_id=str(result.evidence_id),
+        observation_period=result.observation_period.value,
         session_status=result.session_status.value,
         created_at=result.created_at,
     )
