@@ -111,6 +111,22 @@ class WaitUpdateInputResponse(BaseModel):
     session_status: str
 
 
+class PositionUpdateInputResponse(BaseModel):
+    evidence_id: str
+    session_id: str
+    position_id: str
+    evidence_type: str
+    original_filename: str
+    mime_type: str
+    size_bytes: int
+    current_price: Decimal
+    observation_period: str
+    observation_timestamp: datetime
+    uploaded_at: datetime
+    session_status: str
+    position_status: str
+
+
 class InitialEvidenceResponse(BaseModel):
     id: str
     evidence_type: str

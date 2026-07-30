@@ -19,6 +19,7 @@ from app.trade_workspace.api.schemas import (
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
+    PositionUpdateInputResponse,
     SkipDecisionRequest,
     SkipDecisionResponse,
     TradeSessionCreateRequest,
@@ -53,6 +54,10 @@ from app.trade_workspace.services.initial_analysis_retry import (
 from app.trade_workspace.services.initial_analysis_submission import (
     InitialAnalysisSubmissionError,
     InitialAnalysisSubmissionService,
+)
+from app.trade_workspace.services.position_update_input import (
+    PositionUpdateInputError,
+    PositionUpdateInputService,
 )
 from app.trade_workspace.services.skip_decision import (
     SkipDecisionError,
@@ -247,6 +252,55 @@ async def submit_wait_update_input(
         observation_timestamp=result.observation_timestamp,
         uploaded_at=result.uploaded_at,
         session_status=result.session_status.value,
+    )
+
+
+@router.post(
+    "/{session_id}/position-update-input",
+    response_model=PositionUpdateInputResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_position_update_input(
+    session_id: uuid.UUID,
+    orderbook: UploadFile = File(...),
+    current_price: Decimal = Form(...),
+    observation_period: AnalysisRequestV2ObservationPeriod = Form(...),
+    observation_timestamp: datetime = Form(...),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> PositionUpdateInputResponse:
+    try:
+        result = await PositionUpdateInputService(db_session).submit(
+            user_id=current_user.id,
+            session_id=session_id,
+            original_filename=_safe_original_filename(orderbook.filename),
+            mime_type=orderbook.content_type or "",
+            content=await orderbook.read(),
+            current_price=current_price,
+            observation_period=observation_period,
+            observation_timestamp=observation_timestamp,
+        )
+    except PositionUpdateInputError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return PositionUpdateInputResponse(
+        evidence_id=str(result.evidence_id),
+        session_id=str(result.session_id),
+        position_id=str(result.position_id),
+        evidence_type=result.evidence_type.value,
+        original_filename=result.original_filename,
+        mime_type=result.mime_type,
+        size_bytes=result.size_bytes,
+        current_price=result.current_price,
+        observation_period=result.observation_period.value,
+        observation_timestamp=result.observation_timestamp,
+        uploaded_at=result.uploaded_at,
+        session_status=result.session_status.value,
+        position_status=result.position_status.value,
     )
 
 
