@@ -33,3 +33,16 @@ class TradeSessionResponse(BaseModel):
 
 class TradeSessionListResponse(BaseModel):
     sessions: list[TradeSessionResponse]
+
+
+class InitialEvidenceResponse(BaseModel):
+    id: str
+    evidence_type: str
+    original_filename: str
+    mime_type: str
+    size_bytes: int
+    uploaded_at: datetime
+
+
+class InitialEvidenceUploadResponse(BaseModel):
+    evidence: list[InitialEvidenceResponse]

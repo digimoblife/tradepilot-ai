@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -10,9 +10,17 @@ from app.api.errors import SESSION_NOT_FOUND, get_error_message
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
 from app.trade_workspace.api.schemas import (
+    InitialEvidenceResponse,
+    InitialEvidenceUploadResponse,
     TradeSessionCreateRequest,
     TradeSessionListResponse,
     TradeSessionResponse,
+)
+from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
+from app.trade_workspace.services.evidence_uploads import (
+    InitialEvidenceInput,
+    InitialEvidenceUploadError,
+    InitialEvidenceUploadService,
 )
 from app.trade_workspace.services.trade_sessions import RebuildTradeSessionService
 
@@ -44,6 +52,38 @@ def _not_found() -> HTTPException:
     )
 
 
+def _upload_error(exc: Exception) -> HTTPException:
+    code = getattr(exc, "code", "INITIAL_EVIDENCE_UPLOAD_FAILED")
+    message = {
+        "SESSION_NOT_FOUND": "Trade session not found",
+        "SESSION_NOT_ELIGIBLE": "Trade session is not eligible for initial evidence",
+        "INITIAL_EVIDENCE_EXISTS": "Initial evidence already exists",
+        "INITIAL_EVIDENCE_INVALID_FILE": "Initial evidence files are invalid",
+        "INITIAL_EVIDENCE_STORAGE_FAILED": "Initial evidence storage failed",
+        "INITIAL_EVIDENCE_PERSISTENCE_FAILED": "Initial evidence could not be persisted",
+    }.get(code, "Initial evidence upload failed")
+    return HTTPException(
+        status_code=getattr(exc, "status_code", 422),
+        detail={"code": code, "message": message},
+    )
+
+
+def _safe_original_filename(filename: str | None) -> str:
+    value = (filename or "upload").replace("\\", "/").split("/")[-1].strip()
+    return (value or "upload")[:255]
+
+
+def _evidence_response(item: object) -> InitialEvidenceResponse:
+    return InitialEvidenceResponse(
+        id=str(item.id),
+        evidence_type=item.evidence_type.value,
+        original_filename=item.original_filename,
+        mime_type=item.mime_type,
+        size_bytes=item.size_bytes,
+        uploaded_at=item.uploaded_at,
+    )
+
+
 @router.post("", response_model=TradeSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_trade_session(
     body: TradeSessionCreateRequest,
@@ -57,6 +97,44 @@ async def create_trade_session(
         note=body.note,
     )
     return _to_response(trade_session)
+
+
+@router.post(
+    "/{session_id}/initial-evidence",
+    response_model=InitialEvidenceUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_initial_evidence(
+    session_id: uuid.UUID,
+    orderbook: UploadFile = File(...),
+    chart_3_month: UploadFile = File(...),
+    chart_6_month: UploadFile = File(...),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> InitialEvidenceUploadResponse:
+    uploads = (
+        (orderbook, EvidenceUploadV2Type.ORDERBOOK),
+        (chart_3_month, EvidenceUploadV2Type.CHART_3_MONTH),
+        (chart_6_month, EvidenceUploadV2Type.CHART_6_MONTH),
+    )
+    inputs = [
+        InitialEvidenceInput(
+            evidence_type=evidence_type,
+            original_filename=_safe_original_filename(upload.filename),
+            mime_type=upload.content_type or "",
+            content=await upload.read(),
+        )
+        for upload, evidence_type in uploads
+    ]
+    try:
+        records = await InitialEvidenceUploadService(db_session).upload(
+            user_id=current_user.id,
+            session_id=session_id,
+            files=inputs,
+        )
+    except InitialEvidenceUploadError as exc:
+        raise _upload_error(exc) from exc
+    return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
 
 
 @router.get("", response_model=TradeSessionListResponse)
