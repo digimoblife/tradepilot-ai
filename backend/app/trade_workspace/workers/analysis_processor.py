@@ -273,6 +273,12 @@ class RebuildAnalysisProcessor:
                 raise CompletionPersistenceError(
                     "WAIT_UPDATE session is not in WAITING status"
                 )
+        elif request.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE:
+            if trade_session.status is not TradeSessionV2Status.OPEN_POSITION:
+                await self._session.rollback()
+                raise CompletionPersistenceError(
+                    "POSITION_UPDATE session is not in OPEN_POSITION status"
+                )
         request.raw_response = _json_safe(result.raw_response)
         request.processed_response = _json_safe(result.processed_response)
         request.status = AnalysisRequestV2Status.COMPLETED

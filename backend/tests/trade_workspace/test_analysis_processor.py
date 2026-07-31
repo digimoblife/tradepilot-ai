@@ -571,7 +571,11 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
             else (
                 TradeSessionV2Status.WAITING
                 if analysis_type is AnalysisRequestV2Type.WAIT_UPDATE
-                else TradeSessionV2Status.DRAFT
+                else (
+                    TradeSessionV2Status.OPEN_POSITION
+                    if analysis_type is AnalysisRequestV2Type.POSITION_UPDATE
+                    else TradeSessionV2Status.DRAFT
+                )
             )
         ),
     )
