@@ -310,7 +310,7 @@ async def submit_position_update_input(
 
 
 @router.post(
-    "/{session_id}/position-update-analysis",
+    "/{session_id}/position-updates",
     response_model=PositionUpdateAnalysisSubmissionResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )

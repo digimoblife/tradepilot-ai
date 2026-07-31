@@ -212,7 +212,7 @@ async def _post(
             assert login.status_code == 200
         kwargs = {} if body is None else {"json": body}
         response = await client.post(
-            f"/api/v2/trade-sessions/{session_id}/position-update-analysis",
+            f"/api/v2/trade-sessions/{session_id}/position-updates",
             **kwargs,
         )
     return response.status_code, response.json()
@@ -273,7 +273,7 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
         "request_status": "PENDING",
         "evidence_id": str(latest_id),
         "observation_period": "MIDDAY",
-        "session_status": "ANALYZING",
+        "session_status": "OPEN_POSITION",
         "position_status": "OPEN",
         "created_at": payload["created_at"],
     }
@@ -320,7 +320,7 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     position = await db_session.scalar(select(PositionV2).where(PositionV2.id == position_id))
-    assert session is not None and session.status is TradeSessionV2Status.ANALYZING
+    assert session is not None and session.status is TradeSessionV2Status.OPEN_POSITION
     assert session.closed_at is None
     assert position is not None and position.status is PositionV2Status.OPEN
     assert position.entry_price == Decimal("1200.000000")

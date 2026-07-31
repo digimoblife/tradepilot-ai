@@ -162,7 +162,6 @@ class PositionUpdateAnalysisSubmissionService:
                     raise PositionUpdateAnalysisNotAllowedError(
                         "Trade session is no longer OPEN_POSITION"
                     )
-                refreshed.status = TradeSessionV2Status.ANALYZING
                 await self._session.commit()
             except PositionUpdateAnalysisSubmissionError:
                 raise
@@ -181,7 +180,7 @@ class PositionUpdateAnalysisSubmissionService:
                 request_status=request_result.status,
                 evidence_id=evidence.id,
                 observation_period=evidence.observation_period,
-                session_status=TradeSessionV2Status.ANALYZING,
+                session_status=TradeSessionV2Status.OPEN_POSITION,
                 position_status=position.status,
                 created_at=created_at,
             )
