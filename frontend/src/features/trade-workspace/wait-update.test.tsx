@@ -189,4 +189,49 @@ describe("WAIT Update frontend", () => {
     expect(screen.queryByRole("heading", { name: "WAIT Update" })).toBeNull();
     expect(screen.queryByLabelText("Orderbook")).toBeNull();
   });
+
+  it("polls at controlled 5s interval for PENDING/PROCESSING and stops on COMPLETED/FAILED without immediate repolling", async () => {
+    vi.useFakeTimers();
+    try {
+      const pendingRead: WaitUpdateAnalysisRead = {
+        ...completed,
+        request_status: "PENDING",
+        processed_response: null,
+      };
+      const completedRead: WaitUpdateAnalysisRead = {
+        ...completed,
+        request_status: "COMPLETED",
+      };
+
+      vi.mocked(readWaitUpdateAnalysis)
+        .mockResolvedValueOnce(pendingRead) // initial mount read effect
+        .mockResolvedValueOnce(pendingRead) // first 5s poll
+        .mockResolvedValueOnce(completedRead); // second 5s poll
+
+      render(<WaitUpdatePanel {...sessionProps} />);
+
+      // On mount, initial read runs asynchronously
+      await vi.advanceTimersByTimeAsync(10);
+      expect(readWaitUpdateAnalysis).toHaveBeenCalledTimes(1);
+
+      // No second poll should happen immediately (0ms delay is gone)
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(readWaitUpdateAnalysis).toHaveBeenCalledTimes(1);
+
+      // After 5000ms total, first controlled background poll occurs
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(readWaitUpdateAnalysis).toHaveBeenCalledTimes(2);
+
+      // After another 5000ms, second poll returns COMPLETED
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(readWaitUpdateAnalysis).toHaveBeenCalledTimes(3);
+      expect(sessionProps.onFinished).toHaveBeenCalled();
+
+      // Advancing further produces no more polling
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(readWaitUpdateAnalysis).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

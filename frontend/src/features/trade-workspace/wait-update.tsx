@@ -110,9 +110,11 @@ export function WaitUpdatePanel({
     };
   }, [onFinished, sessionId, sessionStatus]);
 
+  const requestStatus = analysis?.request_status;
+
   useEffect(() => {
-    if (!analysis || isTerminal(analysis.request_status)) return;
-    if (analysis.request_status !== "PENDING" && analysis.request_status !== "PROCESSING") return;
+    if (!requestStatus || isTerminal(requestStatus)) return;
+    if (requestStatus !== "PENDING" && requestStatus !== "PROCESSING") return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
@@ -143,12 +145,12 @@ export function WaitUpdatePanel({
       }
     };
 
-    timer = setTimeout(poll, 0);
+    timer = setTimeout(poll, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [analysis, onFinished, sessionId]);
+  }, [requestStatus, onFinished, sessionId]);
 
   async function upload(event: FormEvent) {
     event.preventDefault();
@@ -220,7 +222,6 @@ export function WaitUpdatePanel({
     }
   }
 
-  const requestStatus = analysis?.request_status;
   const effectiveSessionStatus = analysis?.session_status ?? sessionStatus;
   const retryEligible =
     analysis !== null &&
