@@ -60,7 +60,7 @@ describe("LoginPage", () => {
         email: "user@test.com",
         password: "pass123",
       });
-      expect(mockPush).toHaveBeenCalledWith("/sessions");
+      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
     });
   });
 
@@ -94,7 +94,7 @@ describe("LoginPage", () => {
   });
 
   it("follows safe next redirect", async () => {
-    mockGet.mockReturnValue("/sessions/new");
+    mockGet.mockReturnValue("/trade-workspace");
     mockLogin.mockResolvedValue(undefined);
     const { container } = render(await LoginPage());
 
@@ -103,7 +103,7 @@ describe("LoginPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /masuk/i }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/sessions/new");
+      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
     });
   });
 
@@ -117,7 +117,7 @@ describe("LoginPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /masuk/i }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/sessions");
+      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
     });
   });
 });

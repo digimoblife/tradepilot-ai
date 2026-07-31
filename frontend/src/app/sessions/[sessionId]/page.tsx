@@ -1,13 +1,5 @@
-import { TradeSessionShell } from "@/features/trade-session/trade-session-shell";
+import { redirect } from "next/navigation";
 
-interface Props {
-  params: Promise<{ sessionId: string }>;
-}
-
-export default async function SessionDetailPage({ params }: Props) {
-  const { sessionId } = await params;
-
-  return (
-    <TradeSessionShell sessionId={sessionId} />
-  );
+export default function SessionDetailPage() {
+  redirect("/trade-workspace");
 }

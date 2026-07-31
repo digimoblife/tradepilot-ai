@@ -23,13 +23,13 @@ export function Header() {
   return (
     <header className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-        <Link href={user ? "/sessions" : "/"} className="text-lg font-bold tracking-tight text-zinc-900">
+        <Link href={user ? "/trade-workspace" : "/"} className="text-lg font-bold tracking-tight text-zinc-900">
           TradePilot AI
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           {loading ? null : user ? (
             <>
-              <Link href="/sessions" className="text-zinc-600 hover:text-zinc-900">
+              <Link href="/trade-workspace" className="text-zinc-600 hover:text-zinc-900">
                 Sesi
               </Link>
               <span className="text-zinc-400">{user.email}</span>

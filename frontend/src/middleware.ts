@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedPaths = ["/sessions"];
+const protectedPaths = ["/sessions", "/trade-workspace"];
 const loginPath = "/login";
 const COOKIE_NAME = "tradepilot_session";
 
@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
   const cookie = request.cookies.get(COOKIE_NAME);
   if (!cookie?.value) {
     const url = new URL(loginPath, request.url);
-    url.searchParams.set("next", pathname);
+    url.searchParams.set("next", pathname === "/sessions" || pathname.startsWith("/sessions/") ? "/trade-workspace" : pathname);
     return NextResponse.redirect(url);
   }
 
@@ -43,10 +43,10 @@ export async function middleware(request: NextRequest) {
   }
 
   const url = new URL(loginPath, request.url);
-  url.searchParams.set("next", pathname);
+  url.searchParams.set("next", pathname === "/sessions" || pathname.startsWith("/sessions/") ? "/trade-workspace" : pathname);
   return NextResponse.redirect(url);
 }
 
 export const config = {
-  matcher: ["/sessions/:path*", "/sessions"],
+  matcher: ["/sessions/:path*", "/sessions", "/trade-workspace/:path*", "/trade-workspace"],
 };

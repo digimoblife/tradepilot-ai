@@ -16,9 +16,9 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const next = searchParams.get("next") || "/sessions";
-  // Only allow same-origin redirects
-  const safeNext = next.startsWith("/") ? next : "/sessions";
+  const next = searchParams.get("next");
+  // Only allow same-origin redirects to valid non-legacy paths
+  const safeNext = next && next.startsWith("/") && !next.startsWith("/sessions") ? (next === "/" ? "/trade-workspace" : next) : "/trade-workspace";
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
