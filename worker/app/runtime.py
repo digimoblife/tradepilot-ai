@@ -122,7 +122,7 @@ def _create_consumer(
     from pathlib import Path
     from app.consumers.rebuild_analysis_requests import RebuildAnalysisRequestConsumer
     from app.trade_workspace.workers.analysis_processor import (
-        AnalysisImageResolver,
+        LocalEvidenceImageResolver,
         RebuildAnalysisProcessor,
     )
 
@@ -131,7 +131,7 @@ def _create_consumer(
     def processor_factory(session: AsyncSession) -> RebuildAnalysisProcessor:
         return RebuildAnalysisProcessor(
             session=session,
-            image_resolver=AnalysisImageResolver(storage_root=storage_root),
+            image_resolver=LocalEvidenceImageResolver(storage_root=storage_root),
         )
 
     return RebuildAnalysisRequestConsumer(

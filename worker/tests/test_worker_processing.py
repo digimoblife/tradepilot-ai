@@ -155,6 +155,39 @@ class TestRebuildConsumer:
         # Exception during processor execution is logged and caught, allowing consumer to return True cleanly
         assert await consumer.run_once() is True
 
+    async def test_processor_factory_exception_invokes_mark_failed_request(self) -> None:
+        req_id = uuid.uuid4()
+        claimed = ClaimedAnalysisRequest(
+            request_id=req_id,
+            session_id=uuid.uuid4(),
+            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+            status=AnalysisRequestV2Status.PROCESSING,
+            created_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc),
+            observation_period=None,
+        )
+
+        def failing_factory(session: Any) -> Any:
+            raise TypeError("Protocols cannot be instantiated")
+
+        consumer = RebuildAnalysisRequestConsumer(
+            session_factory=FakeSessionFactory(),
+            processor_factory=failing_factory,
+            worker_id="worker-1",
+            claim_service_factory=lambda session: FakeClaimService(session, claim_item=claimed),
+        )
+
+        marked: list[tuple[uuid.UUID, Exception]] = []
+
+        async def fake_mark_failed(session: Any, r_id: uuid.UUID, exc: Exception) -> None:
+            marked.append((r_id, exc))
+
+        consumer._mark_failed_request = fake_mark_failed  # type: ignore[assignment]
+        assert await consumer.run_once() is True
+        assert len(marked) == 1
+        assert marked[0][0] == req_id
+        assert isinstance(marked[0][1], TypeError)
+
 
 class TestRebuildRuntimeLoop:
     async def test_shutdown_stops_polling(self) -> None:

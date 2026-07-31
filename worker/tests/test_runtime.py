@@ -227,9 +227,18 @@ async def test_startup_validation_runs_before_heartbeat_and_claim(fake_consumer:
 def test_worker_creates_rebuild_consumer() -> None:
     from app.consumers.rebuild_analysis_requests import RebuildAnalysisRequestConsumer
 
+    from unittest.mock import MagicMock
+    from app.trade_workspace.workers.analysis_processor import (
+        LocalEvidenceImageResolver,
+        RebuildAnalysisProcessor,
+    )
+
     consumer = _create_consumer(_FakeFactory(), "worker-1", WorkerConfig())
     assert isinstance(consumer, RebuildAnalysisRequestConsumer)
     assert callable(consumer._processor_factory)
+    processor = consumer._processor_factory(MagicMock())
+    assert isinstance(processor, RebuildAnalysisProcessor)
+    assert isinstance(processor._image_resolver, LocalEvidenceImageResolver)
 
 
 def test_initial_analysis_validator_accepts_valid_payload() -> None:

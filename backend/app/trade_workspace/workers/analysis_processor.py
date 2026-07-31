@@ -44,9 +44,33 @@ from app.trade_workspace.models.analysis_request import (
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
 
+from app.storage.local import (
+    LocalFileStorage,
+    StorageFileNotFoundError,
+    StorageReadError,
+)
+
+
 class AnalysisImageResolver(Protocol):
     async def resolve(self, evidence: Sequence[object]) -> Sequence[GeminiImagePart]:
         """Resolve ordered evidence references into ordered Gemini image parts."""
+
+
+class LocalEvidenceImageResolver:
+    """Resolves EvidenceReference objects into GeminiImagePart instances using LocalFileStorage."""
+
+    def __init__(self, storage_root: Path | str) -> None:
+        self._storage = LocalFileStorage(root=Path(storage_root))
+
+    async def resolve(self, evidence: Sequence[object]) -> Sequence[GeminiImagePart]:
+        image_parts: list[GeminiImagePart] = []
+        for item in evidence:
+            file_path = getattr(item, "file_path", None)
+            mime_type = getattr(item, "mime_type", "image/png")
+            if file_path:
+                data = self._storage.read(file_reference=file_path)
+                image_parts.append(GeminiImagePart(data=data, mime_type=mime_type))
+        return image_parts
 
 
 class AnalysisProcessorError(Exception):
@@ -389,6 +413,8 @@ def _json_safe(value: Any) -> Any:
 
 
 def _sanitize_failure(exc: Exception) -> tuple[str, str]:
+    if isinstance(exc, (StorageFileNotFoundError, StorageReadError)):
+        return "EVIDENCE_FILE_NOT_FOUND", "Required evidence image file could not be read"
     if isinstance(exc, PromptVersionMismatchError):
         return "PROMPT_VERSION_MISMATCH", "Approved prompt version does not match the request"
     if isinstance(exc, SchemaLoadError):

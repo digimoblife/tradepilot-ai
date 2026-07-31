@@ -5,6 +5,7 @@ from app.trade_workspace.workers.analysis_processor import (
     AnalysisProcessorResult,
     AnalysisRequestNotFoundError,
     AnalysisRequestNotPendingError,
+    LocalEvidenceImageResolver,
     RebuildAnalysisProcessor,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "AnalysisProcessorResult",
     "AnalysisRequestNotFoundError",
     "AnalysisRequestNotPendingError",
+    "LocalEvidenceImageResolver",
     "RebuildAnalysisProcessor",
 ]

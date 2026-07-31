@@ -790,6 +790,35 @@ async def test_processor_rejects_duplicate_delivery_and_sanitizes_failures(engin
             await processor.process(analysis_request_id=uuid.uuid4())
 
 
+async def test_local_evidence_image_resolver_reads_stored_files(tmp_path: Path) -> None:
+    from app.storage.local import LocalFileStorage
+    from app.trade_workspace.ai.context_builder import EvidenceReference
+    from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
+    from app.trade_workspace.workers.analysis_processor import LocalEvidenceImageResolver
+
+    storage = LocalFileStorage(root=tmp_path)
+    user_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    stored = storage.store(user_id=user_id, session_id=session_id, original_filename="test.png", content=b"test-image-content")
+
+    resolver = LocalEvidenceImageResolver(storage_root=tmp_path)
+    evidence_ref = EvidenceReference(
+        evidence_id=uuid.uuid4(),
+        evidence_type=EvidenceUploadV2Type.ORDERBOOK,
+        analysis_request_id=uuid.uuid4(),
+        file_path=stored.file_reference,
+        original_filename="test.png",
+        mime_type="image/png",
+        observation_period=None,
+        uploaded_at=datetime.now(timezone.utc),
+    )
+
+    parts = await resolver.resolve([evidence_ref])
+    assert len(parts) == 1
+    assert parts[0].data == b"test-image-content"
+    assert parts[0].mime_type == "image/png"
+
+
 async def _cleanup(
     factory: async_sessionmaker[AsyncSession],
     user_id: uuid.UUID,

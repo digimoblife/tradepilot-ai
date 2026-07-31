@@ -6,20 +6,37 @@ Coordinates claim transaction and processing transaction for analysis_requests_v
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Any, Callable
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 try:
+    from app.trade_workspace.models.analysis_request import (
+        AnalysisRequestV2,
+        AnalysisRequestV2Status,
+        AnalysisRequestV2Type,
+    )
+    from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
     from app.trade_workspace.services.analysis_request_claim import (
         AnalysisRequestClaimService,
         ClaimedAnalysisRequest,
     )
+    from app.trade_workspace.workers.analysis_processor import _sanitize_failure
 except ModuleNotFoundError:
+    from backend.app.trade_workspace.models.analysis_request import (  # type: ignore[no-redef]
+        AnalysisRequestV2,
+        AnalysisRequestV2Status,
+        AnalysisRequestV2Type,
+    )
+    from backend.app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status  # type: ignore[no-redef]
     from backend.app.trade_workspace.services.analysis_request_claim import (  # type: ignore[no-redef]
         AnalysisRequestClaimService,
         ClaimedAnalysisRequest,
     )
+    from backend.app.trade_workspace.workers.analysis_processor import _sanitize_failure  # type: ignore[no-redef]
 
 log = logging.getLogger(__name__)
 
@@ -82,5 +99,74 @@ class RebuildAnalysisRequestConsumer:
                         "error": str(exc),
                     },
                 )
+                await self._mark_failed_request(process_session, claimed.request_id, exc)
 
         return True
+
+    async def _mark_failed_request(
+        self,
+        session: AsyncSession,
+        request_id: uuid.UUID,
+        exc: Exception,
+    ) -> None:
+        """Safely mark a claimed request FAILED if processor factory construction or execution failed."""
+        try:
+            try:
+                await session.rollback()
+            except Exception:
+                pass
+
+            request = await session.scalar(
+                select(AnalysisRequestV2)
+                .where(AnalysisRequestV2.id == request_id)
+                .with_for_update()
+            )
+            if request is None:
+                return
+
+            if (
+                request.status is AnalysisRequestV2Status.COMPLETED
+                or request.status is AnalysisRequestV2Status.FAILED
+            ):
+                return
+
+            trade_session = await session.scalar(
+                select(TradeSessionV2)
+                .where(TradeSessionV2.id == request.session_id)
+                .with_for_update()
+            )
+
+            error_code, error_message = _sanitize_failure(exc)
+
+            request.status = AnalysisRequestV2Status.FAILED
+            request.completed_at = datetime.now(timezone.utc)
+            request.error_code = error_code
+            request.error_message = error_message
+            request.processed_response = None
+
+            if (
+                trade_session is not None
+                and trade_session.status is TradeSessionV2Status.ANALYZING
+            ):
+                if request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS:
+                    trade_session.status = TradeSessionV2Status.DRAFT
+                elif request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE:
+                    trade_session.status = TradeSessionV2Status.WAITING
+                elif request.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE:
+                    trade_session.status = TradeSessionV2Status.OPEN_POSITION
+
+            await session.flush()
+            await session.commit()
+        except Exception as fail_exc:
+            log.exception(
+                "Failed to mark request as FAILED after processor failure",
+                extra={
+                    "analysis_request_id": str(request_id),
+                    "worker_id": self._worker_id,
+                    "error": str(fail_exc),
+                },
+            )
+            try:
+                await session.rollback()
+            except Exception:
+                pass
