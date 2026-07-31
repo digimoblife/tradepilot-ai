@@ -94,7 +94,7 @@ export function WaitUpdatePanel({
 
   useEffect(() => {
     let cancelled = false;
-    if (sessionStatus !== "WAITING" && sessionStatus !== "ANALYZING") return;
+    if (sessionStatus !== "WAITING") return;
     readWaitUpdateAnalysis(sessionId)
       .then((next) => {
         if (!cancelled) {

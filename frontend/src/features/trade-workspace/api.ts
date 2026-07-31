@@ -33,7 +33,7 @@ export function uploadWaitUpdateInput(id: string, input: { orderbook: File; curr
   body.append("observation_timestamp", input.observation_timestamp);
   return request(`${base}/${id}/wait-update-input`, { method: "POST", body });
 }
-export function submitWaitUpdateAnalysis(id: string): Promise<WaitUpdateAnalysisSubmission> { return request(`${base}/${id}/wait-update-analysis`, { method: "POST" }); }
+export function submitWaitUpdateAnalysis(id: string): Promise<WaitUpdateAnalysisSubmission> { return request(`${base}/${id}/wait-updates`, { method: "POST" }); }
 export function readWaitUpdateAnalysis(id: string): Promise<WaitUpdateAnalysisRead> { return request(`${base}/${id}/wait-update-analysis`); }
 export function retryWaitUpdateAnalysis(id: string): Promise<WaitUpdateRecoveryResponse> { return request(`${base}/${id}/wait-update-analysis/retry`, { method: "POST" }); }
 export function getAvailableActions(id: string): Promise<DecisionAvailability> { return request(`${base}/${id}/available-actions`); }

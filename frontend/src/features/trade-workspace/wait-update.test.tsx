@@ -115,7 +115,7 @@ describe("WAIT Update frontend", () => {
     vi.mocked(submitWaitUpdateAnalysis).mockResolvedValue({
       analysis_request_id: "request-a", session_id: "session-a", analysis_type: "WAIT_UPDATE",
       request_status: "PENDING", evidence_id: "evidence-a", observation_period: "MORNING",
-      session_status: "ANALYZING", created_at: "2026-07-30T00:00:00Z",
+      session_status: "WAITING", created_at: "2026-07-30T00:00:00Z",
     });
     render(<WaitUpdatePanel {...sessionProps} />);
     await screen.findByRole("heading", { name: "WAIT Update" });
@@ -131,7 +131,7 @@ describe("WAIT Update frontend", () => {
       resolveSubmission = () => resolve({
         analysis_request_id: "request-a", session_id: "session-a", analysis_type: "WAIT_UPDATE",
         request_status: "PENDING", evidence_id: "evidence-a", observation_period: "MORNING",
-        session_status: "ANALYZING", created_at: "2026-07-30T00:00:00Z",
+        session_status: "WAITING", created_at: "2026-07-30T00:00:00Z",
       });
     }));
     const submitButton = screen.getByRole("button", { name: "Minta WAIT Update Analysis" });
@@ -170,7 +170,7 @@ describe("WAIT Update frontend", () => {
     vi.mocked(readWaitUpdateAnalysis).mockResolvedValue(failed);
     vi.mocked(retryWaitUpdateAnalysis).mockResolvedValue({
       analysis_request_id: "request-a", session_id: "session-a", analysis_type: "WAIT_UPDATE",
-      request_status: "PENDING", session_status: "ANALYZING", observation_period: "MORNING",
+      request_status: "PENDING", session_status: "WAITING", observation_period: "MORNING",
       created_at: "2026-07-30T00:00:00Z",
     });
     render(<WaitUpdatePanel {...sessionProps} />);
