@@ -14,6 +14,8 @@ from app.database.session import get_db_session
 from app.trade_workspace.api.schemas import (
     BuyDecisionRequest,
     BuyDecisionResponse,
+    CloseRequest,
+    CloseResponse,
     DecisionAvailabilityResponse,
     InitialAnalysisReadResponse,
     InitialAnalysisSubmissionResponse,
@@ -40,6 +42,10 @@ from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
 from app.trade_workspace.services.buy_decision import (
     BuyDecisionError,
     BuyDecisionService,
+)
+from app.trade_workspace.services.close import (
+    CloseError,
+    CloseService,
 )
 from app.trade_workspace.services.decision_availability import DecisionAvailabilityService
 from app.trade_workspace.services.evidence_uploads import (
@@ -779,3 +785,46 @@ async def get_trade_session(
     if trade_session is None:
         raise _not_found()
     return _to_response(trade_session)
+
+
+@router.post(
+    "/{session_id}/close",
+    response_model=CloseResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_close(
+    session_id: uuid.UUID,
+    body: CloseRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> CloseResponse:
+    try:
+        result = await CloseService(db_session).create(
+            user_id=current_user.id,
+            session_id=session_id,
+            close_price=body.close_price,
+            close_timestamp=body.close_timestamp,
+            close_reason=body.close_reason,
+            note=body.note,
+        )
+    except CloseError as exc:
+        if exc.code == "SESSION_NOT_FOUND":
+            raise _not_found() from exc
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    return CloseResponse(
+        closure_id=str(result.closure_id),
+        session_id=str(result.session_id),
+        position_id=str(result.position_id),
+        close_price=result.close_price,
+        close_timestamp=result.close_timestamp,
+        close_reason=result.close_reason,
+        note=result.note,
+        realized_profit_loss=result.realized_profit_loss,
+        position_status=result.position_status.value,
+        session_status=result.session_status.value,
+        closed_at=result.closed_at,
+        created_at=result.created_at,
+    )

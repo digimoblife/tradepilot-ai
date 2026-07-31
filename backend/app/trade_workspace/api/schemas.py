@@ -246,3 +246,25 @@ class PositionUpdateItemResponse(BaseModel):
 class PositionUpdatesReadResponse(BaseModel):
     position: PositionDetailResponse | None
     updates: list[PositionUpdateItemResponse]
+
+
+class CloseRequest(BaseModel):
+    close_price: Decimal = Field(..., gt=0, max_digits=20, decimal_places=6)
+    close_timestamp: datetime
+    close_reason: str = Field(..., min_length=1, max_length=64)
+    note: str | None = None
+
+
+class CloseResponse(BaseModel):
+    closure_id: str
+    session_id: str
+    position_id: str
+    close_price: Decimal
+    close_timestamp: datetime
+    close_reason: str
+    note: str | None
+    realized_profit_loss: Decimal
+    position_status: str
+    session_status: str
+    closed_at: datetime
+    created_at: datetime
