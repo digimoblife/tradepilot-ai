@@ -196,12 +196,27 @@ export function SessionWorkspace({
   }
 
   async function submitAnalysis() {
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
       const response = await submitInitialAnalysis(sessionId);
-      setAnalysis({ ...response, processed_response: null, error_code: null, error_message: null, started_at: null, completed_at: null });
-      setSession((current) => current ? { ...current, status: response.session_status } : current);
+      setSession((current) => (current ? { ...current, status: response.session_status } : current));
+      if (response.request_status === "COMPLETED") {
+        const fullAnalysis = await readInitialAnalysis(sessionId).catch(() => null);
+        if (fullAnalysis) {
+          setAnalysis(fullAnalysis);
+          return;
+        }
+      }
+      setAnalysis({
+        ...response,
+        processed_response: null,
+        error_code: null,
+        error_message: null,
+        started_at: null,
+        completed_at: null,
+      });
     } catch (reason: unknown) {
       setError(errorText(reason, "Analisis tidak dapat diminta."));
     } finally {

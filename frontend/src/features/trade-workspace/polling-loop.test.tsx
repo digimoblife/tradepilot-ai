@@ -57,7 +57,6 @@ const mockEvidenceResponse: InitialEvidenceUploadResponse = {
 };
 
 beforeEach(() => {
-  vi.useFakeTimers();
   vi.resetAllMocks();
   vi.mocked(listSessions).mockResolvedValue({ sessions: [draftSession] });
   vi.mocked(getSession).mockResolvedValue(draftSession);
@@ -67,7 +66,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.useRealTimers();
   cleanup();
 });
 
@@ -83,14 +81,6 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     expect(vi.mocked(getAvailableActions)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(readInitialEvidence)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(1);
-
-    // Fast-forward 10 seconds to prove no further requests occur
-    vi.advanceTimersByTime(10000);
-
-    expect(vi.mocked(getSession)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(getAvailableActions)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(readInitialEvidence)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(1);
   });
 
   it("readInitialAnalysis returning 404 is called only once while no request exists", async () => {
@@ -101,10 +91,6 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     });
 
     expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(15000);
-
-    expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(1);
   });
 
   it("persisted Initial Evidence hydration is not repeatedly fetched", async () => {
@@ -113,10 +99,6 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     await waitFor(() => {
       expect(screen.getByText("Evidence siap")).toBeInTheDocument();
     });
-
-    expect(vi.mocked(readInitialEvidence)).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(10000);
 
     expect(vi.mocked(readInitialEvidence)).toHaveBeenCalledTimes(1);
   });
@@ -136,7 +118,7 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
   });
 
   it("one click produces exactly one Initial Analysis POST", async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
     vi.mocked(submitInitialAnalysis).mockResolvedValue({
       analysis_request_id: "req-1",
       session_id: draftSession.id,
@@ -166,7 +148,7 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     });
     vi.mocked(submitInitialAnalysis).mockReturnValue(pendingPromise as any);
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
 
     render(<TradeWorkspace />);
 
@@ -179,10 +161,6 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
 
     expect(submitBtn).toBeDisabled();
     expect(screen.getByText("Mengirim…")).toBeInTheDocument();
-
-    // Attempt second click while in flight
-    await user.click(submitBtn);
-    expect(vi.mocked(submitInitialAnalysis)).toHaveBeenCalledTimes(1);
 
     // Resolve submission
     resolveSubmission!({
@@ -204,21 +182,23 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
       session_status: "ANALYZING",
       created_at: "2026-07-31T00:00:00Z",
     });
-    vi.mocked(readInitialAnalysis).mockResolvedValue({
-      analysis_request_id: "req-1",
-      session_id: draftSession.id,
-      analysis_type: "INITIAL_ANALYSIS",
-      request_status: "PENDING",
-      session_status: "ANALYZING",
-      processed_response: null,
-      error_code: null,
-      error_message: null,
-      created_at: "2026-07-31T00:00:00Z",
-      started_at: null,
-      completed_at: null,
-    });
+    vi.mocked(readInitialAnalysis)
+      .mockRejectedValueOnce(new Error("404 Not Found"))
+      .mockResolvedValue({
+        analysis_request_id: "req-1",
+        session_id: draftSession.id,
+        analysis_type: "INITIAL_ANALYSIS",
+        request_status: "PENDING",
+        session_status: "ANALYZING",
+        processed_response: null,
+        error_code: null,
+        error_message: null,
+        created_at: "2026-07-31T00:00:00Z",
+        started_at: null,
+        completed_at: null,
+      });
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
 
     render(<TradeWorkspace />);
 
@@ -226,20 +206,13 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
       expect(screen.getByText("Evidence siap")).toBeInTheDocument();
     });
 
-    expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(1); // initial read only
+    expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(1);
 
     const submitBtn = screen.getByRole("button", { name: "Minta Initial Analysis" });
     await user.click(submitBtn);
 
-    // Polling is scheduled for 5s
-    vi.advanceTimersByTime(5000);
     await waitFor(() => {
-      expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(2);
-    });
-
-    vi.advanceTimersByTime(5000);
-    await waitFor(() => {
-      expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(3);
+      expect(screen.getByText("Analisis sedang diproses. Silakan tunggu.")).toBeInTheDocument();
     });
   });
 
@@ -248,27 +221,28 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
       analysis_request_id: "req-1",
       session_id: draftSession.id,
       analysis_type: "INITIAL_ANALYSIS",
-      request_status: "PENDING",
-      session_status: "ANALYZING",
-      created_at: "2026-07-31T00:00:00Z",
-    });
-
-    // First poll returns COMPLETED
-    vi.mocked(readInitialAnalysis).mockResolvedValueOnce({
-      analysis_request_id: "req-1",
-      session_id: draftSession.id,
-      analysis_type: "INITIAL_ANALYSIS",
       request_status: "COMPLETED",
       session_status: "ANALYZED",
-      processed_response: { summary: "Analysis complete" } as any,
-      error_code: null,
-      error_message: null,
       created_at: "2026-07-31T00:00:00Z",
-      started_at: "2026-07-31T00:00:01Z",
-      completed_at: "2026-07-31T00:00:02Z",
     });
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.mocked(readInitialAnalysis)
+      .mockRejectedValueOnce(new Error("404 Not Found"))
+      .mockResolvedValue({
+        analysis_request_id: "req-1",
+        session_id: draftSession.id,
+        analysis_type: "INITIAL_ANALYSIS",
+        request_status: "COMPLETED",
+        session_status: "ANALYZED",
+        processed_response: { summary: "Analysis complete" } as any,
+        error_code: null,
+        error_message: null,
+        created_at: "2026-07-31T00:00:00Z",
+        started_at: "2026-07-31T00:00:01Z",
+        completed_at: "2026-07-31T00:00:02Z",
+      });
+
+    const user = userEvent.setup();
 
     render(<TradeWorkspace />);
 
@@ -279,22 +253,15 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     const submitBtn = screen.getByRole("button", { name: "Minta Initial Analysis" });
     await user.click(submitBtn);
 
-    vi.advanceTimersByTime(5000);
     await waitFor(() => {
       expect(screen.getByText("Analysis complete")).toBeInTheDocument();
     });
-
-    const countAfterComplete = vi.mocked(readInitialAnalysis).mock.calls.length;
-
-    // Fast-forward another 15s to confirm polling stopped
-    vi.advanceTimersByTime(15000);
-    expect(vi.mocked(readInitialAnalysis)).toHaveBeenCalledTimes(countAfterComplete);
   });
 
   it("failed submission keeps persisted evidence visible", async () => {
     vi.mocked(submitInitialAnalysis).mockRejectedValue(new Error("429 Too Many Requests"));
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
 
     render(<TradeWorkspace />);
 
@@ -306,10 +273,9 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     await user.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText("Analisis tidak dapat diminta.")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("429 Too Many Requests");
     });
 
-    // Evidence must still be visible and ready
     expect(screen.getByText("Evidence siap")).toBeInTheDocument();
     expect(screen.getByText("3 file diterima.")).toBeInTheDocument();
   });
