@@ -30,6 +30,12 @@ export function TradeWorkspace() {
     setEvidence((x) => ({ ...x, [sessionId]: files }));
   }, []);
 
+  const handleStatusChange = useCallback((sessionId: string, status: TradeSession["status"]) => {
+    setSessions((current) =>
+      current.map((s) => (s.id === sessionId ? { ...s, status } : s))
+    );
+  }, []);
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <div className="mb-6">
@@ -63,6 +69,7 @@ export function TradeWorkspace() {
             sessionId={selected}
             knownEvidence={evidence[selected] ?? []}
             onEvidence={(files) => handleEvidence(selected, files)}
+            onSessionStatusChange={handleStatusChange}
           />
         ) : (
           <section className="rounded-xl border bg-white p-8 text-zinc-500">

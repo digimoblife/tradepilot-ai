@@ -18,6 +18,7 @@ import type {
   DecisionAvailability,
   EvidenceFile,
   InitialAnalysisRead,
+  SessionStatus,
   SkipReason,
   TradeSession,
 } from "./types";
@@ -46,10 +47,12 @@ export function SessionWorkspace({
   sessionId,
   knownEvidence,
   onEvidence,
+  onSessionStatusChange,
 }: {
   sessionId: string;
   knownEvidence: EvidenceFile[];
   onEvidence: (files: EvidenceFile[]) => void;
+  onSessionStatusChange?: (sessionId: string, status: SessionStatus) => void;
 }) {
   const [session, setSession] = useState<TradeSession | null>(null);
   const [analysis, setAnalysis] = useState<InitialAnalysisRead | null>(null);
@@ -86,10 +89,11 @@ export function SessionWorkspace({
     ]);
     setSession(nextSession);
     setAvailability(nextAvailability);
+    onSessionStatusChange?.(sessionId, nextSession.status);
     if (nextSession.status !== "WAITING" && nextSession.status !== "ANALYZING") {
       setWaitPanelActive(false);
     }
-  }, [sessionId]);
+  }, [sessionId, onSessionStatusChange]);
 
   const handleWaitProcessing = useCallback(() => {
     setWaitPanelActive(true);
@@ -154,7 +158,12 @@ export function SessionWorkspace({
         if (!cancelled) {
           setAnalysis(next);
           setSession((current) => (current ? { ...current, status: next.session_status } : current));
-          if (!["COMPLETED", "FAILED"].includes(next.request_status)) {
+          onSessionStatusChange?.(sessionId, next.session_status);
+          if (["COMPLETED", "FAILED"].includes(next.request_status)) {
+            getAvailableActions(sessionId).then((avail) => {
+              if (!cancelled) setAvailability(avail);
+            }).catch(() => {});
+          } else {
             timer = setTimeout(poll, 5000);
           }
         }
@@ -171,7 +180,7 @@ export function SessionWorkspace({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [requestStatus, sessionStatus, sessionId]);
+  }, [requestStatus, sessionStatus, sessionId, onSessionStatusChange]);
 
   async function upload(event: React.FormEvent) {
     event.preventDefault();
@@ -202,12 +211,15 @@ export function SessionWorkspace({
     try {
       const response = await submitInitialAnalysis(sessionId);
       setSession((current) => (current ? { ...current, status: response.session_status } : current));
+      onSessionStatusChange?.(sessionId, response.session_status);
       if (response.request_status === "COMPLETED") {
         const fullAnalysis = await readInitialAnalysis(sessionId).catch(() => null);
         if (fullAnalysis) {
           setAnalysis(fullAnalysis);
-          return;
         }
+        const avail = await getAvailableActions(sessionId).catch(() => null);
+        if (avail) setAvailability(avail);
+        return;
       }
       setAnalysis({
         ...response,

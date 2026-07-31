@@ -258,6 +258,124 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     });
   });
 
+  it("calls getAvailableActions again on terminal COMPLETED and updates sidebar and shows decision controls", async () => {
+    const secondSession: TradeSession = {
+      id: "session-other",
+      ticker: "BBCA",
+      company_name: "Bank BCA",
+      status: "DRAFT",
+      note: null,
+      created_at: "2026-07-31T00:00:00Z",
+      updated_at: "2026-07-31T00:00:00Z",
+      closed_at: null,
+    };
+    vi.mocked(listSessions).mockResolvedValue({ sessions: [draftSession, secondSession] });
+
+    vi.mocked(submitInitialAnalysis).mockResolvedValue({
+      analysis_request_id: "req-1",
+      session_id: draftSession.id,
+      analysis_type: "INITIAL_ANALYSIS",
+      request_status: "COMPLETED",
+      session_status: "ANALYZED",
+      created_at: "2026-07-31T00:00:00Z",
+    });
+
+    vi.mocked(readInitialAnalysis)
+      .mockRejectedValueOnce(new Error("404 Not Found"))
+      .mockResolvedValue({
+        analysis_request_id: "req-1",
+        session_id: draftSession.id,
+        analysis_type: "INITIAL_ANALYSIS",
+        request_status: "COMPLETED",
+        session_status: "ANALYZED",
+        processed_response: { summary: "Analysis complete" } as any,
+        error_code: null,
+        error_message: null,
+        created_at: "2026-07-31T00:00:00Z",
+        started_at: "2026-07-31T00:00:01Z",
+        completed_at: "2026-07-31T00:00:02Z",
+      });
+
+    vi.mocked(getAvailableActions)
+      .mockResolvedValueOnce(mockAvailability)
+      .mockResolvedValueOnce({
+        session_id: draftSession.id,
+        session_status: "ANALYZED",
+        available_actions: ["BUY", "WAIT", "SKIP"],
+      });
+
+    const user = userEvent.setup();
+    render(<TradeWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Evidence siap")).toBeInTheDocument();
+    });
+
+    const submitBtn = screen.getByRole("button", { name: "Minta Initial Analysis" });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "WAIT" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Konfirmasi BUY" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Konfirmasi SKIP" })).toBeInTheDocument();
+    });
+
+    // Sidebar reflects ANALYZED for selected session, but DRAFT for the second session
+    const sidebar = screen.getByRole("complementary", { name: "Daftar sesi" });
+    expect(sidebar).toHaveTextContent("ANALYZED");
+    expect(sidebar).toHaveTextContent("DRAFT");
+  });
+
+  it("does not show decision controls when analysis reaches FAILED", async () => {
+    vi.mocked(submitInitialAnalysis).mockResolvedValue({
+      analysis_request_id: "req-1",
+      session_id: draftSession.id,
+      analysis_type: "INITIAL_ANALYSIS",
+      request_status: "FAILED",
+      session_status: "DRAFT",
+      created_at: "2026-07-31T00:00:00Z",
+    });
+
+    vi.mocked(readInitialAnalysis)
+      .mockRejectedValueOnce(new Error("404 Not Found"))
+      .mockResolvedValue({
+        analysis_request_id: "req-1",
+        session_id: draftSession.id,
+        analysis_type: "INITIAL_ANALYSIS",
+        request_status: "FAILED",
+        session_status: "DRAFT",
+        processed_response: null,
+        error_code: "GEMINI_ERROR",
+        error_message: "Gemini quota exceeded",
+        created_at: "2026-07-31T00:00:00Z",
+        started_at: "2026-07-31T00:00:01Z",
+        completed_at: "2026-07-31T00:00:02Z",
+      });
+
+    vi.mocked(getAvailableActions).mockResolvedValue({
+      session_id: draftSession.id,
+      session_status: "DRAFT",
+      available_actions: [],
+    });
+
+    const user = userEvent.setup();
+    render(<TradeWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Evidence siap")).toBeInTheDocument();
+    });
+
+    const submitBtn = screen.getByRole("button", { name: "Minta Initial Analysis" });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Initial Analysis gagal diproses")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "WAIT" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Konfirmasi BUY" })).toBeNull();
+  });
+
   it("failed submission keeps persisted evidence visible", async () => {
     vi.mocked(submitInitialAnalysis).mockRejectedValue(new Error("429 Too Many Requests"));
 
