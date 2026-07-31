@@ -33,7 +33,7 @@ def get_engine() -> Any:
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that yields an async database session.
 
-    Commits on success, rolls back on exception, always closes.
+    Commits on success, rolls back on exception or cancellation, always closes.
     Read-only endpoints are unaffected because they call neither
     ``commit()`` nor ``flush()``; a no-op commit is cheap.
     """
@@ -47,9 +47,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with _session_factory() as session:
         try:
             yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
+            if session.is_active:
+                await session.commit()
+        except BaseException:
+            if session.is_active:
+                await session.rollback()
             raise
         finally:
             await session.close()

@@ -194,7 +194,7 @@ class InitialAnalysisRetryService:
         await self._session_lock.acquire()
         self._lock_key = int.from_bytes(session_id.bytes[:8], byteorder="big", signed=True)
         try:
-            await self._session.execute(select(func.pg_advisory_lock(self._lock_key)))
+            await self._session.execute(select(func.pg_advisory_xact_lock(self._lock_key)))
         except Exception:
             self._session_lock.release()
             self._session_lock = None
@@ -202,9 +202,7 @@ class InitialAnalysisRetryService:
 
     async def _release_session_lock(self) -> None:
         try:
-            if self._lock_key is not None:
-                await self._session.execute(select(func.pg_advisory_unlock(self._lock_key)))
-                self._lock_key = None
+            self._lock_key = None
         finally:
             if self._session_lock is not None:
                 self._session_lock.release()

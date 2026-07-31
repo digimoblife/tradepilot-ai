@@ -245,9 +245,7 @@ class WaitUpdateAnalysisSubmissionService:
 
     async def _acquire_lock(self, session_id: uuid.UUID) -> None:
         self._lock_key = int.from_bytes(session_id.bytes[:8], byteorder="big", signed=True)
-        await self._session.execute(select(func.pg_advisory_lock(self._lock_key)))
+        await self._session.execute(select(func.pg_advisory_xact_lock(self._lock_key)))
 
     async def _release_lock(self) -> None:
-        if self._lock_key is not None:
-            await self._session.execute(select(func.pg_advisory_unlock(self._lock_key)))
-            self._lock_key = None
+        self._lock_key = None
