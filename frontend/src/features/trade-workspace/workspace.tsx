@@ -74,6 +74,10 @@ export function SessionWorkspace({
   });
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const onEvidenceRef = useRef(onEvidence);
+  useEffect(() => {
+    onEvidenceRef.current = onEvidence;
+  });
 
   const refreshDecisionWorkspace = useCallback(async () => {
     const [nextSession, nextAvailability] = await Promise.all([
@@ -89,8 +93,10 @@ export function SessionWorkspace({
 
   const handleWaitProcessing = useCallback(() => {
     setWaitPanelActive(true);
-    setSession((current) => current ? { ...current, status: "ANALYZING" } : current);
-    setAvailability((current) => current ? { ...current, session_status: "ANALYZING", available_actions: [] } : current);
+    setSession((current) => (current ? { ...current, status: "ANALYZING" } : current));
+    setAvailability((current) =>
+      current ? { ...current, session_status: "ANALYZING", available_actions: [] } : current
+    );
   }, []);
 
   useEffect(() => {
@@ -108,14 +114,14 @@ export function SessionWorkspace({
     readInitialEvidence(sessionId)
       ?.then((evidenceRes) => {
         if (!cancelled && evidenceRes?.evidence?.length) {
-          onEvidence(evidenceRes.evidence);
+          onEvidenceRef.current(evidenceRes.evidence);
         }
       })
       .catch(() => {
         // No initial evidence uploaded yet.
       });
     readInitialAnalysis(sessionId)
-      .then((next) => {
+      ?.then((next) => {
         if (!cancelled) setAnalysis(next);
       })
       .catch(() => {
@@ -124,15 +130,20 @@ export function SessionWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, onEvidence]);
+  }, [sessionId]);
+
+  const requestStatus = analysis?.request_status;
+  const sessionStatus = session?.status;
 
   useEffect(() => {
     if (
-      !session ||
-      session.status !== "ANALYZING" ||
-      analysis?.request_status === "COMPLETED" ||
-      analysis?.request_status === "FAILED"
-    ) return;
+      !requestStatus ||
+      sessionStatus !== "ANALYZING" ||
+      requestStatus === "COMPLETED" ||
+      requestStatus === "FAILED"
+    ) {
+      return;
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -142,11 +153,15 @@ export function SessionWorkspace({
         const next = await readInitialAnalysis(sessionId);
         if (!cancelled) {
           setAnalysis(next);
-          setSession((current) => current ? { ...current, status: next.session_status } : current);
-          if (!["COMPLETED", "FAILED"].includes(next.request_status)) timer = setTimeout(poll, 5000);
+          setSession((current) => (current ? { ...current, status: next.session_status } : current));
+          if (!["COMPLETED", "FAILED"].includes(next.request_status)) {
+            timer = setTimeout(poll, 5000);
+          }
         }
       } catch {
-        if (!cancelled) timer = setTimeout(poll, 5000);
+        if (!cancelled) {
+          timer = setTimeout(poll, 5000);
+        }
       } finally {
         inFlight.current = false;
       }
@@ -156,7 +171,7 @@ export function SessionWorkspace({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [analysis?.request_status, session, sessionId]);
+  }, [requestStatus, sessionStatus, sessionId]);
 
   async function upload(event: React.FormEvent) {
     event.preventDefault();
