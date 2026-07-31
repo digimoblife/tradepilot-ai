@@ -65,8 +65,8 @@ All 20 supplied candidate hashes exist. P6 candidates map to decision availabili
 - Candidate commits: `dfed279dd792ee464119c30aec5a9e92e858c324`
 - Relevant files: `wait_update_analysis_submission.py`; route and schema
 - Classification: BEHAVIOR_DEVIATION
-- Classification reason: focused submission evidence must be reviewed further for the resulting session status; the task requires WAITING to remain WAITING.
-- Evidence confidence: MEDIUM
+- Classification reason: the official endpoint is `/wait-updates` and the session must remain WAITING; the candidate exposes `/wait-update-analysis` and assigns ANALYZING after queueing.
+- Evidence confidence: HIGH
 
 ### P7.3 — Implement WAIT Update Prompt
 - Candidate commits: `138465edab362bc2a292122ad01f3abd55975c23`, `1c7d728b1e4efda1382ed7242a382b06b20c9a98`
@@ -128,17 +128,17 @@ All 20 supplied candidate hashes exist. P6 candidates map to decision availabili
 
 ### P7.2
 - Classification: BEHAVIOR_DEVIATION
-- Authoritative requirement: session remains `WAITING`.
-- Observed implementation: focused status confirmation remains required in `wait_update_analysis_submission.py`.
+- Authoritative requirement: `POST /api/v2/trade-sessions/{session_id}/wait-updates`; session remains `WAITING`.
+- Observed implementation: `POST /{session_id}/wait-update-analysis`; `WaitUpdateAnalysisSubmissionService.submit` assigns `TradeSessionV2Status.ANALYZING`.
 - Commit: `dfed279dd792ee464119c30aec5a9e92e858c324`
 - File and symbol: `WaitUpdateAnalysisSubmissionService.submit`
-- Behavioral impact: lifecycle behavior cannot be confirmed as aligned.
+- Behavioral impact: changes both the official endpoint and the required WAITING lifecycle behavior.
 - Deep review required: yes
 
 ### P8.2
 - Classification: BEHAVIOR_DEVIATION
 - Authoritative requirement: session remains `OPEN_POSITION`.
-- Observed implementation: assigns `TradeSessionV2Status.ANALYZING` after queueing.
+- Observed implementation: `POST /{session_id}/position-update-analysis` and assigns `TradeSessionV2Status.ANALYZING` after queueing.
 - Commit: `95fa494e3e154e1b0ed34394c83fdb77912cb5fd`
 - File and symbol: `PositionUpdateAnalysisSubmissionService.submit`
 - Behavioral impact: introduces an unapproved session lifecycle transition during Position Update submission.
@@ -172,7 +172,7 @@ All 20 supplied candidate hashes exist. P6 candidates map to decision availabili
 | P6.4 | MATCH | 295fce0 | HIGH |
 | P6.5 | MATCH | 4d25ae9, d73f5b6 | MEDIUM |
 | P7.1 | MATCH | a879c03, 0934304 | HIGH |
-| P7.2 | BEHAVIOR_DEVIATION | dfed279 | MEDIUM |
+| P7.2 | BEHAVIOR_DEVIATION | dfed279 | HIGH |
 | P7.3 | MATCH | 138465e, 1c7d728 | MEDIUM |
 | P7.4 | NUMBERING_ONLY | 85173c1, 2a4bce8 | MEDIUM |
 | P7.5 | MATCH | 1efc09f, 14fd234 | MEDIUM |
@@ -191,7 +191,7 @@ All 20 supplied candidate hashes exist. P6 candidates map to decision availabili
 
 ## 7. Audit Conclusion
 
-P6 is behaviorally aligned. P7 is mostly aligned but P7.2 requires focused lifecycle review. P8 has a verified P8.2 lifecycle deviation and P8.4/P8.5 are not implemented in the candidate evidence. It is not safe to determine a resume point while P7.2 and P8.2 require deeper review.
+P6 is behaviorally aligned. P7 has a verified P7.2 endpoint and lifecycle deviation. P8 has a verified P8.2 endpoint and lifecycle deviation; P8.4/P8.5 are not implemented in the candidate evidence. It is not safe to determine a resume point while P7.2 and P8.2 require deeper review.
 
 ## 8. Scope Compliance
 
