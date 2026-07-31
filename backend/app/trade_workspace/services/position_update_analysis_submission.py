@@ -88,9 +88,8 @@ class PositionUpdateAnalysisSubmissionResult:
 class PositionUpdateAnalysisSubmissionService:
     """Submit one latest unlinked Position Update through the rebuild queue."""
 
-    def __init__(self, session: AsyncSession, queue: object) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
-        self._queue = queue
         self._lock_key: int | None = None
 
     async def submit(
@@ -123,7 +122,6 @@ class PositionUpdateAnalysisSubmissionService:
             try:
                 request_result = await AnalysisRequestQueueService(
                     self._session,
-                    self._queue,
                     config=AppConfig(gemini_model=DEFAULT_GEMINI_MODEL),
                 ).submit(
                     user_id=user_id,
@@ -136,40 +134,20 @@ class PositionUpdateAnalysisSubmissionService:
                     observation_at=evidence.observation_timestamp,
                     evidence_ids=[evidence.id],
                 )
+                trade_session.status = TradeSessionV2Status.ANALYZING
+                await self._session.commit()
             except (SessionNotFoundError, SessionOwnershipMismatchError) as exc:
+                await self._session.rollback()
                 raise PositionUpdateAnalysisSessionNotFoundError(str(exc)) from exc
             except DuplicateActiveRequestError as exc:
+                await self._session.rollback()
                 raise PositionUpdateAnalysisActiveRequestError(str(exc)) from exc
             except QueueSubmissionError as exc:
-                raise PositionUpdateAnalysisQueueError(str(exc)) from exc
-            except PersistenceError as exc:
-                raise PositionUpdateAnalysisPersistenceError(str(exc)) from exc
-
-            try:
-                refreshed = await self._session.scalar(
-                    select(TradeSessionV2)
-                    .where(
-                        TradeSessionV2.id == session_id,
-                        TradeSessionV2.user_id == user_id,
-                    )
-                    .with_for_update()
-                )
-                if refreshed is None:
-                    raise PositionUpdateAnalysisSessionNotFoundError(
-                        "Rebuild session was not found"
-                    )
-                if refreshed.status is not TradeSessionV2Status.OPEN_POSITION:
-                    raise PositionUpdateAnalysisNotAllowedError(
-                        "Trade session is no longer OPEN_POSITION"
-                    )
-                await self._session.commit()
-            except PositionUpdateAnalysisSubmissionError:
-                raise
-            except Exception as exc:
                 await self._session.rollback()
-                raise PositionUpdateAnalysisTransitionError(
-                    "Position Update analysis session transition failed"
-                ) from exc
+                raise PositionUpdateAnalysisQueueError(str(exc)) from exc
+            except (PersistenceError, Exception) as exc:
+                await self._session.rollback()
+                raise PositionUpdateAnalysisPersistenceError(str(exc)) from exc
 
             created_at = await self._request_created_at(request_result.request_id)
             return PositionUpdateAnalysisSubmissionResult(
@@ -180,7 +158,7 @@ class PositionUpdateAnalysisSubmissionService:
                 request_status=request_result.status,
                 evidence_id=evidence.id,
                 observation_period=evidence.observation_period,
-                session_status=TradeSessionV2Status.OPEN_POSITION,
+                session_status=TradeSessionV2Status.ANALYZING,
                 position_status=position.status,
                 created_at=created_at,
             )

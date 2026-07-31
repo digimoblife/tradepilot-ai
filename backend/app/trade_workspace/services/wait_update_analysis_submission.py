@@ -90,7 +90,7 @@ class WaitUpdateAnalysisSubmissionService:
     def __init__(
         self,
         session: AsyncSession,
-        queue: object,
+        queue: object = None,
         config: AppConfig | None = None,
     ) -> None:
         self._session = session
@@ -129,7 +129,6 @@ class WaitUpdateAnalysisSubmissionService:
             try:
                 request_result = await AnalysisRequestQueueService(
                     self._session,
-                    self._queue,
                     config=AppConfig(gemini_model=self._model),
                 ).submit(
                     user_id=user_id,
@@ -142,46 +141,35 @@ class WaitUpdateAnalysisSubmissionService:
                     observation_at=evidence.observation_timestamp,
                     evidence_ids=[evidence.id],
                 )
+                trade_session.status = TradeSessionV2Status.ANALYZING
+                await self._session.commit()
             except (SessionNotFoundError, SessionOwnershipMismatchError) as exc:
+                await self._session.rollback()
                 raise WaitUpdateAnalysisSessionNotFoundError(str(exc)) from exc
             except DuplicateActiveRequestError as exc:
+                await self._session.rollback()
                 raise WaitUpdateAnalysisActiveRequestError(str(exc)) from exc
             except QueueSubmissionError as exc:
+                await self._session.rollback()
                 raise WaitUpdateAnalysisQueueError(str(exc)) from exc
-            except PersistenceError as exc:
+            except (PersistenceError, Exception) as exc:
+                await self._session.rollback()
                 raise WaitUpdateAnalysisPersistenceError(str(exc)) from exc
 
-            try:
-                refreshed = await self._session.scalar(
-                    select(TradeSessionV2)
-                    .where(TradeSessionV2.id == session_id, TradeSessionV2.user_id == user_id)
-                    .with_for_update()
-                )
-                if refreshed is None:
-                    raise WaitUpdateAnalysisSessionNotFoundError(
-                        "Rebuild session was not found"
-                    )
-                if refreshed.status is not TradeSessionV2Status.WAITING:
-                    raise WaitUpdateAnalysisSessionIneligibleError(
-                        "Trade session is no longer waiting"
-                    )
-                await self._session.commit()
-            except WaitUpdateAnalysisSubmissionError:
-                raise
-            except Exception as exc:
-                await self._session.rollback()
-                raise WaitUpdateAnalysisTransitionError(
-                    "WAIT Update analysis session transition failed"
-                ) from exc
+            request = await self._session.scalar(
+                select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_result.request_id)
+            )
+            if request is None:
+                raise WaitUpdateAnalysisPersistenceError("Created request could not be read")
 
             return WaitUpdateAnalysisSubmissionResult(
-                analysis_request_id=request_result.request_id,
+                analysis_request_id=request.id,
                 session_id=session_id,
-                analysis_type=request_result.analysis_type,
-                request_status=request_result.status,
+                analysis_type=request.analysis_type,
+                request_status=request.status,
                 evidence_id=evidence.id,
                 observation_period=evidence.observation_period,
-                session_status=TradeSessionV2Status.WAITING,
+                session_status=TradeSessionV2Status.ANALYZING,
                 created_at=await self._request_created_at(request_result.request_id),
             )
         finally:

@@ -78,7 +78,7 @@ class InitialAnalysisSubmissionService:
     def __init__(
         self,
         session: AsyncSession,
-        queue: object,
+        queue: object = None,
         config: AppConfig | None = None,
     ) -> None:
         self._session = session
@@ -92,6 +92,10 @@ class InitialAnalysisSubmissionService:
         await self._acquire_lock(session_id)
         try:
             trade_session = await self._load_session(user_id, session_id)
+            if trade_session.status is not TradeSessionV2Status.DRAFT:
+                raise InitialAnalysisSessionIneligibleError(
+                    "Trade session is no longer eligible for initial analysis"
+                )
             evidence = await self._load_required_evidence(session_id)
             active = await self._active_request(session_id)
             if active is not None:
@@ -108,7 +112,7 @@ class InitialAnalysisSubmissionService:
             }
             try:
                 result = await AnalysisRequestQueueService(
-                    self._session, self._queue, config=self._config
+                    self._session, config=self._config
                 ).submit(
                     user_id=user_id,
                     session_id=session_id,
@@ -117,31 +121,17 @@ class InitialAnalysisSubmissionService:
                     input_snapshot=snapshot,
                     evidence_ids=[item.id for item in evidence],
                 )
+                trade_session.status = TradeSessionV2Status.ANALYZING
+                await self._session.commit()
             except (DuplicateActiveRequestError,) as exc:
+                await self._session.rollback()
                 raise InitialAnalysisActiveRequestError(str(exc)) from exc
             except (SessionNotFoundError, SessionOwnershipMismatchError) as exc:
+                await self._session.rollback()
                 raise InitialAnalysisSessionNotFoundError(str(exc)) from exc
             except QueueSubmissionError as exc:
+                await self._session.rollback()
                 raise InitialAnalysisQueueError(str(exc)) from exc
-            except Exception as exc:
-                raise InitialAnalysisPersistenceError(str(exc)) from exc
-
-            try:
-                refreshed = await self._session.scalar(
-                    select(TradeSessionV2)
-                    .where(TradeSessionV2.id == session_id, TradeSessionV2.user_id == user_id)
-                    .with_for_update()
-                )
-                if refreshed is None:
-                    raise InitialAnalysisSessionNotFoundError("Rebuild session was not found")
-                if refreshed.status is not TradeSessionV2Status.DRAFT:
-                    raise InitialAnalysisSessionIneligibleError(
-                        "Trade session is no longer eligible for initial analysis"
-                    )
-                refreshed.status = TradeSessionV2Status.ANALYZING
-                await self._session.commit()
-            except InitialAnalysisSubmissionError:
-                raise
             except Exception as exc:
                 await self._session.rollback()
                 raise InitialAnalysisPersistenceError(str(exc)) from exc

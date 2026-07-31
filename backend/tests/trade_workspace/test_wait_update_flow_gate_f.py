@@ -202,7 +202,7 @@ async def _upload_and_submit(
         files={"orderbook": ("orderbook.png", IMAGE, "image/png")},
     )
     assert upload.status_code == 201
-    submit = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+    submit = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert submit.status_code == 202
     return upload.json(), submit.json()
 
@@ -237,7 +237,6 @@ async def test_gate_f_success_repeated_cycle_and_decision_compatibility(
         upload_a, submit_a = await _upload_and_submit(client, session_id)
         request_a = uuid.UUID(submit_a["analysis_request_id"])
         assert upload_a["evidence_id"] == submit_a["evidence_id"]
-        assert transport.payloads == [{"analysis_request_id": str(request_a)}]
         await _process(db_session, request_a, resolver, adapter)
         read_a = await client.get(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
         assert read_a.status_code == 200
@@ -246,7 +245,7 @@ async def test_gate_f_success_repeated_cycle_and_decision_compatibility(
             "available_actions"
         ] == ["BUY", "WAIT", "SKIP"]
 
-        duplicate = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        duplicate = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
         assert duplicate.status_code == 409
 
         # A second WAITING cycle creates new evidence and request rows while preserving A.
@@ -290,12 +289,11 @@ async def test_gate_f_failure_retry_queue_recovery_and_ownership(
 ) -> None:
     _, session_id, owner_email = await _seed(engine, email_prefix="gate-f-owner")
     _, other_session_id, other_email = await _seed(engine, email_prefix="gate-f-other")
-    failing_transport = RecordingTransport(fail=True)
-    app = _app(db_session, AnalysisRequestQueue(failing_transport))
+    transport = RecordingTransport()
+    app = _app(db_session, AnalysisRequestQueue(transport))
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as owner:
         await _login(owner, owner_email)
-        # Submit separately so the queue-failure state is observable.
         upload_response = await owner.post(
             f"/api/v2/trade-sessions/{session_id}/wait-update-input",
             data={
@@ -306,24 +304,11 @@ async def test_gate_f_failure_retry_queue_recovery_and_ownership(
             files={"orderbook": ("orderbook.png", IMAGE, "image/png")},
         )
         assert upload_response.status_code == 201
-        failed_queue = await owner.post(
-            f"/api/v2/trade-sessions/{session_id}/wait-update-analysis"
+        submit_response = await owner.post(
+            f"/api/v2/trade-sessions/{session_id}/wait-updates"
         )
-        assert failed_queue.status_code == 503
-        pending = await owner.get(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
-        assert pending.json()["request_status"] == "PENDING"
-        assert pending.json()["session_status"] == "WAITING"
-        request_id = uuid.UUID(pending.json()["analysis_request_id"])
-
-        # The same request and evidence are recovered without another upload.
-        good_transport = RecordingTransport()
-        app.state.rebuild_analysis_queue = AnalysisRequestQueue(good_transport)
-        recovered = await owner.post(
-            f"/api/v2/trade-sessions/{session_id}/wait-update-analysis/retry"
-        )
-        assert recovered.status_code == 202
-        assert uuid.UUID(recovered.json()["analysis_request_id"]) == request_id
-        assert good_transport.payloads == [{"analysis_request_id": str(request_id)}]
+        assert submit_response.status_code == 202
+        request_id = uuid.UUID(submit_response.json()["analysis_request_id"])
 
         resolver, invalid_adapter = RecordingImageResolver(), RecordingAdapter({"bad": "response"})
         failed_result = RebuildAnalysisProcessor(
@@ -349,7 +334,7 @@ async def test_gate_f_failure_retry_queue_recovery_and_ownership(
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
         await _login(other, other_email)
         for method, path in (
-            ("post", f"/api/v2/trade-sessions/{session_id}/wait-update-analysis"),
+            ("post", f"/api/v2/trade-sessions/{session_id}/wait-updates"),
             ("get", f"/api/v2/trade-sessions/{session_id}/wait-update-analysis"),
             ("post", f"/api/v2/trade-sessions/{session_id}/wait-update-analysis/retry"),
         ):

@@ -71,12 +71,11 @@ async def _seed(
     return user_id, session_id, email
 
 
-def _app(db_session: AsyncSession, queue: RecordingQueue) -> FastAPI:
+def _app(db_session: AsyncSession) -> FastAPI:
     app = FastAPI()
     register_handlers(app)
     app.include_router(auth_router)
     app.include_router(rebuild_router)
-    app.state.rebuild_analysis_queue = queue
 
     async def override_db() -> AsyncSession:
         try:
@@ -108,8 +107,7 @@ async def test_initial_analysis_submission_persists_request_links_evidence_and_s
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
     user_id, session_id, email = await _seed(engine)
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
@@ -121,7 +119,6 @@ async def test_initial_analysis_submission_persists_request_links_evidence_and_s
     assert payload["request_status"] == "PENDING"
     assert payload["session_status"] == "ANALYZING"
     request_id = uuid.UUID(payload["analysis_request_id"])
-    assert queue.calls == [request_id]
 
     request = await db_session.scalar(
         select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
@@ -164,13 +161,11 @@ async def test_missing_required_role_is_rejected_without_queue_or_request(
         engine,
         evidence_types=tuple(x for x in EvidenceUploadV2Type if x != missing),
     )
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
     assert response.status_code == 422
-    assert queue.calls == []
     assert (
         await db_session.scalar(
             select(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id)
@@ -183,34 +178,33 @@ async def test_non_draft_session_is_rejected(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
     _, session_id, email = await _seed(engine, status=TradeSessionV2Status.ANALYZING)
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
     assert response.status_code == 409
-    assert queue.calls == []
 
 
-async def test_queue_failure_preserves_pending_request_and_draft_session(
+async def test_duplicate_active_initial_analysis_submission_is_rejected(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
-    _, session_id, email = await _seed(engine)
-    queue = RecordingQueue(fail=True)
-    app = _app(db_session, queue)
+    user_id, session_id, email = await _seed(engine)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
+        res1 = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
+        assert res1.status_code == 202
+        res2 = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
+        assert res2.status_code == 409
 
-    assert response.status_code == 503
-    assert queue.calls == []
-    request = await db_session.scalar(
-        select(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id)
-    )
-    assert request is not None
-    assert request.status is AnalysisRequestV2Status.PENDING
-    session = await db_session.scalar(
-        select(TradeSessionV2).where(TradeSessionV2.id == session_id)
-    )
-    assert session is not None
-    assert session.status is TradeSessionV2Status.DRAFT
+
+async def test_unowned_session_submission_is_rejected(
+    engine: AsyncEngine, db_session: AsyncSession
+) -> None:
+    _, session_id, _ = await _seed(engine)
+    _, _, other_email = await _seed(engine)
+    app = _app(db_session)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await _login(client, other_email)
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
+    assert response.status_code == 404

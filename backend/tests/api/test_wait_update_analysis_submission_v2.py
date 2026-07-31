@@ -89,12 +89,11 @@ async def _seed(
     return user_id, session_id, email
 
 
-def _app(db_session: AsyncSession, queue: RecordingQueue) -> FastAPI:
+def _app(db_session: AsyncSession) -> FastAPI:
     app = FastAPI()
     register_handlers(app)
     app.include_router(auth_router)
     app.include_router(rebuild_router)
-    app.state.rebuild_analysis_queue = queue
 
     async def override_db() -> AsyncSession:
         try:
@@ -156,8 +155,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
     _, session_id, email = await _seed(engine)
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
@@ -173,10 +171,9 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         "request_status": "PENDING",
         "evidence_id": str(evidence_id),
         "observation_period": "MIDDAY",
-        "session_status": "WAITING",
+        "session_status": "ANALYZING",
         "created_at": payload["created_at"],
     }
-    assert queue.calls == [request_id]
 
     request = await db_session.scalar(
         select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
@@ -214,7 +211,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.WAITING
+    assert session.status is TradeSessionV2Status.ANALYZING
     assert session.closed_at is None
 
 
@@ -267,8 +264,7 @@ async def test_latest_eligible_evidence_is_selected_deterministically(
                 },
             ],
         )
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
@@ -285,14 +281,12 @@ async def test_non_waiting_sessions_are_rejected(
     engine: AsyncEngine, db_session: AsyncSession, status: TradeSessionV2Status
 ) -> None:
     _, session_id, email = await _seed(engine, status=status, evidence=True)
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "SESSION_NOT_ELIGIBLE"
-    assert queue.calls == []
 
 
 @pytest.mark.parametrize(
@@ -305,14 +299,12 @@ async def test_active_wait_update_request_blocks_duplicate_submission(
     _, session_id, email = await _seed(engine)
     async with db_session.begin():
         db_session.add(_request(session_id, status=request_status))
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "WAIT_UPDATE_ANALYSIS_ACTIVE"
-    assert queue.calls == []
 
 
 async def test_completed_prior_cycle_does_not_block_new_submission(
@@ -321,13 +313,11 @@ async def test_completed_prior_cycle_does_not_block_new_submission(
     _, session_id, email = await _seed(engine)
     async with db_session.begin():
         db_session.add(_request(session_id, status=AnalysisRequestV2Status.COMPLETED))
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 202
-    assert len(queue.calls) == 1
     assert (
         await db_session.scalar(
             select(AnalysisRequestV2.id).where(
@@ -355,27 +345,25 @@ async def test_missing_metadata_and_no_eligible_input_are_rejected_safely(
                 size_bytes=10,
             )
         )
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "WAIT_UPDATE_INPUT_NOT_READY"
-    assert queue.calls == []
 
 
-async def test_queue_failure_keeps_request_pending_evidence_linked_and_session_waiting(
+async def test_successful_submission_commits_request_pending_evidence_linked_and_session_analyzing(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
+    """P4.4 database-backed queue: verify atomic commit persists PENDING request,
+    linked evidence, and ANALYZING session status without transport calls."""
     _, session_id, email = await _seed(engine)
-    queue = RecordingQueue(fail=True)
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "WAIT_UPDATE_ANALYSIS_QUEUE_FAILED"
+    assert response.status_code == 202
     request = await db_session.scalar(
         select(AnalysisRequestV2).where(
             AnalysisRequestV2.session_id == session_id,
@@ -393,8 +381,7 @@ async def test_queue_failure_keeps_request_pending_evidence_linked_and_session_w
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.WAITING
-    assert queue.calls == []
+    assert session.status is TradeSessionV2Status.ANALYZING
 
 
 async def test_ownership_and_authentication_are_safe(
@@ -402,8 +389,7 @@ async def test_ownership_and_authentication_are_safe(
 ) -> None:
     _, session_id, owner_email = await _seed(engine)
     _, _, other_email = await _seed(engine, email_prefix="p72-other", ticker="BBCA")
-    queue = RecordingQueue()
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
         assert response.status_code == 401
@@ -414,7 +400,6 @@ async def test_ownership_and_authentication_are_safe(
         await _login(client, owner_email)
         response = await client.post(f"/api/v2/trade-sessions/{uuid.uuid4()}/wait-updates")
     assert response.status_code == 404
-    assert queue.calls == []
 
 
 async def test_concurrent_sessions_are_independent_and_duplicate_submission_is_serialized(
@@ -423,11 +408,9 @@ async def test_concurrent_sessions_are_independent_and_duplicate_submission_is_s
     _, session_a, email_a = await _seed(engine, email_prefix="p72-a", ticker="BBRI")
     _, session_b, email_b = await _seed(engine, email_prefix="p72-b", ticker="BBCA")
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    queue = RecordingQueue(delay=0.02)
-
     async def submit(session_id: uuid.UUID, email: str) -> int:
         async with factory() as db_session:
-            app = _app(db_session, queue)
+            app = _app(db_session)
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
@@ -443,7 +426,6 @@ async def test_concurrent_sessions_are_independent_and_duplicate_submission_is_s
         submit(session_b, email_b),
     )
     assert sorted(statuses) == [202, 202, 409]
-    assert len(queue.calls) == 2
     async with factory() as session:
         rows = list(
             (

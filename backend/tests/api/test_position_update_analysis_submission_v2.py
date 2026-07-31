@@ -169,12 +169,11 @@ async def _add_prior_request(
     return request_id
 
 
-def _app(db_session: AsyncSession, queue: AnalysisRequestQueue) -> FastAPI:
+def _app(db_session: AsyncSession) -> FastAPI:
     app = FastAPI()
     register_handlers(app)
     app.include_router(auth_router)
     app.include_router(rebuild_router)
-    app.state.rebuild_analysis_queue = queue
 
     async def override_db():
         try:
@@ -197,13 +196,12 @@ async def db_session(engine: AsyncEngine) -> AsyncSession:
 
 async def _post(
     db_session: AsyncSession,
-    queue: AnalysisRequestQueue,
     session_id: uuid.UUID,
     email: str | None,
     *,
     body: object = None,
 ) -> tuple[int, dict[str, object]]:
-    app = _app(db_session, queue)
+    app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         if email is not None:
             login = await client.post(
@@ -259,27 +257,18 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
         other_session,
         observation_timestamp=OBSERVATION + timedelta(days=1),
     )
-    transport = RecordingTransport()
-    queue = AnalysisRequestQueue(transport)
-    code, payload = await _post(db_session, queue, session_id, email)
-
+    code, payload = await _post(db_session, session_id, email)
     assert code == 202
-    request_id = uuid.UUID(payload["analysis_request_id"])
-    assert payload == {
-        "analysis_request_id": str(request_id),
-        "session_id": str(session_id),
-        "position_id": str(position_id),
-        "analysis_type": "POSITION_UPDATE",
-        "request_status": "PENDING",
-        "evidence_id": str(latest_id),
-        "observation_period": "MIDDAY",
-        "session_status": "OPEN_POSITION",
-        "position_status": "OPEN",
-        "created_at": payload["created_at"],
-    }
-    assert transport.payloads == [{"analysis_request_id": str(request_id)}]
+    assert payload["session_id"] == str(session_id)
+    assert payload["position_id"] == str(position_id)
+    assert payload["analysis_type"] == "POSITION_UPDATE"
+    assert payload["request_status"] == "PENDING"
+    assert payload["evidence_id"] == str(latest_id)
+    assert payload["observation_period"] == "MIDDAY"
+    assert payload["session_status"] == "ANALYZING"
     assert older_id != latest_id and other_user != user_id and other_position != position_id
 
+    request_id = uuid.UUID(payload["analysis_request_id"])
     request = await db_session.scalar(
         select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
     )
@@ -319,9 +308,9 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
     session = await db_session.scalar(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
-    position = await db_session.scalar(select(PositionV2).where(PositionV2.id == position_id))
-    assert session is not None and session.status is TradeSessionV2Status.OPEN_POSITION
+    assert session is not None and session.status is TradeSessionV2Status.ANALYZING
     assert session.closed_at is None
+    position = await db_session.scalar(select(PositionV2).where(PositionV2.id == position_id))
     assert position is not None and position.status is PositionV2Status.OPEN
     assert position.entry_price == Decimal("1200.000000")
     assert position.quantity == Decimal("10.000000")
@@ -349,11 +338,9 @@ async def test_position_update_analysis_rejects_inactive_sessions(
 ) -> None:
     _, session_id, _, email = await _seed_session(engine, status=status)
     await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
-    transport = RecordingTransport()
-    code, payload = await _post(db_session, AnalysisRequestQueue(transport), session_id, email)
+    code, payload = await _post(db_session, session_id, email)
     assert code == 409
     assert payload["error"]["code"] == "POSITION_UPDATE_ANALYSIS_NOT_ALLOWED"
-    assert not transport.payloads
     assert await _count(db_session, AnalysisRequestV2, session_id) == 0
 
 
@@ -365,8 +352,7 @@ async def test_position_update_analysis_rejects_missing_or_non_open_position(
 ) -> None:
     _, session_id, _, email = await _seed_session(engine, position_status=position_status)
     await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
-    transport = RecordingTransport()
-    code, payload = await _post(db_session, AnalysisRequestQueue(transport), session_id, email)
+    code, payload = await _post(db_session, session_id, email)
     assert code == 409
     assert payload["error"]["code"] == "POSITION_UPDATE_ANALYSIS_NOT_ALLOWED"
     assert await _count(db_session, AnalysisRequestV2, session_id) == 0
@@ -384,18 +370,17 @@ async def test_no_eligible_evidence_and_ownership_are_safe(
         current_price=None,
     )
     _, other_session, _, other_email = await _seed_session(engine)
-    transport = RecordingTransport()
     cross_code, cross_payload = await _post(
-        db_session, AnalysisRequestQueue(transport), session_id, other_email
+        db_session, session_id, other_email
     )
     missing_code, missing_payload = await _post(
-        db_session, AnalysisRequestQueue(transport), uuid.uuid4(), owner_email
+        db_session, uuid.uuid4(), owner_email
     )
     no_input_code, no_input_payload = await _post(
-        db_session, AnalysisRequestQueue(transport), other_session, other_email
+        db_session, other_session, other_email
     )
     unauth_code, unauth_payload = await _post(
-        db_session, AnalysisRequestQueue(transport), session_id, None
+        db_session, session_id, None
     )
     assert cross_code == missing_code == 404
     assert (
@@ -405,7 +390,6 @@ async def test_no_eligible_evidence_and_ownership_are_safe(
     assert no_input_payload["error"]["code"] == "POSITION_UPDATE_INPUT_NOT_READY"
     assert unauth_code == 401
     assert unauth_payload["error"]["code"] == "AUTHENTICATION_REQUIRED"
-    assert not transport.payloads
 
 
 @pytest.mark.parametrize(
@@ -420,11 +404,9 @@ async def test_active_position_update_request_blocks_duplicate(
     evidence_id = await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
     await _add_prior_request(engine, session_id, evidence_id, request_status=request_status)
     await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION + timedelta(hours=1))
-    transport = RecordingTransport()
-    code, payload = await _post(db_session, AnalysisRequestQueue(transport), session_id, email)
+    code, payload = await _post(db_session, session_id, email)
     assert code == 409
     assert payload["error"]["code"] == "POSITION_UPDATE_ANALYSIS_ACTIVE"
-    assert not transport.payloads
     assert await _count(db_session, AnalysisRequestV2, session_id) == 1
 
 
@@ -442,67 +424,32 @@ async def test_completed_or_failed_prior_cycle_allows_new_cycle(
     latest_evidence = await _add_evidence(
         engine, session_id, observation_timestamp=OBSERVATION + timedelta(hours=1)
     )
-    transport = RecordingTransport()
-    code, payload = await _post(db_session, AnalysisRequestQueue(transport), session_id, email)
+    code, payload = await _post(db_session, session_id, email)
     assert code == 202
     assert payload["evidence_id"] == str(latest_evidence)
     assert await _count(db_session, AnalysisRequestV2, session_id) == 2
-    assert len(transport.payloads) == 1
-
-
-async def test_queue_failure_keeps_pending_request_and_linked_evidence(
-    engine: AsyncEngine,
-    db_session: AsyncSession,
-) -> None:
-    _, session_id, position_id, email = await _seed_session(engine)
-    evidence_id = await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
-    transport = RecordingTransport(fail=True)
-    code, payload = await _post(db_session, AnalysisRequestQueue(transport), session_id, email)
-    assert code == 503
-    assert payload["error"]["code"] == "POSITION_UPDATE_ANALYSIS_QUEUE_FAILED"
-    request = await db_session.scalar(
-        select(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id)
-    )
-    assert request is not None and request.status is AnalysisRequestV2Status.PENDING
-    linked = await db_session.scalar(
-        select(EvidenceUploadV2).where(EvidenceUploadV2.id == evidence_id)
-    )
-    assert linked is not None and linked.analysis_request_id == request.id
-    session = await db_session.scalar(
-        select(TradeSessionV2).where(TradeSessionV2.id == session_id)
-    )
-    position = await db_session.scalar(select(PositionV2).where(PositionV2.id == position_id))
-    assert session is not None and session.status is TradeSessionV2Status.OPEN_POSITION
-    assert position is not None and position.status is PositionV2Status.OPEN
-    assert not transport.payloads
-    assert await _count(db_session, AnalysisRequestV2, session_id) == 1
 
 
 async def test_persistence_failure_leaves_evidence_unlinked(
     engine: AsyncEngine,
     db_session: AsyncSession,
 ) -> None:
-    _, session_id, _, email = await _seed_session(engine)
+    user_id, session_id, _, email = await _seed_session(engine)
     evidence_id = await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
-    transport = RecordingTransport()
 
     async def fail_flush(*args: object, **kwargs: object) -> None:
         raise SQLAlchemyError("submission persistence failure")
 
     db_session.flush = fail_flush  # type: ignore[method-assign]
-    user_id = await db_session.scalar(
-        select(TradeSessionV2.user_id).where(TradeSessionV2.id == session_id)
-    )
     with pytest.raises(PositionUpdateAnalysisPersistenceError):
-        await PositionUpdateAnalysisSubmissionService(
-            db_session, AnalysisRequestQueue(transport)
-        ).submit(user_id=user_id, session_id=session_id)
+        await PositionUpdateAnalysisSubmissionService(db_session).submit(
+            user_id=user_id, session_id=session_id
+        )
     assert await _count(db_session, AnalysisRequestV2, session_id) == 0
     linked = await db_session.scalar(
         select(EvidenceUploadV2).where(EvidenceUploadV2.id == evidence_id)
     )
     assert linked is not None and linked.analysis_request_id is None
-    assert not transport.payloads
 
 
 async def test_concurrent_same_session_submission_creates_at_most_one_request(
@@ -511,14 +458,11 @@ async def test_concurrent_same_session_submission_creates_at_most_one_request(
     _, session_id, _, email = await _seed_session(engine)
     await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    transport = RecordingTransport(delay=0.05)
-
     async def submit() -> int:
         async with factory() as session:
             return (
                 await _post(
                     session,
-                    AnalysisRequestQueue(transport),
                     session_id,
                     email,
                 )
@@ -526,7 +470,6 @@ async def test_concurrent_same_session_submission_creates_at_most_one_request(
 
     results = await asyncio.gather(submit(), submit())
     assert sorted(results) == [202, 409]
-    assert len(transport.payloads) == 1
     async with factory() as session:
         assert await _count(session, AnalysisRequestV2, session_id) == 1
 
@@ -539,18 +482,14 @@ async def test_session_a_does_not_block_session_b(
     await _add_evidence(engine, owner[1], observation_timestamp=OBSERVATION)
     await _add_evidence(engine, session_b, observation_timestamp=OBSERVATION)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    transport = RecordingTransport()
-
     async def submit(session_id: uuid.UUID) -> int:
         async with factory() as session:
             return (
                 await _post(
                     session,
-                    AnalysisRequestQueue(transport),
                     session_id,
                     owner[3],
                 )
             )[0]
 
     assert sorted(await asyncio.gather(submit(owner[1]), submit(session_b))) == [202, 202]
-    assert len(transport.payloads) == 2

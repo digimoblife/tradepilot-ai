@@ -18,8 +18,7 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Type,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2
-from app.trade_workspace.models.trade_session import TradeSessionV2
-from app.trade_workspace.queue.analysis_request_queue import AnalysisRequestQueue
+from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 _ACTIVE_STATUSES = (
@@ -78,16 +77,15 @@ class AnalysisRequestServiceResult:
 
 
 class AnalysisRequestQueueService:
-    """Create one rebuild request, commit it, then enqueue its identifier once."""
+    """Create one rebuild request with PENDING status, assign evidence, transition session to ANALYZING, and commit atomically."""
 
     def __init__(
         self,
         session: AsyncSession,
-        queue: AnalysisRequestQueue,
+        queue: object = None,
         config: AppConfig | None = None,
     ) -> None:
         self._session = session
-        self._queue = queue
         self._config = config or AppConfig()
 
     async def submit(
@@ -104,7 +102,7 @@ class AnalysisRequestQueueService:
         evidence_ids: Sequence[uuid.UUID] | None = None,
     ) -> AnalysisRequestServiceResult:
         resolved_type = _resolve_analysis_type(analysis_type)
-        await self._load_owned_session(user_id, session_id)
+        trade_session = await self._load_owned_session(user_id, session_id)
 
         evidence = await self._load_selected_evidence(
             session_id=session_id,
@@ -150,15 +148,8 @@ class AnalysisRequestQueueService:
             for item in evidence:
                 item.analysis_request_id = request.id
             await self._session.flush()
-            await self._session.commit()
         except SQLAlchemyError as exc:
-            await self._session.rollback()
             raise PersistenceError("Rebuild analysis request could not be persisted") from exc
-
-        try:
-            await self._queue.enqueue(analysis_request_id=request.id)
-        except Exception as exc:
-            raise QueueSubmissionError("Rebuild analysis request could not be queued") from exc
 
         return AnalysisRequestServiceResult(
             request_id=request.id,

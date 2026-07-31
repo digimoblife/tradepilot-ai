@@ -76,9 +76,8 @@ class InitialAnalysisRetryResult:
 
 
 class InitialAnalysisRetryService:
-    def __init__(self, session: AsyncSession, queue: object) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
-        self._queue = queue
         self._lock_key: int | None = None
         self._session_lock: asyncio.Lock | None = None
 
@@ -110,24 +109,9 @@ class InitialAnalysisRetryService:
                 request.error_message = None
                 request.raw_response = None
                 request.processed_response = None
-                try:
-                    await self._session.flush()
-                    await self._session.commit()
-                except SQLAlchemyError as exc:
-                    await self._session.rollback()
-                    raise InitialAnalysisRetryPersistenceError(
-                        "Initial Analysis retry could not be prepared"
-                    ) from exc
 
+            trade_session.status = TradeSessionV2Status.ANALYZING
             try:
-                await self._queue.enqueue(analysis_request_id=request.id)
-            except Exception as exc:
-                raise InitialAnalysisRetryQueueError(
-                    "Initial Analysis retry could not be queued"
-                ) from exc
-
-            try:
-                trade_session.status = TradeSessionV2Status.ANALYZING
                 await self._session.commit()
             except SQLAlchemyError as exc:
                 await self._session.rollback()

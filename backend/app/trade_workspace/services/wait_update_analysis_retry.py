@@ -82,7 +82,7 @@ class WaitUpdateAnalysisRetryResult:
 class WaitUpdateAnalysisRetryService:
     """Explicitly re-enqueue one eligible WAIT_UPDATE request."""
 
-    def __init__(self, session: AsyncSession, queue: object) -> None:
+    def __init__(self, session: AsyncSession, queue: object = None) -> None:
         self._session = session
         self._queue = queue
         self._session_lock: asyncio.Lock | None = None
@@ -119,47 +119,14 @@ class WaitUpdateAnalysisRetryService:
                 request.processed_response = None
                 request.error_code = None
                 request.error_message = None
-                try:
-                    await self._session.flush()
-                    await self._session.commit()
-                except SQLAlchemyError as exc:
-                    await self._session.rollback()
-                    raise WaitUpdateAnalysisRetryPersistenceError(
-                        "WAIT Update retry could not be prepared"
-                    ) from exc
 
+            trade_session.status = TradeSessionV2Status.ANALYZING
             try:
-                await self._queue.enqueue(analysis_request_id=request.id)
-            except Exception as exc:
-                raise WaitUpdateAnalysisRetryQueueError(
-                    "WAIT Update retry could not be queued"
-                ) from exc
-
-            try:
-                refreshed = await self._session.scalar(
-                    select(TradeSessionV2)
-                    .where(
-                        TradeSessionV2.id == session_id,
-                        TradeSessionV2.user_id == user_id,
-                    )
-                    .with_for_update()
-                )
-                if refreshed is None:
-                    raise WaitUpdateAnalysisRetrySessionNotFoundError(
-                        "Rebuild session was not found"
-                    )
-                if refreshed.status is not TradeSessionV2Status.WAITING:
-                    raise WaitUpdateAnalysisRetrySessionStateError(
-                        "Trade session is no longer waiting"
-                    )
-                refreshed.status = TradeSessionV2Status.ANALYZING
                 await self._session.commit()
-            except WaitUpdateAnalysisRetryError:
-                raise
             except SQLAlchemyError as exc:
                 await self._session.rollback()
-                raise WaitUpdateAnalysisRetryTransitionError(
-                    "WAIT Update retry session transition failed"
+                raise WaitUpdateAnalysisRetryPersistenceError(
+                    "WAIT Update retry status could not be persisted"
                 ) from exc
 
             return WaitUpdateAnalysisRetryResult(

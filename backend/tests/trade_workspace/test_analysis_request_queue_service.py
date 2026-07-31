@@ -19,50 +19,16 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Type,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
-from app.trade_workspace.models.trade_session import TradeSessionV2
-from app.trade_workspace.queue.analysis_request_queue import (
-    AnalysisRequestQueueSubmissionError,
-)
+from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 from app.trade_workspace.services.analysis_request_queue import (
     AnalysisRequestQueueService,
     DuplicateActiveRequestError,
     EvidenceAlreadyAssignedError,
     EvidenceOwnershipMismatchError,
     PersistenceError,
-    QueueSubmissionError,
     SessionOwnershipMismatchError,
     UnsupportedAnalysisTypeError,
 )
-
-
-class RecordingQueue:
-    def __init__(self, factory: async_sessionmaker[AsyncSession] | None = None) -> None:
-        self.factory = factory
-        self.request_ids: list[uuid.UUID] = []
-        self.persisted_before_enqueue = False
-
-    async def enqueue(self, *, analysis_request_id: uuid.UUID) -> None:
-        self.request_ids.append(analysis_request_id)
-        if self.factory is not None:
-            async with self.factory() as session:
-                request = await session.scalar(
-                    select(AnalysisRequestV2).where(AnalysisRequestV2.id == analysis_request_id)
-                )
-                linked_count = await session.scalar(
-                    select(func.count(EvidenceUploadV2.id)).where(
-                        EvidenceUploadV2.analysis_request_id == analysis_request_id
-                    )
-                )
-                self.persisted_before_enqueue = request is not None and linked_count == 3
-
-
-class FailingQueue:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    async def enqueue(self, *, analysis_request_id: uuid.UUID) -> None:
-        self.calls += 1
-        raise AnalysisRequestQueueSubmissionError("broker secret must not escape")
 
 
 def _evidence(session_id: uuid.UUID, evidence_type: EvidenceUploadV2Type) -> EvidenceUploadV2:
@@ -110,7 +76,7 @@ def _request(
 
 
 @pytest.mark.database
-async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> None:
+async def test_analysis_request_queue_service_persists_pending_request_and_session_status(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     user_id = uuid.uuid4()
     other_user_id = uuid.uuid4()
@@ -218,32 +184,29 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
             await setup.flush()
             assigned_evidence.analysis_request_id = active_initial_request.id
 
-    queue = RecordingQueue(factory)
     snapshot = {"ticker": "BBRI", "note": "preserve exactly", "nested": {"x": 1}}
     observation_at = datetime(2026, 7, 30, 3, 4, 5, tzinfo=timezone.utc)
     async with factory() as session:
-        service = AnalysisRequestQueueService(
-            session,
-            queue,  # type: ignore[arg-type]
-            config=AppConfig(gemini_model="gemini-custom-test"),
-        )
-        result = await service.submit(
-            user_id=user_id,
-            session_id=session_id,
-            analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
-            prompt_version="wait-v3",
-            input_snapshot=snapshot,
-            current_price=Decimal("127.75"),
-            observation_period=AnalysisRequestV2ObservationPeriod.AFTERNOON,
-            observation_at=observation_at,
-            evidence_ids=[item.id for item in initial_evidence],
-        )
+        async with session.begin():
+            service = AnalysisRequestQueueService(
+                session,
+                config=AppConfig(gemini_model="gemini-custom-test"),
+            )
+            result = await service.submit(
+                user_id=user_id,
+                session_id=session_id,
+                analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+                prompt_version="wait-v3",
+                input_snapshot=snapshot,
+                current_price=Decimal("127.75"),
+                observation_period=AnalysisRequestV2ObservationPeriod.AFTERNOON,
+                observation_at=observation_at,
+                evidence_ids=[item.id for item in initial_evidence],
+            )
 
     assert result.status is AnalysisRequestV2Status.PENDING
     assert result.provider == "gemini"
     assert result.model == "gemini-custom-test"
-    assert len(queue.request_ids) == 1
-    assert queue.persisted_before_enqueue is True
 
     async with factory() as verify:
         persisted = await verify.scalar(
@@ -261,46 +224,36 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
         assert persisted.error_message is None
         assert persisted.started_at is None
         assert persisted.completed_at is None
+
+        session_record = await verify.scalar(
+            select(TradeSessionV2).where(TradeSessionV2.id == session_id)
+        )
+        assert session_record is not None
+        assert session_record.status is TradeSessionV2Status.DRAFT
+
         assert await verify.scalar(
             select(func.count(EvidenceUploadV2.id)).where(
                 EvidenceUploadV2.analysis_request_id == result.request_id
             )
         ) == 3
-        assert (
-            await verify.scalar(
-                select(func.count(TradeSessionV2.id)).where(
-                    TradeSessionV2.id.in_(
-                        [
-                            session_id,
-                            other_session_id,
-                            processing_session_id,
-                            completed_session_id,
-                            failed_session_id,
-                            active_initial_session_id,
-                        ]
-                    )
-                )
-            )
-            == 6
-        )
 
     async with factory() as session:
-        service = AnalysisRequestQueueService(
-            session,
-            RecordingQueue(),  # type: ignore[arg-type]
-            config=AppConfig(gemini_model=""),
-        )
-        default_result = await service.submit(
-            user_id=user_id,
-            session_id=session_id,
-            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
-            prompt_version="initial-v1",
-            input_snapshot={"ticker": "BBRI"},
-        )
+        async with session.begin():
+            service = AnalysisRequestQueueService(
+                session,
+                config=AppConfig(gemini_model=""),
+            )
+            default_result = await service.submit(
+                user_id=user_id,
+                session_id=session_id,
+                analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+                prompt_version="initial-v1",
+                input_snapshot={"ticker": "BBRI"},
+            )
     assert default_result.model == "gemini-3.1-flash-lite"
 
     async with factory() as session:
-        service = AnalysisRequestQueueService(session, RecordingQueue())  # type: ignore[arg-type]
+        service = AnalysisRequestQueueService(session)
         with pytest.raises(DuplicateActiveRequestError):
             await service.submit(
                 user_id=user_id,
@@ -322,22 +275,23 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
             )
 
     async with factory() as session:
-        service = AnalysisRequestQueueService(session, RecordingQueue())  # type: ignore[arg-type]
-        for allowed_session_id in (completed_session_id, failed_session_id):
-            result = await service.submit(
-                user_id=user_id,
-                session_id=allowed_session_id,
-                analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
-                prompt_version="v2",
-                input_snapshot={},
-                current_price=Decimal("2"),
-                observation_period=AnalysisRequestV2ObservationPeriod.MIDDAY,
-                observation_at=observation_at,
-            )
-            assert result.status is AnalysisRequestV2Status.PENDING
+        async with session.begin():
+            service = AnalysisRequestQueueService(session)
+            for allowed_session_id in (completed_session_id, failed_session_id):
+                result = await service.submit(
+                    user_id=user_id,
+                    session_id=allowed_session_id,
+                    analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+                    prompt_version="v2",
+                    input_snapshot={},
+                    current_price=Decimal("2"),
+                    observation_period=AnalysisRequestV2ObservationPeriod.MIDDAY,
+                    observation_at=observation_at,
+                )
+                assert result.status is AnalysisRequestV2Status.PENDING
 
     async with factory() as session:
-        service = AnalysisRequestQueueService(session, RecordingQueue())  # type: ignore[arg-type]
+        service = AnalysisRequestQueueService(session)
         with pytest.raises(UnsupportedAnalysisTypeError):
             await service.submit(
                 user_id=user_id,
@@ -373,49 +327,14 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
                 evidence_ids=[assigned_evidence_id],
             )
 
-    failing_queue = FailingQueue()
     async with factory() as session:
-        service = AnalysisRequestQueueService(session, failing_queue)  # type: ignore[arg-type]
-        with pytest.raises(QueueSubmissionError) as queue_error:
-            await service.submit(
-                user_id=user_id,
-                session_id=session_id,
-                analysis_type=AnalysisRequestV2Type.POSITION_UPDATE,
-                prompt_version="queue-failure-v1",
-                input_snapshot={"ticker": "BBRI"},
-                current_price=Decimal("127.75"),
-                observation_period=AnalysisRequestV2ObservationPeriod.AFTERNOON,
-                observation_at=observation_at,
-            )
-        assert "secret" not in str(queue_error.value)
-    assert failing_queue.calls == 1
+        service = AnalysisRequestQueueService(session)
+        original_flush = session.flush
 
-    async with factory() as verify:
-        preserved = await verify.scalar(
-            select(AnalysisRequestV2).where(
-                AnalysisRequestV2.prompt_version == "queue-failure-v1"
-            )
-        )
-        assert preserved is not None
-        assert preserved.status is AnalysisRequestV2Status.PENDING
-        assert (
-            await verify.scalar(
-                    select(func.count(AnalysisRequestV2.id)).where(
-                        AnalysisRequestV2.session_id == session_id,
-                        AnalysisRequestV2.prompt_version == "queue-failure-v1",
-                    )
-            )
-            == 1
-        )
-
-    async with factory() as session:
-        service = AnalysisRequestQueueService(session, RecordingQueue())  # type: ignore[arg-type]
-        original_commit = session.commit
-
-        async def fail_commit() -> None:
+        async def fail_flush() -> None:
             raise SQLAlchemyError("database password must not escape")
 
-        session.commit = fail_commit  # type: ignore[method-assign]
+        session.flush = fail_flush  # type: ignore[method-assign]
         with pytest.raises(PersistenceError) as persistence_error:
             await service.submit(
                 user_id=user_id,
@@ -424,8 +343,39 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
                 prompt_version="persistence-failure-v1",
                 input_snapshot={},
             )
-        session.commit = original_commit  # type: ignore[method-assign]
+        session.flush = original_flush  # type: ignore[method-assign]
         assert "password" not in str(persistence_error.value)
+
+    # Prove caller rollback undoes request creation and evidence assignment
+    rollback_session_id = uuid.uuid4()
+    async with factory() as setup:
+        async with setup.begin():
+            setup.add(TradeSessionV2(id=rollback_session_id, user_id=user_id, ticker="BBRI", company_name="Bank BRI"))
+            await setup.flush()
+            rb_evidence = _evidence(rollback_session_id, EvidenceUploadV2Type.ORDERBOOK)
+            setup.add(rb_evidence)
+            await setup.flush()
+            rb_evidence_id = rb_evidence.id
+
+    async with factory() as session:
+        service = AnalysisRequestQueueService(session)
+        rb_result = await service.submit(
+            user_id=user_id,
+            session_id=rollback_session_id,
+            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+            prompt_version="v1",
+            input_snapshot={},
+            evidence_ids=[rb_evidence_id],
+        )
+        created_rb_id = rb_result.request_id
+        await session.rollback()
+
+    async with factory() as verify:
+        rb_request = await verify.scalar(select(AnalysisRequestV2).where(AnalysisRequestV2.id == created_rb_id))
+        rb_ev = await verify.scalar(select(EvidenceUploadV2).where(EvidenceUploadV2.id == rb_evidence_id))
+        assert rb_request is None
+        assert rb_ev is not None
+        assert rb_ev.analysis_request_id is None
 
     async with factory() as cleanup:
         async with cleanup.begin():
@@ -439,6 +389,7 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
                             completed_session_id,
                             failed_session_id,
                             active_initial_session_id,
+                            rollback_session_id,
                         ]
                     )
                 )
@@ -453,6 +404,7 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
                             completed_session_id,
                             failed_session_id,
                             active_initial_session_id,
+                            rollback_session_id,
                         ]
                     )
                 )
@@ -467,6 +419,7 @@ async def test_analysis_request_queue_service_persists_then_enqueues(engine) -> 
                             completed_session_id,
                             failed_session_id,
                             active_initial_session_id,
+                            rollback_session_id,
                         ]
                     )
                 )
@@ -500,18 +453,19 @@ async def test_duplicate_protection_serializes_same_session_submissions(engine) 
 
     async def submit_one() -> AnalysisRequestV2Status | DuplicateActiveRequestError:
         async with factory() as session:
-            service = AnalysisRequestQueueService(session, RecordingQueue())  # type: ignore[arg-type]
-            try:
-                result = await service.submit(
-                    user_id=user_id,
-                    session_id=session_id,
-                    analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
-                    prompt_version="lock-v1",
-                    input_snapshot={"ticker": "BBRI"},
-                )
-            except DuplicateActiveRequestError as exc:
-                return exc
-            return result.status
+            async with session.begin():
+                service = AnalysisRequestQueueService(session)
+                try:
+                    result = await service.submit(
+                        user_id=user_id,
+                        session_id=session_id,
+                        analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+                        prompt_version="lock-v1",
+                        input_snapshot={"ticker": "BBRI"},
+                    )
+                except DuplicateActiveRequestError as exc:
+                    return exc
+                return result.status
 
     outcomes = await asyncio.gather(submit_one(), submit_one())
     assert sum(isinstance(item, DuplicateActiveRequestError) for item in outcomes) == 1

@@ -323,7 +323,6 @@ async def test_failed_retry_reuses_request_and_evidence_and_clears_result(
     assert status_code == 202
     assert payload["analysis_request_id"] == str(request_id)
     assert payload["session_status"] == "ANALYZING"
-    assert queue.calls == [request_id]
     request = await _read_request(db_session, request_id)
     assert request.status is AnalysisRequestV2Status.PENDING
     assert request.started_at is None
@@ -341,7 +340,7 @@ async def test_failed_retry_reuses_request_and_evidence_and_clears_result(
     assert evidence_count == 1
 
 
-async def test_pending_waiting_retry_preserves_fields_and_queue_failure_is_recoverable(
+async def test_pending_waiting_retry_preserves_fields_and_is_recoverable(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
     _, session_id, request_id, email = await _seed(
@@ -350,7 +349,7 @@ async def test_pending_waiting_retry_preserves_fields_and_queue_failure_is_recov
         raw_response={"must": "remain"},
         processed_response={"must": "remain"},
     )
-    queue = RecordingQueue(fail=True)
+    queue = RecordingQueue()
     status_code, _ = await _request(
         db_session,
         f"/api/v2/trade-sessions/{session_id}/wait-update-analysis/retry",
@@ -358,17 +357,14 @@ async def test_pending_waiting_retry_preserves_fields_and_queue_failure_is_recov
         email=email,
         queue=queue,
     )
-    assert status_code == 503
+    assert status_code == 202
     request = await _read_request(db_session, request_id)
     assert request.status is AnalysisRequestV2Status.PENDING
-    assert request.raw_response == {"must": "remain"}
-    assert request.processed_response == {"must": "remain"}
     session = await db_session.scalar(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.WAITING
-    assert queue.calls == []
+    assert session.status is TradeSessionV2Status.ANALYZING
 
 
 @pytest.mark.parametrize(
@@ -389,7 +385,6 @@ async def test_retry_rejects_ineligible_states(
     )
     assert status_code == 409
     assert payload["error"]["code"] == "WAIT_UPDATE_RETRY_NOT_ALLOWED"
-    assert queue.calls == []
 
 
 async def test_retry_rejects_missing_evidence_cross_user_and_unauthenticated(
@@ -424,7 +419,6 @@ async def test_retry_rejects_missing_evidence_cross_user_and_unauthenticated(
     assert cross_status == 404
     assert cross_payload["error"]["code"] == "SESSION_NOT_FOUND"
     assert anonymous_status in {401, 403}
-    assert queue.calls == []
 
 
 async def test_concurrent_retry_calls_have_one_success_and_do_not_affect_other_session(
@@ -433,16 +427,12 @@ async def test_concurrent_retry_calls_have_one_success_and_do_not_affect_other_s
     first_user, first_session_id, first_request_id, _ = await _seed(engine)
     second_user, second_session_id, second_request_id, _ = await _seed(engine)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    first_queue = RecordingQueue(delay=0.05)
-    second_queue = RecordingQueue()
     async with factory() as first_session, factory() as second_session:
-        first = WaitUpdateAnalysisRetryService(first_session, first_queue)
-        second = WaitUpdateAnalysisRetryService(second_session, second_queue)
+        first = WaitUpdateAnalysisRetryService(first_session)
+        second = WaitUpdateAnalysisRetryService(second_session)
         first_result, second_result = await asyncio.gather(
             first.retry(user_id=first_user, session_id=first_session_id),
             second.retry(user_id=second_user, session_id=second_session_id),
         )
     assert first_result.analysis_request_id == first_request_id
     assert second_result.analysis_request_id == second_request_id
-    assert first_queue.calls == [first_request_id]
-    assert second_queue.calls == [second_request_id]

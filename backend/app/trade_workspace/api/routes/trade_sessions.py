@@ -108,16 +108,6 @@ from app.trade_workspace.services.wait_update_input import (
 router = APIRouter(prefix="/api/v2/trade-sessions", tags=["rebuild-trade-sessions"])
 
 
-def get_rebuild_analysis_queue(request: Request) -> object:
-    queue = getattr(request.app.state, "rebuild_analysis_queue", None)
-    if queue is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "QUEUE_UNAVAILABLE", "message": "Analysis queue is unavailable"},
-        )
-    return queue
-
-
 def _to_response(trade_session: object) -> TradeSessionResponse:
     status_value = (
         trade_session.status.value
@@ -353,10 +343,9 @@ async def submit_position_update_analysis(
     session_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-    queue: object = Depends(get_rebuild_analysis_queue),
 ) -> PositionUpdateAnalysisSubmissionResponse:
     try:
-        result = await PositionUpdateAnalysisSubmissionService(db_session, queue).submit(
+        result = await PositionUpdateAnalysisSubmissionService(db_session).submit(
             user_id=current_user.id,
             session_id=session_id,
         )
@@ -452,10 +441,9 @@ async def submit_initial_analysis(
     session_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-    queue: object = Depends(get_rebuild_analysis_queue),
 ) -> InitialAnalysisSubmissionResponse:
     try:
-        result = await InitialAnalysisSubmissionService(db_session, queue).submit(
+        result = await InitialAnalysisSubmissionService(db_session).submit(
             user_id=current_user.id,
             session_id=session_id,
         )
@@ -483,10 +471,9 @@ async def submit_wait_update_analysis(
     session_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-    queue: object = Depends(get_rebuild_analysis_queue),
 ) -> WaitUpdateAnalysisSubmissionResponse:
     try:
-        result = await WaitUpdateAnalysisSubmissionService(db_session, queue).submit(
+        result = await WaitUpdateAnalysisSubmissionService(db_session).submit(
             user_id=current_user.id,
             session_id=session_id,
         )
@@ -552,10 +539,9 @@ async def retry_wait_update_analysis(
     session_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-    queue: object = Depends(get_rebuild_analysis_queue),
 ) -> WaitUpdateAnalysisRecoveryResponse:
     try:
-        result = await WaitUpdateAnalysisRetryService(db_session, queue).retry(
+        result = await WaitUpdateAnalysisRetryService(db_session).retry(
             user_id=current_user.id,
             session_id=session_id,
         )
@@ -621,10 +607,9 @@ async def retry_initial_analysis(
     session_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
-    queue: object = Depends(get_rebuild_analysis_queue),
 ) -> InitialAnalysisSubmissionResponse:
     try:
-        result = await InitialAnalysisRetryService(db_session, queue).retry(
+        result = await InitialAnalysisRetryService(db_session).retry(
             user_id=current_user.id,
             session_id=session_id,
         )

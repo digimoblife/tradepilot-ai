@@ -268,16 +268,16 @@ class RebuildAnalysisProcessor:
                     "Initial Analysis session is not in ANALYZING status"
                 )
         elif request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE:
-            if trade_session.status is not TradeSessionV2Status.WAITING:
+            if trade_session.status is not TradeSessionV2Status.ANALYZING:
                 await self._session.rollback()
                 raise CompletionPersistenceError(
-                    "WAIT_UPDATE session is not in WAITING status"
+                    "WAIT_UPDATE session is not in ANALYZING status"
                 )
         elif request.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE:
-            if trade_session.status is not TradeSessionV2Status.OPEN_POSITION:
+            if trade_session.status is not TradeSessionV2Status.ANALYZING:
                 await self._session.rollback()
                 raise CompletionPersistenceError(
-                    "POSITION_UPDATE session is not in OPEN_POSITION status"
+                    "POSITION_UPDATE session is not in ANALYZING status"
                 )
         request.raw_response = _json_safe(result.raw_response)
         request.processed_response = _json_safe(result.processed_response)
@@ -285,8 +285,15 @@ class RebuildAnalysisProcessor:
         request.completed_at = datetime.now(timezone.utc)
         request.error_code = None
         request.error_message = None
+        # Transition session from ANALYZING to its approved resulting status.
         if request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS:
             trade_session.status = TradeSessionV2Status.ANALYZED
+        elif request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE:
+            # ANALYZING is temporary; restore WAITING so the next update cycle can proceed.
+            trade_session.status = TradeSessionV2Status.WAITING
+        elif request.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE:
+            # ANALYZING is temporary; restore OPEN_POSITION so the next update can proceed.
+            trade_session.status = TradeSessionV2Status.OPEN_POSITION
         try:
             await self._session.flush()
             await self._session.commit()
@@ -322,12 +329,16 @@ class RebuildAnalysisProcessor:
         if raw_response is not None:
             request.raw_response = raw_response
         request.processed_response = None
-        if (
-            request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS
-            and trade_session is not None
-            and trade_session.status is TradeSessionV2Status.ANALYZING
-        ):
-            trade_session.status = TradeSessionV2Status.DRAFT
+        if trade_session is not None and trade_session.status is TradeSessionV2Status.ANALYZING:
+            # Restore session from temporary ANALYZING to its prior stable status.
+            if request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS:
+                trade_session.status = TradeSessionV2Status.DRAFT
+            elif request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE:
+                # Preserve WAITING so the user can request an explicit retry.
+                trade_session.status = TradeSessionV2Status.WAITING
+            elif request.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE:
+                # Preserve OPEN_POSITION so the user can request an explicit retry.
+                trade_session.status = TradeSessionV2Status.OPEN_POSITION
         try:
             await self._session.flush()
             await self._session.commit()
