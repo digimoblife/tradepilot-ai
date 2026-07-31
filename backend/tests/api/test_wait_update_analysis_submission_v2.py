@@ -160,7 +160,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
 
     assert response.status_code == 202
     payload = response.json()
@@ -173,7 +173,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         "request_status": "PENDING",
         "evidence_id": str(evidence_id),
         "observation_period": "MIDDAY",
-        "session_status": "ANALYZING",
+        "session_status": "WAITING",
         "created_at": payload["created_at"],
     }
     assert queue.calls == [request_id]
@@ -214,7 +214,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.ANALYZING
+    assert session.status is TradeSessionV2Status.WAITING
     assert session.closed_at is None
 
 
@@ -271,7 +271,7 @@ async def test_latest_eligible_evidence_is_selected_deterministically(
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 202
     assert uuid.UUID(response.json()["evidence_id"]) == max(newer_id, tied_id)
     assert uuid.UUID(response.json()["evidence_id"]) != older_id
@@ -289,7 +289,7 @@ async def test_non_waiting_sessions_are_rejected(
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "SESSION_NOT_ELIGIBLE"
     assert queue.calls == []
@@ -309,7 +309,7 @@ async def test_active_wait_update_request_blocks_duplicate_submission(
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "WAIT_UPDATE_ANALYSIS_ACTIVE"
     assert queue.calls == []
@@ -325,7 +325,7 @@ async def test_completed_prior_cycle_does_not_block_new_submission(
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 202
     assert len(queue.calls) == 1
     assert (
@@ -359,7 +359,7 @@ async def test_missing_metadata_and_no_eligible_input_are_rejected_safely(
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "WAIT_UPDATE_INPUT_NOT_READY"
     assert queue.calls == []
@@ -373,7 +373,7 @@ async def test_queue_failure_keeps_request_pending_evidence_linked_and_session_w
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "WAIT_UPDATE_ANALYSIS_QUEUE_FAILED"
     request = await db_session.scalar(
@@ -405,14 +405,14 @@ async def test_ownership_and_authentication_are_safe(
     queue = RecordingQueue()
     app = _app(db_session, queue)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
         assert response.status_code == 401
         await _login(client, other_email)
-        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
         assert response.status_code == 404
         await client.post("/api/auth/logout")
         await _login(client, owner_email)
-        response = await client.post(f"/api/v2/trade-sessions/{uuid.uuid4()}/wait-update-analysis")
+        response = await client.post(f"/api/v2/trade-sessions/{uuid.uuid4()}/wait-updates")
     assert response.status_code == 404
     assert queue.calls == []
 
@@ -433,7 +433,7 @@ async def test_concurrent_sessions_are_independent_and_duplicate_submission_is_s
             ) as client:
                 await _login(client, email)
                 response = await client.post(
-                    f"/api/v2/trade-sessions/{session_id}/wait-update-analysis"
+                    f"/api/v2/trade-sessions/{session_id}/wait-updates"
                 )
                 return response.status_code
 
