@@ -21,12 +21,22 @@ COPY prompts prompts/
 # both the worker's own modules and backend shared modules (e.g. app.jobs)
 # are importable under the same 'app' namespace.
 RUN for dir in ai context calculations database models repositories \
-           schemas services storage validation auth jobs lifecycle; do \
+           schemas services storage validation auth jobs lifecycle trade_workspace; do \
         ln -s "/app/backend/app/$dir" "/app/worker/app/$dir"; \
     done
 RUN ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py
 
-RUN PYTHONPATH=/app/worker python -c "import app.main; import app.json_safe; import app.lifecycle; import app.jobs.processor"
+RUN PYTHONPATH=/app/worker python -c "\
+import app.main; \
+import app.json_safe; \
+import app.lifecycle; \
+import app.jobs.processor; \
+import app.trade_workspace; \
+import app.trade_workspace.workers.analysis_processor; \
+import app.trade_workspace.ai.context_builder; \
+import app.trade_workspace.ai.gemini_adapter; \
+import app.trade_workspace.services.analysis_request_queue; \
+"
 
 ENV PYTHONPATH=/app/worker
 

@@ -25,3 +25,6 @@ class WorkerConfig(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_timeout_seconds: int = Field(default=120, ge=1)
     provider_order: str = "gemini"
+
+
+AppConfig = WorkerConfig

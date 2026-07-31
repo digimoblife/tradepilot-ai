@@ -513,18 +513,31 @@ class TestMiddlewareBackendURL:
         assert "./prompts:/app/prompts:ro" in worker_section
 
     def test_worker_packages_canonical_runtime_modules(self) -> None:
-        """Worker image must expose root-level and shared processor modules."""
+        """Worker image must expose root-level and shared processor modules including trade_workspace."""
         dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
         assert "ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py" in dockerfile
+        assert "trade_workspace" in dockerfile
         assert "import app.main" in dockerfile
         assert "import app.json_safe" in dockerfile
         assert "import app.lifecycle" in dockerfile
         assert "import app.jobs.processor" in dockerfile
+        assert "import app.trade_workspace" in dockerfile
 
     def test_worker_build_assertion_covers_entrypoint_import_chain(self) -> None:
         """Worker build must fail if a required runtime import is omitted."""
         dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
         assertion = 'PYTHONPATH=/app/worker python -c "'
         assert assertion in dockerfile
-        for module in ("app.main", "app.json_safe", "app.lifecycle", "app.jobs.processor"):
+        required_modules = (
+            "app.main",
+            "app.json_safe",
+            "app.lifecycle",
+            "app.jobs.processor",
+            "app.trade_workspace",
+            "app.trade_workspace.workers.analysis_processor",
+            "app.trade_workspace.ai.context_builder",
+            "app.trade_workspace.ai.gemini_adapter",
+            "app.trade_workspace.services.analysis_request_queue",
+        )
+        for module in required_modules:
             assert f"import {module}" in dockerfile
