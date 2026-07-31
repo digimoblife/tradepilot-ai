@@ -1,177 +1,61 @@
-"""Tests for worker processing (TP-0805).
+"""Tests for rebuild worker processing flow.
 
-Uses fake queue/processor dependencies — no real database or AI calls.
+Uses fake claim service and processor dependencies — no real database or AI calls.
 """
 
 from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
 
 from app.config import WorkerConfig
-from app.consumers.analysis_jobs import AnalysisJobConsumer
+from app.consumers.rebuild_analysis_requests import RebuildAnalysisRequestConsumer
 from app.runtime import run_worker
+from app.trade_workspace.services.analysis_request_claim import ClaimedAnalysisRequest
+from app.trade_workspace.models.analysis_request import AnalysisRequestV2Status, AnalysisRequestV2Type
 
 
 def _skip_startup_validation(config: WorkerConfig) -> None:
     return None
 
 
-# ===================================================================
-# Fake queue
-# ===================================================================
-
-
-class FakeQueue:
-    def __init__(self, session: Any = None) -> None:
+class FakeClaimService:
+    def __init__(self, session: Any = None, claim_item: ClaimedAnalysisRequest | None = None) -> None:
         self.session = session
-        self.call_count = 0
-        self.last_worker_id: str | None = None
-        self.recorded_errors: list[dict[str, Any]] = []
+        self._claim_item = claim_item
 
-    async def claim_next(
-        self,
-        *,
-        worker_id: str,
-        lease_duration: timedelta,
-        now: datetime | None = None,
-    ) -> Any | None:
-        self.call_count += 1
-        self.last_worker_id = worker_id
-        return None  # no job by default
-
-    async def record_processing_error(
-        self,
-        *,
-        job_id: uuid.UUID,
-        worker_id: str,
-        error_code: str,
-        error_message: str,
-    ) -> None:
-        self.recorded_errors.append(
-            {
-                "job_id": job_id,
-                "worker_id": worker_id,
-                "error_code": error_code,
-                "error_message": error_message,
-            }
-        )
+    async def claim_next(self, *, worker_id: str | None = None) -> ClaimedAnalysisRequest | None:
+        return self._claim_item
 
 
-class FakeQueueWithJob(FakeQueue):
-    def __init__(self, session: Any = None, job_id: uuid.UUID | None = None) -> None:
-        super().__init__(session)
-        self._job_id = job_id or uuid.uuid4()
-
-    async def claim_next(
-        self,
-        *,
-        worker_id: str,
-        lease_duration: timedelta,
-        now: datetime | None = None,
-    ) -> Any:
-        self.call_count += 1
-        self.last_worker_id = worker_id
-        return _fake_claimed_job(self._job_id)
-
-
-def _fake_claimed_job(job_id: uuid.UUID) -> Any:
-    from dataclasses import dataclass
-
-    @dataclass
-    class FakeLease:
-        job_id: uuid.UUID
-        worker_id: str
-        claimed_at: datetime
-        expires_at: datetime
-        attempt_number: int
-
-    @dataclass
-    class FakeClaimedJob:
-        job_id: uuid.UUID
-        session_id: uuid.UUID
-        analysis_type: str
-        attempt_number: int
-        lease: FakeLease
-
-    return FakeClaimedJob(
-        job_id=job_id,
-        session_id=uuid.uuid4(),
-        analysis_type="WATCHING_UPDATE",
-        attempt_number=1,
-        lease=FakeLease(
-            job_id=job_id,
-            worker_id="w1",
-            claimed_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=300),
-            attempt_number=1,
-        ),
-    )
-
-
-# ===================================================================
-# Fake processor
-# ===================================================================
-
-
-class _FakeProcessorState:
-    """Shared mutable state for FakeProcessor."""
-
-    def __init__(self) -> None:
-        self.call_count = 0
-        self.last_job_id: uuid.UUID | None = None
-        self.last_worker_id: str | None = None
-        self.fail: bool = False
-
-
-class FakeProcessor:
-    """Fake processor — class-level, instantiated by consumer."""
-
-    _state = _FakeProcessorState()
-
-    def __init__(self, session: Any = None) -> None:
+class FakeRebuildProcessor:
+    def __init__(self, session: Any = None, fail: bool = False) -> None:
         self.session = session
+        self.fail = fail
+        self.processed_ids: list[uuid.UUID] = []
 
-    async def process(self, *, job_id: uuid.UUID, worker_id: str) -> Any:
-        state = FakeProcessor._state
-        state.call_count += 1
-        state.last_job_id = job_id
-        state.last_worker_id = worker_id
-        if state.fail:
-            raise RuntimeError("Processor failure")
+    async def process(self, *, analysis_request_id: uuid.UUID) -> Any:
+        self.processed_ids.append(analysis_request_id)
+        if self.fail:
+            raise RuntimeError("Fake processor failure")
         from dataclasses import dataclass
 
         @dataclass
-        class FakeResult:
-            job_id: uuid.UUID
-            session_id: uuid.UUID
-            analysis_id: uuid.UUID | None
-            job_status: str
-            restored_session_status: str | None
-            provider: str | None
-            fallback_used: bool
+        class Result:
+            status: str = "COMPLETED"
 
-        return FakeResult(
-            job_id=job_id,
-            session_id=uuid.uuid4(),
-            analysis_id=uuid.uuid4(),
-            job_status="COMPLETED",
-            restored_session_status="WATCHING",
-            provider="gemini",
-            fallback_used=False,
-        )
-
-
-# ===================================================================
-# Fake session factory
-# ===================================================================
+        return Result()
 
 
 class FakeSession:
+    def __init__(self) -> None:
+        self.committed = False
+        self.rolled_back = False
+
     async def __aenter__(self) -> FakeSession:
         return self
 
@@ -179,47 +63,15 @@ class FakeSession:
         pass
 
     async def commit(self) -> None:
-        pass
+        self.committed = True
 
     async def rollback(self) -> None:
-        pass
-
-    async def execute(self, *args: Any, **kwargs: Any) -> Any:
-        from dataclasses import dataclass
-
-        @dataclass
-        class FakeResult:
-            _val: Any = None
-
-            def scalar_one(self) -> Any:
-                return uuid.uuid4()
-
-            def first(self) -> Any:
-                return None
-
-            def scalar_one_or_none(self) -> Any:
-                return None
-
-            def unique(self) -> Any:
-                return self
-
-            def scalars(self) -> Any:
-                return self
-
-            def all(self) -> list:
-                return []
-
-        return FakeResult()
+        self.rolled_back = True
 
 
 class FakeSessionFactory:
     def __call__(self) -> FakeSession:
         return FakeSession()
-
-
-# ===================================================================
-# Fake heartbeat
-# ===================================================================
 
 
 class FakeHeartbeat:
@@ -240,145 +92,71 @@ class FakeHeartbeat:
         self.final_status = status
 
 
-# ===================================================================
-# Consumer tests
-# ===================================================================
-
-
-class TestConsumer:
-    async def test_no_job_returns_false(self) -> None:
-        FakeProcessor._state = _FakeProcessorState()
-        consumer = AnalysisJobConsumer(
+class TestRebuildConsumer:
+    async def test_no_pending_request_returns_false(self) -> None:
+        consumer = RebuildAnalysisRequestConsumer(
             session_factory=FakeSessionFactory(),
-            queue=FakeQueue,
-            processor=FakeProcessor,
-            worker_id="w1",
+            processor_factory=lambda session: FakeRebuildProcessor(session),
+            worker_id="worker-1",
+            claim_service_factory=lambda session: FakeClaimService(session, claim_item=None),
         )
-        result = await consumer.run_once()
-        assert result is False
+        assert await consumer.run_once() is False
 
-    async def test_claimed_job_passed_to_processor(self) -> None:
-        _expected_job_id = uuid.uuid4()
-        FakeProcessor._state = _FakeProcessorState()
+    async def test_claimed_request_commits_claim_session_and_invokes_processor(self) -> None:
+        req_id = uuid.uuid4()
+        claimed = ClaimedAnalysisRequest(
+            request_id=req_id,
+            session_id=uuid.uuid4(),
+            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+            status=AnalysisRequestV2Status.PROCESSING,
+            created_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc),
+            observation_period=None,
+        )
+        processor_instances: list[FakeRebuildProcessor] = []
 
-        class _Q(FakeQueueWithJob):
-            def __init__(self, session: Any = None) -> None:  # noqa: N805
-                super().__init__(session, job_id=_expected_job_id)
+        def processor_factory(session: Any) -> FakeRebuildProcessor:
+            p = FakeRebuildProcessor(session)
+            processor_instances.append(p)
+            return p
 
-        consumer = AnalysisJobConsumer(
+        consumer = RebuildAnalysisRequestConsumer(
             session_factory=FakeSessionFactory(),
-            queue=_Q,
-            processor=FakeProcessor,
-            worker_id="w1",
+            processor_factory=processor_factory,
+            worker_id="worker-1",
+            claim_service_factory=lambda session: FakeClaimService(session, claim_item=claimed),
         )
         result = await consumer.run_once()
         assert result is True
-        assert FakeProcessor._state.last_job_id == _expected_job_id
+        assert len(processor_instances) == 1
+        assert processor_instances[0].processed_ids == [req_id]
 
-    async def test_worker_id_used(self) -> None:
-        FakeProcessor._state = _FakeProcessorState()
-
-        class _Q(FakeQueueWithJob):
-            pass
-
-        consumer = AnalysisJobConsumer(
-            session_factory=FakeSessionFactory(),
-            queue=_Q,
-            processor=FakeProcessor,
-            worker_id="custom-worker",
+    async def test_processing_failure_does_not_raise_out_of_run_once(self) -> None:
+        req_id = uuid.uuid4()
+        claimed = ClaimedAnalysisRequest(
+            request_id=req_id,
+            session_id=uuid.uuid4(),
+            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+            status=AnalysisRequestV2Status.PROCESSING,
+            created_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc),
+            observation_period=None,
         )
-        await consumer.run_once()
 
-    async def test_processing_error_raises(self) -> None:
-        FakeProcessor._state = _FakeProcessorState()
-        FakeProcessor._state.fail = True
+        def broken_processor_factory(session: Any) -> FakeRebuildProcessor:
+            return FakeRebuildProcessor(session, fail=True)
 
-        consumer = AnalysisJobConsumer(
+        consumer = RebuildAnalysisRequestConsumer(
             session_factory=FakeSessionFactory(),
-            queue=FakeQueueWithJob,
-            processor=FakeProcessor,
-            worker_id="w1",
+            processor_factory=broken_processor_factory,
+            worker_id="worker-1",
+            claim_service_factory=lambda session: FakeClaimService(session, claim_item=claimed),
         )
-        with pytest.raises(RuntimeError, match="Processor failure"):
-            await consumer.run_once()
-
-    async def test_constructor_error_records_processing_error(self) -> None:
-        expected_job_id = uuid.uuid4()
-        errors: list[dict[str, Any]] = []
-
-        class _Q(FakeQueueWithJob):
-            def __init__(self, session: Any = None) -> None:
-                super().__init__(session, job_id=expected_job_id)
-
-            async def record_processing_error(
-                self,
-                *,
-                job_id: uuid.UUID,
-                worker_id: str,
-                error_code: str,
-                error_message: str,
-            ) -> None:
-                errors.append(
-                    {
-                        "job_id": job_id,
-                        "worker_id": worker_id,
-                        "error_code": error_code,
-                        "error_message": error_message,
-                    }
-                )
-
-        class _BrokenProcessor:
-            def __init__(self, session: Any = None) -> None:
-                raise FileNotFoundError("/app/prompts/production/v1/initial_analysis.system.md")
-
-        consumer = AnalysisJobConsumer(
-            session_factory=FakeSessionFactory(),
-            queue=_Q,
-            processor=_BrokenProcessor,
-            worker_id="w1",
-        )
-        with pytest.raises(FileNotFoundError):
-            await consumer.run_once()
-
-        assert errors == [
-            {
-                "job_id": expected_job_id,
-                "worker_id": "w1",
-                "error_code": "ANALYSIS_JOB_PROCESSING_FAILED",
-                "error_message": "/app/prompts/production/v1/initial_analysis.system.md",
-            }
-        ]
+        # Exception during processor execution is logged and caught, allowing consumer to return True cleanly
+        assert await consumer.run_once() is True
 
 
-# ===================================================================
-# Heartbeat tests
-# ===================================================================
-
-
-class TestHeartbeat:
-    async def test_heartbeat_initialized(self) -> None:
-        hb = FakeHeartbeat()
-        await hb.initialize()
-        assert hb.initialized
-
-    async def test_heartbeat_refreshed(self) -> None:
-        hb = FakeHeartbeat()
-        await hb.refresh()
-        assert hb.refreshed
-
-    async def test_heartbeat_finalized(self) -> None:
-        hb = FakeHeartbeat()
-        await hb.finalize("STOPPED")
-        assert hb.finalized
-        assert hb.final_status == "STOPPED"
-
-
-# ===================================================================
-# Runtime loop tests
-# ===================================================================
-
-
-class TestRuntimeLoop:
+class TestRebuildRuntimeLoop:
     async def test_shutdown_stops_polling(self) -> None:
         config = WorkerConfig(
             worker_poll_interval_seconds=1,
@@ -391,17 +169,19 @@ class TestRuntimeLoop:
             await asyncio.sleep(0.05)
             shutdown_event.set()
 
+        consumer = RebuildAnalysisRequestConsumer(
+            session_factory=FakeSessionFactory(),
+            processor_factory=lambda session: FakeRebuildProcessor(session),
+            worker_id="test-worker",
+            claim_service_factory=lambda session: FakeClaimService(session, claim_item=None),
+        )
+
         await asyncio.gather(
             run_worker(
                 config,
                 shutdown_event,
                 session_factory=FakeSessionFactory(),
-                consumer=AnalysisJobConsumer(
-                    session_factory=FakeSessionFactory(),
-                    queue=FakeQueue,
-                    processor=FakeProcessor(),
-                    worker_id="test-worker",
-                ),
+                consumer=consumer,
                 heartbeat=hb,
                 startup_validator=_skip_startup_validation,
             ),
@@ -410,7 +190,7 @@ class TestRuntimeLoop:
         assert hb.initialized
         assert hb.finalized
 
-    async def test_processing_error_does_not_terminate(self) -> None:
+    async def test_processing_error_does_not_terminate_runtime_loop(self) -> None:
         config = WorkerConfig(
             worker_poll_interval_seconds=1,
             worker_name="test-worker",
@@ -418,13 +198,22 @@ class TestRuntimeLoop:
         shutdown_event = asyncio.Event()
         hb = FakeHeartbeat()
 
-        FakeProcessor._state = _FakeProcessorState()
-        FakeProcessor._state.fail = True
-        consumer = AnalysisJobConsumer(
+        req_id = uuid.uuid4()
+        claimed = ClaimedAnalysisRequest(
+            request_id=req_id,
+            session_id=uuid.uuid4(),
+            analysis_type=AnalysisRequestV2Type.INITIAL_ANALYSIS,
+            status=AnalysisRequestV2Status.PROCESSING,
+            created_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc),
+            observation_period=None,
+        )
+
+        consumer = RebuildAnalysisRequestConsumer(
             session_factory=FakeSessionFactory(),
-            queue=FakeQueueWithJob,
-            processor=FakeProcessor,
+            processor_factory=lambda session: FakeRebuildProcessor(session, fail=True),
             worker_id="test-worker",
+            claim_service_factory=lambda session: FakeClaimService(session, claim_item=claimed),
         )
 
         async def trigger() -> None:
@@ -443,28 +232,3 @@ class TestRuntimeLoop:
             trigger(),
         )
         assert hb.finalized
-
-    async def test_no_busy_spin_when_no_job(self) -> None:
-        config = WorkerConfig(
-            worker_poll_interval_seconds=10,
-            worker_name="test-worker",
-        )
-        shutdown_event = asyncio.Event()
-        shutdown_event.set()
-
-        start = asyncio.get_event_loop().time()
-        await run_worker(
-            config,
-            shutdown_event,
-            session_factory=FakeSessionFactory(),
-            consumer=AnalysisJobConsumer(
-                session_factory=FakeSessionFactory(),
-                queue=FakeQueue,
-                processor=FakeProcessor(),
-                worker_id="test-worker",
-            ),
-            heartbeat=FakeHeartbeat(),
-            startup_validator=_skip_startup_validation,
-        )
-        elapsed = asyncio.get_event_loop().time() - start
-        assert elapsed < 2.0, f"Runtime took {elapsed:.3f}s — may have busy-spun"

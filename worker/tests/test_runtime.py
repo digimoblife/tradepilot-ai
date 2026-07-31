@@ -27,14 +27,13 @@ def _extend_app_namespace() -> None:
         app.__path__.append(backend_app)
 
 
-def _make_initial_analysis_payload() -> dict[str, object]:
-    from backend.tests.test_json_schema_validation import _minimal_initial_analysis
+_extend_app_namespace()
 
-    payload = _minimal_initial_analysis()
-    market_snapshot = payload["market_snapshot"]
-    assert isinstance(market_snapshot, dict)
-    market_snapshot["change_percentage"] = Decimal("5.00")
-    market_snapshot["spread_percentage"] = Decimal("1.89")
+
+def _make_initial_analysis_payload() -> dict[str, object]:
+    import json
+    fixture_path = _REPO_ROOT / "schemas" / "fixtures" / "valid" / "v1" / "initial_analysis_v2.valid.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
     return payload
 
 
@@ -225,32 +224,12 @@ async def test_startup_validation_runs_before_heartbeat_and_claim(fake_consumer:
         )
 
 
-def test_worker_injects_real_validator(monkeypatch: pytest.MonkeyPatch) -> None:
-    _extend_app_namespace()
-
-    import app.ai.providers as provider_module
-    import app.jobs as jobs_module
-    import app.jobs.processor as processor_module
-
-    captured: dict[str, Any] = {}
-
-    class FakeProcessor:
-        def __init__(self, **kwargs: Any) -> None:
-            captured.update(kwargs)
-
-    monkeypatch.setattr(
-        provider_module,
-        "build_analysis_provider_config",
-        lambda config: SimpleNamespace(providers={}, provider_order=[]),
-    )
-    monkeypatch.setattr(jobs_module, "AnalysisProcessor", FakeProcessor)
-    monkeypatch.setattr(jobs_module, "PostgreSQLJobQueue", object)
+def test_worker_creates_rebuild_consumer() -> None:
+    from app.consumers.rebuild_analysis_requests import RebuildAnalysisRequestConsumer
 
     consumer = _create_consumer(_FakeFactory(), "worker-1", WorkerConfig())
-    consumer._processor_cls(session=None)
-    assert isinstance(consumer, AnalysisJobConsumer)
-    assert callable(captured["validate_factory"])
-    assert captured["validate_factory"] is not processor_module._always_invalid
+    assert isinstance(consumer, RebuildAnalysisRequestConsumer)
+    assert callable(consumer._processor_factory)
 
 
 def test_initial_analysis_validator_accepts_valid_payload() -> None:
@@ -291,9 +270,9 @@ def test_initial_analysis_validator_returns_concrete_issues_for_invalid_payload(
     )
 
     payload = _make_initial_analysis_payload()
-    market_snapshot = payload["market_snapshot"]
-    assert isinstance(market_snapshot, dict)
-    market_snapshot["high"] = 1000
+    market_facts = payload["market_facts"]
+    assert isinstance(market_facts, dict)
+    market_facts["high"] = "invalid_string_type"
 
     is_valid, issues = validate(payload)
     assert is_valid is False

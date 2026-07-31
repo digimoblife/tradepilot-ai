@@ -32,6 +32,7 @@ from app.trade_workspace.models.evidence_upload import EvidenceUploadV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 from app.trade_workspace.queue.analysis_request_queue import AnalysisRequestQueue
 from app.trade_workspace.services import wait_update_input as wait_input_module
+from app.trade_workspace.services.analysis_request_claim import AnalysisRequestClaimService
 from app.trade_workspace.workers.analysis_processor import RebuildAnalysisProcessor
 
 pytestmark = pytest.mark.database
@@ -213,6 +214,13 @@ async def _process(
     resolver: RecordingImageResolver,
     adapter: RecordingAdapter,
 ) -> None:
+    req = await db_session.scalar(
+        select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
+    )
+    assert req is not None
+    req.status = AnalysisRequestV2Status.PROCESSING
+    req.started_at = datetime.now(timezone.utc)
+    await db_session.flush()
     processor = RebuildAnalysisProcessor(
         db_session,
         image_resolver=resolver,  # type: ignore[arg-type]
@@ -310,6 +318,13 @@ async def test_gate_f_failure_retry_queue_recovery_and_ownership(
         assert submit_response.status_code == 202
         request_id = uuid.UUID(submit_response.json()["analysis_request_id"])
 
+        req = await db_session.scalar(
+            select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
+        )
+        assert req is not None
+        req.status = AnalysisRequestV2Status.PROCESSING
+        req.started_at = datetime.now(timezone.utc)
+        await db_session.flush()
         resolver, invalid_adapter = RecordingImageResolver(), RecordingAdapter({"bad": "response"})
         failed_result = RebuildAnalysisProcessor(
             db_session,

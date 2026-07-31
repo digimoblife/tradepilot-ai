@@ -208,7 +208,7 @@ async def _setup_request(
     factory: async_sessionmaker[AsyncSession],
     *,
     analysis_type: AnalysisRequestV2Type,
-    status: AnalysisRequestV2Status = AnalysisRequestV2Status.PENDING,
+    status: AnalysisRequestV2Status = AnalysisRequestV2Status.PROCESSING,
     session_status: TradeSessionV2Status = TradeSessionV2Status.DRAFT,
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
     user_id = uuid.uuid4()
@@ -301,7 +301,7 @@ async def _add_position_request(factory: async_sessionmaker[AsyncSession], sessi
     request_id = uuid.uuid4()
     async with factory() as session:
         async with session.begin():
-            session.add(AnalysisRequestV2(id=request_id, session_id=session_id, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, observation_period=AnalysisRequestV2ObservationPeriod.MORNING, current_price=Decimal("123.45"), observation_at=datetime.now(timezone.utc), status=AnalysisRequestV2Status.PENDING, provider="gemini", model="gemini-persisted", prompt_version="v1", input_snapshot={"ticker": "BBRI"}))
+            session.add(AnalysisRequestV2(id=request_id, session_id=session_id, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, observation_period=AnalysisRequestV2ObservationPeriod.MORNING, current_price=Decimal("123.45"), observation_at=datetime.now(timezone.utc), status=AnalysisRequestV2Status.PROCESSING, provider="gemini", model="gemini-persisted", prompt_version="v1", input_snapshot={"ticker": "BBRI"}))
     return request_id
 
 
@@ -506,6 +506,7 @@ async def test_wait_update_duplicate_delivery_calls_adapter_once_and_is_session_
     second_user, second_session, second_request = await _setup_request(
         factory,
         analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
+        status=AnalysisRequestV2Status.PENDING,
         session_status=TradeSessionV2Status.ANALYZING,
     )
     adapter = FakeAdapter("gemini-persisted")
@@ -676,7 +677,7 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
 async def test_processor_rejects_duplicate_delivery_and_sanitizes_failures(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     for status in (
-        AnalysisRequestV2Status.PROCESSING,
+        AnalysisRequestV2Status.PENDING,
         AnalysisRequestV2Status.COMPLETED,
         AnalysisRequestV2Status.FAILED,
     ):

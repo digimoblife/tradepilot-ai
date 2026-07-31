@@ -16,7 +16,6 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import WorkerConfig
-from app.consumers.analysis_jobs import AnalysisJobConsumer
 from app.heartbeat import WorkerHeartbeat
 from app.logging import get_logger
 
@@ -28,7 +27,7 @@ async def run_worker(
     shutdown_event: asyncio.Event,
     *,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
-    consumer: AnalysisJobConsumer | None = None,
+    consumer: Any | None = None,
     heartbeat: WorkerHeartbeat | None = None,
     startup_validator: Callable[[WorkerConfig], None] | None = None,
 ) -> None:
@@ -120,28 +119,24 @@ def _create_consumer(
     config: WorkerConfig,
 ) -> Any:
     """Lazy import to avoid backend dependency at module level."""
-    from app.ai.providers import build_analysis_provider_config
-    from app.jobs import AnalysisProcessor, PostgreSQLJobQueue
-    from app.jobs.processor import _always_invalid
-    from app.validation import UnifiedValidationService
+    from pathlib import Path
+    from app.consumers.rebuild_analysis_requests import RebuildAnalysisRequestConsumer
+    from app.trade_workspace.workers.analysis_processor import (
+        AnalysisImageResolver,
+        RebuildAnalysisProcessor,
+    )
 
-    provider_config = build_analysis_provider_config(config)
-    validation_service = _build_validation_service(UnifiedValidationService)
-    validate_factory = _build_validation_callback_factory(validation_service)
-    _assert_real_validation_factory(validate_factory, _always_invalid)
+    storage_root = Path(config.storage_root)
 
-    def processor_factory(*, session: AsyncSession) -> AnalysisProcessor:
-        return AnalysisProcessor(
+    def processor_factory(session: AsyncSession) -> RebuildAnalysisProcessor:
+        return RebuildAnalysisProcessor(
             session=session,
-            providers=provider_config.providers,
-            provider_order=provider_config.provider_order,
-            validate_factory=validate_factory,
+            image_resolver=AnalysisImageResolver(storage_root=storage_root),
         )
 
-    return AnalysisJobConsumer(
+    return RebuildAnalysisRequestConsumer(
         session_factory=factory,
-        queue=PostgreSQLJobQueue,
-        processor=processor_factory,
+        processor_factory=processor_factory,
         worker_id=worker_id,
     )
 

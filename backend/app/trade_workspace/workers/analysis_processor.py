@@ -178,12 +178,12 @@ class RebuildAnalysisProcessor:
         request = await self._session.scalar(
             select(AnalysisRequestV2)
             .where(AnalysisRequestV2.id == analysis_request_id)
-            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if request is None:
             raise AnalysisRequestNotFoundError("Rebuild analysis request was not found")
-        if request.status is not AnalysisRequestV2Status.PENDING:
-            raise AnalysisRequestNotPendingError("Rebuild analysis request is not pending")
+        if request.status is not AnalysisRequestV2Status.PROCESSING:
+            raise AnalysisRequestNotPendingError("Rebuild analysis request is not processing")
 
         analysis_type = _resolve_analysis_type(request.analysis_type)
         trade_session = await self._session.scalar(
@@ -191,15 +191,6 @@ class RebuildAnalysisProcessor:
         )
         if trade_session is None:
             raise RequestSessionMismatchError("Rebuild analysis request session was not found")
-
-        request.status = AnalysisRequestV2Status.PROCESSING
-        request.started_at = datetime.now(timezone.utc)
-        try:
-            await self._session.flush()
-            await self._session.commit()
-        except SQLAlchemyError as exc:
-            await self._session.rollback()
-            raise ClaimPersistenceError("Rebuild analysis request could not be claimed") from exc
 
         return _ClaimedRequest(
             request_id=request.id,
