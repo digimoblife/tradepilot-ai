@@ -7,6 +7,7 @@ import {
   getAvailableActions,
   getSession,
   readInitialAnalysis,
+  readPositionUpdates,
   skipDecision,
   waitDecision,
 } from "./api";
@@ -17,10 +18,13 @@ vi.mock("./api", () => ({
   getAvailableActions: vi.fn(),
   getSession: vi.fn(),
   readInitialAnalysis: vi.fn(),
+  readPositionUpdates: vi.fn().mockResolvedValue({ position: null, updates: [] }),
   retryInitialAnalysis: vi.fn(),
   skipDecision: vi.fn(),
   submitInitialAnalysis: vi.fn(),
+  submitPositionUpdateAnalysis: vi.fn(),
   uploadInitialEvidence: vi.fn(),
+  uploadPositionUpdateInput: vi.fn(),
   waitDecision: vi.fn(),
 }));
 
@@ -55,6 +59,7 @@ function renderWorkspace(session: TradeSession = analyzed) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(readPositionUpdates).mockResolvedValue({ position: null, updates: [] });
 });
 
 afterEach(() => {

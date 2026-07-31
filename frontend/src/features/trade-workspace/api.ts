@@ -1,5 +1,5 @@
 import { publicEnv } from "@/lib/env";
-import type { BuyDecisionResult, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
+import type { BuyDecisionResult, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, { ...options, credentials: "include" });
@@ -44,5 +44,16 @@ export function skipDecision(id: string, body: { reason: SkipReason; note?: stri
 export function buyDecision(id: string, body: { entry_price: string; entry_timestamp: string; quantity: string; stop_loss: string; target_price: string; note?: string | null }): Promise<BuyDecisionResult> {
   return request(`${base}/${id}/decisions/buy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
+
+export function uploadPositionUpdateInput(id: string, input: { orderbook: File; current_price: string; observation_period: ObservationPeriod; observation_timestamp: string }): Promise<PositionUpdateInputResponse> {
+  const body = new FormData();
+  body.append("orderbook", input.orderbook);
+  body.append("current_price", input.current_price);
+  body.append("observation_period", input.observation_period);
+  body.append("observation_timestamp", input.observation_timestamp);
+  return request(`${base}/${id}/position-update-input`, { method: "POST", body });
+}
+export function submitPositionUpdateAnalysis(id: string): Promise<PositionUpdateAnalysisSubmission> { return request(`${base}/${id}/position-updates`, { method: "POST" }); }
+export function readPositionUpdates(id: string): Promise<PositionUpdatesRead> { return request(`${base}/${id}/position-updates`); }
 
 export type { EvidenceFile };

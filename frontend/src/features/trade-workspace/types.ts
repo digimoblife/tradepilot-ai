@@ -158,3 +158,83 @@ export interface InitialAnalysisResult {
   trading_plan: string;
   conclusion: string;
 }
+
+export interface PositionUpdateInputResponse {
+  evidence_id: string;
+  session_id: string;
+  position_id: string;
+  evidence_type: "ORDERBOOK";
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  current_price: string;
+  observation_period: ObservationPeriod;
+  observation_timestamp: string;
+  uploaded_at: string;
+  session_status: "OPEN_POSITION";
+  position_status: string;
+}
+
+export interface PositionUpdateAnalysisSubmission {
+  analysis_request_id: string;
+  session_id: string;
+  position_id: string;
+  analysis_type: "POSITION_UPDATE";
+  request_status: RequestStatus;
+  evidence_id: string;
+  observation_period: ObservationPeriod;
+  session_status: SessionStatus;
+  position_status: string;
+  created_at: string;
+}
+
+export interface PositionDetail {
+  id: string;
+  session_id: string;
+  status: "OPEN" | "CLOSED" | string;
+  entry_price: string;
+  entry_timestamp: string;
+  quantity: string;
+  stop_loss: string;
+  target_price: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface PositionUpdateResult {
+  update_summary?: unknown;
+  current_price?: unknown;
+  position_condition?: unknown;
+  orderbook_assessment?: unknown;
+  change_from_previous_analysis?: unknown;
+  target_realism?: unknown;
+  downside_risk?: unknown;
+  target_probability?: unknown;
+  trading_plan?: unknown;
+  monitoring_points?: unknown;
+  warnings?: unknown;
+  conclusion?: unknown;
+}
+
+export interface PositionUpdateItem {
+  analysis_request_id: string;
+  session_id: string;
+  analysis_type: "POSITION_UPDATE";
+  request_status: RequestStatus;
+  current_price: string | null;
+  observation_period: ObservationPeriod | null;
+  observation_timestamp: string | null;
+  processed_response: PositionUpdateResult | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  evidence_id?: string | null;
+  original_filename?: string | null;
+}
+
+export interface PositionUpdatesRead {
+  position: PositionDetail | null;
+  updates: PositionUpdateItem[];
+}
