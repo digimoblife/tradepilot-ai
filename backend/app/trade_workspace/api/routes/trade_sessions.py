@@ -228,7 +228,27 @@ async def upload_initial_evidence(
     return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
 
 
+@router.get(
+    "/{session_id}/initial-evidence",
+    response_model=InitialEvidenceUploadResponse,
+)
+async def read_initial_evidence(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> InitialEvidenceUploadResponse:
+    try:
+        records = await InitialEvidenceUploadService(db_session).get_initial_evidence(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except InitialEvidenceUploadError as exc:
+        raise _upload_error(exc) from exc
+    return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
+
+
 @router.post(
+
     "/{session_id}/wait-update-input",
     response_model=WaitUpdateInputResponse,
     status_code=status.HTTP_201_CREATED,

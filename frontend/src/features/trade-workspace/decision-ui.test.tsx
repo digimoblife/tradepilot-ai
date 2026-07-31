@@ -7,6 +7,7 @@ import {
   getAvailableActions,
   getSession,
   readInitialAnalysis,
+  readInitialEvidence,
   readPositionUpdates,
   skipDecision,
   waitDecision,
@@ -18,6 +19,7 @@ vi.mock("./api", () => ({
   getAvailableActions: vi.fn(),
   getSession: vi.fn(),
   readInitialAnalysis: vi.fn(),
+  readInitialEvidence: vi.fn().mockResolvedValue({ evidence: [] }),
   readPositionUpdates: vi.fn().mockResolvedValue({ position: null, updates: [] }),
   retryInitialAnalysis: vi.fn(),
   skipDecision: vi.fn(),
@@ -54,6 +56,7 @@ function renderWorkspace(session: TradeSession = analyzed) {
     available_actions: session.status === "OPEN_POSITION" ? ["CLOSE"] : availability.available_actions,
   });
   vi.mocked(readInitialAnalysis).mockRejectedValue(new Error("not requested"));
+  vi.mocked(readInitialEvidence).mockResolvedValue({ evidence: [] });
   return render(<SessionWorkspace sessionId={session.id} knownEvidence={[]} onEvidence={vi.fn()} />);
 }
 

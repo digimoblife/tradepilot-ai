@@ -6,6 +6,7 @@ import {
   getAvailableActions,
   getSession,
   readInitialAnalysis,
+  readInitialEvidence,
   retryInitialAnalysis,
   skipDecision,
   submitInitialAnalysis,
@@ -104,6 +105,15 @@ export function SessionWorkspace({
       .catch((reason: unknown) => {
         if (!cancelled) setError(errorText(reason, "Sesi tidak dapat dimuat."));
       });
+    readInitialEvidence(sessionId)
+      ?.then((evidenceRes) => {
+        if (!cancelled && evidenceRes?.evidence?.length) {
+          onEvidence(evidenceRes.evidence);
+        }
+      })
+      .catch(() => {
+        // No initial evidence uploaded yet.
+      });
     readInitialAnalysis(sessionId)
       .then((next) => {
         if (!cancelled) setAnalysis(next);
@@ -114,7 +124,7 @@ export function SessionWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, onEvidence]);
 
   useEffect(() => {
     if (

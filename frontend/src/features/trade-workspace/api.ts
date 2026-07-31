@@ -22,6 +22,7 @@ export function uploadInitialEvidence(id: string, files: { orderbook: File; char
   const body = new FormData(); body.append("orderbook", files.orderbook); body.append("chart_3_month", files.chart_3_month); body.append("chart_6_month", files.chart_6_month);
   return request(`${base}/${id}/initial-evidence`, { method: "POST", body });
 }
+export function readInitialEvidence(id: string): Promise<InitialEvidenceUploadResponse> { return request(`${base}/${id}/initial-evidence`); }
 export function submitInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return request(`${base}/${id}/initial-analysis`, { method: "POST" }); }
 export function readInitialAnalysis(id: string): Promise<InitialAnalysisRead> { return request(`${base}/${id}/initial-analysis`); }
 export function retryInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return request(`${base}/${id}/initial-analysis/retry`, { method: "POST" }); }

@@ -129,7 +129,34 @@ class InitialEvidenceUploadService:
             raise
         return records
 
+    async def get_initial_evidence(
+        self,
+        *,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+    ) -> list[EvidenceUploadV2]:
+        trade_session = await self._session.scalar(
+            select(TradeSessionV2).where(
+                TradeSessionV2.id == session_id,
+                TradeSessionV2.user_id == user_id,
+            )
+        )
+        if trade_session is None:
+            raise InitialEvidenceSessionNotFoundError("Trade session not found")
+
+        records = await self._session.scalars(
+            select(EvidenceUploadV2)
+            .where(
+                EvidenceUploadV2.session_id == session_id,
+                EvidenceUploadV2.evidence_type.in_(INITIAL_EVIDENCE_TYPES),
+                EvidenceUploadV2.observation_period.is_(None),
+            )
+            .order_by(EvidenceUploadV2.uploaded_at.asc())
+        )
+        return list(records.all())
+
     async def _load_owned_session(
+
         self,
         user_id: uuid.UUID,
         session_id: uuid.UUID,
