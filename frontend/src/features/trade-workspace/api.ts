@@ -1,5 +1,5 @@
 import { publicEnv } from "@/lib/env";
-import type { BuyDecisionResult, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
+import type { BuyDecisionResult, CloseRequest, CloseResponse, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, { ...options, credentials: "include" });
@@ -55,5 +55,8 @@ export function uploadPositionUpdateInput(id: string, input: { orderbook: File; 
 }
 export function submitPositionUpdateAnalysis(id: string): Promise<PositionUpdateAnalysisSubmission> { return request(`${base}/${id}/position-updates`, { method: "POST" }); }
 export function readPositionUpdates(id: string): Promise<PositionUpdatesRead> { return request(`${base}/${id}/position-updates`); }
+export function closePosition(id: string, body: CloseRequest): Promise<CloseResponse> {
+  return request(`${base}/${id}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
 
 export type { EvidenceFile };

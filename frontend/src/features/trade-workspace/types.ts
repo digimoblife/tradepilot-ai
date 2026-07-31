@@ -238,3 +238,25 @@ export interface PositionUpdatesRead {
   position: PositionDetail | null;
   updates: PositionUpdateItem[];
 }
+
+export interface CloseRequest {
+  close_price: string;
+  close_timestamp: string;
+  close_reason: string;
+  note?: string | null;
+}
+
+export interface CloseResponse {
+  closure_id: string;
+  session_id: string;
+  position_id: string;
+  close_price: string;
+  close_timestamp: string;
+  close_reason: string;
+  note: string | null;
+  realized_profit_loss: string;
+  position_status: string;
+  session_status: string;
+  closed_at: string;
+  created_at: string;
+}
