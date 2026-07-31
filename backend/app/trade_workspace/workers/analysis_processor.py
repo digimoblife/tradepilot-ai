@@ -268,10 +268,10 @@ class RebuildAnalysisProcessor:
                     "Initial Analysis session is not in ANALYZING status"
                 )
         elif request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE:
-            if trade_session.status is not TradeSessionV2Status.ANALYZING:
+            if trade_session.status is not TradeSessionV2Status.WAITING:
                 await self._session.rollback()
                 raise CompletionPersistenceError(
-                    "WAIT_UPDATE session is not in ANALYZING status"
+                    "WAIT_UPDATE session is not in WAITING status"
                 )
         request.raw_response = _json_safe(result.raw_response)
         request.processed_response = _json_safe(result.processed_response)
@@ -281,8 +281,6 @@ class RebuildAnalysisProcessor:
         request.error_message = None
         if request.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS:
             trade_session.status = TradeSessionV2Status.ANALYZED
-        elif request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE:
-            trade_session.status = TradeSessionV2Status.WAITING
         try:
             await self._session.flush()
             await self._session.commit()
@@ -324,12 +322,6 @@ class RebuildAnalysisProcessor:
             and trade_session.status is TradeSessionV2Status.ANALYZING
         ):
             trade_session.status = TradeSessionV2Status.DRAFT
-        elif (
-            request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE
-            and trade_session is not None
-            and trade_session.status is TradeSessionV2Status.ANALYZING
-        ):
-            trade_session.status = TradeSessionV2Status.WAITING
         try:
             await self._session.flush()
             await self._session.commit()
