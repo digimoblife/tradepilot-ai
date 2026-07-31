@@ -160,9 +160,7 @@ export function SessionWorkspace({
           setSession((current) => (current ? { ...current, status: next.session_status } : current));
           onSessionStatusChange?.(sessionId, next.session_status);
           if (["COMPLETED", "FAILED"].includes(next.request_status)) {
-            getAvailableActions(sessionId).then((avail) => {
-              if (!cancelled) setAvailability(avail);
-            }).catch(() => {});
+            refreshDecisionWorkspace().catch(() => {});
           } else {
             timer = setTimeout(poll, 5000);
           }
@@ -180,7 +178,7 @@ export function SessionWorkspace({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [requestStatus, sessionStatus, sessionId, onSessionStatusChange]);
+  }, [requestStatus, sessionStatus, sessionId, refreshDecisionWorkspace]);
 
   async function upload(event: React.FormEvent) {
     event.preventDefault();
@@ -217,8 +215,7 @@ export function SessionWorkspace({
         if (fullAnalysis) {
           setAnalysis(fullAnalysis);
         }
-        const avail = await getAvailableActions(sessionId).catch(() => null);
-        if (avail) setAvailability(avail);
+        await refreshDecisionWorkspace().catch(() => {});
         return;
       }
       setAnalysis({

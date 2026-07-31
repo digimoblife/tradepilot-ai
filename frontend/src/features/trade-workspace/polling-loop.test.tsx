@@ -258,7 +258,7 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
     });
   });
 
-  it("calls getAvailableActions again on terminal COMPLETED and updates sidebar and shows decision controls", async () => {
+  it("calls refreshDecisionWorkspace (getSession + getAvailableActions) on terminal COMPLETED and updates sidebar and shows decision controls", async () => {
     const secondSession: TradeSession = {
       id: "session-other",
       ticker: "BBCA",
@@ -296,6 +296,10 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
         completed_at: "2026-07-31T00:00:02Z",
       });
 
+    vi.mocked(getSession)
+      .mockResolvedValueOnce(draftSession)
+      .mockResolvedValueOnce({ ...draftSession, status: "ANALYZED" });
+
     vi.mocked(getAvailableActions)
       .mockResolvedValueOnce(mockAvailability)
       .mockResolvedValueOnce({
@@ -319,6 +323,10 @@ describe("Focused Initial Analysis Polling Loop Prevention", () => {
       expect(screen.getByRole("button", { name: "Konfirmasi BUY" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Konfirmasi SKIP" })).toBeInTheDocument();
     });
+
+    // Verify both session and actions were refreshed together
+    expect(getSession).toHaveBeenCalledWith(draftSession.id);
+    expect(getAvailableActions).toHaveBeenCalledWith(draftSession.id);
 
     // Sidebar reflects ANALYZED for selected session, but DRAFT for the second session
     const sidebar = screen.getByRole("complementary", { name: "Daftar sesi" });
