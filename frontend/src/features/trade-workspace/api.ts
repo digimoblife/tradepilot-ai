@@ -11,7 +11,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-const base = "/api/v2/trade-sessions";
+const base = "/v2/trade-sessions";
 
 export function listSessions(): Promise<{ sessions: TradeSession[] }> { return request(`${base}`); }
 export function getSession(id: string): Promise<TradeSession> { return request(`${base}/${id}`); }
