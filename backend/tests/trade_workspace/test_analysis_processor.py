@@ -568,7 +568,11 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
         session_status=(
             TradeSessionV2Status.ANALYZING
             if analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS
-            else TradeSessionV2Status.DRAFT
+            else (
+                TradeSessionV2Status.WAITING
+                if analysis_type is AnalysisRequestV2Type.WAIT_UPDATE
+                else TradeSessionV2Status.DRAFT
+            )
         ),
     )
     adapter = FakeAdapter("gemini-persisted")
