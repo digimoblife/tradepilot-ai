@@ -378,7 +378,7 @@ async def submit_initial_analysis(
 
 
 @router.post(
-    "/{session_id}/wait-update-analysis",
+    "/{session_id}/wait-updates",
     response_model=WaitUpdateAnalysisSubmissionResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )

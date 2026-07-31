@@ -165,7 +165,6 @@ class WaitUpdateAnalysisSubmissionService:
                     raise WaitUpdateAnalysisSessionIneligibleError(
                         "Trade session is no longer waiting"
                     )
-                refreshed.status = TradeSessionV2Status.ANALYZING
                 await self._session.commit()
             except WaitUpdateAnalysisSubmissionError:
                 raise
@@ -182,7 +181,7 @@ class WaitUpdateAnalysisSubmissionService:
                 request_status=request_result.status,
                 evidence_id=evidence.id,
                 observation_period=evidence.observation_period,
-                session_status=TradeSessionV2Status.ANALYZING,
+                session_status=TradeSessionV2Status.WAITING,
                 created_at=await self._request_created_at(request_result.request_id),
             )
         finally:
