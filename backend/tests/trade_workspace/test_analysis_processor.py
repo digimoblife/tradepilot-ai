@@ -35,6 +35,7 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Type,
 )
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.workers.analysis_processor import (
     AnalysisRequestNotFoundError,
     AnalysisRequestNotPendingError,
@@ -267,7 +268,83 @@ async def _read_request(
             select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
         )
         assert request is not None
-        return request
+    return request
+
+
+async def _add_open_position(factory: async_sessionmaker[AsyncSession], session_id: uuid.UUID) -> uuid.UUID:
+    position_id = uuid.uuid4()
+    async with factory() as session:
+        async with session.begin():
+            session.add(PositionV2(id=position_id, session_id=session_id, entry_price=Decimal("1200"), entry_at=datetime(2026, 7, 29, tzinfo=timezone.utc), quantity=Decimal("10"), stop_loss=Decimal("1100"), target_price=Decimal("1400"), note="immutable", status=PositionV2Status.OPEN))
+    return position_id
+
+
+@pytest.mark.database
+async def test_position_update_persists_result_without_mutating_open_position(engine) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, request_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.OPEN_POSITION)
+    position_id = await _add_open_position(factory, session_id)
+    adapter = FakeAdapter("gemini-persisted")
+    async with factory() as session:
+        result = await RebuildAnalysisProcessor(session, image_resolver=FakeImageResolver(), context_builder=FakeContextBuilder(_context(RebuildAnalysisType.POSITION_UPDATE)), adapter_factory=lambda model: adapter).process(analysis_request_id=request_id)  # type: ignore[arg-type]
+    assert result.status is AnalysisRequestV2Status.COMPLETED
+    async with factory() as verify:
+        request = await verify.scalar(select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id))
+        position = await verify.scalar(select(PositionV2).where(PositionV2.id == position_id))
+        trade_session = await verify.scalar(select(TradeSessionV2).where(TradeSessionV2.id == session_id))
+        assert request is not None and request.processed_response is not None and request.model == "gemini-persisted" and request.prompt_version == "v1" and request.completed_at is not None
+        assert position is not None and (position.status, position.entry_price, position.quantity, position.stop_loss, position.target_price) == (PositionV2Status.OPEN, Decimal("1200"), Decimal("10"), Decimal("1100"), Decimal("1400"))
+        assert trade_session is not None and trade_session.status is TradeSessionV2Status.OPEN_POSITION
+
+
+async def _add_position_request(factory: async_sessionmaker[AsyncSession], session_id: uuid.UUID) -> uuid.UUID:
+    request_id = uuid.uuid4()
+    async with factory() as session:
+        async with session.begin():
+            session.add(AnalysisRequestV2(id=request_id, session_id=session_id, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, observation_period=AnalysisRequestV2ObservationPeriod.MORNING, current_price=Decimal("123.45"), observation_at=datetime.now(timezone.utc), status=AnalysisRequestV2Status.PENDING, provider="gemini", model="gemini-persisted", prompt_version="v1", input_snapshot={"ticker": "BBRI"}))
+    return request_id
+
+
+@pytest.mark.database
+async def test_position_update_requests_remain_separate_and_chronological(engine) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, first_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.OPEN_POSITION)
+    await _add_open_position(factory, session_id)
+    second_id = await _add_position_request(factory, session_id)
+    async with factory() as session:
+        processor = RebuildAnalysisProcessor(session, image_resolver=FakeImageResolver(), context_builder=FakeContextBuilder(_context(RebuildAnalysisType.POSITION_UPDATE)), adapter_factory=lambda model: FakeAdapter(model))  # type: ignore[arg-type]
+        assert (await processor.process(analysis_request_id=first_id)).status is AnalysisRequestV2Status.COMPLETED
+        assert (await processor.process(analysis_request_id=second_id)).status is AnalysisRequestV2Status.COMPLETED
+    async with factory() as verify:
+        rows = list((await verify.scalars(select(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id).order_by(AnalysisRequestV2.created_at, AnalysisRequestV2.id))).all())
+        assert [row.id for row in rows] == [first_id, second_id]
+        assert all(row.status is AnalysisRequestV2Status.COMPLETED and row.processed_response is not None for row in rows)
+    await _cleanup(factory, user_id, session_id, first_id)
+
+
+@pytest.mark.database
+async def test_position_update_failure_and_duplicate_preserve_persisted_state(engine) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, completed_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.OPEN_POSITION)
+    position_id = await _add_open_position(factory, session_id)
+    failed_id = await _add_position_request(factory, session_id)
+    async with factory() as session:
+        processor = RebuildAnalysisProcessor(session, image_resolver=FakeImageResolver(), context_builder=FakeContextBuilder(_context(RebuildAnalysisType.POSITION_UPDATE)), adapter_factory=lambda model: FakeAdapter(model))  # type: ignore[arg-type]
+        await processor.process(analysis_request_id=completed_id)
+        before = await _read_request(factory, completed_id)
+        with pytest.raises(AnalysisRequestNotPendingError):
+            await processor.process(analysis_request_id=completed_id)
+        failed = await RebuildAnalysisProcessor(session, image_resolver=FakeImageResolver(), context_builder=FakeContextBuilder(_context(RebuildAnalysisType.POSITION_UPDATE)), adapter_factory=lambda model: FakeAdapter(model, error=GeminiAdapterError("safe"))).process(analysis_request_id=failed_id)  # type: ignore[arg-type]
+    assert failed.status is AnalysisRequestV2Status.FAILED
+    async with factory() as verify:
+        completed = await verify.scalar(select(AnalysisRequestV2).where(AnalysisRequestV2.id == completed_id))
+        failed_row = await verify.scalar(select(AnalysisRequestV2).where(AnalysisRequestV2.id == failed_id))
+        position = await verify.scalar(select(PositionV2).where(PositionV2.id == position_id))
+        count = await verify.scalar(select(__import__("sqlalchemy").func.count()).select_from(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id))
+        assert completed is not None and completed.processed_response == before.processed_response
+        assert failed_row is not None and failed_row.processed_response is None
+        assert position is not None and position.status is PositionV2Status.OPEN and position.entry_price == Decimal("1200")
+        assert count == 2
 
 
 @pytest.mark.database
@@ -726,8 +803,7 @@ async def _cleanup(
 ) -> None:
     async with factory() as session:
         async with session.begin():
-            await session.execute(
-                delete(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
-            )
+            await session.execute(delete(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id))
+            await session.execute(delete(PositionV2).where(PositionV2.session_id == session_id))
             await session.execute(delete(TradeSessionV2).where(TradeSessionV2.id == session_id))
             await session.execute(delete(User).where(User.id == user_id))
