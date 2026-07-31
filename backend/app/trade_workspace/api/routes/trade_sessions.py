@@ -19,8 +19,11 @@ from app.trade_workspace.api.schemas import (
     InitialAnalysisSubmissionResponse,
     InitialEvidenceResponse,
     InitialEvidenceUploadResponse,
+    PositionDetailResponse,
     PositionUpdateAnalysisSubmissionResponse,
     PositionUpdateInputResponse,
+    PositionUpdateItemResponse,
+    PositionUpdatesReadResponse,
     SkipDecisionRequest,
     SkipDecisionResponse,
     TradeSessionCreateRequest,
@@ -64,6 +67,12 @@ from app.trade_workspace.services.position_update_input import (
     PositionUpdateInputError,
     PositionUpdateInputService,
 )
+from app.trade_workspace.services.position_update_read import (
+    PositionUpdateReadError,
+    PositionUpdateReadNotFoundError,
+    PositionUpdateReadService,
+)
+
 from app.trade_workspace.services.skip_decision import (
     SkipDecisionError,
     SkipDecisionService,
@@ -344,6 +353,68 @@ async def submit_position_update_analysis(
         position_status=result.position_status.value,
         created_at=result.created_at,
     )
+
+
+@router.get(
+    "/{session_id}/position-updates",
+    response_model=PositionUpdatesReadResponse,
+)
+async def read_position_updates(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> PositionUpdatesReadResponse:
+    try:
+        result = await PositionUpdateReadService(db_session).get_all(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except PositionUpdateReadNotFoundError as exc:
+        raise _not_found() from exc
+
+    position_resp = (
+        PositionDetailResponse(
+            id=str(result.position.id),
+            session_id=str(result.position.session_id),
+            status=result.position.status.value,
+            entry_price=result.position.entry_price,
+            entry_timestamp=result.position.entry_at,
+            quantity=result.position.quantity,
+            stop_loss=result.position.stop_loss,
+            target_price=result.position.target_price,
+            note=result.position.note,
+            created_at=result.position.created_at,
+        )
+        if result.position is not None
+        else None
+    )
+
+    updates_resp = [
+        PositionUpdateItemResponse(
+            analysis_request_id=str(u.analysis_request_id),
+            session_id=str(u.session_id),
+            analysis_type=u.analysis_type.value,
+            request_status=u.request_status.value,
+            current_price=u.current_price,
+            observation_period=u.observation_period.value if u.observation_period else None,
+            observation_timestamp=u.observation_at,
+            processed_response=u.processed_response,
+            error_code=u.error_code,
+            error_message=u.error_message,
+            created_at=u.created_at,
+            started_at=u.started_at,
+            completed_at=u.completed_at,
+            evidence_id=str(u.evidence_id) if u.evidence_id else None,
+            original_filename=u.original_filename,
+        )
+        for u in result.updates
+    ]
+
+    return PositionUpdatesReadResponse(
+        position=position_resp,
+        updates=updates_resp,
+    )
+
 
 
 @router.post(

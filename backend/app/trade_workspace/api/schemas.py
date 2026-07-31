@@ -210,3 +210,39 @@ class WaitUpdateAnalysisRecoveryResponse(BaseModel):
     session_status: str
     observation_period: str | None
     created_at: datetime
+
+
+class PositionDetailResponse(BaseModel):
+    id: str
+    session_id: str
+    status: str
+    entry_price: Decimal
+    entry_timestamp: datetime
+    quantity: Decimal
+    stop_loss: Decimal
+    target_price: Decimal
+    note: str | None
+    created_at: datetime
+
+
+class PositionUpdateItemResponse(BaseModel):
+    analysis_request_id: str
+    session_id: str
+    analysis_type: str
+    request_status: str
+    current_price: Decimal | None
+    observation_period: str | None
+    observation_timestamp: datetime | None
+    processed_response: dict[str, object] | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    evidence_id: str | None = None
+    original_filename: str | None = None
+
+
+class PositionUpdatesReadResponse(BaseModel):
+    position: PositionDetailResponse | None
+    updates: list[PositionUpdateItemResponse]
