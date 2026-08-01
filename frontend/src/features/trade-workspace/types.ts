@@ -31,7 +31,7 @@ export interface SessionDetailAggregate {
   };
   initial_evidence: Array<Record<string, unknown>>;
   initial_analysis: Record<string, unknown> | null;
-  decisions: Array<{ decision: "BUY" | "WAIT" | "SKIP"; created_at: string }>;
+  decisions: Array<{ decision_id?: string; decision: "BUY" | "WAIT" | "SKIP"; reason?: string | null; note?: string | null; created_at: string }>;
   wait_updates: Array<Record<string, unknown>>;
   position: Record<string, unknown> | null;
   position_updates: Array<Record<string, unknown>>;

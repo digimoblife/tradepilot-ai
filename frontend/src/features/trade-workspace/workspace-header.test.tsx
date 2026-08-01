@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { SessionWorkspace } from "./workspace";
 import { getAvailableActions, getSession, getSessionDetail, readInitialAnalysis, readInitialEvidence } from "./api";
 import type { SessionDetailAggregate, TradeSession } from "./types";
@@ -36,9 +36,9 @@ describe("P10.2 session header", () => {
     expect(await screen.findByText("BBRI")).toBeInTheDocument();
     expect(screen.getByText("Bank BRI")).toBeInTheDocument();
     expect(screen.getAllByText("Ditutup").length).toBeGreaterThan(0);
-    expect(screen.getByText("WAIT")).toBeInTheDocument();
-    expect(screen.getByText(/30 Jul 2026/)).toBeInTheDocument();
-    expect(screen.getAllByText(/31 Jul 2026/)).toHaveLength(2);
+    expect(within(screen.getByRole("banner", { name: "Ringkasan sesi" })).getByText("WAIT")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner", { name: "Ringkasan sesi" })).getByText(/30 Jul 2026/)).toBeInTheDocument();
+    expect(within(screen.getByRole("banner", { name: "Ringkasan sesi" })).getAllByText(/31 Jul 2026/)).toHaveLength(2);
     expect(getSessionDetail).toHaveBeenCalledWith(session.id);
   });
 
@@ -53,6 +53,6 @@ describe("P10.2 session header", () => {
     render(<SessionWorkspace sessionId={session.id} knownEvidence={[]} onEvidence={vi.fn()} />);
 
     expect(await screen.findByText("Belum ada keputusan")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner", { name: "Ringkasan sesi" })).getByText("—")).toBeInTheDocument();
   });
 });
