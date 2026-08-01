@@ -414,40 +414,40 @@ Previous task: P9.3
 Next task: P10.2  
 Official scope: Response Sections and Requirements as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P10.2 — Build Session Header and Status Display
 Previous task: P10.1  
 Next task: P10.3  
 Official scope: Display the items specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 84e01d0
 
 ### P10.3 — Build Chronological Timeline
 Previous task: P10.2  
 Next task: P10.4  
 Official scope: Timeline Items and Requirements as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P10.4 — Build Status-Based Action Panel
 Previous task: P10.3  
 Next task: P10.5  
 Official scope: Rules as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 84e01d0, 4d25ae9, 9034c0c, 9716d87
 
 ### P10.5 — Build Failure and Retry UI
 Previous task: P10.4  
 Next task: P11.1  
 Official scope: Behavior as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 62a4d00, 2a4bce8, 9034c0c
 
 ### Phase 11 — End-to-End Verification
 
@@ -456,48 +456,48 @@ Previous task: P10.5
 Next task: P11.2  
 Official scope: Create → Initial Analysis → BUY → Position Update → CLOSE.  
 Official acceptance criteria: files sent; responses stored; Indonesian output; user facts preserved; session closes.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P11.2 — Verify WAIT Then BUY Path
 Previous task: P11.1  
 Next task: P11.3  
 Official scope: Create → Initial Analysis → WAIT → WAIT Update → BUY → Position Update → CLOSE.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P11.3 — Verify WAIT Then SKIP Path
 Previous task: P11.2  
 Next task: P11.4  
 Official scope: Create → Initial Analysis → WAIT → WAIT Update → SKIP.  
 Official acceptance criteria: no position; status `CLOSED_SKIPPED`; history preserved; no further uploads.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P11.4 — Verify Direct SKIP Path
 Previous task: P11.3  
 Next task: P11.5  
 Official scope: Create → Initial Analysis → SKIP.  
 Official acceptance criteria: no position; no close price; skip reason stored; session read-only.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P11.5 — Verify Multiple Updates
 Previous task: P11.4  
 Next task: P11.6  
 Official scope: Verify repeated update behavior and the listed scenarios.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 14fd234, 9bafd72
 
 ### P11.6 — Verify Failure Recovery
 Previous task: P11.5  
 Next task: P12.1  
 Official scope: Cases and Verify requirements as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 5087d9a, 14fd234, 974fb6f
 
 ### Phase 12 — Cutover and Cleanup
 
@@ -506,32 +506,32 @@ Previous task: P11.6
 Next task: P12.2  
 Official scope: Allow controlled routing to the new workflow with the plan requirements.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.2 — Switch Frontend to V2 APIs
 Previous task: P12.1  
 Next task: P12.3  
 Official scope: Move session creation and session detail to the rebuild flow.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 08e1700
 
 ### P12.3 — Mark Old APIs Deprecated
 Previous task: P12.2  
 Next task: P12.4  
 Official scope: Prevent new usage of old business endpoints with the plan behavior.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.4 — Remove Old Frontend Workflow
 Previous task: P12.3  
 Next task: P12.5a  
 Official scope: Remove or Disable the items specified in the Detailed Task Plan.  
 Official acceptance criteria: New workflow remains complete.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 08e1700
 
 P12.5 is a non-executable umbrella heading. Its executable tasks follow.
 
@@ -540,66 +540,66 @@ Previous task: P12.4
 Next task: P12.5b  
 Official scope: remove Partial Exit routes. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.5b — remove old Closing Analysis requirement
 Previous task: P12.5a  
 Next task: P12.5c  
 Official scope: remove old Closing Analysis requirement. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.5c — remove unused provider routing
 Previous task: P12.5b  
 Next task: P12.5d  
 Official scope: remove unused provider routing. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.5d — remove old transport registry
 Previous task: P12.5c  
 Next task: P12.5e  
 Official scope: remove old transport registry. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.5e — remove unused canonical normalizers
 Previous task: P12.5d  
 Next task: P12.5f  
 Official scope: remove unused canonical normalizers. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.5f — remove old lifecycle transitions
 Previous task: P12.5e  
 Next task: P12.5g  
 Official scope: remove old lifecycle transitions. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.5g — remove obsolete evaluation flow
 Previous task: P12.5f  
 Next task: P12.6  
 Official scope: remove obsolete evaluation flow. Each removal must have focused dependency tests.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ### P12.6 — Final Production-Like Acceptance
 Previous task: P12.5g  
 Next task: NONE  
 Official scope: Run one complete clean session after cutover using the Required Path in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: NOT IMPLEMENTED
+Commit: NONE
 
 ## Current execution pointer
 
 - Current active official task: NONE
-- Next recovery stage after ledger completion: Stage 2 — Commit-to-Task Mapping
+- Next recovery stage after ledger completion: P5.6a → P7.2a → P8.2a; then resume P10.1
