@@ -313,7 +313,7 @@ Next task: P7.3
 Official scope: POST /api/v2/trade-sessions/{session_id}/wait-updates with the behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
 Implementation status: COMPLETED
-Commit: dfed279, e331a60, 0cbe24c, 8d42a41, 587e9a7, 7205121
+Commit: dfed279, e331a60, 0cbe24c, 8d42a41, 587e9a7, 7205121, f6be8de
 
 ### P7.3 — Implement WAIT Update Prompt
 Previous task: P7.2  
