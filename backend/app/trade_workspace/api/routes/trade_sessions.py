@@ -28,6 +28,7 @@ from app.trade_workspace.api.schemas import (
     PositionUpdatesReadResponse,
     SkipDecisionRequest,
     SkipDecisionResponse,
+    SessionDetailAggregateResponse,
     TradeSessionCreateRequest,
     TradeSessionListResponse,
     TradeSessionResponse,
@@ -82,6 +83,10 @@ from app.trade_workspace.services.position_update_read import (
 from app.trade_workspace.services.skip_decision import (
     SkipDecisionError,
     SkipDecisionService,
+)
+from app.trade_workspace.services.session_detail_aggregate import (
+    SessionDetailAggregateNotFoundError,
+    SessionDetailAggregateService,
 )
 from app.trade_workspace.services.trade_sessions import RebuildTradeSessionService
 from app.trade_workspace.services.wait_decision import (
@@ -790,6 +795,22 @@ async def get_trade_session(
     if trade_session is None:
         raise _not_found()
     return _to_response(trade_session)
+
+
+@router.get("/{session_id}/detail", response_model=SessionDetailAggregateResponse)
+async def get_session_detail_aggregate(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> SessionDetailAggregateResponse:
+    try:
+        result = await SessionDetailAggregateService(db_session).get(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except SessionDetailAggregateNotFoundError:
+        raise _not_found()
+    return SessionDetailAggregateResponse(**result.payload)
 
 
 @router.post(

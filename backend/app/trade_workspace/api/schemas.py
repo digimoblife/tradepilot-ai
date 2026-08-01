@@ -38,6 +38,17 @@ class TradeSessionListResponse(BaseModel):
     sessions: list[TradeSessionResponse]
 
 
+class SessionDetailAggregateResponse(BaseModel):
+    session: dict[str, object]
+    initial_evidence: list[dict[str, object]]
+    initial_analysis: dict[str, object] | None
+    decisions: list[dict[str, object]]
+    wait_updates: list[dict[str, object]]
+    position: dict[str, object] | None
+    position_updates: list[dict[str, object]]
+    closure: dict[str, object] | None
+
+
 class DecisionAvailabilityResponse(BaseModel):
     session_id: str
     session_status: str
