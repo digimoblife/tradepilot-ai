@@ -603,3 +603,11 @@ Commit: NONE
 
 - Current active official task: NONE
 - Next official task: P11.1 — Verify Direct BUY Path
+
+## Phase 12 internal cleanup execution governance
+
+- Phase 11 remains deferred by product-owner decision; no Phase 11 status is changed by this note.
+- For execution purposes, the prior Phase 12 transitional-cutover assumption is superseded by the internal sequence: P12-A Repository Legacy Inventory, P12-B Dependency and Runtime Impact Verification, P12-C V2 Coupling Classification, P12-D Incremental Safe Removal, P12-E V2 Decoupling and Legacy Replacement, and P12-F Final Clean Repository Verification.
+- P12-A is inventory only. No removal is permitted until P12-B and P12-C are complete with evidence.
+- Current authorized internal task: P12-A — Repository Legacy Inventory. After its completion, next authorized internal task: P12-B — Dependency and Runtime Impact Verification.
+- This governance note does not rename, renumber, complete, or otherwise modify official Detailed Task Plan tasks.
