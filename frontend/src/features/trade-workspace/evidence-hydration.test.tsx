@@ -5,6 +5,7 @@ import { TradeWorkspace } from "./trade-workspace";
 import {
   getAvailableActions,
   getSession,
+  getSessionDetail,
   listSessions,
   readInitialAnalysis,
   readInitialEvidence,
@@ -17,6 +18,7 @@ vi.mock("./api", () => ({
   buyDecision: vi.fn(),
   getAvailableActions: vi.fn(),
   getSession: vi.fn(),
+  getSessionDetail: vi.fn().mockResolvedValue(null),
   listSessions: vi.fn(),
   readInitialAnalysis: vi.fn(),
   readInitialEvidence: vi.fn(),
@@ -78,6 +80,7 @@ const mockPersistedEvidence: InitialEvidenceUploadResponse = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getSessionDetail).mockImplementation(() => Promise.resolve(null as never));
   vi.mocked(listSessions).mockResolvedValue({ sessions: [draftSession] });
   vi.mocked(getSession).mockResolvedValue(draftSession);
   vi.mocked(getAvailableActions).mockResolvedValue(mockAvailability);

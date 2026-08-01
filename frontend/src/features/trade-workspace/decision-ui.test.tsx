@@ -6,6 +6,7 @@ import {
   buyDecision,
   getAvailableActions,
   getSession,
+  getSessionDetail,
   readInitialAnalysis,
   readInitialEvidence,
   readPositionUpdates,
@@ -18,6 +19,7 @@ vi.mock("./api", () => ({
   buyDecision: vi.fn(),
   getAvailableActions: vi.fn(),
   getSession: vi.fn(),
+  getSessionDetail: vi.fn().mockResolvedValue(null),
   readInitialAnalysis: vi.fn(),
   readInitialEvidence: vi.fn().mockResolvedValue({ evidence: [] }),
   readPositionUpdates: vi.fn().mockResolvedValue({ position: null, updates: [] }),
@@ -62,6 +64,7 @@ function renderWorkspace(session: TradeSession = analyzed) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getSessionDetail).mockImplementation(() => Promise.resolve(null as never));
   vi.mocked(readPositionUpdates).mockResolvedValue({ position: null, updates: [] });
 });
 

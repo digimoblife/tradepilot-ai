@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buyDecision,
   getAvailableActions,
+  getSessionDetail,
   getSession,
   readInitialAnalysis,
   readInitialEvidence,
@@ -21,6 +22,7 @@ import type {
   SessionStatus,
   SkipReason,
   TradeSession,
+  SessionDetailAggregate,
 } from "./types";
 import { InitialAnalysisResultView } from "./result";
 import { WaitUpdatePanel } from "./wait-update";
@@ -43,6 +45,21 @@ function errorText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+const statusLabels: Record<SessionStatus, string> = {
+  DRAFT: "Draft", ANALYZING: "Menganalisis", ANALYZED: "Dianalisis", WAITING: "Menunggu",
+  OPEN_POSITION: "Posisi Terbuka", CLOSED: "Ditutup", CLOSED_SKIPPED: "Ditutup (Skip)",
+};
+
+function formatTime(value: string | null): string {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function latestDecision(detail: SessionDetailAggregate): string {
+  const latest = [...detail.decisions].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).at(-1);
+  return latest?.decision ?? "Belum ada keputusan";
+}
+
 export function SessionWorkspace({
   sessionId,
   knownEvidence,
@@ -55,6 +72,8 @@ export function SessionWorkspace({
   onSessionStatusChange?: (sessionId: string, status: SessionStatus) => void;
 }) {
   const [session, setSession] = useState<TradeSession | null>(null);
+  const [aggregate, setAggregate] = useState<SessionDetailAggregate | null>(null);
+  const [aggregateError, setAggregateError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<InitialAnalysisRead | null>(null);
   const [availability, setAvailability] = useState<DecisionAvailability | null>(null);
   const [files, setFiles] = useState<Record<string, File>>({});
@@ -83,12 +102,18 @@ export function SessionWorkspace({
   });
 
   const refreshDecisionWorkspace = useCallback(async () => {
-    const [nextSession, nextAvailability] = await Promise.all([
+    const aggregatePromise = typeof getSessionDetail === "function"
+      ? getSessionDetail(sessionId)
+      : Promise.resolve(null);
+    const [nextSession, nextAvailability, nextAggregate] = await Promise.all([
       getSession(sessionId),
       getAvailableActions(sessionId),
+      aggregatePromise,
     ]);
     setSession(nextSession);
     setAvailability(nextAvailability);
+    if (nextAggregate) setAggregate(nextAggregate);
+    setAggregateError(null);
     onSessionStatusChange?.(sessionId, nextSession.status);
     if (nextSession.status !== "WAITING" && nextSession.status !== "ANALYZING") {
       setWaitPanelActive(false);
@@ -105,6 +130,13 @@ export function SessionWorkspace({
 
   useEffect(() => {
     let cancelled = false;
+    setAggregate(null);
+    setAggregateError(null);
+    if (typeof getSessionDetail === "function") {
+      getSessionDetail(sessionId)
+        .then((next) => { if (!cancelled) setAggregate(next); })
+        .catch(() => { if (!cancelled) setAggregateError("Ringkasan sesi tidak dapat dimuat."); });
+    }
     Promise.all([getSession(sessionId), getAvailableActions(sessionId)])
       .then(([nextSession, nextAvailability]) => {
         if (!cancelled) {
@@ -322,8 +354,15 @@ export function SessionWorkspace({
   const actions = availability?.available_actions ?? [];
   const showDecisionPanel = actions.some((action) => action === "BUY" || action === "WAIT" || action === "SKIP");
 
+  const headerSession = aggregate?.session;
   return <section className="space-y-4">
-    <header className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-500">{session.ticker}</p><h2 className="text-2xl font-bold">{session.company_name}</h2></div><span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold">{session.status}</span></div>{session.note && <p className="mt-4 whitespace-pre-wrap text-sm text-zinc-600">{session.note}</p>}</header>
+    <header aria-label="Ringkasan sesi" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+      {!headerSession ? <p role={aggregateError ? "alert" : undefined} aria-live={aggregateError ? undefined : "polite"} className={aggregateError ? "text-red-700" : "text-zinc-500"}>{aggregateError ?? "Memuat ringkasan sesi…"}</p> : <>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-500">{headerSession.ticker}</p><h2 className="text-2xl font-bold">{headerSession.company_name}</h2></div><span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold">{statusLabels[headerSession.status]}</span></div>
+        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm text-zinc-600 sm:grid-cols-2"><div><dt className="font-medium text-zinc-500">Status</dt><dd>{statusLabels[headerSession.status]}</dd></div><div><dt className="font-medium text-zinc-500">Keputusan Aktif</dt><dd>{latestDecision(aggregate)}</dd></div><div><dt className="font-medium text-zinc-500">Dibuat</dt><dd>{formatTime(headerSession.created_at)}</dd></div><div><dt className="font-medium text-zinc-500">Pembaruan Terakhir</dt><dd>{formatTime(headerSession.updated_at)}</dd></div><div><dt className="font-medium text-zinc-500">Ditutup</dt><dd>{formatTime(headerSession.closed_at)}</dd></div></dl>
+        {headerSession.initial_note && <p className="mt-4 whitespace-pre-wrap text-sm text-zinc-600">{headerSession.initial_note}</p>}
+      </>}
+    </header>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {decisionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{decisionError}</p>}
     {decisionSuccess && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{decisionSuccess}</p>}

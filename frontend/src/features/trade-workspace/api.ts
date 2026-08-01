@@ -1,5 +1,5 @@
 import { publicEnv } from "@/lib/env";
-import type { BuyDecisionResult, CloseRequest, CloseResponse, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
+import type { BuyDecisionResult, CloseRequest, CloseResponse, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, SessionDetailAggregate, SkipDecisionResult, SkipReason, TradeSession, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, { ...options, credentials: "include" });
@@ -15,6 +15,7 @@ const base = "/v2/trade-sessions";
 
 export function listSessions(): Promise<{ sessions: TradeSession[] }> { return request(`${base}`); }
 export function getSession(id: string): Promise<TradeSession> { return request(`${base}/${id}`); }
+export function getSessionDetail(id: string): Promise<SessionDetailAggregate> { return request(`${base}/${id}/detail`); }
 export function createSession(input: { ticker: string; company_name: string; note?: string | null }): Promise<TradeSession> {
   return request(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
 }

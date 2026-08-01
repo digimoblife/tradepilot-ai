@@ -18,6 +18,26 @@ export interface TradeSession {
   note: string | null; created_at: string; updated_at: string; closed_at: string | null;
 }
 
+export interface SessionDetailAggregate {
+  session: {
+    id: string;
+    ticker: string;
+    company_name: string;
+    status: SessionStatus;
+    initial_note: string | null;
+    created_at: string;
+    updated_at: string;
+    closed_at: string | null;
+  };
+  initial_evidence: Array<Record<string, unknown>>;
+  initial_analysis: Record<string, unknown> | null;
+  decisions: Array<{ decision: "BUY" | "WAIT" | "SKIP"; created_at: string }>;
+  wait_updates: Array<Record<string, unknown>>;
+  position: Record<string, unknown> | null;
+  position_updates: Array<Record<string, unknown>>;
+  closure: Record<string, unknown> | null;
+}
+
 export interface EvidenceFile {
   id: string; evidence_type: string; original_filename: string;
   mime_type: string; size_bytes: number; uploaded_at: string;
