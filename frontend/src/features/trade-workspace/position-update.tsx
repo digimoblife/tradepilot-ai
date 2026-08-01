@@ -18,6 +18,7 @@ import type {
   RequestStatus,
   SessionStatus,
 } from "./types";
+import { safeErrorMessage } from "./safe-error";
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 60;
@@ -559,7 +560,7 @@ export function PositionUpdatePanel({
               {item.request_status === "FAILED" && (
                 <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
                   <p className="font-medium">Analisis Position Update gagal diproses.</p>
-                  {item.error_message && <p className="mt-1 text-xs">{item.error_message}</p>}
+                  <p className="mt-1 text-xs">{safeErrorMessage(item.error_message, "position")}</p>
                 </div>
               )}
 

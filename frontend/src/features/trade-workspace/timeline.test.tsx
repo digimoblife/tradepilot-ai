@@ -39,6 +39,7 @@ describe("P10.3 chronological timeline", () => {
     expect(events.filter((event) => event.type === "POSITION_UPDATE")).toHaveLength(2);
     expect(events.find((event) => event.type === "BUY_DECISION")?.details.join(" ")).toContain("100");
     expect(events.flatMap((event) => event.details).join(" ")).not.toContain("/unsafe");
+    expect(events.flatMap((event) => event.details).join(" ")).not.toContain("internal secret");
     expect(events.find((event) => event.type === "WAIT_UPDATE")?.timestamp).toBe("2026-07-30T00:08:00Z");
   });
 

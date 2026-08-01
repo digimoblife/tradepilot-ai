@@ -190,6 +190,7 @@ describe("Position Update Frontend", () => {
     expect(screen.getByText("Posisi bergerak naik.")).toBeTruthy();
     expect(screen.getByText("Hold posisi")).toBeTruthy();
     expect(screen.getByText("Analisis Position Update gagal diproses.")).toBeTruthy();
-    expect(screen.getByText("Gagal terhubung ke Gemini")).toBeTruthy();
+    expect(screen.getByText("Permintaan Position Update tidak dapat diproses. Silakan coba lagi.")).toBeTruthy();
+    expect(screen.queryByText("Gagal terhubung ke Gemini")).toBeNull();
   });
 });

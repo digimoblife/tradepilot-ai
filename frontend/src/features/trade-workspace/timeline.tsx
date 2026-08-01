@@ -1,4 +1,5 @@
 import type { SessionDetailAggregate } from "./types";
+import { safeErrorMessage } from "./safe-error";
 
 export type TimelineEventType =
   | "INITIAL_EVIDENCE" | "INITIAL_ANALYSIS" | "WAIT_DECISION" | "WAIT_UPDATE"
@@ -37,7 +38,7 @@ export function buildTimelineEvents(detail: SessionDetailAggregate): TimelineEve
   if (Object.keys(initial).length) {
     const status = text(initial.status);
     const timestamp = dateValue(initial.completed_at) ?? dateValue(initial.created_at);
-    events.push({ id: `analysis:${text(initial.request_id)}`, type: "INITIAL_ANALYSIS", timestamp, title: "Analisis Awal", details: [["Status", statusLabel[status] ?? status], ["Waktu", formatTime(timestamp)], ...(summary(initial) ? [["Ringkasan", summary(initial)!]] : [])] });
+    events.push({ id: `analysis:${text(initial.request_id)}`, type: "INITIAL_ANALYSIS", timestamp, title: "Analisis Awal", details: [["Status", statusLabel[status] ?? status], ["Waktu", formatTime(timestamp)], ...(status === "FAILED" ? [["Pesan", safeErrorMessage(initial.error_message, "initial")]] : []), ...(summary(initial) ? [["Ringkasan", summary(initial)!]] : [])] });
   }
   for (const decision of detail.decisions.map(record)) {
     const kind = text(decision.decision);
@@ -53,11 +54,11 @@ export function buildTimelineEvents(detail: SessionDetailAggregate): TimelineEve
   }
   for (const item of detail.wait_updates.map(record)) {
     const timestamp = requestTimestamp(item);
-    events.push({ id: `wait:${text(item.request_id)}`, type: "WAIT_UPDATE", timestamp, title: "Pembaruan WAIT", details: [["Periode", text(item.observation_period)], ["Harga saat ini", text(item.current_price)], ["Waktu observasi", formatTime(dateValue(item.observation_timestamp))], ["Status", statusLabel[text(item.status)] ?? text(item.status)], ["Catatan", text(item.note)], ...(summary(item) ? [["Ringkasan", summary(item)!]] : []), ...(record(item.evidence).original_filename ? [["Bukti", text(record(item.evidence).original_filename)]] : [])] });
+    events.push({ id: `wait:${text(item.request_id)}`, type: "WAIT_UPDATE", timestamp, title: "Pembaruan WAIT", details: [["Periode", text(item.observation_period)], ["Harga saat ini", text(item.current_price)], ["Waktu observasi", formatTime(dateValue(item.observation_timestamp))], ["Status", statusLabel[text(item.status)] ?? text(item.status)], ...(text(item.status) === "FAILED" ? [["Pesan", safeErrorMessage(item.error_message, "wait")]] : []), ["Catatan", text(item.note)], ...(summary(item) ? [["Ringkasan", summary(item)!]] : []), ...(record(item.evidence).original_filename ? [["Bukti", text(record(item.evidence).original_filename)]] : [])] });
   }
   for (const item of detail.position_updates.map(record)) {
     const timestamp = requestTimestamp(item);
-    events.push({ id: `position-update:${text(item.request_id)}`, type: "POSITION_UPDATE", timestamp, title: "Pembaruan Posisi", details: [["Periode", text(item.observation_period)], ["Harga saat ini", text(item.current_price)], ["Waktu observasi", formatTime(dateValue(item.observation_timestamp))], ["Status", statusLabel[text(item.status)] ?? text(item.status)], ...(summary(item) ? [["Ringkasan", summary(item)!]] : []), ...(record(item.evidence).original_filename ? [["Bukti", text(record(item.evidence).original_filename)]] : [])] });
+    events.push({ id: `position-update:${text(item.request_id)}`, type: "POSITION_UPDATE", timestamp, title: "Pembaruan Posisi", details: [["Periode", text(item.observation_period)], ["Harga saat ini", text(item.current_price)], ["Waktu observasi", formatTime(dateValue(item.observation_timestamp))], ["Status", statusLabel[text(item.status)] ?? text(item.status)], ...(text(item.status) === "FAILED" ? [["Pesan", safeErrorMessage(item.error_message, "position")]] : []), ...(summary(item) ? [["Ringkasan", summary(item)!]] : []), ...(record(item.evidence).original_filename ? [["Bukti", text(record(item.evidence).original_filename)]] : [])] });
   }
   const closure = record(detail.closure);
   if (Object.keys(closure).length) events.push({ id: `close:${text(closure.closure_id)}`, type: "CLOSE", timestamp: dateValue(closure.close_timestamp) ?? dateValue(closure.created_at), title: "Posisi Ditutup", details: [["Harga tutup", text(closure.close_price)], ["Waktu", formatTime(dateValue(closure.close_timestamp))], ["Alasan", text(closure.close_reason)], ["Catatan", text(closure.note)], ["Hasil", text(closure.realized_result)]] });

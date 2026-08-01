@@ -15,6 +15,7 @@ import type {
   WaitUpdateInputResponse,
   WaitUpdateResult,
 } from "./types";
+import { safeErrorMessage } from "./safe-error";
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 60;
@@ -245,7 +246,7 @@ export function WaitUpdatePanel({
           <h3 className="font-semibold text-red-900">WAIT Update gagal diproses</h3>
           <p className="mt-2 text-sm text-red-800">Analisis WAIT Update tidak selesai.</p>
           {analysis.error_code && <p className="mt-1 text-xs text-red-700">Kode: {analysis.error_code}</p>}
-          {analysis.error_message && <p className="mt-1 text-sm text-red-800">{analysis.error_message}</p>}
+          <p className="mt-1 text-sm text-red-800">{safeErrorMessage(analysis.error_message, "wait")}</p>
           {retryEligible && <button type="button" disabled={busy !== null} onClick={retry} className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy === "retry" ? "Mencoba…" : "Coba Lagi"}</button>}
         </section>
       )}

@@ -175,6 +175,8 @@ describe("WAIT Update frontend", () => {
     });
     render(<WaitUpdatePanel {...sessionProps} />);
     await screen.findByText("WAIT Update gagal diproses");
+    expect(screen.getByText("Permintaan WAIT Update tidak dapat diproses. Silakan coba lagi.")).toBeInTheDocument();
+    expect(screen.queryByText("Kesalahan tersanitasi")).not.toBeInTheDocument();
     expect(screen.getByText("Coba Lagi")).toBeTruthy();
     await user.click(screen.getByText("Coba Lagi"));
     await waitFor(() => expect(retryWaitUpdateAnalysis).toHaveBeenCalledTimes(1));

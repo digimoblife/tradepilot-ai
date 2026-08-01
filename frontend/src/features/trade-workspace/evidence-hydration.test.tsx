@@ -160,6 +160,8 @@ describe("Initial Evidence Hydration", () => {
     await waitFor(() => {
       expect(screen.getByText("Initial Analysis gagal diproses")).toBeInTheDocument();
     });
+    expect(screen.getByText("Analisis gagal diproses. Silakan coba lagi.")).toBeInTheDocument();
+    expect(screen.queryByText("Analysis queue is unavailable")).not.toBeInTheDocument();
 
     // Evidence must not disappear
     expect(screen.queryByText("Evidence Initial Analysis")).not.toBeInTheDocument();
