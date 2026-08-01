@@ -36,4 +36,4 @@ tsc --noEmit: passed
 
 ## Ledger and result
 
-P10.5 remains `COMPLETED`; its authoritative commit field appends the regression fix `cb0bb56` and reconciliation commit `DOCS_COMMIT`. The execution pointer advances from P10.5 to P11.1.
+P10.5 remains `COMPLETED`; its authoritative commit field appends the regression fix `cb0bb56` and reconciliation commit `7c21bb4`. The execution pointer advances from P10.5 to P11.1.
