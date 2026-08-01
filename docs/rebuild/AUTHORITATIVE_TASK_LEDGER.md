@@ -212,48 +212,48 @@ Previous task: P4.6
 Next task: P5.2  
 Official scope: POST /api/v2/trade-sessions; GET /api/v2/trade-sessions; GET /api/v2/trade-sessions/{session_id}.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: c63e288
 
 ### P5.2 — Create Initial Evidence Upload API
 Previous task: P5.1  
 Next task: P5.3  
 Official scope: Upload the three required evidence types.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: b6cfd3c, 7525782
 
 ### P5.3 — Create Initial Analysis Submission API
 Previous task: P5.2  
 Next task: P5.4  
 Official scope: POST /api/v2/trade-sessions/{session_id}/initial-analysis; require all three evidence files; create one analysis request; set session to `ANALYZING`; queue one request; block duplicate active submission.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 18e0611, 75657c0
 
 ### P5.4 — Implement Initial Analysis Prompt
 Previous task: P5.3  
 Next task: P5.5  
 Official scope: Required Output and Authority as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: bfd4538
 
 ### P5.5 — Persist and Complete Initial Analysis
 Previous task: P5.4  
 Next task: P5.6  
 Official scope: Complete the success and failure behavior specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 1a1ecda, 265b63f, 62a4d00
 
 ### P5.6 — Build Initial Analysis Frontend
 Previous task: P5.5  
 Next task: P6.1  
 Official scope: Build the UI specified in the Detailed Task Plan.  
 Official acceptance criteria: The complete initial flow works through the browser.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 84e01d0, 5087d9a, eb34d79, 23f58e7, 3e15868
 
 ### Phase 6 — BUY, WAIT, and SKIP
 
@@ -262,40 +262,40 @@ Previous task: P5.6
 Next task: P6.2  
 Official scope: Expose valid actions based on session status using the rules in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: c379017
 
 ### P6.2 — Implement WAIT Decision
 Previous task: P6.1  
 Next task: P6.3  
 Official scope: POST /api/v2/trade-sessions/{session_id}/decisions/wait with the behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: b5675ea
 
 ### P6.3 — Implement SKIP Decision
 Previous task: P6.2  
 Next task: P6.4  
 Official scope: POST /api/v2/trade-sessions/{session_id}/decisions/skip with the input and behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 03d2ceb, d05a1da
 
 ### P6.4 — Implement BUY Decision
 Previous task: P6.3  
 Next task: P6.5  
 Official scope: POST /api/v2/trade-sessions/{session_id}/decisions/buy with the input and behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 295fce0
 
 ### P6.5 — Build Decision UI
 Previous task: P6.4  
 Next task: P7.1  
 Official scope: Build the UI and forms specified in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 4d25ae9, d73f5b6, 3e15868
 
 ### Phase 7 — WAIT Updates
 
@@ -304,40 +304,40 @@ Previous task: P6.5
 Next task: P7.2  
 Official scope: Required Input and Conditions as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: a879c03, 0934304
 
 ### P7.2 — Create WAIT Update Submission
 Previous task: P7.1  
 Next task: P7.3  
 Official scope: POST /api/v2/trade-sessions/{session_id}/wait-updates with the behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: dfed279, e331a60, 0cbe24c, 8d42a41, 587e9a7, 7205121
 
 ### P7.3 — Implement WAIT Update Prompt
 Previous task: P7.2  
 Next task: P7.4  
 Official scope: Context and Required Output as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 138465e, 1c7d728
 
 ### P7.4 — Persist WAIT Update Results
 Previous task: P7.3  
 Next task: P7.5  
 Official scope: Verify the requirements specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 85173c1, 2a4bce8, 0cbe24c, d6d1f12
 
 ### P7.5 — Build WAIT Update Frontend
 Previous task: P7.4  
 Next task: P8.1  
 Official scope: Build the UI specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 1efc09f, 14fd234, 57f088e
 
 ### Phase 8 — Position Updates
 
@@ -346,40 +346,40 @@ Previous task: P7.5
 Next task: P8.2  
 Official scope: Required Input and Conditions as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 23c34c5
 
 ### P8.2 — Create Position Update Submission
 Previous task: P8.1  
 Next task: P8.3  
 Official scope: POST /api/v2/trade-sessions/{session_id}/position-updates with the behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 95fa494, e8a11ee
 
 ### P8.3 — Implement Position Update Prompt
 Previous task: P8.2  
 Next task: P8.4  
 Official scope: Context, Required Output, and Authority Rule as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: b5aee29, 0026a44
 
 ### P8.4 — Persist Position Update Results
 Previous task: P8.3  
 Next task: P8.5  
 Official scope: Verify the requirements specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: d6d1f12, 9bafd72
 
 ### P8.5 — Build Position Update Frontend
 Previous task: P8.4  
 Next task: P9.1  
 Official scope: position summary; update form; timeline; current price; period; analysis sections; CLOSE button; no BUY/WAIT/SKIP buttons.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 0ceebc1, 9034c0c
 
 ### Phase 9 — CLOSE
 
@@ -388,24 +388,24 @@ Previous task: P8.5
 Next task: P9.2  
 Official scope: POST /api/v2/trade-sessions/{session_id}/close with Required Input, Optional input, and Behavior as specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 46d2adb
 
 ### P9.2 — Verify Close Calculations
 Previous task: P9.1  
 Next task: P9.3  
 Official scope: Verify realized price difference, percentage result, quantity handling, decimal precision, timezone, no position overwrite, and one closure only.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: cf473df
 
 ### P9.3 — Build CLOSE Frontend
 Previous task: P9.2  
 Next task: P10.1  
 Official scope: Build the UI specified in the Detailed Task Plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 9716d87, 7c48348
 
 ### Phase 10 — Complete Session Page
 
