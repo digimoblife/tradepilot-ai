@@ -312,7 +312,7 @@ Previous task: P7.1
 Next task: P7.3  
 Official scope: POST /api/v2/trade-sessions/{session_id}/wait-updates with the behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: PARTIAL
+Implementation status: COMPLETED
 Commit: dfed279, e331a60, 0cbe24c, 8d42a41, 587e9a7, 7205121
 
 ### P7.3 — Implement WAIT Update Prompt
@@ -602,4 +602,4 @@ Commit: NONE
 ## Current execution pointer
 
 - Current active official task: NONE
-- Next recovery stage after ledger completion: P7.2a → P8.2a; then resume P10.1
+- Next recovery stage after ledger completion: P8.2a; then resume P10.1

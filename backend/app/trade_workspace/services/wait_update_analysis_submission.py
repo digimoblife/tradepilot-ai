@@ -141,7 +141,6 @@ class WaitUpdateAnalysisSubmissionService:
                     observation_at=evidence.observation_timestamp,
                     evidence_ids=[evidence.id],
                 )
-                trade_session.status = TradeSessionV2Status.ANALYZING
                 await self._session.commit()
             except (SessionNotFoundError, SessionOwnershipMismatchError) as exc:
                 await self._session.rollback()
@@ -169,7 +168,7 @@ class WaitUpdateAnalysisSubmissionService:
                 request_status=request.status,
                 evidence_id=evidence.id,
                 observation_period=evidence.observation_period,
-                session_status=TradeSessionV2Status.ANALYZING,
+                session_status=TradeSessionV2Status.WAITING,
                 created_at=await self._request_created_at(request_result.request_id),
             )
         finally:

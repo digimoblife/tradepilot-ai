@@ -322,7 +322,7 @@ async def test_failed_retry_reuses_request_and_evidence_and_clears_result(
     )
     assert status_code == 202
     assert payload["analysis_request_id"] == str(request_id)
-    assert payload["session_status"] == "ANALYZING"
+    assert payload["session_status"] == "WAITING"
     request = await _read_request(db_session, request_id)
     assert request.status is AnalysisRequestV2Status.PENDING
     assert request.started_at is None
@@ -364,7 +364,7 @@ async def test_pending_waiting_retry_preserves_fields_and_is_recoverable(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.ANALYZING
+    assert session.status is TradeSessionV2Status.WAITING
 
 
 @pytest.mark.parametrize(

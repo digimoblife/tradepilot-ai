@@ -120,7 +120,6 @@ class WaitUpdateAnalysisRetryService:
                 request.error_code = None
                 request.error_message = None
 
-            trade_session.status = TradeSessionV2Status.ANALYZING
             try:
                 await self._session.commit()
             except SQLAlchemyError as exc:
@@ -134,7 +133,7 @@ class WaitUpdateAnalysisRetryService:
                 session_id=session_id,
                 analysis_type=request.analysis_type,
                 request_status=request.status,
-                session_status=TradeSessionV2Status.ANALYZING,
+                session_status=TradeSessionV2Status.WAITING,
                 observation_period=request.observation_period,
                 created_at=request.created_at,
             )

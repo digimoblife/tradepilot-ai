@@ -359,7 +359,7 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     user_id, session_id, request_id = await _setup_request(
         factory,
         analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
-        session_status=TradeSessionV2Status.ANALYZING,
+        session_status=TradeSessionV2Status.WAITING,
     )
     context_builder = FakeContextBuilder(_wait_context())
     prompt_loader = FakePromptLoader()
@@ -501,13 +501,13 @@ async def test_wait_update_duplicate_delivery_calls_adapter_once_and_is_session_
     first_user, first_session, first_request = await _setup_request(
         factory,
         analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
-        session_status=TradeSessionV2Status.ANALYZING,
+        session_status=TradeSessionV2Status.WAITING,
     )
     second_user, second_session, second_request = await _setup_request(
         factory,
         analysis_type=AnalysisRequestV2Type.WAIT_UPDATE,
         status=AnalysisRequestV2Status.PENDING,
-        session_status=TradeSessionV2Status.ANALYZING,
+        session_status=TradeSessionV2Status.WAITING,
     )
     adapter = FakeAdapter("gemini-persisted")
     async with factory() as session:
@@ -537,7 +537,7 @@ async def test_wait_update_duplicate_delivery_calls_adapter_once_and_is_session_
         assert first_trade_session is not None
         assert second_trade_session is not None
         assert first_trade_session.status is TradeSessionV2Status.WAITING
-        assert second_trade_session.status is TradeSessionV2Status.ANALYZING
+        assert second_trade_session.status is TradeSessionV2Status.WAITING
     await _cleanup(factory, first_user, first_session, first_request)
     await _cleanup(factory, second_user, second_session, second_request)
 
@@ -649,7 +649,11 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
     user_id, session_id, request_id = await _setup_request(
         factory,
         analysis_type=analysis_type,
-        session_status=TradeSessionV2Status.ANALYZING,
+        session_status=(
+            TradeSessionV2Status.WAITING
+            if analysis_type is AnalysisRequestV2Type.WAIT_UPDATE
+            else TradeSessionV2Status.ANALYZING
+        ),
     )
     adapter = FakeAdapter("gemini-persisted")
     context = (

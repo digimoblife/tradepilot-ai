@@ -170,8 +170,8 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         "analysis_type": "WAIT_UPDATE",
         "request_status": "PENDING",
         "evidence_id": str(evidence_id),
-        "observation_period": "MIDDAY",
-        "session_status": "ANALYZING",
+            "observation_period": "MIDDAY",
+            "session_status": "WAITING",
         "created_at": payload["created_at"],
     }
 
@@ -211,7 +211,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.ANALYZING
+    assert session.status is TradeSessionV2Status.WAITING
     assert session.closed_at is None
 
 
@@ -353,11 +353,11 @@ async def test_missing_metadata_and_no_eligible_input_are_rejected_safely(
     assert response.json()["error"]["code"] == "WAIT_UPDATE_INPUT_NOT_READY"
 
 
-async def test_successful_submission_commits_request_pending_evidence_linked_and_session_analyzing(
+async def test_successful_submission_commits_request_pending_evidence_linked_and_session_waiting(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
     """P4.4 database-backed queue: verify atomic commit persists PENDING request,
-    linked evidence, and ANALYZING session status without transport calls."""
+    linked evidence, and WAITING session status without transport calls."""
     _, session_id, email = await _seed(engine)
     app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -381,7 +381,7 @@ async def test_successful_submission_commits_request_pending_evidence_linked_and
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
     assert session is not None
-    assert session.status is TradeSessionV2Status.ANALYZING
+    assert session.status is TradeSessionV2Status.WAITING
 
 
 async def test_ownership_and_authentication_are_safe(
