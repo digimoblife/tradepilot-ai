@@ -354,8 +354,8 @@ Previous task: P8.1
 Next task: P8.3  
 Official scope: POST /api/v2/trade-sessions/{session_id}/position-updates with the behavior in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: PARTIAL
-Commit: 95fa494, e8a11ee
+Implementation status: COMPLETED
+Commit: 95fa494, e8a11ee, 150dd57
 
 ### P8.3 — Implement Position Update Prompt
 Previous task: P8.2  
@@ -602,4 +602,4 @@ Commit: NONE
 ## Current execution pointer
 
 - Current active official task: NONE
-- Next recovery stage after ledger completion: P8.2a; then resume P10.1
+- Next recovery stage after ledger completion: Resume P10.1 — Create Session Detail Aggregate API
