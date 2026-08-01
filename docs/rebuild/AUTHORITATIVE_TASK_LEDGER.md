@@ -18,24 +18,24 @@ Previous task: NONE
 Next task: P0.2  
 Official scope: verify current branch; verify current commit; verify tracked and untracked changes; preserve uncommitted P9 work safely; create a rebuild branch; create a baseline tag.  
 Official acceptance criteria: current `main` remains unchanged; rebuild branch exists; baseline tag exists; no credential is committed; all untracked diagnostic files are preserved; current Docker volumes remain untouched.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: PARTIAL
+Commit: 9e13160
 
 ### P0.2 — Record Existing Runtime Assets
 Previous task: P0.1  
 Next task: P0.3  
 Official scope: Document technical assets that may be reused; inspect authentication, user isolation, file upload, evidence storage, Gemini SDK adapter, prompt loading, background worker, job polling, frontend layout, Docker Compose, gateway, PostgreSQL, migrations, and existing session page; create `docs/rebuild/EXISTING_ASSET_INVENTORY.md`.  
 Official acceptance criteria: The document describes existing code only. It does not propose new product features.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: e2e8db1
 
 ### P0.3 — Record Old Workflow Components
 Previous task: P0.2  
 Next task: P1.1  
 Official scope: Identify existing components that belong to the old architecture; create `docs/rebuild/OLD_WORKFLOW_COMPONENTS.md`; classifications: REUSE, ADAPT, BYPASS, DEPRECATE, REMOVE_AFTER_CUTOVER.  
 Official acceptance criteria: No code is deleted.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 880f587
 
 ### Phase 1 — Rebuild Mapping and Boundaries
 
@@ -44,24 +44,24 @@ Previous task: P0.3
 Next task: P1.2  
 Official scope: Map every approved PRD requirement to existing or new code ownership; create `docs/rebuild/PRD_CODE_MAPPING.md`.  
 Official acceptance criteria: Every approved PRD flow has an owner. No out-of-scope feature is mapped.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 9954a57
 
 ### P1.2 — Define the Rebuild Module Boundary
 Previous task: P1.1  
 Next task: P1.3  
 Official scope: Define where new business code will live without mixing it with old lifecycle code; create `docs/rebuild/REBUILD_MODULE_BOUNDARY.md`.  
 Official acceptance criteria: New business code does not depend on the old lifecycle engine. Shared infrastructure may still be reused.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 3a5e800
 
 ### P1.3 — Define Scope Guardrails
 Previous task: P1.2  
 Next task: P2.1  
 Official scope: Create `docs/rebuild/SCOPE_GUARDRAILS.md` with the required rules in the Detailed Task Plan.  
 Official acceptance criteria: The document is short and unambiguous.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 48a9a7d
 
 ### Phase 2 — Simplified Architecture
 
@@ -70,32 +70,32 @@ Previous task: P1.3
 Next task: P2.2  
 Official scope: Document the minimal backend flow; create `docs/rebuild/SIMPLE_ARCHITECTURE.md`.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 15ea90f
 
 ### P2.2 — Define Session Status Rules
 Previous task: P2.1  
 Next task: P2.3  
 Official scope: Define the approved status transitions only; create `docs/rebuild/SESSION_STATUS_RULES.md`.  
 Official acceptance criteria: No other business transition exists.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 8781781
 
 ### P2.3 — Define Analysis Types and Input Contracts
 Previous task: P2.2  
 Next task: P2.4  
 Official scope: Define only the approved AI analysis types; create `docs/rebuild/ANALYSIS_INPUT_CONTRACTS.md`.  
 Official acceptance criteria: User-owned and Gemini-owned data are clearly separated.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 62a503a
 
 ### P2.4 — Define Compact AI Output Contracts
 Previous task: P2.3  
 Next task: P3.1  
 Official scope: Define one compact response structure per approved analysis type; create the three `schemas/rebuild/v1` schema files named in the plan.  
 Official acceptance criteria: Schemas are compatible with Gemini structured output. No request is sent yet.  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: d0dc706
 
 ### Phase 3 — Simplified Database Model
 
@@ -104,56 +104,56 @@ Previous task: P2.4
 Next task: P3.2  
 Official scope: Create the new session table, `trade_sessions_v2`, with the required fields and requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: d958695
 
 ### P3.2 — Add Analysis Requests Table
 Previous task: P3.1  
 Next task: P3.3  
 Official scope: Create `analysis_requests_v2` with the required fields, analysis statuses, and requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 108e1a5
 
 ### P3.3 — Add Evidence Uploads Table
 Previous task: P3.2  
 Next task: P3.4  
 Official scope: Create `evidence_uploads_v2` with the required fields, evidence types, and requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 45f8e9f
 
 ### P3.4 — Add Session Decisions Table
 Previous task: P3.3  
 Next task: P3.5  
 Official scope: Create `session_decisions_v2` with the required fields, decisions, and requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 154d25f
 
 ### P3.5 — Add Positions Table
 Previous task: P3.4  
 Next task: P3.6  
 Official scope: Create `positions_v2` with the required fields, position statuses, and requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: efafd17
 
 ### P3.6 — Add Trade Closures Table
 Previous task: P3.5  
 Next task: P3.7  
 Official scope: Create `trade_closures_v2` with the required fields and requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 6d6d022
 
 ### P3.7 — Verify Full Migration Chain
 Previous task: P3.6  
 Next task: P4.1  
 Official scope: Verify all new tables on a disposable database; create `docs/rebuild/MIGRATION_VERIFICATION.md`.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 19af49c
 
 ### Phase 4 — Shared Gemini Analysis Pipeline
 
@@ -162,48 +162,48 @@ Previous task: P3.7
 Next task: P4.2  
 Official scope: Expose one explicit Gemini client for the rebuild with the requirements in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 99f7758
 
 ### P4.2 — Create Prompt Loader
 Previous task: P4.1  
 Next task: P4.3  
 Official scope: Load exactly three approved prompts and meet the plan requirements.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 677c778
 
 ### P4.3 — Create Analysis Context Builder
 Previous task: P4.2  
 Next task: P4.4  
 Official scope: Build the correct request context for each analysis type with the responsibilities in the plan.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: 075f80c, 1c7d728, 0026a44
 
 ### P4.4 — Create Analysis Request Queue Service
 Previous task: P4.3  
 Next task: P4.5  
 Official scope: Create exactly one analysis request with status `PENDING` in `analysis_requests_v2` as the durable database-backed queue source, transition session to `ANALYZING`, commit state, and return HTTP 202 without external brokers, in-process queues, or publishing to other transports.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: c1adacd, 75657c0, 59b75ed
 
 ### P4.5 — Create Worker Processing Flow
 Previous task: P4.4  
 Next task: P4.6  
 Official scope: Poll `analysis_requests_v2` at configured worker interval, atomically claim one `PENDING` request using PostgreSQL locking, mark `PROCESSING`, call Gemini once, store responses, mark `COMPLETED` or `FAILED`, and transition session to approved status without legacy `analysis_jobs` delegation or external queue infrastructure.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: f8d93e3, 974fb6f, 6666cd3
 
 ### P4.6 — Create Compact Response Validation
 Previous task: P4.5  
 Next task: P5.1  
 Official scope: Validate only fields required by the dashboard; do not add the listed components.  
 Official acceptance criteria: NOT SPECIFIED BY AUTHORITATIVE PLAN  
-Implementation status: NOT AUDITED  
-Commit: NOT AUDITED
+Implementation status: COMPLETED
+Commit: e3a9276
 
 ### Phase 5 — Initial Analysis
 
