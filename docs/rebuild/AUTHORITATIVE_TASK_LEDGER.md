@@ -252,8 +252,8 @@ Previous task: P5.5
 Next task: P6.1  
 Official scope: Build the UI specified in the Detailed Task Plan.  
 Official acceptance criteria: The complete initial flow works through the browser.  
-Implementation status: PARTIAL
-Commit: 84e01d0, 5087d9a, eb34d79, 23f58e7, 3e15868
+Implementation status: COMPLETED
+Commit: test(rebuild): verify initial analysis browser flow
 
 ### Phase 6 — BUY, WAIT, and SKIP
 
@@ -602,4 +602,4 @@ Commit: NONE
 ## Current execution pointer
 
 - Current active official task: NONE
-- Next recovery stage after ledger completion: P5.6a → P7.2a → P8.2a; then resume P10.1
+- Next recovery stage after ledger completion: P7.2a → P8.2a; then resume P10.1

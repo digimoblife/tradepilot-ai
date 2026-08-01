@@ -1,0 +1,13 @@
+P5.6a browser acceptance provider evidence
+
+Environment: isolated Docker Compose project tradepilot-p56a
+Gateway: http://localhost:8281
+Session: BBCA / Bank Central Asia
+Final status: ANALYZED
+Initial evidence uploads: 3
+Initial analysis requests: 1
+Initial analysis status: COMPLETED
+Provider/model: gemini / gemini-3.1-flash-lite
+Gemini HTTP requests observed: 1 (HTTP 200)
+Fallback/retry observed: none
+Decision submitted: none
