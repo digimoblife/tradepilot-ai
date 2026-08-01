@@ -183,10 +183,12 @@ export function PositionUpdatePanel({
   sessionId,
   sessionStatus,
   initialPosition,
+  onClosed,
 }: {
   sessionId: string;
   sessionStatus: SessionStatus;
   initialPosition?: PositionDetail | null;
+  onClosed?: () => void | Promise<void>;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [currentPrice, setCurrentPrice] = useState("");
@@ -326,6 +328,11 @@ export function PositionUpdatePanel({
       setCloseResult(result);
       setCloseSuccessMsg("Posisi berhasil ditutup.");
       setShowCloseForm(false);
+      try {
+        await onClosed?.();
+      } catch {
+        // Refresh failure does not revert a successful CLOSE
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : safeError());
     } finally {
