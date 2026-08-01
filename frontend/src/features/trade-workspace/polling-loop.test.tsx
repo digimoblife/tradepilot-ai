@@ -6,6 +6,7 @@ import { TradeWorkspace } from "./trade-workspace";
 import {
   getAvailableActions,
   getSession,
+  getSessionDetail,
   listSessions,
   readInitialAnalysis,
   readInitialEvidence,
@@ -18,6 +19,7 @@ vi.mock("./api", () => ({
   buyDecision: vi.fn(),
   getAvailableActions: vi.fn(),
   getSession: vi.fn(),
+  getSessionDetail: vi.fn(),
   listSessions: vi.fn(),
   readInitialAnalysis: vi.fn(),
   readInitialEvidence: vi.fn(),
@@ -60,6 +62,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(listSessions).mockResolvedValue({ sessions: [draftSession] });
   vi.mocked(getSession).mockResolvedValue(draftSession);
+  vi.mocked(getSessionDetail).mockImplementation(() => Promise.resolve(null as never));
   vi.mocked(getAvailableActions).mockResolvedValue(mockAvailability);
   vi.mocked(readInitialEvidence).mockResolvedValue(mockEvidenceResponse);
   vi.mocked(readInitialAnalysis).mockRejectedValue(new Error("404 Not Found"));

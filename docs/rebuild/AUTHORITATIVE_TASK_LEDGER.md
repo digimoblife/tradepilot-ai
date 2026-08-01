@@ -602,4 +602,4 @@ Commit: NONE
 ## Current execution pointer
 
 - Current active official task: NONE
-- Next official task: P10.4 — Build Status-Based Action Panel
+- Next official task: P10.5 — Build Failure and Retry UI
