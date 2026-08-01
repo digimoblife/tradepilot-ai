@@ -609,5 +609,7 @@ Commit: NONE
 - Phase 11 remains deferred by product-owner decision; no Phase 11 status is changed by this note.
 - For execution purposes, the prior Phase 12 transitional-cutover assumption is superseded by the internal sequence: P12-A Repository Legacy Inventory, P12-B Dependency and Runtime Impact Verification, P12-C V2 Coupling Classification, P12-D Incremental Safe Removal, P12-E V2 Decoupling and Legacy Replacement, and P12-F Final Clean Repository Verification.
 - P12-A is inventory only. No removal is permitted until P12-B and P12-C are complete with evidence.
-- Current authorized internal task: P12-A — Repository Legacy Inventory. After its completion, next authorized internal task: P12-B — Dependency and Runtime Impact Verification.
+- P12-A completed at commit `2532d78d97f02b175155bb8bf1794c2ad63e692a`.
+- P12-B dependency/runtime verification completed; no removal or final coupling classification occurred.
+- Current authorized internal task: P12-C — V2 Coupling Classification.
 - This governance note does not rename, renumber, complete, or otherwise modify official Detailed Task Plan tasks.
