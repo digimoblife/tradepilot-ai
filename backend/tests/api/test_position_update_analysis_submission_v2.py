@@ -265,7 +265,7 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
     assert payload["request_status"] == "PENDING"
     assert payload["evidence_id"] == str(latest_id)
     assert payload["observation_period"] == "MIDDAY"
-    assert payload["session_status"] == "ANALYZING"
+    assert payload["session_status"] == "OPEN_POSITION"
     assert older_id != latest_id and other_user != user_id and other_position != position_id
 
     request_id = uuid.UUID(payload["analysis_request_id"])
@@ -308,7 +308,7 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
     session = await db_session.scalar(
         select(TradeSessionV2).where(TradeSessionV2.id == session_id)
     )
-    assert session is not None and session.status is TradeSessionV2Status.ANALYZING
+    assert session is not None and session.status is TradeSessionV2Status.OPEN_POSITION
     assert session.closed_at is None
     position = await db_session.scalar(select(PositionV2).where(PositionV2.id == position_id))
     assert position is not None and position.status is PositionV2Status.OPEN

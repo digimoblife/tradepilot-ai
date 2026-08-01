@@ -282,7 +282,7 @@ async def _add_open_position(factory: async_sessionmaker[AsyncSession], session_
 @pytest.mark.database
 async def test_position_update_persists_result_without_mutating_open_position(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    user_id, session_id, request_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.ANALYZING)
+    user_id, session_id, request_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.OPEN_POSITION)
     position_id = await _add_open_position(factory, session_id)
     adapter = FakeAdapter("gemini-persisted")
     async with factory() as session:
@@ -308,18 +308,12 @@ async def _add_position_request(factory: async_sessionmaker[AsyncSession], sessi
 @pytest.mark.database
 async def test_position_update_requests_remain_separate_and_chronological(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    user_id, session_id, first_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.ANALYZING)
+    user_id, session_id, first_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.OPEN_POSITION)
     await _add_open_position(factory, session_id)
     second_id = await _add_position_request(factory, session_id)
     async with factory() as session:
         processor = RebuildAnalysisProcessor(session, image_resolver=FakeImageResolver(), context_builder=FakeContextBuilder(_context(RebuildAnalysisType.POSITION_UPDATE)), adapter_factory=lambda model: FakeAdapter(model))  # type: ignore[arg-type]
         assert (await processor.process(analysis_request_id=first_id)).status is AnalysisRequestV2Status.COMPLETED
-        # Before processing second request, session must re-enter ANALYZING (as done by submission)
-        async with factory() as set_analyzing:
-            async with set_analyzing.begin():
-                ts = await set_analyzing.scalar(select(TradeSessionV2).where(TradeSessionV2.id == session_id))
-                assert ts is not None
-                ts.status = TradeSessionV2Status.ANALYZING
         assert (await processor.process(analysis_request_id=second_id)).status is AnalysisRequestV2Status.COMPLETED
     async with factory() as verify:
         rows = list((await verify.scalars(select(AnalysisRequestV2).where(AnalysisRequestV2.session_id == session_id).order_by(AnalysisRequestV2.created_at, AnalysisRequestV2.id))).all())
@@ -331,7 +325,7 @@ async def test_position_update_requests_remain_separate_and_chronological(engine
 @pytest.mark.database
 async def test_position_update_failure_and_duplicate_preserve_persisted_state(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    user_id, session_id, completed_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.ANALYZING)
+    user_id, session_id, completed_id = await _setup_request(factory, analysis_type=AnalysisRequestV2Type.POSITION_UPDATE, session_status=TradeSessionV2Status.OPEN_POSITION)
     position_id = await _add_open_position(factory, session_id)
     failed_id = await _add_position_request(factory, session_id)
     async with factory() as session:
@@ -652,7 +646,11 @@ async def test_processor_selects_exact_schema_for_each_analysis_type(
         session_status=(
             TradeSessionV2Status.WAITING
             if analysis_type is AnalysisRequestV2Type.WAIT_UPDATE
-            else TradeSessionV2Status.ANALYZING
+            else (
+                TradeSessionV2Status.OPEN_POSITION
+                if analysis_type is AnalysisRequestV2Type.POSITION_UPDATE
+                else TradeSessionV2Status.ANALYZING
+            )
         ),
     )
     adapter = FakeAdapter("gemini-persisted")

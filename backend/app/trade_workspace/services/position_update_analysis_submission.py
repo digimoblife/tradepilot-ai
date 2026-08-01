@@ -134,7 +134,6 @@ class PositionUpdateAnalysisSubmissionService:
                     observation_at=evidence.observation_timestamp,
                     evidence_ids=[evidence.id],
                 )
-                trade_session.status = TradeSessionV2Status.ANALYZING
                 await self._session.commit()
             except (SessionNotFoundError, SessionOwnershipMismatchError) as exc:
                 await self._session.rollback()
@@ -158,7 +157,7 @@ class PositionUpdateAnalysisSubmissionService:
                 request_status=request_result.status,
                 evidence_id=evidence.id,
                 observation_period=evidence.observation_period,
-                session_status=TradeSessionV2Status.ANALYZING,
+                session_status=TradeSessionV2Status.OPEN_POSITION,
                 position_status=position.status,
                 created_at=created_at,
             )
