@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WaitUpdatePanel } from "./wait-update";
+import { WaitUpdateFeedback } from "./components/wait-update-feedback";
 import {
   readWaitUpdateAnalysis,
   retryWaitUpdateAnalysis,
@@ -57,6 +58,25 @@ beforeEach(() => {
 });
 
 describe("WAIT Update frontend", () => {
+  it("keeps pending recovery feedback exclusive from processing feedback", () => {
+    render(
+      <WaitUpdateFeedback
+        error={null}
+        processing
+        requestStatus="PENDING"
+        effectiveSessionStatus="WAITING"
+        retryEligible
+        busy={false}
+        errorCode={null}
+        errorMessage={null}
+        onRetry={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText("WAIT Update sedang diproses. Silakan tunggu.")).toBeNull();
+    expect(screen.getByText("WAIT Update menunggu pemulihan antrean")).toBeInTheDocument();
+  });
+
   it("shows only the approved form for WAITING and uploads one multipart input without submitting analysis", async () => {
     const user = userEvent.setup();
     const file = new File(["image"], "orderbook.png", { type: "image/png" });
@@ -140,7 +160,8 @@ describe("WAIT Update frontend", () => {
     expect(submitWaitUpdateAnalysis).toHaveBeenCalledTimes(1);
     expect(submitWaitUpdateAnalysis).toHaveBeenCalledWith("session-a");
     resolveSubmission?.();
-    expect(await screen.findByRole("status")).toHaveTextContent("sedang diproses");
+    expect(await screen.findByText("WAIT Update menunggu pemulihan antrean")).toBeInTheDocument();
+    expect(screen.queryByText("WAIT Update sedang diproses. Silakan tunggu.")).toBeNull();
     expect(sessionProps.onProcessing).toHaveBeenCalledTimes(1);
   });
 
