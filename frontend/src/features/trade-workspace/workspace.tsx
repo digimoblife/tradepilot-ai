@@ -360,7 +360,7 @@ export function SessionWorkspace({
   const showDecisionPanel = actions.some((action) => action === "BUY" || action === "WAIT" || action === "SKIP");
 
   const headerSession = aggregate?.session;
-  return <section className="space-y-4">
+  return <section className="space-y-[var(--space-section)]">
     <header aria-label="Ringkasan sesi" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
       {!headerSession ? <p role={aggregateError ? "alert" : undefined} aria-live={aggregateError ? undefined : "polite"} className={aggregateError ? "text-red-700" : "text-zinc-500"}>{aggregateError ?? "Memuat ringkasan sesi…"}</p> : <>
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-500">{headerSession.ticker}</p><h2 className="text-2xl font-bold">{headerSession.company_name}</h2></div><span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold">{statusLabels[headerSession.status]}</span></div>
@@ -368,9 +368,12 @@ export function SessionWorkspace({
         {headerSession.initial_note && <p className="mt-4 whitespace-pre-wrap text-sm text-zinc-600">{headerSession.initial_note}</p>}
       </>}
     </header>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    <div className="space-y-[var(--space-2)]">
+      {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {decisionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{decisionError}</p>}
     {decisionSuccess && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{decisionSuccess}</p>}
+    </div>
+    <div className="space-y-[var(--space-section)]">
     {showDecisionPanel && <section aria-label="Keputusan sesi" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
       <h3 className="font-semibold">Keputusan Anda</h3>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -380,12 +383,15 @@ export function SessionWorkspace({
       {actions.includes("BUY") && <form onSubmit={submitBuy} className="mt-5 space-y-3 border-t border-zinc-100 pt-5"><h4 className="font-medium">Konfirmasi posisi BUY</h4><div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium" htmlFor="buy-entry-price">Harga entry<input id="buy-entry-price" required inputMode="decimal" value={buyForm.entry_price} onChange={(event) => setBuyForm((current) => ({ ...current, entry_price: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-entry-timestamp">Waktu entry<input id="buy-entry-timestamp" required type="text" placeholder="2026-07-30T09:15:00Z" value={buyForm.entry_timestamp} onChange={(event) => setBuyForm((current) => ({ ...current, entry_timestamp: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-quantity">Kuantitas<input id="buy-quantity" required inputMode="decimal" value={buyForm.quantity} onChange={(event) => setBuyForm((current) => ({ ...current, quantity: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-stop-loss">Stop loss<input id="buy-stop-loss" required inputMode="decimal" value={buyForm.stop_loss} onChange={(event) => setBuyForm((current) => ({ ...current, stop_loss: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><label className="block text-sm font-medium" htmlFor="buy-target-price">Target price<input id="buy-target-price" required inputMode="decimal" value={buyForm.target_price} onChange={(event) => setBuyForm((current) => ({ ...current, target_price: event.target.value }))} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label></div><label className="block text-sm font-medium" htmlFor="buy-note">Catatan BUY (opsional)<textarea id="buy-note" value={buyForm.note} onChange={(event) => setBuyForm((current) => ({ ...current, note: event.target.value }))} className="mt-1 block min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2" /></label><button type="submit" disabled={decisionSubmitting !== null} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{decisionSubmitting === "BUY" ? "Menyimpan…" : "Konfirmasi BUY"}</button></form>}
     </section>}
     {(waitPanelActive || session.status === "WAITING") && <WaitUpdatePanel key={`${sessionId}-${waitCycle}`} sessionId={sessionId} sessionStatus={session.status} onProcessing={handleWaitProcessing} onFinished={refreshDecisionWorkspace} />}
-    <SessionTimeline aggregate={aggregate} loading={aggregateLoading} error={aggregateError} />
     {(session.status === "OPEN_POSITION" || session.status === "CLOSED") && <PositionUpdatePanel sessionId={sessionId} sessionStatus={session.status} onClosed={refreshDecisionWorkspace} initialPosition={buyResult ? { id: buyResult.position_id, session_id: sessionId, status: buyResult.position_status, entry_price: buyResult.entry_price, entry_timestamp: buyResult.entry_timestamp, quantity: buyResult.quantity, stop_loss: buyResult.stop_loss, target_price: buyResult.target_price, note: buyResult.note, created_at: buyResult.decision_at } : null} />}
     {!analysis && session.status === "DRAFT" && knownEvidence.length === 0 && <form onSubmit={upload} className="rounded-xl border bg-white p-5 shadow-sm"><h3 className="font-semibold">Evidence Initial Analysis</h3><p className="mt-1 text-sm text-zinc-500">Unggah tepat tiga gambar: order book, grafik 3 bulan, dan grafik 6 bulan.</p><div className="mt-4 grid gap-3">{([['orderbook', 'Order Book'], ['chart_3_month', 'Grafik 3 Bulan'], ['chart_6_month', 'Grafik 6 Bulan']] as const).map(([key, label]) => <label key={key} className="text-sm font-medium">{label}<input type="file" accept="image/*" required onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles((current) => ({ ...current, [key]: file })); }} className="mt-1 block w-full text-sm" /></label>)}</div><button disabled={busy} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mengunggah…" : "Unggah Evidence"}</button></form>}
     {knownEvidence.length > 0 && session.status === "DRAFT" && !analysis && <section className="rounded-xl border bg-white p-5"><h3 className="font-semibold">Evidence siap</h3><p className="mt-1 text-sm text-zinc-600">{knownEvidence.length} file diterima.</p><button disabled={busy} onClick={submitAnalysis} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mengirim…" : "Minta Initial Analysis"}</button></section>}
     {analysis && !complete && !failed && <p className="rounded-xl border bg-white p-5 text-sm text-zinc-700">Analisis sedang diproses. Silakan tunggu.</p>}
     {failed && <section className="rounded-xl border border-red-200 bg-red-50 p-5"><h3 className="font-semibold text-red-900">Initial Analysis gagal diproses</h3><p className="mt-2 text-sm text-red-800">{safeErrorMessage(analysis?.error_message, "initial")}</p><button disabled={busy} onClick={retry} className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mencoba…" : "Coba Lagi"}</button></section>}
-    {completedResult && <InitialAnalysisResultView result={completedResult} />}
+    </div>
+    {completedResult && <div className="max-w-[var(--layout-text-readable)]"><InitialAnalysisResultView result={completedResult} /></div>}
+    <div className="pt-[var(--space-2)]">
+      <SessionTimeline aggregate={aggregate} loading={aggregateLoading} error={aggregateError} />
+    </div>
   </section>;
 }
