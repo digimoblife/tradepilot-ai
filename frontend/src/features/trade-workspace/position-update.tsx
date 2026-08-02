@@ -77,10 +77,10 @@ export function PositionUpdateResultView({ result }: { result: PositionUpdateRes
 
 export function CloseResultSummaryView({ closure }: { closure: CloseResponse }) {
   return (
-    <section aria-label="Hasil Penutupan Posisi (CLOSE)" className="space-y-3 rounded-[var(--radius-large)] border border-[var(--color-status-success)] bg-[var(--color-surface-feedback)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-status-success)] pb-3">
+    <section aria-label="Hasil Penutupan Posisi (CLOSE)" className="space-y-3 rounded-[var(--radius-large)] border border-[var(--color-border-strong)] bg-[var(--color-surface-factual)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-default)] pb-3">
         <h3 className="font-semibold text-[var(--color-text-strong)]">Ringkasan Penutupan Posisi (CLOSE)</h3>
-        <span className="rounded-[var(--radius-compact)] border border-[var(--color-status-success)] bg-[var(--color-surface-factual)] px-3 py-1 text-[var(--text-size-status)] font-semibold text-[var(--color-status-success)]">
+        <span className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-muted)] px-3 py-1 text-[var(--text-size-status)] font-semibold text-[var(--color-text-default)]">
           CLOSED
         </span>
       </div>
@@ -99,13 +99,13 @@ export function CloseResultSummaryView({ closure }: { closure: CloseResponse }) 
         </div>
         <div>
           <dt className="text-[var(--color-text-muted)]">Realized PnL</dt>
-          <dd className={`font-semibold ${Number(closure.realized_profit_loss) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+          <dd className="font-semibold text-[var(--color-text-strong)]">
             {closure.realized_profit_loss}
           </dd>
         </div>
       </dl>
       {closure.note && (
-        <p className="border-t border-[var(--color-status-success)] pt-2 text-[var(--text-size-label)] text-[var(--color-text-default)]">
+        <p className="border-t border-[var(--color-border-default)] pt-2 text-[var(--text-size-label)] text-[var(--color-text-default)]">
           Catatan: {closure.note}
         </p>
       )}
@@ -380,7 +380,6 @@ export function PositionUpdatePanel({
 
       {effectiveSessionStatus === "OPEN_POSITION" && !closeResult && (
         <PositionUpdateForm
-          file={file}
           currentPrice={currentPrice}
           period={period}
           timestamp={timestamp}
@@ -398,7 +397,6 @@ export function PositionUpdatePanel({
       {updates.length > 0 && (
         <section aria-label="Riwayat Position Update" className="space-y-[var(--space-4)] border-t border-[var(--color-border-default)] pt-[var(--space-6)]">
           <div>
-            <p className="text-[var(--text-size-label)] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Audit trail</p>
             <h3 className="mt-1 text-[var(--text-size-section-title)] font-semibold text-[var(--color-text-strong)]">Riwayat Position Update</h3>
           </div>
           {updates.map((item, idx) => (
@@ -406,7 +404,7 @@ export function PositionUpdatePanel({
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-default)] pb-3">
                 <div>
                   <span className="text-[var(--text-size-status)] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
-                    Update #{idx + 1} · {item.observation_period ?? "—"}
+                    {item.observation_period ?? "—"}
                   </span>
                   <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">
                     Harga: {item.current_price ?? "—"}

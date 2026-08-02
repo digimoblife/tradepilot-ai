@@ -8,7 +8,6 @@ const periods: Array<{ value: ObservationPeriod; label: string }> = [
 ];
 
 export function PositionUpdateForm({
-  file,
   currentPrice,
   period,
   timestamp,
@@ -21,7 +20,6 @@ export function PositionUpdateForm({
   onTimestampChange,
   onNoteChange,
 }: {
-  file: File | null;
   currentPrice: string;
   period: ObservationPeriod | "";
   timestamp: string;
@@ -38,21 +36,14 @@ export function PositionUpdateForm({
     <form onSubmit={onSubmit} className="overflow-hidden rounded-[var(--radius-large)] border border-[var(--color-border-strong)] bg-[var(--color-surface-factual)] shadow-[var(--elevation-low)]">
       <div className="border-b border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-[var(--space-card)] py-[var(--space-5)]">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[var(--text-size-label)] font-semibold uppercase tracking-[0.08em] text-[var(--color-accent)]">Live position</p>
-            <h3 className="mt-1 text-[var(--text-size-section-title)] font-semibold text-[var(--color-text-strong)]">Position Update</h3>
-          </div>
-          <span className="rounded-[var(--radius-compact)] border border-[var(--color-accent)] bg-[var(--color-accent-subtle)] px-3 py-1 text-[var(--text-size-status)] font-semibold text-[var(--color-accent)]">OPEN</span>
+          <h3 className="text-[var(--text-size-section-title)] font-semibold text-[var(--color-text-strong)]">Position Update</h3>
         </div>
         <p className="mt-2 max-w-2xl text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-muted)]">Unggah satu orderbook screenshot dan masukkan observasi terbaru posisi Anda.</p>
       </div>
       <div className="grid gap-[var(--space-5)] px-[var(--space-card)] py-[var(--space-6)] md:grid-cols-2">
         <label className="block text-[var(--text-size-label)] font-medium text-[var(--color-text-default)] md:col-span-2" htmlFor="position-orderbook">
           Orderbook screenshot
-          <span className="mt-2 flex min-h-24 cursor-pointer items-center justify-center rounded-[var(--radius-compact)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-elevated-background)] px-4 text-center text-[var(--text-size-compact-body)] text-[var(--color-text-muted)] transition hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-subtle)]">
-            {file ? file.name : "Pilih file gambar orderbook"}
-            <input id="position-orderbook" type="file" accept="image/*" required onChange={onFileChange} className="sr-only" />
-          </span>
+          <input id="position-orderbook" type="file" accept="image/*" required onChange={onFileChange} className="mt-2 block min-h-11 w-full max-w-full min-w-0 text-[var(--text-size-compact-body)] text-[var(--color-text-default)] file:mr-3 file:min-h-11 file:rounded-[var(--radius-compact)] file:border-0 file:bg-[var(--color-surface-muted)] file:px-3 file:py-2 file:font-semibold file:text-[var(--color-text-default)]" />
         </label>
         <label className="block text-[var(--text-size-label)] font-medium" htmlFor="position-current-price">
           Harga saat ini
@@ -74,9 +65,8 @@ export function PositionUpdateForm({
           <textarea id="position-note" value={note} onChange={(event) => onNoteChange(event.target.value)} className="mt-2 block min-h-24 w-full rounded-[var(--radius-compact)] border border-[var(--color-border-strong)] bg-[var(--color-surface-factual)] px-3 py-2.5 text-[var(--color-text-strong)] outline-none focus:border-[var(--color-accent)] md:min-h-11" />
         </label>
       </div>
-      <div className="flex items-center justify-between gap-4 border-t border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-[var(--space-card)] py-[var(--space-4)]">
-        <p className="text-[var(--text-size-label)] text-[var(--color-text-muted)]">Data digunakan untuk analisis posisi berikutnya.</p>
-        <button type="submit" disabled={busy} className="shrink-0 rounded-[var(--radius-compact)] bg-[var(--color-accent)] px-4 py-2.5 text-[var(--text-size-compact-body)] font-semibold text-white shadow-[var(--elevation-low)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50">
+      <div className="flex min-w-0 flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-[var(--space-card)] py-[var(--space-4)] sm:flex-row sm:items-center sm:justify-end">
+        <button type="submit" disabled={busy} className="min-h-11 w-full min-w-0 rounded-[var(--radius-compact)] bg-[var(--color-accent)] px-4 py-2.5 text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-inverse)] shadow-[var(--elevation-low)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
           {busy ? "Mengirim…" : "Kirim Position Update"}
         </button>
       </div>
