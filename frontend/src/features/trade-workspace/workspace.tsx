@@ -28,7 +28,8 @@ import { InitialAnalysisResultView } from "./result";
 import { WaitUpdatePanel } from "./wait-update";
 import { PositionUpdatePanel } from "./position-update";
 import { SessionTimeline } from "./timeline";
-import { safeErrorMessage } from "./safe-error";
+import { InitialEvidencePanel } from "./components/initial-evidence-panel";
+import { AnalysisRequestFeedback } from "./components/analysis-request-feedback";
 
 const skipReasons: Array<{ value: SkipReason; label: string }> = [
 
@@ -394,10 +395,8 @@ export function SessionWorkspace({
     </section>}
     {(waitPanelActive || session.status === "WAITING") && <WaitUpdatePanel key={`${sessionId}-${waitCycle}`} sessionId={sessionId} sessionStatus={session.status} onProcessing={handleWaitProcessing} onFinished={refreshDecisionWorkspace} />}
     {(session.status === "OPEN_POSITION" || session.status === "CLOSED") && <PositionUpdatePanel sessionId={sessionId} sessionStatus={session.status} onClosed={refreshDecisionWorkspace} initialPosition={buyResult ? { id: buyResult.position_id, session_id: sessionId, status: buyResult.position_status, entry_price: buyResult.entry_price, entry_timestamp: buyResult.entry_timestamp, quantity: buyResult.quantity, stop_loss: buyResult.stop_loss, target_price: buyResult.target_price, note: buyResult.note, created_at: buyResult.decision_at } : null} />}
-    {!analysis && session.status === "DRAFT" && knownEvidence.length === 0 && <form onSubmit={upload} className="rounded-xl border bg-white p-5 shadow-sm"><h3 className="font-semibold">Evidence Initial Analysis</h3><p className="mt-1 text-sm text-zinc-500">Unggah tepat tiga gambar: order book, grafik 3 bulan, dan grafik 6 bulan.</p><div className="mt-4 grid gap-3">{([['orderbook', 'Order Book'], ['chart_3_month', 'Grafik 3 Bulan'], ['chart_6_month', 'Grafik 6 Bulan']] as const).map(([key, label]) => <label key={key} className="text-sm font-medium">{label}<input type="file" accept="image/*" required onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles((current) => ({ ...current, [key]: file })); }} className="mt-1 block w-full text-sm" /></label>)}</div><button disabled={busy} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mengunggah…" : "Unggah Evidence"}</button></form>}
-    {knownEvidence.length > 0 && session.status === "DRAFT" && !analysis && <section className="rounded-xl border bg-white p-5"><h3 className="font-semibold">Evidence siap</h3><p className="mt-1 text-sm text-zinc-600">{knownEvidence.length} file diterima.</p><button disabled={busy} onClick={submitAnalysis} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mengirim…" : "Minta Initial Analysis"}</button></section>}
-    {analysis && !complete && !failed && <p className="rounded-xl border bg-white p-5 text-sm text-zinc-700">Analisis sedang diproses. Silakan tunggu.</p>}
-    {failed && <section className="rounded-xl border border-red-200 bg-red-50 p-5"><h3 className="font-semibold text-red-900">Initial Analysis gagal diproses</h3><p className="mt-2 text-sm text-red-800">{safeErrorMessage(analysis?.error_message, "initial")}</p><button disabled={busy} onClick={retry} className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Mencoba…" : "Coba Lagi"}</button></section>}
+    {!analysis && session.status === "DRAFT" && <InitialEvidencePanel files={files} knownEvidence={knownEvidence} busy={busy} onFileSelected={(key, file) => setFiles((current) => ({ ...current, [key]: file }))} onUpload={upload} onRequestAnalysis={submitAnalysis} />}
+    <AnalysisRequestFeedback analysis={analysis} complete={complete} failed={failed} busy={busy} onRetry={retry} />
     </div>
     {completedResult && <div className="max-w-[var(--layout-text-readable)]"><InitialAnalysisResultView result={completedResult} /></div>}
     <div className="pt-[var(--space-2)]">

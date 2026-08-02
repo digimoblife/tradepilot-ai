@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { SessionWorkspace } from "./workspace";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TradeWorkspace } from "./trade-workspace";
 import {
   getAvailableActions,
@@ -9,7 +9,6 @@ import {
   listSessions,
   readInitialAnalysis,
   readInitialEvidence,
-  submitInitialAnalysis,
   uploadInitialEvidence,
 } from "./api";
 import type { DecisionAvailability, InitialEvidenceUploadResponse, TradeSession } from "./types";
@@ -103,6 +102,41 @@ describe("Initial Evidence Hydration", () => {
 
     expect(screen.getByText("Unggah Evidence")).toBeInTheDocument();
     expect(uploadInitialEvidence).not.toHaveBeenCalled();
+  });
+
+  it("keeps upload disabled until all three required files are selected and submits that file set", async () => {
+    const user = userEvent.setup();
+    vi.mocked(readInitialEvidence).mockResolvedValue({ evidence: [] });
+    vi.mocked(uploadInitialEvidence).mockResolvedValue(mockPersistedEvidence);
+    render(<TradeWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Order Book")).toBeInTheDocument();
+    });
+
+    const uploadButton = screen.getByRole("button", { name: "Unggah Evidence" });
+    expect(uploadButton).toBeDisabled();
+    const files = {
+      orderbook: new File(["orderbook"], "orderbook.png", { type: "image/png" }),
+      chart3m: new File(["chart3m"], "chart-3m.png", { type: "image/png" }),
+      chart6m: new File(["chart6m"], "chart-6m.png", { type: "image/png" }),
+    };
+
+    await user.upload(screen.getByLabelText("Order Book"), files.orderbook);
+    await user.upload(screen.getByLabelText("Grafik 3 Bulan"), files.chart3m);
+    await user.upload(screen.getByLabelText("Grafik 6 Bulan"), files.chart6m);
+
+    expect(uploadButton).toBeEnabled();
+    expect(screen.getByText("orderbook.png")).toBeInTheDocument();
+    expect(screen.getByText("chart-3m.png")).toBeInTheDocument();
+    expect(screen.getByText("chart-6m.png")).toBeInTheDocument();
+    fireEvent.submit(uploadButton.closest("form")!);
+
+    await waitFor(() => expect(uploadInitialEvidence).toHaveBeenCalledWith("session-tlkm", {
+      orderbook: files.orderbook,
+      chart_3_month: files.chart3m,
+      chart_6_month: files.chart6m,
+    }));
   });
 
   it("reopened session with all three persisted evidence types does not require re-upload", async () => {
