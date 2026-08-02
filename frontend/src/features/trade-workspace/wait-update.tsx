@@ -15,7 +15,8 @@ import type {
   WaitUpdateInputResponse,
   WaitUpdateResult,
 } from "./types";
-import { safeErrorMessage } from "./safe-error";
+import { WaitUpdateForm } from "./components/wait-update-form";
+import { WaitUpdateFeedback } from "./components/wait-update-feedback";
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 60;
@@ -58,12 +59,12 @@ function isTerminal(status: RequestStatus): boolean {
 
 export function WaitUpdateResultView({ result }: { result: WaitUpdateResult }) {
   return (
-    <section aria-label="Hasil WAIT Update" className="space-y-3">
+    <section aria-label="Hasil WAIT Update" className="min-w-0 max-w-[var(--layout-text-readable)] space-y-[var(--space-3)] rounded-[var(--radius-standard)] border border-[var(--color-status-information)] bg-[var(--color-surface-advisory)] p-[var(--space-card)]">
       <h3 className="sr-only">Hasil WAIT Update</h3>
       {resultSections.map(([key, label]) => (
-        <article key={key} className="rounded-xl border border-zinc-200 bg-white p-4">
-          <h3 className="font-semibold">{label}</h3>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-700">
+        <article key={key} className="min-w-0 border-b border-[var(--color-border-default)] pb-[var(--space-3)] last:border-b-0 last:pb-0">
+          <h3 className="break-words text-[var(--text-size-label)] font-semibold leading-[var(--text-line-body)] text-[var(--color-text-strong)]">{label}</h3>
+          <p className="mt-[var(--space-2)] break-words whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
             {displayValue(result[key])}
           </p>
         </article>
@@ -232,49 +233,16 @@ export function WaitUpdatePanel({
 
   return (
     <section aria-label="WAIT Update" className="space-y-4">
-      {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {processing && (
-        <p role="status" className="rounded-xl border bg-white p-5 text-sm text-zinc-700">
-          WAIT Update sedang diproses. Silakan tunggu.
-        </p>
-      )}
+      <WaitUpdateFeedback error={error} processing={processing} requestStatus={requestStatus} effectiveSessionStatus={effectiveSessionStatus} retryEligible={retryEligible} busy={busy !== null} errorCode={analysis?.error_code} errorMessage={analysis?.error_message} onRetry={retry} />
       {analysis?.request_status === "COMPLETED" && analysis.processed_response && (
         <WaitUpdateResultView result={analysis.processed_response} />
       )}
-      {analysis?.request_status === "FAILED" && (
-        <section className="rounded-xl border border-red-200 bg-red-50 p-5">
-          <h3 className="font-semibold text-red-900">WAIT Update gagal diproses</h3>
-          <p className="mt-2 text-sm text-red-800">Analisis WAIT Update tidak selesai.</p>
-          {analysis.error_code && <p className="mt-1 text-xs text-red-700">Kode: {analysis.error_code}</p>}
-          <p className="mt-1 text-sm text-red-800">{safeErrorMessage(analysis.error_message, "wait")}</p>
-          {retryEligible && <button type="button" disabled={busy !== null} onClick={retry} className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy === "retry" ? "Mencoba…" : "Coba Lagi"}</button>}
-        </section>
-      )}
-      {analysis?.request_status === "PENDING" && effectiveSessionStatus === "WAITING" && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-          <h3 className="font-semibold text-amber-950">WAIT Update menunggu pemulihan antrean</h3>
-          <p className="mt-2 text-sm text-amber-900">Permintaan belum masuk ke antrean pemrosesan.</p>
-          {retryEligible && <button type="button" disabled={busy !== null} onClick={retry} className="mt-4 rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy === "retry" ? "Mencoba…" : "Coba Lagi"}</button>}
-        </section>
-      )}
-      {sessionStatus === "WAITING" && !processing && !uploaded && (
-        <form onSubmit={upload} className="rounded-xl border bg-white p-5 shadow-sm">
-          <h3 className="font-semibold">WAIT Update</h3>
-          <p className="mt-1 text-sm text-zinc-500">Unggah satu orderbook dan masukkan fakta observasi Anda.</p>
-          <div className="mt-4 space-y-3">
-            <label className="block text-sm font-medium" htmlFor="wait-orderbook">Orderbook<input id="wait-orderbook" type="file" accept="image/*" required onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full text-sm" /></label>
-            <label className="block text-sm font-medium" htmlFor="wait-current-price">Harga saat ini<input id="wait-current-price" required inputMode="decimal" value={currentPrice} onChange={(event) => setCurrentPrice(event.target.value)} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label>
-            <label className="block text-sm font-medium" htmlFor="wait-observation-period">Periode observasi<select id="wait-observation-period" required value={period} onChange={(event) => setPeriod(event.target.value as ObservationPeriod)} className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"><option value="">Pilih periode</option>{periods.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-            <label className="block text-sm font-medium" htmlFor="wait-observation-timestamp">Waktu observasi<input id="wait-observation-timestamp" type="datetime-local" required value={timestamp} onChange={(event) => setTimestamp(event.target.value)} className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2" /></label>
-          </div>
-          <button type="submit" disabled={busy !== null} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy === "upload" ? "Mengunggah…" : "Terima Input WAIT Update"}</button>
-        </form>
-      )}
+      {sessionStatus === "WAITING" && !processing && !uploaded && <WaitUpdateForm file={file} currentPrice={currentPrice} period={period} timestamp={timestamp} periods={periods} busy={busy !== null} onFileChange={setFile} onCurrentPriceChange={setCurrentPrice} onPeriodChange={setPeriod} onTimestampChange={setTimestamp} onSubmit={upload} />}
       {uploaded && !processing && (
-        <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-          <h3 className="font-semibold text-emerald-950">Input WAIT Update diterima</h3>
-          <p className="mt-2 text-sm text-emerald-900">{uploaded.original_filename} · {uploaded.current_price} · {uploaded.observation_period}</p>
-          <button type="button" disabled={busy !== null} onClick={submitAnalysis} className="mt-4 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy === "submit" ? "Mengirim…" : "Minta WAIT Update Analysis"}</button>
+        <section className="min-w-0 rounded-[var(--radius-standard)] border border-[var(--color-status-success)] bg-[var(--color-surface-factual)] p-[var(--space-card)]">
+          <h3 className="text-[var(--text-size-card-title)] font-semibold leading-[var(--text-line-heading)] text-[var(--color-text-strong)]">Input WAIT Update diterima</h3>
+          <p className="mt-[var(--space-2)] break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{uploaded.original_filename} · {uploaded.current_price} · {uploaded.observation_period}</p>
+          <button type="button" disabled={busy !== null} aria-busy={busy === "submit"} onClick={submitAnalysis} className="mt-[var(--space-4)] min-h-11 rounded-[var(--radius-compact)] bg-[var(--color-status-information)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-status-information)] disabled:cursor-not-allowed disabled:border disabled:border-[var(--color-border-default)] disabled:bg-[var(--color-surface-muted)] disabled:text-[var(--color-text-muted)]">{busy === "submit" ? "Mengirim…" : "Minta WAIT Update Analysis"}</button>
         </section>
       )}
     </section>
