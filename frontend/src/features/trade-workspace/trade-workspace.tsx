@@ -38,7 +38,7 @@ export function TradeWorkspace() {
 
   return (
     <main className="min-w-0 flex-1 bg-[var(--color-page-background)] text-[var(--color-text-default)]">
-      <div className="mx-auto w-full max-w-[var(--layout-application-max)] px-[var(--layout-gutter-mobile)] py-[var(--space-8)] md:px-[var(--layout-gutter-tablet)] lg:px-[var(--layout-gutter-desktop)]">
+      <div className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-[var(--layout-gutter-mobile)] py-[var(--space-8)] md:px-[var(--layout-gutter-tablet)] lg:px-[var(--layout-gutter-desktop)]">
         <header className="mb-[var(--space-section)] max-w-[var(--layout-text-readable)]">
           <h1 className="mt-[var(--space-2)] text-[var(--text-size-page-title)] font-bold leading-[var(--text-line-heading)] tracking-tight text-[var(--color-text-strong)]">
             Initial Analysis Workspace
