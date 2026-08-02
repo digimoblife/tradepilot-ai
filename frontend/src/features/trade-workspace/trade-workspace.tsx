@@ -37,45 +37,55 @@ export function TradeWorkspace() {
   }, []);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Initial Analysis Workspace</h1>
-        <p className="mt-1 text-zinc-600">
-          Kelola beberapa sesi secara terpisah dan minta analisis awal berbasis evidence.
-        </p>
-      </div>
-      {error && (
-        <p role="alert" className="mb-4 text-red-700">
-          {error}
-        </p>
-      )}
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <div className="space-y-4">
-          <TradeWorkspaceSessionList
-            sessions={sessions}
-            selectedId={selected}
-            onSelect={setSelected}
-          />
-          <CreateTradeSession
-            onCreated={(s) => {
-              setSessions((x) => [s, ...x]);
-              setSelected(s.id);
-            }}
-          />
-        </div>
-        {selected ? (
-          <SessionWorkspace
-            key={selected}
-            sessionId={selected}
-            knownEvidence={evidence[selected] ?? []}
-            onEvidence={(files) => handleEvidence(selected, files)}
-            onSessionStatusChange={handleStatusChange}
-          />
-        ) : (
-          <section className="rounded-xl border bg-white p-8 text-zinc-500">
-            Pilih sesi atau buat sesi baru.
-          </section>
+    <main className="min-w-0 flex-1 bg-[var(--color-page-background)] text-[var(--color-text-default)]">
+      <div className="mx-auto w-full max-w-[var(--layout-application-max)] px-[var(--layout-gutter-mobile)] py-[var(--space-8)] md:px-[var(--layout-gutter-tablet)] lg:px-[var(--layout-gutter-desktop)]">
+        <header className="mb-[var(--space-section)] max-w-[var(--layout-text-readable)]">
+          <h1 className="mt-[var(--space-2)] text-[var(--text-size-page-title)] font-bold leading-[var(--text-line-heading)] tracking-tight text-[var(--color-text-strong)]">
+            Initial Analysis Workspace
+          </h1>
+          <p className="mt-[var(--space-2)] text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-muted)]">
+            Kelola beberapa sesi secara terpisah dan minta analisis awal berbasis evidence.
+          </p>
+        </header>
+        {error && (
+          <p role="alert" className="mb-[var(--space-section)] text-[var(--text-size-compact-body)] text-[var(--color-status-danger)]">
+            {error}
+          </p>
         )}
+        <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] xl:items-start">
+          <aside aria-labelledby="workspace-rail-heading" className="min-w-0 rounded-[var(--radius-large)] bg-[var(--color-surface-muted)] p-[var(--space-2)]">
+            <h2 id="workspace-rail-heading" className="sr-only">Sesi dan pembuatan sesi</h2>
+            <div className="space-y-[var(--space-4)]">
+              <TradeWorkspaceSessionList
+                sessions={sessions}
+                selectedId={selected}
+                onSelect={setSelected}
+              />
+              <CreateTradeSession
+                onCreated={(s) => {
+                  setSessions((x) => [s, ...x]);
+                  setSelected(s.id);
+                }}
+              />
+            </div>
+          </aside>
+          <section aria-labelledby="active-session-heading" className="min-w-0">
+            <h2 id="active-session-heading" className="sr-only">Sesi aktif</h2>
+            {selected ? (
+              <SessionWorkspace
+                key={selected}
+                sessionId={selected}
+                knownEvidence={evidence[selected] ?? []}
+                onEvidence={(files) => handleEvidence(selected, files)}
+                onSessionStatusChange={handleStatusChange}
+              />
+            ) : (
+              <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-8)] text-[var(--color-text-muted)] shadow-[var(--elevation-low)]">
+                Pilih sesi atau buat sesi baru.
+              </section>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );
