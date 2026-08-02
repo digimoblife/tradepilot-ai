@@ -11,23 +11,18 @@ import type {
   CloseResponse,
   ObservationPeriod,
   PositionDetail,
-  PositionUpdateInputResponse,
-  PositionUpdateItem,
   PositionUpdateResult,
   PositionUpdatesRead,
   RequestStatus,
   SessionStatus,
 } from "./types";
 import { safeErrorMessage } from "./safe-error";
+import { ClosePositionForm } from "./components/close-position-form";
+import { PositionUpdateFeedback } from "./components/position-update-feedback";
+import { PositionUpdateForm } from "./components/position-update-form";
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 60;
-
-const periods: Array<{ value: ObservationPeriod; label: string }> = [
-  { value: "MORNING", label: "Pagi" },
-  { value: "MIDDAY", label: "Siang" },
-  { value: "AFTERNOON", label: "Sore" },
-];
 
 const resultSections: Array<[keyof PositionUpdateResult, string]> = [
   ["update_summary", "Ringkasan Update"],
@@ -62,15 +57,15 @@ function isTerminal(status: RequestStatus): boolean {
 
 export function PositionUpdateResultView({ result }: { result: PositionUpdateResult }) {
   return (
-    <section aria-label="Hasil Position Update" className="space-y-3">
+    <section aria-label="Hasil Position Update" className="grid gap-[var(--space-4)]">
       <h3 className="sr-only">Hasil Position Update</h3>
       {resultSections.map(([key, label]) => {
         const val = result[key];
         if (val === undefined) return null;
         return (
-          <article key={key} className="rounded-xl border border-zinc-200 bg-white p-4">
-            <h4 className="font-semibold">{label}</h4>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-700">
+          <article key={key} className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] p-4">
+            <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{label}</h4>
+            <p className="mt-2 whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
               {displayValue(val)}
             </p>
           </article>
@@ -82,35 +77,35 @@ export function PositionUpdateResultView({ result }: { result: PositionUpdateRes
 
 export function CloseResultSummaryView({ closure }: { closure: CloseResponse }) {
   return (
-    <section aria-label="Hasil Penutupan Posisi (CLOSE)" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
-        <h3 className="font-semibold text-zinc-900">Ringkasan Penutupan Posisi (CLOSE)</h3>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+    <section aria-label="Hasil Penutupan Posisi (CLOSE)" className="space-y-3 rounded-[var(--radius-large)] border border-[var(--color-status-success)] bg-[var(--color-surface-feedback)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-status-success)] pb-3">
+        <h3 className="font-semibold text-[var(--color-text-strong)]">Ringkasan Penutupan Posisi (CLOSE)</h3>
+        <span className="rounded-[var(--radius-compact)] border border-[var(--color-status-success)] bg-[var(--color-surface-factual)] px-3 py-1 text-[var(--text-size-status)] font-semibold text-[var(--color-status-success)]">
           CLOSED
         </span>
       </div>
-      <dl className="grid gap-2 text-sm sm:grid-cols-2">
+      <dl className="grid gap-3 text-[var(--text-size-compact-body)] sm:grid-cols-2">
         <div>
-          <dt className="text-zinc-500">Harga penutupan</dt>
+          <dt className="text-[var(--color-text-muted)]">Harga penutupan</dt>
           <dd className="font-medium">{closure.close_price}</dd>
         </div>
         <div>
-          <dt className="text-zinc-500">Waktu penutupan</dt>
+          <dt className="text-[var(--color-text-muted)]">Waktu penutupan</dt>
           <dd className="font-medium">{closure.close_timestamp}</dd>
         </div>
         <div>
-          <dt className="text-zinc-500">Alasan penutupan</dt>
+          <dt className="text-[var(--color-text-muted)]">Alasan penutupan</dt>
           <dd className="font-medium">{closure.close_reason}</dd>
         </div>
         <div>
-          <dt className="text-zinc-500">Realized PnL</dt>
+          <dt className="text-[var(--color-text-muted)]">Realized PnL</dt>
           <dd className={`font-semibold ${Number(closure.realized_profit_loss) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
             {closure.realized_profit_loss}
           </dd>
         </div>
       </dl>
       {closure.note && (
-        <p className="text-xs text-zinc-600 border-t border-zinc-100 pt-2">
+        <p className="border-t border-[var(--color-status-success)] pt-2 text-[var(--text-size-label)] text-[var(--color-text-default)]">
           Catatan: {closure.note}
         </p>
       )}
@@ -129,50 +124,50 @@ export function PositionSummaryView({
 }) {
   const isOpen = position.status === "OPEN";
   return (
-    <section aria-label="Posisi terbuka" className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+    <section aria-label="Posisi terbuka" className="rounded-[var(--radius-large)] border border-[var(--color-accent)] bg-[var(--color-accent-subtle)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold text-emerald-950">
+        <h3 className="font-semibold text-[var(--color-text-strong)]">
           {isOpen ? "Posisi OPEN" : "Posisi CLOSED"}
         </h3>
         {showCloseButton && isOpen && (
           <button
             type="button"
             aria-label="Tutup Posisi (CLOSE)"
-            className="rounded-lg bg-zinc-800 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-zinc-700"
+            className="rounded-[var(--radius-compact)] bg-[var(--color-text-strong)] px-3.5 py-1.5 text-[var(--text-size-status)] font-semibold text-white shadow-[var(--elevation-low)] hover:opacity-90"
             onClick={() => onOpenCloseForm?.()}
           >
             Tutup Posisi (CLOSE)
           </button>
         )}
       </div>
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+      <dl className="mt-4 grid gap-3 text-[var(--text-size-compact-body)] sm:grid-cols-2">
         <div>
-          <dt className="text-emerald-800">Status posisi</dt>
+          <dt className="text-[var(--color-text-muted)]">Status posisi</dt>
           <dd className="font-medium">{position.status}</dd>
         </div>
         <div>
-          <dt className="text-emerald-800">Harga entry</dt>
+          <dt className="text-[var(--color-text-muted)]">Harga entry</dt>
           <dd className="font-medium">{position.entry_price}</dd>
         </div>
         <div>
-          <dt className="text-emerald-800">Waktu entry</dt>
+          <dt className="text-[var(--color-text-muted)]">Waktu entry</dt>
           <dd className="font-medium">{position.entry_timestamp}</dd>
         </div>
         <div>
-          <dt className="text-emerald-800">Kuantitas</dt>
+          <dt className="text-[var(--color-text-muted)]">Kuantitas</dt>
           <dd className="font-medium">{position.quantity}</dd>
         </div>
         <div>
-          <dt className="text-emerald-800">Stop loss</dt>
+          <dt className="text-[var(--color-text-muted)]">Stop loss</dt>
           <dd className="font-medium">{position.stop_loss}</dd>
         </div>
         <div>
-          <dt className="text-emerald-800">Target price</dt>
+          <dt className="text-[var(--color-text-muted)]">Target price</dt>
           <dd className="font-medium">{position.target_price}</dd>
         </div>
       </dl>
       {position.note && (
-        <p className="mt-3 text-xs text-emerald-900 border-t border-emerald-200 pt-2">
+        <p className="mt-4 border-t border-[var(--color-accent)] pt-2 text-[var(--text-size-label)] text-[var(--color-text-default)]">
           Catatan: {position.note}
         </p>
       )}
@@ -348,7 +343,7 @@ export function PositionUpdatePanel({
   const updates = readData?.updates ?? [];
 
   return (
-    <section aria-label="Position Update Workspace" className="space-y-4">
+    <section aria-label="Position Update Workspace" className="space-y-[var(--space-5)]">
       {effectivePosition && (
         <PositionSummaryView
           position={effectivePosition}
@@ -357,210 +352,81 @@ export function PositionUpdatePanel({
         />
       )}
 
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </p>
-      )}
+      {error && <PositionUpdateFeedback kind="error">{error}</PositionUpdateFeedback>}
 
-      {closeSuccessMsg && (
-        <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
-          {closeSuccessMsg}
-        </p>
-      )}
+      {closeSuccessMsg && <PositionUpdateFeedback kind="success">{closeSuccessMsg}</PositionUpdateFeedback>}
 
       {closeResult && <CloseResultSummaryView closure={closeResult} />}
 
       {showCloseForm && effectiveSessionStatus === "OPEN_POSITION" && !closeResult && (
-        <form onSubmit={handleCloseSubmit} className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm space-y-3">
-          <h3 className="font-semibold text-zinc-900">Konfirmasi Tutup Posisi (CLOSE)</h3>
-          <p className="text-sm text-zinc-600">
-            Masukkan data penutupan posisi Anda untuk mengakhiri posisi ini secara manual.
-          </p>
-
-          <div className="space-y-3 pt-2">
-            <label className="block text-sm font-medium" htmlFor="close-price">
-              Harga penutupan
-              <input
-                id="close-price"
-                required
-                inputMode="decimal"
-                value={closePrice}
-                onChange={(e) => setClosePrice(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"
-              />
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="close-timestamp">
-              Waktu penutupan
-              <input
-                id="close-timestamp"
-                type="datetime-local"
-                required
-                value={closeTimestamp}
-                onChange={(e) => setCloseTimestamp(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"
-              />
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="close-reason">
-              Alasan penutupan
-              <input
-                id="close-reason"
-                required
-                value={closeReason}
-                onChange={(e) => setCloseReason(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"
-              />
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="close-note">
-              Catatan (opsional)
-              <textarea
-                id="close-note"
-                value={closeNote}
-                onChange={(e) => setCloseNote(e.target.value)}
-                className="mt-1 block min-h-20 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"
-              />
-            </label>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={busy !== null}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {busy === "close" ? "Menyimpan…" : "Konfirmasi Tutup Posisi"}
-            </button>
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => setShowCloseForm(false)}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 disabled:opacity-50"
-            >
-              Batal
-            </button>
-          </div>
-        </form>
+        <ClosePositionForm
+          closePrice={closePrice}
+          closeTimestamp={closeTimestamp}
+          closeReason={closeReason}
+          closeNote={closeNote}
+          busy={busy !== null}
+          onSubmit={handleCloseSubmit}
+          onPriceChange={setClosePrice}
+          onTimestampChange={setCloseTimestamp}
+          onReasonChange={setCloseReason}
+          onNoteChange={setCloseNote}
+          onCancel={() => setShowCloseForm(false)}
+        />
       )}
 
       {isProcessing && (
-        <p role="status" className="rounded-xl border bg-white p-5 text-sm text-zinc-700 shadow-sm">
-          Position Update sedang diproses. Silakan tunggu.
-        </p>
+        <PositionUpdateFeedback kind="processing">Position Update sedang diproses. Silakan tunggu.</PositionUpdateFeedback>
       )}
 
       {effectiveSessionStatus === "OPEN_POSITION" && !closeResult && (
-        <form onSubmit={handleSubmit} className="rounded-xl border bg-white p-5 shadow-sm space-y-3">
-          <h3 className="font-semibold">Position Update</h3>
-          <p className="mt-1 text-sm text-zinc-500">
-            Unggah satu orderbook screenshot dan masukkan observasi terbaru posisi Anda.
-          </p>
-          <div className="space-y-3 pt-2">
-            <label className="block text-sm font-medium" htmlFor="position-orderbook">
-              Orderbook screenshot
-              <input
-                id="position-orderbook"
-                type="file"
-                accept="image/*"
-                required
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                className="mt-1 block w-full text-sm"
-              />
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="position-current-price">
-              Harga saat ini
-              <input
-                id="position-current-price"
-                required
-                inputMode="decimal"
-                value={currentPrice}
-                onChange={(event) => setCurrentPrice(event.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2"
-              />
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="position-observation-period">
-              Periode observasi
-              <select
-                id="position-observation-period"
-                required
-                value={period}
-                onChange={(event) => setPeriod(event.target.value as ObservationPeriod)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2"
-              >
-                <option value="">Pilih periode</option>
-                {periods.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="position-observation-timestamp">
-              Waktu observasi
-              <input
-                id="position-observation-timestamp"
-                type="datetime-local"
-                required
-                value={timestamp}
-                onChange={(event) => setTimestamp(event.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2"
-              />
-            </label>
-
-            <label className="block text-sm font-medium" htmlFor="position-note">
-              Catatan opsional
-              <textarea
-                id="position-note"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                className="mt-1 block min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2"
-              />
-            </label>
-          </div>
-          <button
-            type="submit"
-            disabled={busy !== null}
-            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy === "submit" ? "Mengirim…" : "Kirim Position Update"}
-          </button>
-        </form>
+        <PositionUpdateForm
+          file={file}
+          currentPrice={currentPrice}
+          period={period}
+          timestamp={timestamp}
+          note={note}
+          busy={busy !== null}
+          onSubmit={handleSubmit}
+          onFileChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          onCurrentPriceChange={setCurrentPrice}
+          onPeriodChange={setPeriod}
+          onTimestampChange={setTimestamp}
+          onNoteChange={setNote}
+        />
       )}
 
       {updates.length > 0 && (
-        <section aria-label="Riwayat Position Update" className="space-y-4 pt-2">
-          <h3 className="font-semibold text-lg">Riwayat Position Update</h3>
+        <section aria-label="Riwayat Position Update" className="space-y-[var(--space-4)] border-t border-[var(--color-border-default)] pt-[var(--space-6)]">
+          <div>
+            <p className="text-[var(--text-size-label)] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Audit trail</p>
+            <h3 className="mt-1 text-[var(--text-size-section-title)] font-semibold text-[var(--color-text-strong)]">Riwayat Position Update</h3>
+          </div>
           {updates.map((item, idx) => (
-            <article key={item.analysis_request_id || idx} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
+            <article key={item.analysis_request_id || idx} className="space-y-3 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-factual)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-default)] pb-3">
                 <div>
-                  <span className="text-xs font-semibold text-zinc-500 uppercase">
+                  <span className="text-[var(--text-size-status)] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
                     Update #{idx + 1} · {item.observation_period ?? "—"}
                   </span>
-                  <h4 className="font-medium text-sm">
+                  <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">
                     Harga: {item.current_price ?? "—"}
                   </h4>
                 </div>
-                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold">
+                <span className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-2.5 py-1 text-[var(--text-size-status)] font-semibold text-[var(--color-text-default)]">
                   {item.request_status}
                 </span>
               </div>
 
               {item.observation_timestamp && (
-                <p className="text-xs text-zinc-500">
+                <p className="text-[var(--text-size-label)] text-[var(--color-text-muted)]">
                   Waktu observasi: {item.observation_timestamp}
                 </p>
               )}
 
               {item.request_status === "FAILED" && (
-                <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
+                <div className="rounded-[var(--radius-compact)] border border-[var(--color-status-danger)] bg-[var(--color-status-danger-subtle)] p-3 text-[var(--text-size-compact-body)] text-[var(--color-text-default)]">
                   <p className="font-medium">Analisis Position Update gagal diproses.</p>
-                  <p className="mt-1 text-xs">{safeErrorMessage(item.error_message, "position")}</p>
+                  <p className="mt-1 text-[var(--text-size-label)]">{safeErrorMessage(item.error_message, "position")}</p>
                 </div>
               )}
 
