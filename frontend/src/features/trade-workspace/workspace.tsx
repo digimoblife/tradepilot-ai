@@ -52,6 +52,16 @@ const statusLabels: Record<SessionStatus, string> = {
   OPEN_POSITION: "Posisi Terbuka", CLOSED: "Ditutup", CLOSED_SKIPPED: "Ditutup (Skip)",
 };
 
+const statusToneClasses: Record<SessionStatus, string> = {
+  DRAFT: "border-[var(--color-border-default)] bg-[var(--color-surface-muted)] text-[var(--color-text-strong)]",
+  ANALYZING: "border-[var(--color-status-processing)] bg-[var(--color-status-processing-subtle)] text-[var(--color-text-strong)]",
+  ANALYZED: "border-[var(--color-status-information)] bg-[var(--color-status-information-subtle)] text-[var(--color-text-strong)]",
+  WAITING: "border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)] text-[var(--color-text-strong)]",
+  OPEN_POSITION: "border-[var(--color-status-information)] bg-[var(--color-status-information-subtle)] text-[var(--color-text-strong)]",
+  CLOSED: "border-[var(--color-border-default)] bg-[var(--color-surface-muted)] text-[var(--color-text-strong)]",
+  CLOSED_SKIPPED: "border-[var(--color-border-default)] bg-[var(--color-surface-muted)] text-[var(--color-text-strong)]",
+};
+
 function formatTime(value: string | null): string {
   if (!value) return "—";
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -361,11 +371,11 @@ export function SessionWorkspace({
 
   const headerSession = aggregate?.session;
   return <section className="space-y-[var(--space-section)]">
-    <header aria-label="Ringkasan sesi" className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <header aria-label="Ringkasan sesi" className="rounded-[var(--radius-large)] border border-[var(--color-border-strong)] bg-[var(--color-surface-factual)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
       {!headerSession ? <p role={aggregateError ? "alert" : undefined} aria-live={aggregateError ? undefined : "polite"} className={aggregateError ? "text-red-700" : "text-zinc-500"}>{aggregateError ?? "Memuat ringkasan sesi…"}</p> : <>
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm text-zinc-500">{headerSession.ticker}</p><h2 className="text-2xl font-bold">{headerSession.company_name}</h2></div><span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold">{statusLabels[headerSession.status]}</span></div>
-        <dl className="mt-4 grid grid-cols-1 gap-2 text-sm text-zinc-600 sm:grid-cols-2"><div><dt className="font-medium text-zinc-500">Status</dt><dd>{statusLabels[headerSession.status]}</dd></div><div><dt className="font-medium text-zinc-500">Keputusan Aktif</dt><dd>{latestDecision(aggregate)}</dd></div><div><dt className="font-medium text-zinc-500">Dibuat</dt><dd>{formatTime(headerSession.created_at)}</dd></div><div><dt className="font-medium text-zinc-500">Pembaruan Terakhir</dt><dd>{formatTime(headerSession.updated_at)}</dd></div><div><dt className="font-medium text-zinc-500">Ditutup</dt><dd>{formatTime(headerSession.closed_at)}</dd></div></dl>
-        {headerSession.initial_note && <p className="mt-4 whitespace-pre-wrap text-sm text-zinc-600">{headerSession.initial_note}</p>}
+        <div className="flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="break-words text-[var(--text-size-ticker)] font-bold leading-[var(--text-line-compact)] tracking-[0.04em] text-[var(--color-text-strong)]">{headerSession.ticker}</p><h2 className="mt-[var(--space-1)] break-words text-[var(--text-size-section-title)] font-semibold leading-[var(--text-line-heading)] text-[var(--color-text-default)]">{headerSession.company_name}</h2></div><span className={`w-fit shrink-0 rounded-[var(--radius-compact)] border px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-size-status)] font-semibold leading-[var(--text-line-compact)] ${statusToneClasses[headerSession.status]}`}>{statusLabels[headerSession.status]}</span></div>
+        <dl className="mt-[var(--space-6)] grid grid-cols-1 gap-x-[var(--space-6)] gap-y-[var(--space-4)] text-[var(--text-size-compact-body)] sm:grid-cols-2"><div><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Status</dt><dd className="mt-[var(--space-1)] font-semibold text-[var(--color-text-strong)]">{statusLabels[headerSession.status]}</dd></div><div><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Keputusan Aktif</dt><dd className="mt-[var(--space-1)] font-semibold text-[var(--color-text-strong)]">{latestDecision(aggregate)}</dd></div><div><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Dibuat</dt><dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">{formatTime(headerSession.created_at)}</dd></div><div><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Pembaruan Terakhir</dt><dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">{formatTime(headerSession.updated_at)}</dd></div><div><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Ditutup</dt><dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">{formatTime(headerSession.closed_at)}</dd></div>{aggregate.position && <div><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Status posisi</dt><dd className="mt-[var(--space-1)] font-semibold text-[var(--color-text-strong)]">{String(aggregate.position.status ?? "—")}</dd></div>}</dl>
+        {headerSession.initial_note && <section aria-label="Catatan" className="mt-[var(--space-6)] rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-[var(--space-4)] py-[var(--space-3)]"><p className="whitespace-pre-wrap break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{headerSession.initial_note}</p></section>}
       </>}
     </header>
     <div className="space-y-[var(--space-2)]">
