@@ -68,9 +68,68 @@ export function buildTimelineEvents(detail: SessionDetailAggregate): TimelineEve
   }).map(({ event }) => event);
 }
 
+type TimelinePresentation = {
+  surface: string;
+  marker: string;
+};
+
+const timelinePresentation: Record<TimelineEventType, TimelinePresentation> = {
+  INITIAL_EVIDENCE: {
+    surface: "border-[var(--color-border-default)] bg-[var(--color-surface-factual)]",
+    marker: "rounded-full border-2 border-[var(--color-border-strong)] bg-[var(--color-surface-standard)]",
+  },
+  INITIAL_ANALYSIS: {
+    surface: "border-[var(--color-status-information)] bg-[var(--color-surface-advisory)]",
+    marker: "rotate-45 rounded-[2px] border border-[var(--color-status-information)] bg-[var(--color-surface-advisory)]",
+  },
+  WAIT_DECISION: {
+    surface: "border-[var(--color-border-default)] bg-[var(--color-surface-action)]",
+    marker: "rounded-sm border-2 border-[var(--color-border-strong)] bg-[var(--color-surface-standard)]",
+  },
+  BUY_DECISION: {
+    surface: "border-[var(--color-border-default)] bg-[var(--color-surface-action)]",
+    marker: "rounded-sm border-2 border-[var(--color-border-strong)] bg-[var(--color-surface-standard)]",
+  },
+  SKIP_DECISION: {
+    surface: "border-[var(--color-border-default)] bg-[var(--color-surface-factual)]",
+    marker: "rounded-full border-2 border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-standard)]",
+  },
+  WAIT_UPDATE: {
+    surface: "border-[var(--color-status-information)] bg-[var(--color-surface-advisory)]",
+    marker: "rounded-full border border-[var(--color-status-warning)] bg-[var(--color-status-warning-subtle)]",
+  },
+  POSITION_UPDATE: {
+    surface: "border-[var(--color-status-information)] bg-[var(--color-surface-advisory)]",
+    marker: "rounded-full border border-[var(--color-status-information)] bg-[var(--color-status-information-subtle)]",
+  },
+  CLOSE: {
+    surface: "border-[var(--color-border-strong)] bg-[var(--color-surface-factual)]",
+    marker: "rounded-full border-2 border-[var(--color-border-strong)] bg-[var(--color-surface-standard)]",
+  },
+};
+
+function TimelineEventItem({ event }: { event: TimelineEvent }) {
+  const presentation = timelinePresentation[event.type];
+  return <li className="relative min-w-0 pl-8">
+    <span aria-hidden="true" className={`absolute left-[0.4375rem] top-5 z-10 h-3 w-3 ${presentation.marker}`} />
+    <article className={`min-w-0 rounded-[var(--radius-compact)] border p-[var(--space-card)] ${presentation.surface}`}>
+      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <h4 className="min-w-0 break-words font-semibold text-[var(--color-text-strong)]">{event.title}</h4>
+        <time dateTime={event.timestamp ?? undefined} className="min-w-0 break-words text-xs text-[var(--color-text-muted)] sm:max-w-[12rem] sm:text-right">{formatTime(event.timestamp)}</time>
+      </div>
+      <dl className="mt-[var(--space-3)] grid min-w-0 grid-cols-1 gap-x-[var(--space-5)] gap-y-[var(--space-3)] text-[var(--text-size-compact-body)] sm:grid-cols-2">
+        {event.details.map(([label, value]) => <div key={`${event.id}:${label}`} className="min-w-0">
+          <dt className="break-words text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">{label}</dt>
+          <dd className="mt-1 min-w-0 break-words whitespace-pre-wrap text-[var(--color-text-default)]">{value}</dd>
+        </div>)}
+      </dl>
+    </article>
+  </li>;
+}
+
 export function SessionTimeline({ aggregate, loading, error }: { aggregate: SessionDetailAggregate | null; loading: boolean; error: string | null }) {
   if (loading && !aggregate) return <section aria-label="Riwayat sesi" className="rounded-xl border border-zinc-200 bg-white p-5"><p className="text-zinc-500" aria-live="polite">Memuat riwayat sesi…</p></section>;
   if (error && !aggregate) return <section aria-label="Riwayat sesi" className="rounded-xl border border-red-200 bg-red-50 p-5"><p className="text-red-700" role="alert">Gagal memuat riwayat sesi</p></section>;
   const events = aggregate ? buildTimelineEvents(aggregate) : [];
-  return <section aria-label="Riwayat sesi" className="space-y-3"><h3 className="text-lg font-semibold">Riwayat Sesi</h3>{events.length === 0 ? <p className="rounded-xl border border-zinc-200 bg-white p-5 text-zinc-500">Belum ada riwayat sesi.</p> : <div className="space-y-3 border-l-2 border-zinc-200 pl-4">{events.map((event) => <article key={event.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-2"><h4 className="font-semibold">{event.title}</h4><time className="text-xs text-zinc-500">{formatTime(event.timestamp)}</time></div><dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">{event.details.map(([label, value]) => <div key={`${event.id}:${label}`}><dt className="font-medium text-zinc-500">{label}</dt><dd className="whitespace-pre-wrap break-words text-zinc-700">{value}</dd></div>)}</dl></article>)}</div>}</section>;
+  return <section aria-label="Riwayat sesi" className="min-w-0 space-y-3"><h3 className="text-lg font-semibold text-[var(--color-text-strong)]">Riwayat Sesi</h3>{events.length === 0 ? <p className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-card)] text-[var(--color-text-muted)]">Belum ada riwayat sesi.</p> : <ol className="relative min-w-0 space-y-[var(--space-4)] before:absolute before:bottom-2 before:left-[0.75rem] before:top-2 before:w-px before:bg-[var(--color-border-default)]" aria-label="Urutan riwayat sesi">{events.map((event) => <TimelineEventItem key={event.id} event={event} />)}</ol>}</section>;
 }
