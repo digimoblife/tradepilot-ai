@@ -395,7 +395,7 @@ export function SessionWorkspace({
     <AnalysisRequestFeedback analysis={analysis} complete={complete} failed={failed} busy={busy} onRetry={retry} />
     </div>
     {completedResult && <div className="max-w-[var(--layout-text-readable)]"><InitialAnalysisResultView result={completedResult} /></div>}
-    <div className="pt-[var(--space-2)]">
+    <div>
       <SessionTimeline aggregate={aggregate} loading={aggregateLoading} error={aggregateError} />
     </div>
   </section>;
