@@ -11,14 +11,14 @@ export function CreateTradeSession({ onCreated }: { onCreated: (session: TradeSe
     setBusy(true); setError(null); try { onCreated(await createSession({ ticker: t, company_name: c, note: note.trim() || null })); setTicker(""); setCompany(""); setNote(""); }
     catch (e) { setError(e instanceof Error ? e.message : "Sesi tidak dapat dibuat."); } finally { setBusy(false); }
   }
-  return <form onSubmit={submit} className="min-w-0 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm" aria-label="Buat sesi trading">
-    <h2 className="text-lg font-semibold">Buat Sesi Baru</h2>
+  return <form onSubmit={submit} className="min-w-0 rounded-[var(--radius-standard)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-card)] shadow-[var(--elevation-low)]" aria-label="Buat sesi trading">
+    <h2 className="text-[var(--text-size-card-title)] font-semibold text-[var(--color-text-strong)]">Buat Sesi Baru</h2>
     <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
-      <label className="min-w-0 text-sm font-medium">Kode Saham<input value={ticker} onChange={e => setTicker(e.target.value)} className="mt-1 block min-w-0 w-full rounded-lg border p-2" /></label>
-      <label className="min-w-0 text-sm font-medium">Nama Perusahaan<input value={company} onChange={e => setCompany(e.target.value)} className="mt-1 block min-w-0 w-full rounded-lg border p-2" /></label>
+      <label className="min-w-0 text-[var(--text-size-label)] font-medium text-[var(--color-text-strong)]">Kode Saham<input value={ticker} onChange={e => setTicker(e.target.value)} className="mt-1 block min-h-11 min-w-0 w-full rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-[var(--color-text-default)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]" /></label>
+      <label className="min-w-0 text-[var(--text-size-label)] font-medium text-[var(--color-text-strong)]">Nama Perusahaan<input value={company} onChange={e => setCompany(e.target.value)} className="mt-1 block min-h-11 min-w-0 w-full rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-[var(--color-text-default)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]" /></label>
     </div>
-    <label className="mt-4 block min-w-0 text-sm font-medium">Catatan (opsional)<textarea value={note} onChange={e => setNote(e.target.value)} className="mt-1 block min-h-20 min-w-0 w-full rounded-lg border p-2" /></label>
-    {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
-    <button disabled={busy} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Menyimpan…" : "Buat Sesi"}</button>
+    <label className="mt-4 block min-w-0 text-[var(--text-size-label)] font-medium text-[var(--color-text-strong)]">Catatan (opsional)<textarea value={note} onChange={e => setNote(e.target.value)} className="mt-1 block min-h-20 min-w-0 w-full rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-[var(--color-text-default)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]" /></label>
+    {error && <p role="alert" className="mt-3 break-words text-[var(--text-size-compact-body)] text-[var(--color-status-danger)]">{error}</p>}
+    <button type="submit" disabled={busy} className="mt-4 min-h-11 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 py-2 text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:border disabled:border-[var(--color-border-default)] disabled:bg-[var(--color-surface-muted)] disabled:text-[var(--color-text-muted)]">{busy ? "Menyimpan…" : "Buat Sesi"}</button>
   </form>;
 }

@@ -53,7 +53,7 @@ export function TradeWorkspace() {
           </p>
         )}
         <div className="grid min-w-0 gap-[var(--space-section)] xl:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] xl:items-start">
-          <aside aria-labelledby="workspace-rail-heading" className="min-w-0 rounded-[var(--radius-large)] bg-[var(--color-surface-muted)] p-[var(--space-2)]">
+          <aside aria-labelledby="workspace-rail-heading" className="min-w-0 w-full rounded-[var(--radius-large)] bg-[var(--color-surface-muted)] p-[var(--space-2)]">
             <h2 id="workspace-rail-heading" className="sr-only">Sesi dan pembuatan sesi</h2>
             <div className="space-y-[var(--space-4)]">
               <TradeWorkspaceSessionList
