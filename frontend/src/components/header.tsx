@@ -21,22 +21,22 @@ export function Header() {
   };
 
   return (
-    <header className="border-b border-zinc-200 bg-white">
-      <div className="mx-auto flex min-w-0 min-h-14 max-w-5xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
-        <Link href={user ? "/trade-workspace" : "/"} className="shrink-0 whitespace-nowrap text-lg font-bold tracking-tight text-zinc-900">
+    <header className="border-b border-[var(--color-border-default)] bg-[var(--color-surface-standard)]">
+      <div className="mx-auto flex min-h-14 min-w-0 max-w-5xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
+        <Link href={user ? "/trade-workspace" : "/"} className="shrink-0 whitespace-nowrap text-lg font-bold tracking-tight text-[var(--color-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]">
           TradePilot AI
         </Link>
-        <nav className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm sm:flex-nowrap">
+        <nav className="flex min-w-0 w-full flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm sm:w-auto sm:flex-1 sm:flex-nowrap">
           {loading ? null : user ? (
             <>
-              <Link href="/trade-workspace" className="shrink-0 text-zinc-600 hover:text-zinc-900">
+              <Link href="/trade-workspace" className="min-h-11 shrink-0 py-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]">
                 Sesi
               </Link>
-              <span className="min-w-0 max-w-[9rem] break-words text-right leading-tight text-zinc-400 sm:max-w-none sm:truncate">{user.email}</span>
+              <span title={user.email} className="min-w-0 max-w-[9rem] truncate text-right leading-tight text-[var(--color-text-muted)] sm:max-w-none">{user.email}</span>
               <button
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="shrink-0 rounded-md bg-zinc-100 px-3 py-1.5 text-zinc-700 hover:bg-zinc-200 disabled:opacity-50"
+                className="min-h-11 shrink-0 rounded-[var(--radius-compact)] bg-[var(--color-surface-muted)] px-3 text-[var(--color-text-default)] hover:bg-[var(--color-border-default)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
               >
                 {loggingOut ? "..." : "Keluar"}
               </button>
@@ -44,7 +44,7 @@ export function Header() {
           ) : (
             <Link
               href="/login"
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700"
+              className="min-h-11 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-3 text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
             >
               Masuk
             </Link>
