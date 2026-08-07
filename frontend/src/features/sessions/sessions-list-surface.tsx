@@ -48,14 +48,16 @@ export function SessionsListSurface() {
 
   if (state.sessions.length === 0) {
     return (
-      <div className="mt-6 text-sm text-[var(--color-text-muted)]">
+      <div className="mt-6 text-sm text-[var(--color-text-muted)] space-y-4">
         <p>Belum ada sesi perdagangan.</p>
-        <Link
-          href="/sessions/new"
-          className="mt-3 inline-flex min-h-11 items-center font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
-        >
-          Buat sesi baru
-        </Link>
+        <div>
+          <Link
+            href="/sessions/new"
+            className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+          >
+            Buat Sesi Baru
+          </Link>
+        </div>
       </div>
     );
   }
@@ -63,7 +65,16 @@ export function SessionsListSurface() {
   const grouped = groupSessions(state.sessions);
 
   return (
-    <div className="mt-6 min-w-0 space-y-[var(--space-8)]">
+    <div className="mt-6 min-w-0 space-y-[var(--space-6)]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href="/sessions/new"
+          className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+        >
+          Buat Sesi Baru
+        </Link>
+      </div>
+
       {grouped.invalidSessions.length > 0 ? (
         <p role="alert" className="text-sm text-[var(--color-status-danger)]">
           Sebagian sesi tidak dapat ditampilkan karena status tidak dikenali.

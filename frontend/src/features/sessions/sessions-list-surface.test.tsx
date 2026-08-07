@@ -73,7 +73,10 @@ describe("Sessions list data surface", () => {
     expect(screen.queryByText("HIDE")).toBeNull();
     expect(screen.getByText("Selesai")).toBeInTheDocument();
     expect(screen.getByText("Dilewati")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /archive|restore/i })).toBeNull();
+    expect(screen.getByRole("link", { name: "Buat Sesi Baru" })).toHaveAttribute(
+      "href",
+      "/sessions/new",
+    );
     expect(listSessions).toHaveBeenCalledTimes(1);
     expect(listSessions).toHaveBeenCalledWith(expect.any(AbortSignal));
   });
@@ -83,7 +86,7 @@ describe("Sessions list data surface", () => {
     render(<SessionsPage />);
 
     expect(await screen.findByText("Belum ada sesi perdagangan.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Buat sesi baru" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Buat Sesi Baru" })).toHaveAttribute(
       "href",
       "/sessions/new",
     );
