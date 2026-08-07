@@ -22,6 +22,14 @@ _AVAILABLE_ACTIONS: dict[TradeSessionV2Status, tuple[str, ...]] = {
 }
 
 
+def available_decision_actions(
+    status: TradeSessionV2Status,
+) -> tuple[str, ...]:
+    """Return the status-authoritative decision actions without performing I/O."""
+
+    return _AVAILABLE_ACTIONS[status]
+
+
 @dataclass(frozen=True, slots=True)
 class DecisionAvailability:
     session_id: uuid.UUID
@@ -49,5 +57,5 @@ class DecisionAvailabilityService:
         return DecisionAvailability(
             session_id=trade_session.id,
             session_status=trade_session.status,
-            available_actions=_AVAILABLE_ACTIONS[trade_session.status],
+            available_actions=available_decision_actions(trade_session.status),
         )

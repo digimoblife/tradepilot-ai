@@ -1,0 +1,25 @@
+P11.1 browser evidence (sanitized)
+
+Runtime: disposable Docker project tradepilot-p111-20260801, gateway port 8281
+Session: f31f369d-dcde-46b6-a5f1-f0ce09dcbeeb
+
+Completed browser actions:
+- Created BBRI session.
+- Uploaded exactly three initial evidence images.
+- Requested Initial Analysis once.
+- Initial Analysis completed with provider gemini and model gemini-3.1-flash-lite.
+- Submitted BUY once; session became OPEN_POSITION and position became OPEN.
+
+Position Update browser result:
+- The visible form was populated with an image, current price 4300, period Pagi,
+  and observation time 2026-08-01T21:30.
+- Clicking “Kirim Position Update” returned:
+  “Orderbook, harga saat ini, periode observasi, dan waktu observasi wajib diisi.”
+- No Position Update request was created.
+
+Read-only database state after the blocker:
+- analysis_requests_v2: one row, INITIAL_ANALYSIS, COMPLETED, gemini,
+  gemini-3.1-flash-lite.
+- positions_v2: one OPEN position, entry 4200, quantity 100, stop loss 3900,
+  target 4700.
+- trade_sessions_v2: OPEN_POSITION.

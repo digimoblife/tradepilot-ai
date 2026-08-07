@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -26,9 +26,10 @@ from app.trade_workspace.api.schemas import (
     PositionUpdateInputResponse,
     PositionUpdateItemResponse,
     PositionUpdatesReadResponse,
+    SessionDetailAggregateResponse,
     SkipDecisionRequest,
     SkipDecisionResponse,
-    SessionDetailAggregateResponse,
+    TradeSessionArchiveResponse,
     TradeSessionCreateRequest,
     TradeSessionListResponse,
     TradeSessionResponse,
@@ -75,20 +76,21 @@ from app.trade_workspace.services.position_update_input import (
     PositionUpdateInputService,
 )
 from app.trade_workspace.services.position_update_read import (
-    PositionUpdateReadError,
     PositionUpdateReadNotFoundError,
     PositionUpdateReadService,
-)
-
-from app.trade_workspace.services.skip_decision import (
-    SkipDecisionError,
-    SkipDecisionService,
 )
 from app.trade_workspace.services.session_detail_aggregate import (
     SessionDetailAggregateNotFoundError,
     SessionDetailAggregateService,
 )
-from app.trade_workspace.services.trade_sessions import RebuildTradeSessionService
+from app.trade_workspace.services.skip_decision import (
+    SkipDecisionError,
+    SkipDecisionService,
+)
+from app.trade_workspace.services.trade_sessions import (
+    ArchiveError,
+    RebuildTradeSessionService,
+)
 from app.trade_workspace.services.wait_decision import (
     WaitDecisionError,
     WaitDecisionService,
@@ -128,6 +130,7 @@ def _to_response(trade_session: object) -> TradeSessionResponse:
         created_at=trade_session.created_at,
         updated_at=trade_session.updated_at,
         closed_at=trade_session.closed_at,
+        archived_at=trade_session.archived_at,
     )
 
 
@@ -151,6 +154,22 @@ def _upload_error(exc: Exception) -> HTTPException:
     return HTTPException(
         status_code=getattr(exc, "status_code", 422),
         detail={"code": code, "message": message},
+    )
+
+
+def _archive_error(exc: ArchiveError) -> HTTPException:
+    if exc.code == "SESSION_NOT_FOUND":
+        return _not_found()
+    messages = {
+        "ARCHIVE_NOT_ALLOWED": "Trade session cannot be archived in its current state",
+        "SESSION_ALREADY_ARCHIVED": "Trade session is already archived",
+        "RESTORE_NOT_ALLOWED": "Trade session cannot be restored in its current state",
+        "SESSION_NOT_ARCHIVED": "Trade session is not archived",
+        "ARCHIVE_PERSISTENCE_FAILED": "Trade session archive operation failed",
+    }
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"code": exc.code, "message": messages.get(exc.code, "Archive operation failed")},
     )
 
 
@@ -644,6 +663,63 @@ async def list_trade_sessions(
         user_id=current_user.id
     )
     return TradeSessionListResponse(sessions=[_to_response(item) for item in sessions])
+
+
+@router.get("/archived", response_model=TradeSessionListResponse)
+async def list_archived_trade_sessions(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> TradeSessionListResponse:
+    sessions = await RebuildTradeSessionService(db_session).list_owned_archived(
+        user_id=current_user.id
+    )
+    return TradeSessionListResponse(sessions=[_to_response(item) for item in sessions])
+
+
+@router.post(
+    "/{session_id}/archive",
+    response_model=TradeSessionArchiveResponse,
+)
+async def archive_trade_session(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> TradeSessionArchiveResponse:
+    try:
+        result = await RebuildTradeSessionService(db_session).archive(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except ArchiveError as exc:
+        raise _archive_error(exc) from exc
+    return TradeSessionArchiveResponse(
+        id=str(result.session_id),
+        status=result.session_status.value,
+        archived_at=result.archived_at,
+    )
+
+
+@router.post(
+    "/{session_id}/restore",
+    response_model=TradeSessionArchiveResponse,
+)
+async def restore_trade_session(
+    session_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> TradeSessionArchiveResponse:
+    try:
+        result = await RebuildTradeSessionService(db_session).restore(
+            user_id=current_user.id,
+            session_id=session_id,
+        )
+    except ArchiveError as exc:
+        raise _archive_error(exc) from exc
+    return TradeSessionArchiveResponse(
+        id=str(result.session_id),
+        status=result.session_status.value,
+        archived_at=result.archived_at,
+    )
 
 
 @router.get(

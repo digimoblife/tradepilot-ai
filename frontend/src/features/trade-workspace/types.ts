@@ -3,7 +3,76 @@ export type SessionStatus =
   | "OPEN_POSITION" | "CLOSED" | "CLOSED_SKIPPED";
 
 export type RequestStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+export type AnalysisType = "INITIAL_ANALYSIS" | "WAIT_UPDATE" | "POSITION_UPDATE";
 export type DecisionAction = "BUY" | "WAIT" | "SKIP" | "CLOSE";
+
+export interface TradeSessionArchiveResponse {
+  id: string;
+  status: SessionStatus;
+  archived_at: string;
+}
+export type SessionActivityType =
+  | "SESSION_CREATED"
+  | "INITIAL_ANALYSIS_COMPLETED"
+  | "BUY_CONFIRMED"
+  | "WAIT_CONFIRMED"
+  | "SKIP_CONFIRMED"
+  | "WAIT_UPDATE_COMPLETED"
+  | "POSITION_UPDATE_COMPLETED"
+  | "SESSION_CLOSED"
+  | "SESSION_ARCHIVED";
+
+export type CurrentStepCode =
+  | "INITIAL_EVIDENCE"
+  | "INITIAL_ANALYSIS"
+  | "PROCESSING"
+  | "DECISION"
+  | "WAIT_UPDATE"
+  | "POSITION_MONITORING"
+  | "FAILED_REQUEST"
+  | "TERMINAL_CLOSED"
+  | "TERMINAL_SKIPPED"
+  | "ARCHIVED_CLOSED"
+  | "ARCHIVED_SKIPPED"
+  | "INCONSISTENT";
+
+export type CurrentStepMode =
+  | "ACTIONABLE"
+  | "PROCESSING"
+  | "FAILED"
+  | "READ_ONLY"
+  | "INCONSISTENT";
+
+export type CurrentStepWorkflowAction =
+  | "SUBMIT_INITIAL_EVIDENCE"
+  | "REQUEST_INITIAL_ANALYSIS"
+  | "BUY"
+  | "WAIT"
+  | "SKIP"
+  | "SUBMIT_WAIT_UPDATE"
+  | "SUBMIT_POSITION_UPDATE"
+  | "CLOSE"
+  | "RETRY_INITIAL_ANALYSIS"
+  | "RETRY_WAIT_UPDATE";
+
+export interface CurrentStepActiveRequest {
+  id: string;
+  analysis_type: AnalysisType;
+  status: RequestStatus;
+}
+
+export interface CurrentStepFailedRequest extends CurrentStepActiveRequest {
+  retry_allowed: boolean;
+}
+
+export interface CurrentStep {
+  code: CurrentStepCode;
+  mode: CurrentStepMode;
+  workflow_actions: CurrentStepWorkflowAction[];
+  active_request: CurrentStepActiveRequest | null;
+  failed_request: CurrentStepFailedRequest | null;
+  read_only: boolean;
+}
 export type SkipReason =
   | "RISK_TOO_HIGH"
   | "SETUP_NOT_ATTRACTIVE"
@@ -16,6 +85,21 @@ export type SkipReason =
 export interface TradeSession {
   id: string; ticker: string; company_name: string; status: SessionStatus;
   note: string | null; created_at: string; updated_at: string; closed_at: string | null;
+  archived_at?: string | null;
+}
+
+export interface TradeSessionCreateInput {
+  ticker: string;
+  company_name: string;
+  note: string | null;
+}
+
+export type TradeSessionListItem = TradeSession & {
+  archived_at: string | null;
+};
+
+export interface TradeSessionListResponse {
+  sessions: TradeSession[];
 }
 
 export interface SessionDetailAggregate {
@@ -28,6 +112,7 @@ export interface SessionDetailAggregate {
     created_at: string;
     updated_at: string;
     closed_at: string | null;
+    archived_at?: string | null;
   };
   initial_evidence: Array<Record<string, unknown>>;
   initial_analysis: Record<string, unknown> | null;
@@ -36,6 +121,40 @@ export interface SessionDetailAggregate {
   position: Record<string, unknown> | null;
   position_updates: Array<Record<string, unknown>>;
   closure: Record<string, unknown> | null;
+  current_step: CurrentStep;
+  latest_analysis: LatestAnalysisSummary | null;
+  recent_activity: SessionRecentActivityItem[];
+}
+
+export interface LatestAnalysisSummary {
+  analysis_type: AnalysisType;
+  completed_at: string;
+  has_result: boolean;
+}
+
+export interface SessionRecentActivityItem {
+  type: SessionActivityType;
+  occurred_at: string;
+  analysis_type: AnalysisType | null;
+  decision: Exclude<DecisionAction, "CLOSE"> | null;
+}
+
+export interface SessionSummaryPosition {
+  status: string;
+  entry_price: number | null;
+  entry_timestamp: string | null;
+  quantity: number | null;
+  stop_loss: number | null;
+  target_price: number | null;
+  note: string | null;
+  closed_at: string | null;
+}
+
+export interface SessionSummaryClosure {
+  close_price: number | null;
+  close_timestamp: string | null;
+  close_reason: string | null;
+  note: string | null;
 }
 
 export interface EvidenceFile {

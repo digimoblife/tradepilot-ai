@@ -127,6 +127,7 @@ async def test_create_persists_owned_draft_without_related_records(
         "created_at",
         "updated_at",
         "closed_at",
+        "archived_at",
     }
 
     persisted = await db_session.scalar(
@@ -136,8 +137,8 @@ async def test_create_persists_owned_draft_without_related_records(
     assert persisted.user_id == user_id
     assert persisted.status.value == "DRAFT"
     assert persisted.note == "watch support"
-    assert await db_session.scalar(select(func.count(AnalysisRequestV2.id))) == 0
-    assert await db_session.scalar(select(func.count(EvidenceUploadV2.id))) == 0
+    assert await db_session.scalar(select(func.count(AnalysisRequestV2.id)).where(AnalysisRequestV2.session_id == persisted.id)) == 0
+    assert await db_session.scalar(select(func.count(EvidenceUploadV2.id)).where(EvidenceUploadV2.session_id == persisted.id)) == 0
 
     override_response = await client.post(
         "/api/v2/trade-sessions",
@@ -195,6 +196,7 @@ async def test_list_and_detail_are_owned_ordered_and_minimal(
         "created_at",
         "updated_at",
         "closed_at",
+        "archived_at",
     }
     assert not {
         "evidence",

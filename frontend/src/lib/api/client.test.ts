@@ -129,6 +129,19 @@ describe("authentication cookies", () => {
     const [, opts] = mockFetch.mock.calls[0];
     expect(opts.credentials).toBe("include");
   });
+
+  it("propagates an AbortSignal for cancellable GET requests", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: "session-1" }), { status: 200 }),
+    );
+    const controller = new AbortController();
+    const { get } = await import("./client");
+
+    await get("/api/v2/trade-sessions/session-1", undefined, controller.signal);
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(opts.signal).toBe(controller.signal);
+  });
 });
 
 // -------------------------------------------------------------------

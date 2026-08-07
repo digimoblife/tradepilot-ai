@@ -133,7 +133,9 @@ async def test_trade_closures_v2_persistence(engine) -> None:
             historical = list(
                 (
                     await session.scalars(
-                        select(TradeClosureV2).order_by(TradeClosureV2.created_at.asc())
+                        select(TradeClosureV2)
+                        .where(TradeClosureV2.session_id.in_([first_session_id, second_session_id]))
+                        .order_by(TradeClosureV2.created_at.asc())
                     )
                 ).all()
             )

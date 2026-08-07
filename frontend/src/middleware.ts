@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
   const cookie = request.cookies.get(COOKIE_NAME);
   if (!cookie?.value) {
     const url = new URL(loginPath, request.url);
-    url.searchParams.set("next", pathname === "/sessions" || pathname.startsWith("/sessions/") ? "/trade-workspace" : pathname);
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
@@ -43,7 +43,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const url = new URL(loginPath, request.url);
-  url.searchParams.set("next", pathname === "/sessions" || pathname.startsWith("/sessions/") ? "/trade-workspace" : pathname);
+  url.searchParams.set("next", pathname);
   return NextResponse.redirect(url);
 }
 

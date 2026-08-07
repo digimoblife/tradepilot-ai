@@ -5,7 +5,20 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.trade_workspace.models.session_decision import SessionDecisionV2Reason
+from app.trade_workspace.models.analysis_request import (
+    AnalysisRequestV2Status,
+    AnalysisRequestV2Type,
+)
+from app.trade_workspace.models.session_decision import (
+    SessionDecisionV2Decision,
+    SessionDecisionV2Reason,
+)
+from app.trade_workspace.services.current_step import (
+    CurrentStepCode,
+    CurrentStepMode,
+    WorkflowAction,
+)
+from app.trade_workspace.services.session_summary import SessionActivityType
 
 
 class TradeSessionCreateRequest(BaseModel):
@@ -32,10 +45,49 @@ class TradeSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     closed_at: datetime | None
+    archived_at: datetime | None
+
+
+class TradeSessionArchiveResponse(BaseModel):
+    id: str
+    status: str
+    archived_at: datetime | None
 
 
 class TradeSessionListResponse(BaseModel):
     sessions: list[TradeSessionResponse]
+
+
+class CurrentStepActiveRequestResponse(BaseModel):
+    id: str
+    analysis_type: AnalysisRequestV2Type
+    status: AnalysisRequestV2Status
+
+
+class CurrentStepFailedRequestResponse(CurrentStepActiveRequestResponse):
+    retry_allowed: bool
+
+
+class CurrentStepResponse(BaseModel):
+    code: CurrentStepCode
+    mode: CurrentStepMode
+    workflow_actions: list[WorkflowAction]
+    active_request: CurrentStepActiveRequestResponse | None
+    failed_request: CurrentStepFailedRequestResponse | None
+    read_only: bool
+
+
+class LatestAnalysisSummaryResponse(BaseModel):
+    analysis_type: AnalysisRequestV2Type
+    completed_at: datetime
+    has_result: bool
+
+
+class SessionRecentActivityItemResponse(BaseModel):
+    type: SessionActivityType
+    occurred_at: datetime
+    analysis_type: AnalysisRequestV2Type | None
+    decision: SessionDecisionV2Decision | None
 
 
 class SessionDetailAggregateResponse(BaseModel):
@@ -47,6 +99,9 @@ class SessionDetailAggregateResponse(BaseModel):
     position: dict[str, object] | None
     position_updates: list[dict[str, object]]
     closure: dict[str, object] | None
+    current_step: CurrentStepResponse
+    latest_analysis: LatestAnalysisSummaryResponse | None
+    recent_activity: list[SessionRecentActivityItemResponse]
 
 
 class DecisionAvailabilityResponse(BaseModel):

@@ -15,6 +15,8 @@ from app.trade_workspace.models.position import PositionV2
 from app.trade_workspace.models.session_decision import SessionDecisionV2
 from app.trade_workspace.models.trade_closure import TradeClosureV2
 from app.trade_workspace.models.trade_session import TradeSessionV2
+from app.trade_workspace.services.current_step import CurrentStepService
+from app.trade_workspace.services.session_summary import SessionSummaryService
 
 
 class SessionDetailAggregateNotFoundError(Exception):
@@ -111,6 +113,19 @@ class SessionDetailAggregateService:
         closure = await self._session.scalar(
             select(TradeClosureV2).where(TradeClosureV2.session_id == session_id)
         )
+        current_step = CurrentStepService.derive(
+            trade_session=trade_session,
+            evidence=evidence_rows,
+            requests=requests,
+            positions=(() if position is None else (position,)),
+            closure=closure,
+        )
+        summary = SessionSummaryService().build(
+            trade_session=trade_session,
+            requests=requests,
+            decisions=decisions,
+            closure=closure,
+        )
 
         initial_types = {
             EvidenceUploadV2Type.ORDERBOOK,
@@ -164,4 +179,11 @@ class SessionDetailAggregateService:
             "position": position_payload,
             "position_updates": [_request(item, evidence=evidence_by_request.get(item.id)) for item in position_requests],
             "closure": closure_payload,
+            "current_step": current_step.payload(),
+            "latest_analysis": (
+                summary.latest_analysis.payload()
+                if summary.latest_analysis is not None
+                else None
+            ),
+            "recent_activity": [item.payload() for item in summary.recent_activity],
         })

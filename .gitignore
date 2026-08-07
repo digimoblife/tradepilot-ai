@@ -85,4 +85,5 @@ playwright-report/
 backend/schemas
 
 # --- Local storage (test evidence uploads) ---
+storage/local/
 backend/storage/local/

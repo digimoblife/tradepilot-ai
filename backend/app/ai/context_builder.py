@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from app.ai.prompts import PromptRegistry
+from app.ai.prompts.models import RenderedPrompt
 from app.ai.providers import (
     ProviderCapabilities,
     ProviderImage,
@@ -21,6 +22,7 @@ from app.models.analysis import Analysis
 from app.models.context_summary import ContextSummary
 from app.models.enums import AnalysisType, EvidenceType
 from app.models.evidence import Evidence
+from app.models.evidence_batch import EvidenceBatch
 from app.models.trade_session import TradeSession
 from app.models.trade_state import TradeState
 from app.repositories.analysis import AnalysisRepository
@@ -145,6 +147,14 @@ class ProviderContextBuilder:
         # 2. Load canonical Trade State
         trade_state = await self._session.get(TradeState, session_id)
         canonical_facts = _build_canonical_facts(ts, trade_state)
+        if atype == AnalysisType.OPEN_POSITION_UPDATE.value:
+            if evidence_batch_id is None:
+                raise ProviderContextError(message="Open Position Update requires an evidence batch")
+            batch = await self._session.get(EvidenceBatch, evidence_batch_id)
+            if batch is None or batch.session_id != session_id or batch.current_price is None:
+                raise ProviderContextError(message="Open Position Update requires a valid user-confirmed current price")
+            canonical_facts["current_price"] = _decimal_or_none(batch.current_price)
+            canonical_facts["current_price_source"] = "USER_CONFIRMED_ORDERBOOK_INPUT"
 
         # 3. Load Context Summary — reject stale
         context_summary = await _load_latest_context(self._session, session_id)
@@ -255,6 +265,21 @@ class ProviderContextBuilder:
             raise ProviderContextPromptRenderFailedError(
                 message=f"Prompt rendering failed: {exc}",
             ) from exc
+        if atype == AnalysisType.OPEN_POSITION_UPDATE.value:
+            authority = (
+                "\n\nHarga saat ini aplikasi (otoritatif): "
+                f"{canonical_facts['current_price']}\nsource: USER_CONFIRMED_ORDERBOOK_INPUT\n"
+                "Gunakan current_price ini sebagai harga terbaru yang otoritatif. Jangan menggantinya dengan harga yang diinferensikan dari screenshot. "
+                "Gunakan screenshot orderbook untuk struktur bid/offer, likuiditas, tekanan, imbalance, spread, dan bukti pasar lain yang terlihat."
+            )
+            rendered = RenderedPrompt(
+                analysis_type=rendered.analysis_type,
+                system_prompt=rendered.system_prompt,
+                user_prompt=rendered.user_prompt + authority,
+                expected_schema_name=rendered.expected_schema_name,
+                expected_schema_version=rendered.expected_schema_version,
+                prompt_version=rendered.prompt_version,
+            )
 
         # 8. Structured output schema
         structured_schema = None

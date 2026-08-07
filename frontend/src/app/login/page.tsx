@@ -6,6 +6,47 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { Suspense } from "react";
 
+const defaultDestination = "/sessions";
+const protectedDestinationPatterns = [
+  /^\/sessions$/,
+  /^\/sessions\/(?:new|archived)$/,
+  /^\/sessions\/[^/]+$/,
+  /^\/sessions\/[^/]+\/(?:analysis|history)$/,
+  /^\/trade-workspace$/,
+];
+
+function getSafeNext(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) {
+    return defaultDestination;
+  }
+
+  try {
+    const target = new URL(next, "http://tradepilot.local");
+    const decodedPathname = decodeURIComponent(target.pathname);
+    const isProtectedDestination = protectedDestinationPatterns.some((pattern) =>
+      pattern.test(decodedPathname),
+    );
+
+    if (
+      target.origin !== "http://tradepilot.local" ||
+      target.hash ||
+      decodedPathname.includes("\\") ||
+      /[\u0000-\u001f\u007f]/.test(decodedPathname) ||
+      !isProtectedDestination
+    ) {
+      return defaultDestination;
+    }
+
+    if (decodedPathname === "/trade-workspace") {
+      return `${defaultDestination}${target.search}`;
+    }
+
+    return `${target.pathname}${target.search}`;
+  } catch {
+    return defaultDestination;
+  }
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -17,8 +58,7 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const next = searchParams.get("next");
-  // Only allow same-origin redirects to valid non-legacy paths
-  const safeNext = next && next.startsWith("/") && !next.startsWith("/sessions") ? (next === "/" ? "/trade-workspace" : next) : "/trade-workspace";
+  const safeNext = getSafeNext(next);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

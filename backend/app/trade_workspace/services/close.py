@@ -12,6 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.trade_closure import TradeClosureV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.services.eligibility import (
+    open_position_session_is_eligible,
+    single_open_position,
+)
 
 
 class CloseError(Exception):
@@ -108,7 +112,7 @@ class CloseService:
         if trade_session is None:
             raise CloseSessionNotFoundError("Rebuild session was not found")
 
-        if trade_session.status is not TradeSessionV2Status.OPEN_POSITION:
+        if not open_position_session_is_eligible(trade_session.status):
             raise CloseNotAllowedError(
                 "CLOSE is only allowed for OPEN_POSITION sessions"
             )
@@ -128,8 +132,8 @@ class CloseService:
         if len(positions) > 1:
             raise CloseMultiplePositionsError("Multiple positions found for this session")
 
-        position = positions[0]
-        if position.status is not PositionV2Status.OPEN:
+        position = single_open_position(positions)
+        if position is None:
             raise ClosePositionAlreadyClosedError("Position is already closed")
 
         existing_closure = await self._session.scalar(

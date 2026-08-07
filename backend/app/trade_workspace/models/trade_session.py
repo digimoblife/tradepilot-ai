@@ -59,6 +59,7 @@ class TradeSessionV2(Base):
         utc_datetime(), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     closed_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(utc_datetime(), nullable=True)
 
     def __init__(self, **kwargs: object) -> None:
         if "ticker" in kwargs:

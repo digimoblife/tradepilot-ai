@@ -6,7 +6,7 @@ async function request<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = "GET", body, query, formData, raw } = options;
+  const { method = "GET", body, query, formData, signal, raw } = options;
   const url = new URL(path, publicEnv.apiBaseUrl);
 
   if (query) {
@@ -33,6 +33,7 @@ async function request<T>(
     headers,
     body: reqBody,
     credentials: "include",
+    signal,
   });
 
   if (!response.ok) {
@@ -52,8 +53,12 @@ async function request<T>(
   return JSON.parse(text) as T;
 }
 
-export function get<T>(path: string, query?: Record<string, string | number | undefined>): Promise<T> {
-  return request<T>(path, { method: "GET", query });
+export function get<T>(
+  path: string,
+  query?: Record<string, string | number | undefined>,
+  signal?: AbortSignal,
+): Promise<T> {
+  return request<T>(path, { method: "GET", query, signal });
 }
 
 export function post<T>(path: string, body?: unknown, options?: Partial<RequestOptions>): Promise<T> {

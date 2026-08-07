@@ -116,6 +116,7 @@ class EvidenceBatchSummaryResponse(BaseModel):
     sequence_number: int
     label: str | None
     monitoring_slot: str | None = None
+    current_price: Decimal | None = None
     created_at: datetime
     ready_at: datetime | None
     processing_at: datetime | None
@@ -133,6 +134,10 @@ class TradeSessionDetailWithActionsResponse(BaseModel):
 
 class UpdateMonitoringSlotRequest(BaseModel):
     slot: str = Field(..., description="Monitoring slot: MORNING, MIDDAY, CLOSE, UNSPECIFIED")
+
+
+class UpdateOpenPositionCurrentPriceRequest(BaseModel):
+    current_price: Decimal = Field(..., description="Harga terakhir yang dikonfirmasi pengguna")
 
 
 class ConfirmStopRequest(BaseModel):

@@ -87,7 +87,9 @@ async def test_positions_v2_persistence(engine) -> None:
             historical = list(
                 (
                     await session.scalars(
-                        select(PositionV2).order_by(PositionV2.created_at.asc())
+                        select(PositionV2)
+                        .where(PositionV2.session_id.in_([first_session_id, second_session_id]))
+                        .order_by(PositionV2.created_at.asc())
                     )
                 ).all()
             )

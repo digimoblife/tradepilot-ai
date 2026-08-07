@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Sequence
 
+from decimal import Decimal
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import (
@@ -13,6 +15,8 @@ from app.models.enums import (
     TradeSessionStatus,
 )
 from app.models.evidence_batch import EvidenceBatch
+from app.calculations.decimal_utils import CurrencyCode, quantize_price, to_decimal
+from app.calculations.errors import InvalidDecimalError
 from app.repositories.evidence_batch import EvidenceBatchRepository
 from app.repositories.trade_session import TradeSessionRepository
 
@@ -71,6 +75,10 @@ class EvidenceBatchNotFoundError(EvidenceBatchServiceError):
 
 class EvidenceBatchInvalidSlotError(EvidenceBatchServiceError):
     code = "EVIDENCE_BATCH_INVALID_SLOT"
+
+
+class EvidenceBatchInvalidCurrentPriceError(EvidenceBatchServiceError):
+    code = "EVIDENCE_BATCH_INVALID_CURRENT_PRICE"
 
 
 class EvidenceBatchService:
@@ -168,6 +176,29 @@ class EvidenceBatchService:
                 message=f"Invalid monitoring slot '{slot}'. Must be one of: {', '.join(sorted(VALID_MONITORING_SLOTS))}"
             )
         batch.monitoring_slot = slot_upper
+        await self._session.flush()
+        return batch
+
+    async def update_open_position_current_price(
+        self, batch: EvidenceBatch, value: object, *, currency: CurrencyCode
+    ) -> EvidenceBatch:
+        if batch.analysis_type != AnalysisType.OPEN_POSITION_UPDATE:
+            raise EvidenceBatchInvalidStateError(message="Current price hanya untuk batch Open Position Update")
+        if batch.status != EvidenceBatchStatus.DRAFT:
+            raise EvidenceBatchInvalidStateError(
+                message=f"Cannot update current price on batch in status {batch.status.value}"
+            )
+        if isinstance(value, bool):
+            raise EvidenceBatchInvalidCurrentPriceError(message="Harga saat ini harus berupa angka positif")
+        try:
+            price = to_decimal(value)  # type: ignore[arg-type]
+        except InvalidDecimalError as exc:
+            raise EvidenceBatchInvalidCurrentPriceError(
+                message="Harga saat ini harus berupa angka finite yang valid"
+            ) from exc
+        if price <= Decimal("0"):
+            raise EvidenceBatchInvalidCurrentPriceError(message="Harga saat ini harus lebih dari nol")
+        batch.current_price = quantize_price(price, currency)
         await self._session.flush()
         return batch
 

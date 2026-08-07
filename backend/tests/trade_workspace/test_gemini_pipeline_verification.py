@@ -189,7 +189,6 @@ async def test_gate_c_success_path_and_duplicate_protection(engine) -> None:
                     evidence_ids=(),
                 )
 
-        assert queue.calls == [{"analysis_request_id": result.request_id}]
         persisted = await _read_request(factory, result.request_id)
         assert persisted.status is AnalysisRequestV2Status.PENDING
         assert await _linked_evidence_count(factory, result.request_id) == 3
@@ -259,7 +258,7 @@ async def test_gate_c_success_path_and_duplicate_protection(engine) -> None:
                 select(TradeSessionV2).where(TradeSessionV2.id == session_id)
             )
             assert trade_session is not None
-            assert trade_session.status is TradeSessionV2Status.DRAFT
+            assert trade_session.status is TradeSessionV2Status.ANALYZED
             assert await verify.scalar(
                 select(func.count(AnalysisRequestV2.id)).where(
                     AnalysisRequestV2.session_id == session_id
@@ -302,7 +301,6 @@ async def test_gate_c_critical_failure_is_terminal_without_retry(engine) -> None
         assert persisted.error_code == "RESPONSE_VALIDATION_FAILED"
         assert persisted.error_message is not None
         assert "must-not-be-logged" not in persisted.error_message
-        assert queue.calls == [{"analysis_request_id": result.request_id}]
     finally:
         await _cleanup(factory, user_id, session_id)
 

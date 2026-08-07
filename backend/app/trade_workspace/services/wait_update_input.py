@@ -14,6 +14,7 @@ from app.storage import FileStorage, StorageError, create_file_storage
 from app.trade_workspace.models.analysis_request import AnalysisRequestV2ObservationPeriod
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.services.eligibility import wait_update_session_is_eligible
 
 MAX_WAIT_UPDATE_INPUT_SIZE = 10 * 1024 * 1024
 SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
@@ -162,7 +163,7 @@ class WaitUpdateInputService:
         )
         if trade_session is None:
             raise WaitUpdateInputSessionNotFoundError("Trade session not found")
-        if trade_session.status is not TradeSessionV2Status.WAITING:
+        if not wait_update_session_is_eligible(trade_session.status):
             raise WaitUpdateInputNotAllowedError(
                 "WAIT Update input is only allowed for WAITING sessions"
             )

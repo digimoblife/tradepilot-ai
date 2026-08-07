@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.user import User
+from app.trade_workspace.api.schemas import SessionDetailAggregateResponse
 from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2,
     AnalysisRequestV2ObservationPeriod,
@@ -16,7 +17,10 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Type,
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
-from app.trade_workspace.models.session_decision import SessionDecisionV2, SessionDecisionV2Decision
+from app.trade_workspace.models.session_decision import (
+    SessionDecisionV2,
+    SessionDecisionV2Decision,
+)
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 from app.trade_workspace.services.session_detail_aggregate import (
     SessionDetailAggregateNotFoundError,
@@ -75,13 +79,29 @@ async def test_session_detail_aggregate_is_v2_owned_ordered_and_read_only(engine
 
         assert set(aggregate.payload) == {
             "session", "initial_evidence", "initial_analysis", "decisions", "wait_updates",
-            "position", "position_updates", "closure",
+            "position", "position_updates", "closure", "current_step", "latest_analysis",
+            "recent_activity",
         }
         assert [item["evidence_type"] for item in aggregate.payload["initial_evidence"]] == ["ORDERBOOK"]
         assert aggregate.payload["initial_analysis"]["analysis_type"] == "INITIAL_ANALYSIS"  # type: ignore[index]
         assert len(aggregate.payload["decisions"]) == 2
         assert len(aggregate.payload["wait_updates"]) == 1
+        assert aggregate.payload["current_step"] == {
+            "code": "WAIT_UPDATE",
+            "mode": "ACTIONABLE",
+            "workflow_actions": ["BUY", "WAIT", "SKIP"],
+            "active_request": None,
+            "failed_request": None,
+            "read_only": False,
+        }
+        assert aggregate.payload["latest_analysis"] is None
+        assert len(aggregate.payload["recent_activity"]) == 3
+        assert {
+            item["type"] for item in aggregate.payload["recent_activity"]
+        } == {"SESSION_CREATED", "WAIT_CONFIRMED"}
         assert aggregate.payload == again.payload
+        api_payload = SessionDetailAggregateResponse(**aggregate.payload).model_dump(mode="json")
+        assert api_payload["current_step"]["code"] == "WAIT_UPDATE"
         assert before == after
 
         with pytest.raises(SessionDetailAggregateNotFoundError):

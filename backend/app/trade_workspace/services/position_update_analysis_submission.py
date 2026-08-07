@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,9 +26,12 @@ from app.trade_workspace.services.analysis_request_queue import (
     SessionNotFoundError,
     SessionOwnershipMismatchError,
 )
-
-_ACTIVE_STATUSES = (AnalysisRequestV2Status.PENDING, AnalysisRequestV2Status.PROCESSING)
-
+from app.trade_workspace.services.eligibility import (
+    open_position_session_is_eligible,
+    request_is_active,
+    single_open_position,
+    update_evidence_is_ready,
+)
 
 class PositionUpdateAnalysisSubmissionError(Exception):
     code = "POSITION_UPDATE_ANALYSIS_SUBMISSION_FAILED"
@@ -176,7 +178,7 @@ class PositionUpdateAnalysisSubmissionService:
         )
         if trade_session is None:
             raise PositionUpdateAnalysisSessionNotFoundError("Trade session not found")
-        if trade_session.status is not TradeSessionV2Status.OPEN_POSITION:
+        if not open_position_session_is_eligible(trade_session.status):
             raise PositionUpdateAnalysisNotAllowedError(
                 "Position Update analysis requires an OPEN_POSITION session"
             )
@@ -191,8 +193,8 @@ class PositionUpdateAnalysisSubmissionService:
             raise PositionUpdateAnalysisNotAllowedError(
                 "Exactly one position is required for Position Update analysis"
             )
-        position = positions[0]
-        if position.status is not PositionV2Status.OPEN:
+        position = single_open_position(positions)
+        if position is None:
             raise PositionUpdateAnalysisNotAllowedError(
                 "Position Update analysis requires an OPEN position"
             )
@@ -204,7 +206,9 @@ class PositionUpdateAnalysisSubmissionService:
             .where(
                 AnalysisRequestV2.session_id == session_id,
                 AnalysisRequestV2.analysis_type == AnalysisRequestV2Type.POSITION_UPDATE,
-                AnalysisRequestV2.status.in_(_ACTIVE_STATUSES),
+                AnalysisRequestV2.status.in_(
+                    tuple(status for status in AnalysisRequestV2Status if request_is_active(status))
+                ),
             )
             .limit(1)
         )
@@ -228,7 +232,10 @@ class PositionUpdateAnalysisSubmissionService:
             )
             .with_for_update()
         )
-        if evidence is None or Path(evidence.file_path).is_absolute():
+        if evidence is None or not update_evidence_is_ready(
+            evidence,
+            require_relative_path=True,
+        ):
             raise PositionUpdateAnalysisInputNotReadyError(
                 "No eligible unlinked Position Update input is available"
             )

@@ -15,6 +15,16 @@ const session: TradeSession = {
 };
 
 const aggregate: SessionDetailAggregate = {
+  latest_analysis: null,
+  recent_activity: [],
+  current_step: {
+    code: "DECISION",
+    mode: "ACTIONABLE",
+    workflow_actions: ["BUY", "WAIT", "SKIP"],
+    active_request: null,
+    failed_request: null,
+    read_only: false,
+  },
   session: { id: session.id, ticker: session.ticker, company_name: session.company_name, status: session.status, initial_note: session.note, created_at: session.created_at, updated_at: session.updated_at, closed_at: session.closed_at },
   initial_evidence: [], initial_analysis: { processed_response: { recommended_action: "BUY" } },
   decisions: [{ decision: "BUY", created_at: "2026-07-30T02:00:00Z" }, { decision: "WAIT", created_at: "2026-07-30T03:00:00Z" }],

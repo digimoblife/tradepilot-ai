@@ -43,6 +43,7 @@ export interface EvidenceBatchSummary {
   sequence_number: number;
   label: string | null;
   monitoring_slot?: string | null;
+  current_price?: string | null;
   created_at: string;
   ready_at: string | null;
   processing_at: string | null;

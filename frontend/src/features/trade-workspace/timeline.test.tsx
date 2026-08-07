@@ -3,6 +3,16 @@ import { buildTimelineEvents } from "./timeline";
 import type { SessionDetailAggregate } from "./types";
 
 const aggregate: SessionDetailAggregate = {
+  latest_analysis: null,
+  recent_activity: [],
+  current_step: {
+    code: "TERMINAL_CLOSED",
+    mode: "READ_ONLY",
+    workflow_actions: [],
+    active_request: null,
+    failed_request: null,
+    read_only: true,
+  },
   session: { id: "s1", ticker: "BBRI", company_name: "Bank BRI", status: "CLOSED", initial_note: null, created_at: "2026-07-30T00:00:00Z", updated_at: "2026-07-31T00:00:00Z", closed_at: "2026-07-31T10:00:00Z" },
   initial_evidence: [
     { id: "e2", evidence_type: "CHART_3_MONTH", original_filename: "chart.png", uploaded_at: "2026-07-30T00:02:00Z", path: "/unsafe/secret" },

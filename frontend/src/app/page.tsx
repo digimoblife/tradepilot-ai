@@ -11,7 +11,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/trade-workspace");
+      router.replace("/sessions");
     }
   }, [user, loading, router]);
 

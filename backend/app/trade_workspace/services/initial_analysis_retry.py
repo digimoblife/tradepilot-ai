@@ -16,6 +16,11 @@ from app.trade_workspace.models.analysis_request import (
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.services.eligibility import (
+    initial_evidence_session_is_eligible,
+    linked_initial_evidence_is_valid,
+    request_is_retryable,
+)
 
 _REQUIRED_EVIDENCE = (
     EvidenceUploadV2Type.ORDERBOOK,
@@ -93,10 +98,7 @@ class InitialAnalysisRetryService:
             request = await self._load_latest_request(session_id)
             await self._validate_evidence(session_id, request.id)
 
-            if request.status not in {
-                AnalysisRequestV2Status.FAILED,
-                AnalysisRequestV2Status.PENDING,
-            }:
+            if not request_is_retryable(request.status):
                 raise InitialAnalysisRetryNotAllowedError(
                     "Initial Analysis request is not retryable"
                 )
@@ -142,7 +144,7 @@ class InitialAnalysisRetryService:
         )
         if trade_session is None:
             raise InitialAnalysisRetrySessionNotFoundError("Rebuild session was not found")
-        if trade_session.status is not TradeSessionV2Status.DRAFT:
+        if not initial_evidence_session_is_eligible(trade_session.status):
             raise InitialAnalysisRetrySessionStateError("Trade session is not a draft")
         return trade_session
 
@@ -187,6 +189,14 @@ class InitialAnalysisRetryService:
                 )
         if any(item.session_id != session_id for item in evidence):
             raise InitialAnalysisRetryEvidenceError("Initial evidence ownership mismatch")
+        if not linked_initial_evidence_is_valid(
+            session_id=session_id,
+            request_id=request_id,
+            evidence=linked,
+        ):
+            raise InitialAnalysisRetryEvidenceError(
+                "Exactly one linked initial evidence record is required for each role"
+            )
 
     async def _acquire_session_lock(self, session_id: uuid.UUID) -> None:
         async with _SESSION_LOCKS_GUARD:

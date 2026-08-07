@@ -24,6 +24,18 @@ beforeEach(() => {
   mockGet.mockReturnValue(null);
 });
 
+async function submitLogin(next: string | null = null) {
+  mockGet.mockReturnValue(next);
+  mockLogin.mockResolvedValue(undefined);
+  const view = render(<LoginPage />);
+
+  await userEvent.type(view.container.querySelector("input[type='email']")!, "user@test.com");
+  await userEvent.type(view.container.querySelector("input[type='password']")!, "pass123");
+  await userEvent.click(screen.getByRole("button", { name: /masuk/i }));
+
+  return view;
+}
+
 // -------------------------------------------------------------------
 // Rendering
 // -------------------------------------------------------------------
@@ -36,7 +48,7 @@ describe("LoginPage", () => {
   });
 
   it("shows error on empty submit", async () => {
-    const { container } = render(await LoginPage());
+    render(await LoginPage());
     const btn = screen.getByRole("button", { name: /masuk/i });
     await userEvent.click(btn);
     await waitFor(() => {
@@ -44,7 +56,7 @@ describe("LoginPage", () => {
     });
   });
 
-  it("calls login on submit and redirects", async () => {
+  it("keeps the login payload unchanged and uses /sessions by default", async () => {
     mockLogin.mockResolvedValue(undefined);
     const { container } = render(await LoginPage());
 
@@ -60,7 +72,8 @@ describe("LoginPage", () => {
         email: "user@test.com",
         password: "pass123",
       });
-      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
+      expect(mockPush).toHaveBeenCalledWith("/sessions");
+      expect(mockPush).not.toHaveBeenCalledWith("/trade-workspace");
     });
   });
 
@@ -74,6 +87,7 @@ describe("LoginPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/email atau password salah/i)).toBeTruthy();
+      expect(mockPush).not.toHaveBeenCalled();
     });
   });
 
@@ -93,7 +107,7 @@ describe("LoginPage", () => {
     resolveLogin!();
   });
 
-  it("follows safe next redirect", async () => {
+  it("follows safe next redirect and normalizes legacy /trade-workspace to /sessions", async () => {
     mockGet.mockReturnValue("/trade-workspace");
     mockLogin.mockResolvedValue(undefined);
     const { container } = render(await LoginPage());
@@ -103,21 +117,52 @@ describe("LoginPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /masuk/i }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
+      expect(mockPush).toHaveBeenCalledWith("/sessions");
     });
   });
 
-  it("rejects unsafe external redirect", async () => {
-    mockGet.mockReturnValue("https://evil.com");
-    mockLogin.mockResolvedValue(undefined);
-    const { container } = render(await LoginPage());
+  it("preserves approved protected intended routes and safe query strings", async () => {
+    const destinations = [
+      "/sessions",
+      "/sessions/new",
+      "/sessions/archived",
+      "/sessions/session-123",
+      "/sessions/session-123/analysis",
+      "/sessions/session-123/history?view=full",
+      "/trade-workspace",
+    ];
 
-    await userEvent.type(container.querySelector("input[type='email']")!, "a@b.com");
-    await userEvent.type(container.querySelector("input[type='password']")!, "pw");
-    await userEvent.click(screen.getByRole("button", { name: /masuk/i }));
+    for (const destination of destinations) {
+      const expectedDestination = destination === "/trade-workspace" ? "/sessions" : destination;
+      const view = await submitLogin(destination);
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith(expectedDestination);
+      });
+      view.unmount();
+      mockPush.mockClear();
+    }
+  });
 
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
-    });
+  it("rejects unsafe, malformed, looping, public, and unsupported targets", async () => {
+    const unsafeDestinations = [
+      "https://example.com",
+      "//example.com",
+      "javascript:alert(1)",
+      "/\\example.com",
+      "/sessions/%",
+      "/sessions/session-123/unsupported",
+      "/login",
+      "/",
+      "/evaluations",
+    ];
+
+    for (const destination of unsafeDestinations) {
+      const view = await submitLogin(destination);
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith("/sessions");
+      });
+      view.unmount();
+      mockPush.mockClear();
+    }
   });
 });

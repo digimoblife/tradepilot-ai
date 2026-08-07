@@ -18,6 +18,11 @@ from app.trade_workspace.models.analysis_request import (
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.services.eligibility import (
+    request_is_retryable,
+    wait_retry_evidence_is_valid,
+    wait_update_session_is_eligible,
+)
 
 _SESSION_LOCKS: dict[uuid.UUID, asyncio.Lock] = {}
 _SESSION_LOCKS_GUARD = asyncio.Lock()
@@ -97,16 +102,13 @@ class WaitUpdateAnalysisRetryService:
         await self._acquire_session_lock(session_id)
         try:
             trade_session = await self._load_owned_session(user_id, session_id)
-            if trade_session.status is not TradeSessionV2Status.WAITING:
+            if not wait_update_session_is_eligible(trade_session.status):
                 raise WaitUpdateAnalysisRetrySessionStateError(
                     "Trade session is not waiting"
                 )
             request = await self._load_latest_request(session_id)
             await self._validate_evidence(session_id, request)
-            if request.status not in {
-                AnalysisRequestV2Status.FAILED,
-                AnalysisRequestV2Status.PENDING,
-            }:
+            if not request_is_retryable(request.status):
                 raise WaitUpdateAnalysisRetryNotAllowedError(
                     "WAIT Update request is not retryable"
                 )
@@ -203,6 +205,14 @@ class WaitUpdateAnalysisRetryService:
             or item.observation_timestamp != request.observation_at
             or not item.file_path.strip()
             or Path(item.file_path).is_absolute()
+        ):
+            raise WaitUpdateAnalysisRetryEvidenceError(
+                "Linked WAIT Update evidence is invalid"
+            )
+        if not wait_retry_evidence_is_valid(
+            session_id=session_id,
+            request=request,
+            evidence=evidence,
         ):
             raise WaitUpdateAnalysisRetryEvidenceError(
                 "Linked WAIT Update evidence is invalid"

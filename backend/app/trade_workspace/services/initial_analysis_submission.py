@@ -22,6 +22,11 @@ from app.trade_workspace.services.analysis_request_queue import (
     SessionNotFoundError,
     SessionOwnershipMismatchError,
 )
+from app.trade_workspace.services.eligibility import (
+    initial_evidence_session_is_eligible,
+    initial_evidence_set_is_complete,
+    request_is_active,
+)
 
 _REQUIRED_EVIDENCE = (
     EvidenceUploadV2Type.ORDERBOOK,
@@ -92,7 +97,7 @@ class InitialAnalysisSubmissionService:
         await self._acquire_lock(session_id)
         try:
             trade_session = await self._load_session(user_id, session_id)
-            if trade_session.status is not TradeSessionV2Status.DRAFT:
+            if not initial_evidence_session_is_eligible(trade_session.status):
                 raise InitialAnalysisSessionIneligibleError(
                     "Trade session is no longer eligible for initial analysis"
                 )
@@ -160,7 +165,7 @@ class InitialAnalysisSubmissionService:
         )
         if item is None:
             raise InitialAnalysisSessionNotFoundError("Rebuild session was not found")
-        if item.status is not TradeSessionV2Status.DRAFT:
+        if not initial_evidence_session_is_eligible(item.status):
             raise InitialAnalysisSessionIneligibleError("Trade session is not a draft")
         return item
 
@@ -190,6 +195,10 @@ class InitialAnalysisSubmissionService:
                     "Initial evidence is already assigned or has an observation period"
                 )
             selected.append(item)
+        if not initial_evidence_set_is_complete(items):
+            raise InitialAnalysisEvidenceInvalidError(
+                "Initial evidence is already assigned or has an observation period"
+            )
         return selected
 
     async def _active_request(self, session_id: uuid.UUID) -> AnalysisRequestV2 | None:
@@ -199,7 +208,7 @@ class InitialAnalysisSubmissionService:
                 AnalysisRequestV2.session_id == session_id,
                 AnalysisRequestV2.analysis_type == AnalysisRequestV2Type.INITIAL_ANALYSIS,
                 AnalysisRequestV2.status.in_(
-                    (AnalysisRequestV2Status.PENDING, AnalysisRequestV2Status.PROCESSING)
+                    tuple(status for status in AnalysisRequestV2Status if request_is_active(status))
                 ),
             )
             .limit(1)

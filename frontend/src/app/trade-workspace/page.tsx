@@ -1,2 +1,5 @@
-import { TradeWorkspace } from "@/features/trade-workspace/trade-workspace";
-export default function TradeWorkspacePage() { return <TradeWorkspace />; }
+import { redirect } from "next/navigation";
+
+export default function TradeWorkspacePage() {
+  redirect("/sessions");
+}

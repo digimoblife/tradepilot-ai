@@ -34,8 +34,6 @@ def normalize_open_position_update_transport_payload(
     canonical_facts = facts if isinstance(facts, Mapping) else {}
     warnings = _strings(payload.get("warnings")) + _strings(findings.get("limitations"))
     warnings.append("Output Gemini Open Position dinormalisasi ke kontrak canonical.")
-    snapshot = canonical_facts.get("market_snapshot")
-    snapshot = snapshot if isinstance(snapshot, Mapping) else {}
     market = _mapping_or_empty(payload.get("market_facts"))
     orderbook = _strings(findings.get("orderbook"))
     chart = _strings(findings.get("chart"))
@@ -59,14 +57,10 @@ def normalize_open_position_update_transport_payload(
         warnings=warnings,
     )
     currency = _currency(canonical_facts.get("currency"))
-    current = (
-        _market_numeric(position.get("current_price"), kind="price", currency=currency)
-        or _market_numeric(snapshot.get("last"), kind="price", currency=currency)
-        or _market_numeric(market.get("current_price"), kind="price", currency=currency)
-    )
+    current = _market_numeric(canonical_facts.get("current_price"), kind="price", currency=currency)
     if current is None:
         raise GeminiNormalizationError(
-            message="Open Position transport must provide current_price for canonical validation",
+            message="Open Position application context must provide user-confirmed current_price",
         )
     target_probability = _number(probabilities.get("target"))
     downside_probability = _number(probabilities.get("downside"))
@@ -86,7 +80,7 @@ def normalize_open_position_update_transport_payload(
         "update_period": "AD_HOC",
         "comparison": {"comparison_available": False, "previous_analysis_id": None, "previous_analysis_timestamp": None, "previous_update_period": None, "summary": "Perbandingan sebelumnya tidak diisi oleh transport."},
         "evidence_summary": {"evidence_ids": list(application_metadata.get("evidence_ids") or []), "orderbook_available": bool(orderbook), "chart_3_month_available": bool(chart), "chart_6_month_available": False, "latest_orderbook_timestamp": None, "latest_chart_timestamp": None, "has_unreadable_evidence": False, "has_stale_evidence": False, "summary": "Temuan evidence dinormalisasi dari output Open Position transport.", "limitations": _strings(findings.get("limitations"))},
-        "market_snapshot": {"trading_date": None, "market_timestamp": None, "update_period": "AD_HOC", "currency": currency.value, "data_available": bool(market or snapshot), "open": _market_numeric(market.get("open"), kind="price", currency=currency), "high": _market_numeric(market.get("high"), kind="price", currency=currency), "low": _market_numeric(market.get("low"), kind="price", currency=currency), "last": current, "close": None, "previous_close": None, "average": _market_numeric(market.get("average"), kind="price", currency=currency), "change": None, "change_percentage": _market_numeric(market.get("change_percentage"), kind="percentage", currency=currency), "volume": _market_numeric(market.get("volume"), kind="quantity", currency=currency), "transaction_value": _market_numeric(market.get("transaction_value"), kind="money", currency=currency), "best_bid": best_bid, "best_offer": best_offer, "spread": spread, "spread_percentage": spread_percentage, "summary": str(market.get("summary") or "Fakta pasar terbaru belum tersedia secara lengkap."), "source": "MIXED" if market else "UNAVAILABLE", "limitations": ["Fakta pasar canonical tidak tersedia lengkap pada transport minimal."]},
+        "market_snapshot": {"trading_date": None, "market_timestamp": None, "update_period": "AD_HOC", "currency": currency.value, "data_available": bool(market), "open": _market_numeric(market.get("open"), kind="price", currency=currency), "high": _market_numeric(market.get("high"), kind="price", currency=currency), "low": _market_numeric(market.get("low"), kind="price", currency=currency), "last": current, "close": None, "previous_close": None, "average": _market_numeric(market.get("average"), kind="price", currency=currency), "change": None, "change_percentage": _market_numeric(market.get("change_percentage"), kind="percentage", currency=currency), "volume": _market_numeric(market.get("volume"), kind="quantity", currency=currency), "transaction_value": _market_numeric(market.get("transaction_value"), kind="money", currency=currency), "best_bid": best_bid, "best_offer": best_offer, "spread": spread, "spread_percentage": spread_percentage, "summary": str(market.get("summary") or "Fakta pasar terbaru belum tersedia secara lengkap."), "source": "MIXED" if market else "UNAVAILABLE", "limitations": ["Fakta pasar canonical tidak tersedia lengkap pada transport minimal."]},
         "today_summary": {"open": _market_numeric(market.get("open"), kind="price", currency=currency), "high": _market_numeric(market.get("high"), kind="price", currency=currency), "low": _market_numeric(market.get("low"), kind="price", currency=currency), "last_or_close": current, "average": _market_numeric(market.get("average"), kind="price", currency=currency), "change_percentage": _market_numeric(market.get("change_percentage"), kind="percentage", currency=currency), "position_in_daily_range": "UNKNOWN", "summary": str(market.get("summary") or "Ringkasan pasar dinormalisasi dari observasi transport.")},
         "orderbook_analysis": {"available": bool(orderbook), "buyer_strength": "UNKNOWN", "seller_pressure": "UNKNOWN", "best_bid": best_bid, "best_offer": best_offer, "bid_support": None, "offer_resistance": None, "spread_observation": "Spread tidak tersedia pada transport.", "buyer_observations": orderbook, "seller_observations": [], "important_changes": [], "supports_position": None, "conclusion": " ".join(orderbook) or "Belum ada temuan orderbook yang dapat dinormalisasi.", "limitations": _strings(findings.get("limitations"))},
         "chart_update": {"updated_chart_available": False, "using_historical_context": False, "chart_context_timestamp": None, "short_term_trend": "UNKNOWN", "medium_term_trend": "UNKNOWN", "structure_status": "UNKNOWN", "nearest_support": None, "nearest_resistance": None, "breakout_status": "UNKNOWN", "breakdown_status": "UNKNOWN", "supports_position": None, "conclusion": " ".join(chart) or "Chart terbaru tidak tersedia pada transport minimal.", "limitations": _strings(findings.get("limitations")) or ["Konteks chart tidak tersedia pada transport minimal."]},

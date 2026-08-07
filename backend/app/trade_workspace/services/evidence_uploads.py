@@ -11,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import AppConfig
 from app.storage import FileStorage, StorageError, create_file_storage
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
-from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.models.trade_session import TradeSessionV2
+from app.trade_workspace.services.eligibility import (
+    has_unassigned_initial_evidence,
+    initial_evidence_session_is_eligible,
+)
 
 MAX_INITIAL_EVIDENCE_SIZE = 10 * 1024 * 1024
 SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
@@ -168,7 +172,7 @@ class InitialEvidenceUploadService:
         )
         if trade_session is None:
             raise InitialEvidenceSessionNotFoundError("Trade session not found")
-        if trade_session.status is not TradeSessionV2Status.DRAFT:
+        if not initial_evidence_session_is_eligible(trade_session.status):
             raise InitialEvidenceSessionIneligibleError("Trade session is not eligible")
         return trade_session
 
@@ -183,7 +187,7 @@ class InitialEvidenceUploadService:
             )
             .limit(1)
         )
-        if existing is not None:
+        if existing is not None and has_unassigned_initial_evidence((existing,)):
             raise InitialEvidenceDuplicateError("Initial evidence already exists")
 
     def _validate_inputs(self, files: Sequence[InitialEvidenceInput]) -> None:

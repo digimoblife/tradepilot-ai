@@ -26,6 +26,7 @@ from app.api.schemas.trade_sessions import (
     TradeSessionUpdateRequest,
     TradeStateResponse,
     UpdateMonitoringSlotRequest,
+    UpdateOpenPositionCurrentPriceRequest,
 )
 from app.auth import AuthenticatedUser
 from app.database.session import get_db_session
@@ -54,6 +55,7 @@ from app.services.actions.target import (
 )
 from app.services.evidence_batches import (
     EvidenceBatchInvalidSlotError,
+    EvidenceBatchInvalidCurrentPriceError,
     EvidenceBatchInvalidStateError,
     EvidenceBatchService,
 )
@@ -184,6 +186,7 @@ def _batch_to_response(batch: object) -> EvidenceBatchSummaryResponse:
         sequence_number=batch.sequence_number,
         label=batch.label,
         monitoring_slot=getattr(batch, "monitoring_slot", None),
+        current_price=getattr(batch, "current_price", None),
         created_at=batch.created_at,
         ready_at=batch.ready_at,
         processing_at=batch.processing_at,
@@ -770,6 +773,37 @@ async def update_open_position_batch_slot(
     return _batch_to_response(updated)
 
 
+@router.patch(
+    "/{session_id}/open-position-batches/{batch_id}/current-price",
+    response_model=EvidenceBatchSummaryResponse,
+)
+async def update_open_position_batch_current_price(
+    session_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    body: UpdateOpenPositionCurrentPriceRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> EvidenceBatchSummaryResponse:
+    from fastapi import HTTPException
+
+    repo = TradeSessionRepository(db_session)
+    ts = await repo.get_by_id_for_user(session_id, current_user.id)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="Trade session not found")
+    batch_svc = EvidenceBatchService(db_session)
+    batch = await batch_svc.get_for_user(batch_id=batch_id, owner_id=current_user.id)
+    if batch is None or batch.session_id != session_id or batch.analysis_type != AnalysisType.OPEN_POSITION_UPDATE:
+        raise HTTPException(status_code=404, detail={"code": "OPEN_POSITION_BATCH_NOT_FOUND", "message": "Open Position Update evidence batch not found."})
+    from app.calculations.decimal_utils import CurrencyCode
+    try:
+        updated = await batch_svc.update_open_position_current_price(
+            batch, body.current_price, currency=CurrencyCode.USD if str(ts.currency) == "USD" else CurrencyCode.IDR
+        )
+    except (EvidenceBatchInvalidCurrentPriceError, EvidenceBatchInvalidStateError) as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message})
+    return _batch_to_response(updated)
+
+
 # ---------------------------------------------------------------------------
 # POST /{session_id}/open-position-batches/{batch_id}/ready
 # ---------------------------------------------------------------------------
@@ -830,6 +864,12 @@ async def ready_open_position_batch(
                 "code": "ANALYSIS_REQUIRED_EVIDENCE_MISSING",
                 "message": f"Missing required evidence: {missing}",
             },
+        )
+
+    if batch.current_price is None:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "OPEN_POSITION_CURRENT_PRICE_REQUIRED", "message": "Harga saat ini wajib diisi sebelum batch dapat disiapkan."},
         )
 
     if batch.status == EvidenceBatchStatus.READY:

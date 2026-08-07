@@ -1,158 +1,213 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createSession } from "@/lib/api/trade-sessions";
+import { useEffect, useRef, useState } from "react";
+
+import { createSession } from "@/features/trade-workspace/api";
+import type { TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 
-interface FormErrors {
+type FieldErrors = {
   ticker?: string;
-  general?: string;
-}
+  companyName?: string;
+};
 
-export function CreateSessionForm() {
-  const router = useRouter();
+export function CreateSessionForm({
+  onCreated,
+  successMessage = "Sesi berhasil dibuat.",
+}: {
+  onCreated?: (session: TradeSession) => void;
+  successMessage?: string;
+}) {
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [exchange, setExchange] = useState("");
-  const [currency, setCurrency] = useState("IDR");
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [note, setNote] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [generalError, setGeneralError] = useState<"authentication" | "request" | null>(null);
   const [pending, setPending] = useState(false);
+  const [createdSession, setCreatedSession] = useState<TradeSession | null>(null);
+  const pendingRef = useRef(false);
+  const attemptRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
-  function validate(): boolean {
-    const e: FormErrors = {};
-    if (!ticker.trim()) {
-      e.ticker = "Kode saham wajib diisi.";
+  useEffect(() => () => {
+    mountedRef.current = false;
+    controllerRef.current?.abort();
+  }, []);
+
+  function validate(): FieldErrors {
+    const errors: FieldErrors = {};
+    const normalizedTicker = ticker.trim();
+    const normalizedCompanyName = companyName.trim();
+
+    if (!normalizedTicker) errors.ticker = "Kode saham wajib diisi.";
+    else if (normalizedTicker.length > 32) errors.ticker = "Kode saham maksimal 32 karakter.";
+
+    if (!normalizedCompanyName) errors.companyName = "Nama perusahaan wajib diisi.";
+    else if (normalizedCompanyName.length > 255) {
+      errors.companyName = "Nama perusahaan maksimal 255 karakter.";
     }
-    setErrors(e);
-    return Object.keys(e).length === 0;
+
+    return errors;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pendingRef.current || createdSession) return;
 
+    const errors = validate();
+    setFieldErrors(errors);
+    setGeneralError(null);
+    if (Object.keys(errors).length > 0) return;
+
+    pendingRef.current = true;
     setPending(true);
+    const attempt = ++attemptRef.current;
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
     try {
-      const session = await createSession({
-        ticker: ticker.trim(),
-        company_name: companyName.trim() || undefined,
-        exchange: exchange.trim() || undefined,
-        currency,
-      });
-      router.push(`/sessions/${session.id}`);
-    } catch (err: unknown) {
-      if (err instanceof AuthenticationError) {
-        setErrors({
-          general: "Silakan masuk terlebih dahulu untuk membuat sesi trading.",
-        });
-      } else if (err instanceof ApiError) {
-        setErrors({ general: err.message });
-      } else {
-        setErrors({
-          general: "Terjadi kesalahan. Silakan coba lagi.",
-        });
-      }
+      const session = await createSession(
+        {
+          ticker: ticker.trim().toUpperCase(),
+          company_name: companyName.trim(),
+          note: note.length === 0 ? null : note,
+        },
+        controller.signal,
+      );
+      if (!mountedRef.current || attemptRef.current !== attempt) return;
+      setCreatedSession(session);
+      onCreated?.(session);
+    } catch (error: unknown) {
+      if (!mountedRef.current || attemptRef.current !== attempt || controller.signal.aborted) return;
+      if (error instanceof AuthenticationError) setGeneralError("authentication");
+      else if (error instanceof ApiError || error instanceof TypeError) setGeneralError("request");
+      else setGeneralError("request");
     } finally {
-      setPending(false);
+      if (mountedRef.current && attemptRef.current === attempt) {
+        pendingRef.current = false;
+        setPending(false);
+        controllerRef.current = null;
+      }
     }
   }
+
+  const controlClass =
+    "mt-1 min-h-11 w-full min-w-0 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base text-[var(--color-text-default)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:bg-[var(--color-surface-muted)]";
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
-      {errors.general && (
-        <div
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {errors.general}
+    <form onSubmit={handleSubmit} noValidate className="mt-6 min-w-0 space-y-[var(--space-5)]">
+      {generalError === "authentication" ? (
+        <div role="alert" className="text-sm text-[var(--color-status-danger)]">
+          <p>Sesi Anda telah berakhir. Silakan masuk kembali.</p>
+          <Link
+            href="/login?next=%2Fsessions%2Fnew"
+            className="mt-2 inline-flex min-h-11 items-center font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+          >
+            Masuk kembali
+          </Link>
         </div>
-      )}
+      ) : generalError === "request" ? (
+        <p role="alert" className="text-sm text-[var(--color-status-danger)]">
+          Sesi tidak dapat dibuat. Periksa data Anda lalu coba lagi.
+        </p>
+      ) : null}
 
-      <div>
-        <label htmlFor="ticker" className="mb-1 block text-sm font-medium text-zinc-700">
-          Kode Saham <span className="text-red-500">*</span>
+      {createdSession ? (
+        <p role="status" className="text-sm text-[var(--color-status-success)]">
+          {successMessage}
+        </p>
+      ) : null}
+
+      <div className="min-w-0">
+        <label htmlFor="ticker" className="block text-sm font-semibold text-[var(--color-text-strong)]">
+          Kode Saham
         </label>
         <input
           id="ticker"
-          type="text"
+          name="ticker"
           value={ticker}
-          onChange={(e) => setTicker(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          placeholder="BBRI"
-          disabled={pending}
+          onChange={(event) => {
+            setTicker(event.target.value);
+            setFieldErrors((current) => ({ ...current, ticker: undefined }));
+          }}
+          maxLength={32}
+          autoCapitalize="characters"
+          autoComplete="off"
+          disabled={pending || createdSession !== null}
           aria-required="true"
-          aria-invalid={!!errors.ticker}
-          aria-describedby={errors.ticker ? "ticker-error" : undefined}
+          aria-invalid={fieldErrors.ticker ? "true" : undefined}
+          aria-describedby={fieldErrors.ticker ? "ticker-error" : "ticker-hint"}
+          className={controlClass}
         />
-        {errors.ticker && (
-          <p id="ticker-error" className="mt-1 text-sm text-red-600" role="alert">
-            {errors.ticker}
+        <p id="ticker-hint" className="mt-1 text-xs text-[var(--color-text-muted)]">
+          Kode akan disimpan dalam huruf kapital.
+        </p>
+        {fieldErrors.ticker ? (
+          <p id="ticker-error" className="mt-1 text-sm text-[var(--color-status-danger)]">
+            {fieldErrors.ticker}
           </p>
-        )}
+        ) : null}
       </div>
 
-      <div>
-        <label htmlFor="companyName" className="mb-1 block text-sm font-medium text-zinc-700">
+      <div className="min-w-0">
+        <label htmlFor="companyName" className="block text-sm font-semibold text-[var(--color-text-strong)]">
           Nama Perusahaan
         </label>
         <input
           id="companyName"
-          type="text"
+          name="company_name"
           value={companyName}
-          onChange={(e) => setCompanyName(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          placeholder="PT Bank Rakyat Indonesia Tbk"
-          disabled={pending}
+          onChange={(event) => {
+            setCompanyName(event.target.value);
+            setFieldErrors((current) => ({ ...current, companyName: undefined }));
+          }}
+          maxLength={255}
+          disabled={pending || createdSession !== null}
+          aria-required="true"
+          aria-invalid={fieldErrors.companyName ? "true" : undefined}
+          aria-describedby={fieldErrors.companyName ? "company-name-error" : undefined}
+          className={controlClass}
+        />
+        {fieldErrors.companyName ? (
+          <p id="company-name-error" className="mt-1 text-sm text-[var(--color-status-danger)]">
+            {fieldErrors.companyName}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="min-w-0">
+        <label htmlFor="note" className="block text-sm font-semibold text-[var(--color-text-strong)]">
+          Catatan <span className="font-normal text-[var(--color-text-muted)]">(opsional)</span>
+        </label>
+        <textarea
+          id="note"
+          name="note"
+          rows={5}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          disabled={pending || createdSession !== null}
+          className={`${controlClass} resize-y break-words`}
         />
       </div>
 
-      <div>
-        <label htmlFor="exchange" className="mb-1 block text-sm font-medium text-zinc-700">
-          Bursa
-        </label>
-        <input
-          id="exchange"
-          type="text"
-          value={exchange}
-          onChange={(e) => setExchange(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          placeholder="IDX"
-          disabled={pending}
-        />
-      </div>
-
-      <div>
-        <label htmlFor="currency" className="mb-1 block text-sm font-medium text-zinc-700">
-          Mata Uang <span className="text-red-500">*</span>
-        </label>
-        <select
-          id="currency"
-          value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          disabled={pending}
-        >
-          <option value="IDR">IDR — Rupiah</option>
-          <option value="USD">USD — Dolar AS</option>
-        </select>
-      </div>
-
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-col gap-[var(--space-3)] sm:flex-row sm:items-center">
         <button
           type="submit"
-          disabled={pending}
-          className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={pending || createdSession !== null}
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
-          {pending ? "Membuat sesi…" : "Buat Sesi"}
+          {pending ? "Membuat sesi…" : createdSession ? "Sesi dibuat" : "Buat Sesi"}
         </button>
-        <Link
-          href="/sessions"
-          className="text-sm text-zinc-500 underline hover:text-zinc-700"
-        >
-          Kembali ke Daftar Sesi
-        </Link>
+        {!createdSession ? (
+          <Link
+            href="/sessions"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] px-4 text-sm font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+          >
+            Batal
+          </Link>
+        ) : null}
       </div>
     </form>
   );

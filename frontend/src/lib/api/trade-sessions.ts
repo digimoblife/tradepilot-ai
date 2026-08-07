@@ -89,6 +89,17 @@ export function updateOpenPositionBatchSlot(
   );
 }
 
+export function updateOpenPositionBatchCurrentPrice(
+  sessionId: string,
+  batchId: string,
+  currentPrice: string,
+): Promise<EvidenceBatchSummary> {
+  return patch<EvidenceBatchSummary>(
+    `/api/trade-sessions/${sessionId}/open-position-batches/${batchId}/current-price`,
+    { current_price: currentPrice },
+  );
+}
+
 export function markOpenPositionBatchReady(
   sessionId: string,
   batchId: string,

@@ -32,6 +32,8 @@ from app.services.actions.open_position import OpenPositionService
 from app.services.actions.stop_loss import StopLossActionService
 from app.services.actions.target import TargetActionService
 from app.services.evidence_batches import EvidenceBatchService
+from app.services.evidence_batches import EvidenceBatchInvalidCurrentPriceError
+from app.calculations.decimal_utils import CurrencyCode
 from app.services.evidence import EvidenceService
 
 pytestmark = pytest.mark.database
@@ -262,8 +264,27 @@ class TestOpenPositionBatchLifecycle:
             )
             assert required.complete
 
+            await batch_svc.update_open_position_current_price(batch, "5000.6", currency=CurrencyCode.IDR)
+            assert batch.current_price == 5001
             await batch_svc.mark_ready(batch)
             assert batch.status == EvidenceBatchStatus.READY
+
+    async def test_opu_current_price_is_positive_decimal_and_immutable_after_ready(
+        self, engine: AsyncEngine
+    ) -> None:
+        user_id, session_id = await _make_user_and_session(engine, "OPEN_POSITION")
+        factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as db_session:
+            svc = EvidenceBatchService(db_session)
+            batch = await svc.get_or_create_current_draft(session_id=session_id, owner_id=user_id, analysis_type=AnalysisType.OPEN_POSITION_UPDATE)
+            for value in ("0", "-1", "NaN", "Infinity", True):
+                with pytest.raises(EvidenceBatchInvalidCurrentPriceError):
+                    await svc.update_open_position_current_price(batch, value, currency=CurrencyCode.IDR)
+            await svc.update_open_position_current_price(batch, "4120.4", currency=CurrencyCode.IDR)
+            assert batch.current_price == 4120
+            await svc.mark_ready(batch)
+            with pytest.raises(Exception):
+                await svc.update_open_position_current_price(batch, "4200", currency=CurrencyCode.IDR)
 
 
 class TestOpenPositionUpdateAtomicity:

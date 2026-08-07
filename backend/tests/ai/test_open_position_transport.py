@@ -39,6 +39,7 @@ def _metadata() -> dict[str, object]:
         "evidence_ids": ["33333333-3333-4333-8333-333333333333"],
         "canonical_facts": {
             "ticker": "BBRI", "company_name": "Bank Rakyat Indonesia", "currency": "IDR",
+            "current_price": "4120", "current_price_source": "USER_CONFIRMED_ORDERBOOK_INPUT",
             "entry_price": "4100", "entry_at": "2026-07-29T02:16:48Z",
             "remaining_quantity": "100", "active_stop_loss": "3900", "active_target": "4500",
         },
@@ -119,7 +120,26 @@ def test_application_position_facts_override_provider_values() -> None:
     assert position["active_stop_loss"] == 3900
     assert position["active_target"] == 4500
     assert position["remaining_quantity"] == 100
+    assert position["current_price"] == Decimal("4120")
     assert "entry_at" not in json.dumps(to_json_safe(normalized))
+
+
+def test_application_current_price_is_canonical_when_provider_omits_or_disagrees() -> None:
+    payload = _transport()
+    payload["market_facts"].pop("current_price")
+    payload["position_assessment"].pop("current_price")
+    normalized = normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    assert normalized["market_snapshot"]["last"] == Decimal("4120")
+    assert normalized["position_assessment"]["current_price"] == Decimal("4120")
+
+
+def test_missing_application_current_price_blocks_normalization_without_entry_fallback() -> None:
+    metadata = _metadata()
+    facts = metadata["canonical_facts"]
+    assert isinstance(facts, dict)
+    facts.pop("current_price")
+    with pytest.raises(GeminiNormalizationError, match="application context"):
+        normalize_open_position_update_transport_payload(_transport(), application_metadata=metadata)
 
 
 def test_no_revision_keeps_confirmed_levels_and_canonical_proposals_null() -> None:
@@ -249,8 +269,8 @@ def test_missing_optional_values_do_not_fabricate_facts_but_unusable_output_is_b
     payload = _transport()
     payload.pop("market_facts")
     payload["position_assessment"].pop("current_price")
-    with pytest.raises(GeminiNormalizationError, match="current_price"):
-        normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    normalized = normalize_open_position_update_transport_payload(payload, application_metadata=_metadata())
+    assert normalized["market_snapshot"]["last"] == Decimal("4120")
 
 
 def test_router_normalizes_open_position_before_canonical_validation() -> None:

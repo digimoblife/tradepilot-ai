@@ -25,12 +25,11 @@ from app.trade_workspace.services.analysis_request_queue import (
     SessionNotFoundError,
     SessionOwnershipMismatchError,
 )
-
-_ACTIVE_STATUSES = (
-    AnalysisRequestV2Status.PENDING,
-    AnalysisRequestV2Status.PROCESSING,
+from app.trade_workspace.services.eligibility import (
+    request_is_active,
+    update_evidence_is_ready,
+    wait_update_session_is_eligible,
 )
-
 
 class WaitUpdateAnalysisSubmissionError(Exception):
     code = "WAIT_UPDATE_ANALYSIS_SUBMISSION_FAILED"
@@ -190,7 +189,7 @@ class WaitUpdateAnalysisSubmissionService:
         )
         if trade_session is None:
             raise WaitUpdateAnalysisSessionNotFoundError("Rebuild session was not found")
-        if trade_session.status is not TradeSessionV2Status.WAITING:
+        if not wait_update_session_is_eligible(trade_session.status):
             raise WaitUpdateAnalysisSessionIneligibleError(
                 "WAIT Update analysis requires a WAITING session"
             )
@@ -202,7 +201,9 @@ class WaitUpdateAnalysisSubmissionService:
             .where(
                 AnalysisRequestV2.session_id == session_id,
                 AnalysisRequestV2.analysis_type == AnalysisRequestV2Type.WAIT_UPDATE,
-                AnalysisRequestV2.status.in_(_ACTIVE_STATUSES),
+                AnalysisRequestV2.status.in_(
+                    tuple(status for status in AnalysisRequestV2Status if request_is_active(status))
+                ),
             )
             .limit(1)
         )
@@ -226,7 +227,10 @@ class WaitUpdateAnalysisSubmissionService:
             )
             .with_for_update()
         )
-        if evidence is None:
+        if evidence is None or not update_evidence_is_ready(
+            evidence,
+            require_relative_path=False,
+        ):
             raise WaitUpdateAnalysisInputNotReadyError(
                 "No eligible unlinked WAIT Update input is available"
             )

@@ -5,7 +5,9 @@ import HomePage from "@/app/page";
 import LoginPage from "@/app/login/page";
 import SessionsPage from "@/app/sessions/page";
 import SessionDetailPage from "@/app/sessions/[sessionId]/page";
+import TradeWorkspacePage from "@/app/trade-workspace/page";
 import { Header } from "@/components/header";
+import { listSessions } from "@/features/trade-workspace/api";
 
 const mockReplace = vi.fn();
 const mockPush = vi.fn();
@@ -17,6 +19,7 @@ let mockLoading = false;
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: mockPush }),
   useSearchParams: () => ({ get: () => null }),
+  usePathname: () => "/sessions",
   redirect: (url: string) => mockRedirect(url),
 }));
 
@@ -30,19 +33,25 @@ vi.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("@/features/trade-workspace/api", () => ({
+  getSession: vi.fn(),
+  listSessions: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockUser = null;
   mockLoading = false;
+  vi.mocked(listSessions).mockResolvedValue({ sessions: [] });
 });
 
 describe("Reversible Frontend Cutover", () => {
-  it("authenticated / resolves to /trade-workspace", async () => {
+  it("authenticated / resolves to /sessions", async () => {
     mockUser = { id: "user-1", email: "test@example.com" };
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/trade-workspace");
+      expect(mockReplace).toHaveBeenCalledWith("/sessions");
     });
   });
 
@@ -54,7 +63,12 @@ describe("Reversible Frontend Cutover", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it("login success resolves to /trade-workspace", async () => {
+  it("/trade-workspace route redirects directly to /sessions", () => {
+    TradeWorkspacePage();
+    expect(mockRedirect).toHaveBeenCalledWith("/sessions");
+  });
+
+  it("login success resolves to /sessions", async () => {
     render(await LoginPage());
 
     const emailInput = screen.getByLabelText(/email/i);
@@ -65,29 +79,37 @@ describe("Reversible Frontend Cutover", () => {
     await userEvent.click(screen.getByRole("button", { name: /masuk/i }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/trade-workspace");
+      expect(mockPush).toHaveBeenCalledWith("/sessions");
     });
   });
 
-  it("primary sessions navigation in Header points to /trade-workspace when authenticated", () => {
+  it("primary Header navigation points to Sessions and Archive when authenticated", () => {
     mockUser = { id: "user-1", email: "test@example.com" };
     render(<Header />);
 
     const brandLink = screen.getByRole("link", { name: "TradePilot AI" });
-    expect(brandLink.getAttribute("href")).toBe("/trade-workspace");
+    expect(brandLink.getAttribute("href")).toBe("/sessions");
 
-    const sessionsLink = screen.getByRole("link", { name: "Sesi" });
-    expect(sessionsLink.getAttribute("href")).toBe("/trade-workspace");
+    const sessionsLink = screen.getByRole("link", { name: "Sessions" });
+    expect(sessionsLink.getAttribute("href")).toBe("/sessions");
+    expect(screen.getByRole("link", { name: "Archive" }).getAttribute("href")).toBe(
+      "/sessions/archived",
+    );
+    expect(screen.queryByRole("link", { name: /trade workspace/i })).toBeNull();
   });
 
-  it("legacy /sessions route invokes redirect('/trade-workspace')", () => {
-    SessionsPage();
-    expect(mockRedirect).toHaveBeenCalledWith("/trade-workspace");
+  it("/sessions renders its own route shell", () => {
+    render(<SessionsPage />);
+    expect(screen.getByRole("heading", { name: "Sesi Perdagangan" })).toBeTruthy();
   });
 
-  it("legacy /sessions/{session_id} route invokes redirect('/trade-workspace')", () => {
-    SessionDetailPage();
-    expect(mockRedirect).toHaveBeenCalledWith("/trade-workspace");
+  it("/sessions/{session_id} renders its own route shell", async () => {
+    render(
+      await SessionDetailPage({
+        params: Promise.resolve({ sessionId: "session-1" }),
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Ringkasan Sesi" })).toBeTruthy();
   });
 
   it("logout behavior remains unchanged and pushes to /login", async () => {

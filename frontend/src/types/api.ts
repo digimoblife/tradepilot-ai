@@ -17,6 +17,7 @@ export interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   formData?: FormData;
+  signal?: AbortSignal;
   /** When true, returns raw Response instead of parsing JSON */
   raw?: boolean;
 }

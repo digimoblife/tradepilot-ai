@@ -47,6 +47,9 @@ async def test_trade_sessions_v2_persistence(engine) -> None:
             assert first.user_id == user_id
             assert first.ticker == "BBRI"
             assert first.company_name == "Bank BRI"
+            assert first.archived_at is None
+            assert TradeSessionV2.__table__.c.archived_at.nullable is True
+            assert "ARCHIVED" not in TradeSessionV2Status.__members__
 
             read = await session.scalar(
                 select(TradeSessionV2).where(

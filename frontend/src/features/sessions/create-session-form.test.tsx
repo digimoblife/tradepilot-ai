@@ -1,249 +1,221 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { createSession } from "@/lib/api/trade-sessions";
-
-// Mock next/navigation
-const mockPush = vi.fn();
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
-}));
-
-// Mock createSession
-vi.mock("@/lib/api/trade-sessions", () => ({
-  createSession: vi.fn(),
-}));
-
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import NewSessionPage from "@/app/sessions/new/page";
+import { createSession } from "@/features/trade-workspace/api";
+import type { TradeSession } from "@/features/trade-workspace/types";
+import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import { CreateSessionForm } from "./create-session-form";
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
-// -------------------------------------------------------------------
-// Rendering
-// -------------------------------------------------------------------
-describe("rendering", () => {
-  it("renders ticker field with Indonesian label", () => {
-    render(<CreateSessionForm />);
-    expect(screen.getByLabelText(/Kode Saham/)).toBeTruthy();
+vi.mock("@/features/trade-workspace/api", () => ({ createSession: vi.fn() }));
+
+const createdSession: TradeSession = {
+  id: "33333333-3333-4333-8333-333333333333",
+  ticker: "BBRI",
+  company_name: "Bank Rakyat Indonesia",
+  status: "DRAFT",
+  note: null,
+  created_at: "2026-08-04T00:00:00Z",
+  updated_at: "2026-08-04T00:00:00Z",
+  closed_at: null,
+  archived_at: null,
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function fillRequired(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Kode Saham"), "  bbri ");
+  await user.type(screen.getByLabelText("Nama Perusahaan"), "  Bank Rakyat Indonesia  ");
+}
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("CreateSessionForm", () => {
+  it("renders the dedicated route with exactly the three approved product fields", () => {
+    render(<NewSessionPage />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Buat Sesi Baru" })).toBeVisible();
+    expect(screen.getByLabelText("Kode Saham")).toBeVisible();
+    expect(screen.getByLabelText("Nama Perusahaan")).toBeVisible();
+    expect(screen.getByLabelText(/Catatan.*opsional/)).toBeVisible();
+    expect(screen.getAllByRole("textbox")).toHaveLength(3);
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByLabelText(/status|pemilik|bursa|mata uang|evidence|bukti/i)).toBeNull();
+    expect(screen.queryByRole("list", { name: /Daftar sesi/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "Batal" })).toHaveAttribute("href", "/sessions");
   });
 
-  it("renders company field with Indonesian label", () => {
-    render(<CreateSessionForm />);
-    expect(screen.getByLabelText(/Nama Perusahaan/)).toBeTruthy();
-  });
-
-  it("renders exchange field with Indonesian label", () => {
-    render(<CreateSessionForm />);
-    expect(screen.getByLabelText(/Bursa/)).toBeTruthy();
-  });
-
-  it("renders currency field with Indonesian label", () => {
-    render(<CreateSessionForm />);
-    expect(screen.getByLabelText(/Mata Uang/)).toBeTruthy();
-  });
-
-  it("renders submit button", () => {
-    render(<CreateSessionForm />);
-    expect(screen.getByText("Buat Sesi")).toBeTruthy();
-  });
-
-  it("renders back link to /sessions", () => {
-    render(<CreateSessionForm />);
-    const link = screen.getByText("Kembali ke Daftar Sesi");
-    expect(link.getAttribute("href")).toBe("/sessions");
-  });
-});
-
-// -------------------------------------------------------------------
-// Validation
-// -------------------------------------------------------------------
-describe("validation", () => {
-  it("shows error when ticker is blank", async () => {
+  it("rejects empty and whitespace-only required fields without calling the API", async () => {
     const user = userEvent.setup();
     render(<CreateSessionForm />);
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(screen.getByText("Kode saham wajib diisi.")).toBeTruthy();
+
+    await user.type(screen.getByLabelText("Kode Saham"), "   ");
+    await user.type(screen.getByLabelText("Nama Perusahaan"), "   ");
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+
+    expect(screen.getByText("Kode saham wajib diisi.")).toBeVisible();
+    expect(screen.getByText("Nama perusahaan wajib diisi.")).toBeVisible();
+    expect(screen.getByLabelText("Kode Saham")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Nama Perusahaan")).toHaveAttribute("aria-invalid", "true");
     expect(createSession).not.toHaveBeenCalled();
   });
 
-  it("shows error when ticker is whitespace-only", async () => {
+  it("submits one exact canonical payload with backend-aligned normalization", async () => {
     const user = userEvent.setup();
+    vi.mocked(createSession).mockResolvedValue(createdSession);
     render(<CreateSessionForm />);
-    const input = screen.getByLabelText(/Kode Saham/);
-    await user.type(input, "   ");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(screen.getByText("Kode saham wajib diisi.")).toBeTruthy();
-    expect(createSession).not.toHaveBeenCalled();
+    await fillRequired(user);
+    await user.type(screen.getByLabelText(/Catatan/), "  pertahankan spasi catatan  ");
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
+    expect(createSession).toHaveBeenCalledWith(
+      {
+        ticker: "BBRI",
+        company_name: "Bank Rakyat Indonesia",
+        note: "  pertahankan spasi catatan  ",
+      },
+      expect.any(AbortSignal),
+    );
   });
 
-  it("does not submit when ticker is missing", async () => {
+  it("submits an empty optional Note as null", async () => {
     const user = userEvent.setup();
+    vi.mocked(createSession).mockResolvedValue(createdSession);
     render(<CreateSessionForm />);
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(createSession).not.toHaveBeenCalled();
-  });
-});
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
 
-// -------------------------------------------------------------------
-// Successful creation
-// -------------------------------------------------------------------
-describe("successful creation", () => {
-  it("calls createSession with form values", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSession).mockResolvedValue({
-      id: "sess-123",
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(createSession).mock.calls[0][0]).toEqual({
       ticker: "BBRI",
-      company_name: "Test Co",
-      exchange: "IDX",
-      currency: "IDR",
-      title: null,
-      lifecycle_status: "DRAFT",
-      archived_at: null,
-      created_at: "2026-07-20T00:00:00Z",
-      updated_at: "2026-07-20T00:00:00Z",
+      company_name: "Bank Rakyat Indonesia",
+      note: null,
     });
+  });
 
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.type(screen.getByLabelText(/Nama Perusahaan/), "Test Co");
-    await user.type(screen.getByLabelText(/Bursa/), "IDX");
-    await user.click(screen.getByText("Buat Sesi"));
+  it("uses a synchronous guard for repeated submit events while pending", async () => {
+    const user = userEvent.setup();
+    const request = deferred<TradeSession>();
+    vi.mocked(createSession).mockImplementation(() => request.promise);
+    const { container } = render(<CreateSessionForm />);
+    await fillRequired(user);
+    const form = container.querySelector("form")!;
 
+    fireEvent.submit(form);
+    fireEvent.submit(form);
     expect(createSession).toHaveBeenCalledTimes(1);
-    expect(createSession).toHaveBeenCalledWith({
-      ticker: "BBRI",
-      company_name: "Test Co",
-      exchange: "IDX",
-      currency: "IDR",
+    expect(screen.getByRole("button", { name: "Membuat sesi…" })).toBeDisabled();
+
+    await act(async () => request.resolve(createdSession));
+  });
+
+  it("retains the successful response through onCreated without resubmission", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const view = render(<CreateSessionForm onCreated={onCreated} />);
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Sesi berhasil dibuat");
+    expect(onCreated).toHaveBeenCalledWith(createdSession);
+    expect(screen.getByRole("button", { name: "Sesi dibuat" })).toBeDisabled();
+    view.rerender(<CreateSessionForm onCreated={onCreated} />);
+    expect(createSession).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    new ApiError(422, "VALIDATION_ERROR", "database.internal raw detail"),
+    new ApiError(500, "INTERNAL_ERROR", "stack trace secret"),
+    new TypeError("network.internal"),
+  ])("shows safe feedback, preserves every value, and allows one deliberate resubmit", async (error) => {
+    const user = userEvent.setup();
+    vi.mocked(createSession)
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(createdSession);
+    render(<CreateSessionForm />);
+    await fillRequired(user);
+    await user.type(screen.getByLabelText(/Catatan/), "Catatan tetap");
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sesi tidak dapat dibuat");
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/database|stack trace|secret|network\.internal/i);
+    expect(screen.getByLabelText("Kode Saham")).toHaveValue("  bbri ");
+    expect(screen.getByLabelText("Nama Perusahaan")).toHaveValue("  Bank Rakyat Indonesia  ");
+    expect(screen.getByLabelText(/Catatan/)).toHaveValue("Catatan tetap");
+    expect(createSession).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+  });
+
+  it("handles authentication failure with safe login recovery and preserved values", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createSession).mockRejectedValue(
+      new AuthenticationError(401, "AUTHENTICATION_EXPIRED", "token secret"),
+    );
+    render(<CreateSessionForm />);
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+
+    expect(await screen.findByRole("alert")).not.toHaveTextContent("token secret");
+    expect(screen.getByRole("link", { name: "Masuk kembali" })).toHaveAttribute(
+      "href",
+      "/login?next=%2Fsessions%2Fnew",
+    );
+    expect(screen.getByLabelText("Kode Saham")).toHaveValue("  bbri ");
+  });
+
+  it("aborts its client request on unmount without late state updates", async () => {
+    const user = userEvent.setup();
+    const request = deferred<TradeSession>();
+    let signal: AbortSignal | undefined;
+    vi.mocked(createSession).mockImplementation((_input, requestSignal) => {
+      signal = requestSignal;
+      return request.promise;
     });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const view = render(<CreateSessionForm />);
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+
+    view.unmount();
+    expect(signal?.aborted).toBe(true);
+    await act(async () => request.resolve(createdSession));
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
-  it("redirects to created session", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSession).mockResolvedValue({
-      id: "sess-456",
-      ticker: "TLKM",
-      company_name: null,
-      exchange: "IDX",
-      currency: "IDR",
-      title: null,
-      lifecycle_status: "DRAFT",
-      archived_at: null,
-      created_at: "2026-07-20T00:00:00Z",
-      updated_at: "2026-07-20T00:00:00Z",
-    });
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "TLKM");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(mockPush).toHaveBeenCalledWith("/sessions/sess-456");
-  });
-
-  it("does not redirect before API resolves", () => {
-    // push should not be called until createSession resolves
-    expect(mockPush).not.toHaveBeenCalled();
-  });
-});
-
-// -------------------------------------------------------------------
-// Pending state
-// -------------------------------------------------------------------
-describe("pending state", () => {
-  it("shows processing text while submitting", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSession).mockImplementation(
-      () => new Promise(() => {}), // never resolves
-    );
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(screen.getByText("Membuat sesi…")).toBeTruthy();
-  });
-
-  it("disables button while submitting", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSession).mockImplementation(
-      () => new Promise(() => {}),
-    );
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(screen.getByText("Membuat sesi…")).toBeTruthy();
-  });
-});
-
-// -------------------------------------------------------------------
-// API errors
-// -------------------------------------------------------------------
-describe("API errors", () => {
-  it("shows backend validation message", async () => {
-    const user = userEvent.setup();
-    const { ApiError } = await import("@/lib/api/errors");
-    vi.mocked(createSession).mockRejectedValue(
-      new ApiError(422, "VALIDATION_ERROR", "Data yang dikirim tidak valid."),
-    );
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(await screen.findByText("Data yang dikirim tidak valid.")).toBeTruthy();
-  });
-
-  it("shows authentication error safely", async () => {
-    const user = userEvent.setup();
-    const { AuthenticationError } = await import("@/lib/api/errors");
-    vi.mocked(createSession).mockRejectedValue(
-      new AuthenticationError(401, "AUTHENTICATION_REQUIRED", "Autentikasi diperlukan."),
-    );
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(
-      await screen.findByText(
-        "Silakan masuk terlebih dahulu untuk membuat sesi trading.",
-      ),
-    ).toBeTruthy();
-  });
-
-  it("shows generic fallback for unknown error", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSession).mockRejectedValue(new Error("something broke"));
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(
-      await screen.findByText("Terjadi kesalahan. Silakan coba lagi."),
-    ).toBeTruthy();
-  });
-
-  it("retains form values after error", async () => {
-    const user = userEvent.setup();
-    vi.mocked(createSession).mockRejectedValue(
-      new Error("fail"),
-    );
-
-    render(<CreateSessionForm />);
-    await user.type(screen.getByLabelText(/Kode Saham/), "BBRI");
-    await user.click(screen.getByText("Buat Sesi"));
-    expect(await screen.findByText("Terjadi kesalahan. Silakan coba lagi.")).toBeTruthy();
-    expect(screen.getByLabelText(/Kode Saham/)).toHaveValue("BBRI");
-  });
-});
-
-// -------------------------------------------------------------------
-// Boundaries
-// -------------------------------------------------------------------
-describe("boundaries", () => {
-  it("does not call fetch directly", () => {
-    const src = CreateSessionForm.toString();
-    expect(src).not.toContain("fetch(");
-    expect(src).not.toContain('"/api/');
-    expect(src).not.toContain("http://localhost");
+  it("uses a mobile-safe single-column form with touch-safe controls and logical DOM order", () => {
+    const { container } = render(<CreateSessionForm />);
+    const controls = Array.from(container.querySelectorAll("input, textarea, button, a"));
+    expect(controls.map((control) => control.textContent || control.getAttribute("name"))).toEqual([
+      "ticker",
+      "company_name",
+      "note",
+      "Buat Sesi",
+      "Batal",
+    ]);
+    for (const field of screen.getAllByRole("textbox")) {
+      expect(field).toHaveClass("w-full", "min-w-0", "text-base");
+    }
+    expect(screen.getByRole("button", { name: "Buat Sesi" })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
+    expect(screen.getByRole("link", { name: "Batal" })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
+    expect(container.querySelector("form")).toHaveClass("min-w-0");
+    expect(container.innerHTML).not.toMatch(/\bw-\[[0-9]+(?:px|rem)/);
   });
 });

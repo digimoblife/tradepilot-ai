@@ -15,6 +15,10 @@ from app.trade_workspace.models.analysis_request import AnalysisRequestV2Observa
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
 from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
+from app.trade_workspace.services.eligibility import (
+    open_position_session_is_eligible,
+    single_open_position,
+)
 
 MAX_POSITION_UPDATE_INPUT_SIZE = 10 * 1024 * 1024
 SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg", "image/webp"})
@@ -169,7 +173,7 @@ class PositionUpdateInputService:
         )
         if trade_session is None:
             raise PositionUpdateInputSessionNotFoundError("Trade session not found")
-        if trade_session.status is not TradeSessionV2Status.OPEN_POSITION:
+        if not open_position_session_is_eligible(trade_session.status):
             raise PositionUpdateInputNotAllowedError(
                 "Position Update input is only allowed for OPEN_POSITION sessions"
             )
@@ -185,8 +189,8 @@ class PositionUpdateInputService:
             raise PositionUpdateInputNotAllowedError(
                 "Exactly one position is required for Position Update input"
             )
-        position = positions[0]
-        if position.status is not PositionV2Status.OPEN:
+        position = single_open_position(positions)
+        if position is None:
             raise PositionUpdateInputNotAllowedError(
                 "Position Update input requires an OPEN position"
             )

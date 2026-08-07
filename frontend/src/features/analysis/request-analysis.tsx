@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { requestAnalysis } from "@/lib/api/analyses";
 import { listEvidence } from "@/lib/api/evidence";
-import { ensureWatchingBatch, markWatchingBatchReady } from "@/lib/api/trade-sessions";
+import { ensureWatchingBatch, markWatchingBatchReady, markOpenPositionBatchReady, updateOpenPositionBatchCurrentPrice } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import { getRequiredTypesStatus } from "@/features/evidence/helpers";
 import type { AnalysisJobCreated } from "@/types/analysis-job";
@@ -31,6 +31,7 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
   const [submitState, setSubmitState] = useState<"idle" | "pending" | { type: "error"; message: string }>("idle");
   const [jobResult, setJobResult] = useState<AnalysisJobCreated | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<EvidenceBatchSummary | null>(currentBatch ?? null);
+  const [currentPrice, setCurrentPrice] = useState("");
   const cancelledRef = useRef(false);
   const submittingRef = useRef(false);
 
@@ -80,6 +81,17 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
           setSelectedBatch(batch);
         }
       }
+      if (analysisType === "OPEN_POSITION_UPDATE") {
+        if (!batch || !currentPrice.trim() || !Number.isFinite(Number(currentPrice)) || Number(currentPrice) <= 0) {
+          setSubmitState({ type: "error", message: "Harga saat ini wajib diisi dengan angka positif." });
+          return;
+        }
+        batch = await updateOpenPositionBatchCurrentPrice(sessionId, batch.id, currentPrice);
+        if (batch.status === "DRAFT") {
+          batch = await markOpenPositionBatchReady(sessionId, batch.id);
+          setSelectedBatch(batch);
+        }
+      }
       const job = await requestAnalysis(sessionId, { analysis_type: analysisType });
       if (cancelledRef.current) return;
       setJobResult(job);
@@ -101,7 +113,7 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
     } finally {
       submittingRef.current = false;
     }
-  }, [sessionId, analysisType, selectedBatch, submitState, onSuccess, typeLabel]);
+  }, [sessionId, analysisType, selectedBatch, currentPrice, submitState, onSuccess, typeLabel]);
 
   const submitError = typeof submitState === "object" && "type" in submitState ? submitState.message : null;
 
@@ -144,6 +156,23 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
         </p>
       )}
 
+      {analysisType === "OPEN_POSITION_UPDATE" && (
+        <div className="mb-3">
+          <label htmlFor="open-position-current-price" className="block text-xs font-medium text-zinc-600">Harga Saat Ini</label>
+          <input
+            id="open-position-current-price"
+            type="number"
+            min="0"
+            step="any"
+            required
+            value={currentPrice}
+            onChange={(event) => setCurrentPrice(event.target.value)}
+            className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-zinc-500">Masukkan harga terakhir yang terlihat pada orderbook.</p>
+        </div>
+      )}
+
       {jobResult && (
         <div className="mb-3 rounded border border-green-200 bg-green-50 p-2 text-sm text-green-700">
           Permintaan {typeLabel.toLowerCase()} telah dikirim. Status: {jobResult.status}
@@ -159,7 +188,7 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={submitState === "pending" || !allRequiredPresent || !!jobResult}
+        disabled={submitState === "pending" || !allRequiredPresent || !!jobResult || (analysisType === "OPEN_POSITION_UPDATE" && (!currentPrice.trim() || !Number.isFinite(Number(currentPrice)) || Number(currentPrice) <= 0))}
         className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
       >
         {submitState === "pending"
