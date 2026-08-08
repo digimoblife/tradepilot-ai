@@ -112,6 +112,7 @@ describe("Position Update Frontend", () => {
 
     expect(await screen.findByRole("heading", { name: "Position Update" })).toBeTruthy();
     expect(screen.getByLabelText(/orderbook/i)).toBeTruthy();
+    expect(screen.getByLabelText("Broker Flow — 1D (Optional)")).not.toBeRequired();
     expect(screen.getByLabelText(/harga saat ini/i)).toBeTruthy();
     expect(screen.getByLabelText(/periode observasi/i)).toBeTruthy();
     expect(screen.getByLabelText(/waktu observasi/i)).toBeTruthy();
@@ -173,12 +174,63 @@ describe("Position Update Frontend", () => {
     await waitFor(() => {
       expect(uploadPositionUpdateInput).toHaveBeenCalledWith("session-a", {
         orderbook: file,
+        broker_flow_1d: null,
         current_price: "1250.00",
         observation_period: "MIDDAY",
         observation_timestamp: expect.any(String),
       });
       expect(submitPositionUpdateAnalysis).toHaveBeenCalledWith("session-a");
     });
+  });
+
+  it("submits optional Broker Flow and renders its analysis only when present", async () => {
+    const user = userEvent.setup();
+    const orderbook = new File(["image"], "orderbook.png", { type: "image/png" });
+    const brokerFlow = new File(["broker"], "broker-flow.png", { type: "image/png" });
+    vi.mocked(uploadPositionUpdateInput).mockResolvedValue({
+      evidence_id: "ev-1", session_id: "session-a", position_id: "pos-1",
+      evidence_type: "ORDERBOOK", original_filename: "orderbook.png", mime_type: "image/png",
+      size_bytes: 5, current_price: "1250.00", observation_period: "AFTERNOON",
+      observation_timestamp: "2026-07-30T15:00:00Z", uploaded_at: "2026-07-30T15:01:00Z",
+      session_status: "OPEN_POSITION", position_status: "OPEN",
+    });
+    vi.mocked(submitPositionUpdateAnalysis).mockResolvedValue({
+      analysis_request_id: "req-3", session_id: "session-a", position_id: "pos-1",
+      analysis_type: "POSITION_UPDATE", request_status: "PENDING", evidence_id: "ev-1",
+      observation_period: "AFTERNOON", session_status: "OPEN_POSITION",
+      position_status: "OPEN", created_at: "2026-07-30T15:01:00Z",
+    });
+    render(<PositionUpdatePanel sessionId="session-a" sessionStatus="OPEN_POSITION" initialPosition={mockPosition} />);
+    await screen.findByRole("heading", { name: "Position Update" });
+    await user.upload(screen.getByLabelText(/orderbook screenshot/i), orderbook);
+    await user.upload(screen.getByLabelText("Broker Flow — 1D (Optional)"), brokerFlow);
+    await user.type(screen.getByLabelText(/harga saat ini/i), "1250.00");
+    fireEvent.change(screen.getByLabelText(/periode observasi/i), { target: { value: "AFTERNOON" } });
+    fireEvent.change(screen.getByLabelText(/waktu observasi/i), { target: { value: "2026-07-30T15:00" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Kirim Position Update" }).closest("form")!);
+    await waitFor(() => expect(uploadPositionUpdateInput).toHaveBeenCalledWith("session-a", {
+      orderbook,
+      broker_flow_1d: brokerFlow,
+      current_price: "1250.00",
+      observation_period: "AFTERNOON",
+      observation_timestamp: expect.any(String),
+    }));
+
+    render(<PositionUpdateResultView result={{
+      orderbook_assessment: "Tekanan jual meningkat.",
+      broker_flow_analysis: {
+        assessment: "DISTRIBUTION",
+        analysis: "Distribusi mulai muncul dan meningkatkan risiko posisi.",
+      },
+    }} />);
+    expect(screen.getByRole("heading", { name: "Analisa Broker Flow" })).toBeTruthy();
+    expect(screen.getByText("DISTRIBUTION")).toBeTruthy();
+    expect(screen.getByText(/meningkatkan risiko posisi/)).toBeTruthy();
+  });
+
+  it("omits Broker Flow analysis when historical Position output has no field", () => {
+    render(<PositionUpdateResultView result={{ update_summary: "Riwayat lama" }} />);
+    expect(screen.queryByRole("heading", { name: "Analisa Broker Flow" })).toBeNull();
   });
 
   it("displays chronological Position Updates and completed analysis sections", async () => {

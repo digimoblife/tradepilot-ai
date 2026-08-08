@@ -108,6 +108,8 @@ class PositionUpdateAnalysisSubmissionService:
                     "An active Position Update analysis request already exists"
                 )
             evidence = await self._select_latest_evidence(session_id)
+            broker_flow = await self._select_matching_broker_flow(session_id, evidence)
+            evidence_records = [evidence] + ([broker_flow] if broker_flow is not None else [])
             snapshot = {
                 "session_id": str(trade_session.id),
                 "ticker": trade_session.ticker,
@@ -134,7 +136,7 @@ class PositionUpdateAnalysisSubmissionService:
                     current_price=evidence.current_price,
                     observation_period=evidence.observation_period,
                     observation_at=evidence.observation_timestamp,
-                    evidence_ids=[evidence.id],
+                    evidence_ids=[item.id for item in evidence_records],
                 )
                 await self._session.commit()
             except (SessionNotFoundError, SessionOwnershipMismatchError) as exc:
@@ -250,6 +252,27 @@ class PositionUpdateAnalysisSubmissionService:
                 "Created Position Update analysis request could not be read"
             )
         return created_at
+
+    async def _select_matching_broker_flow(
+        self,
+        session_id: uuid.UUID,
+        orderbook: EvidenceUploadV2,
+    ) -> EvidenceUploadV2 | None:
+        return await self._session.scalar(
+            select(EvidenceUploadV2)
+            .where(
+                EvidenceUploadV2.session_id == session_id,
+                EvidenceUploadV2.evidence_type == EvidenceUploadV2Type.BROKER_FLOW_1D,
+                EvidenceUploadV2.analysis_request_id.is_(None),
+                EvidenceUploadV2.current_price == orderbook.current_price,
+                EvidenceUploadV2.observation_period == orderbook.observation_period,
+                EvidenceUploadV2.observation_timestamp == orderbook.observation_timestamp,
+                EvidenceUploadV2.uploaded_at == orderbook.uploaded_at,
+                func.length(func.btrim(EvidenceUploadV2.file_path)) > 0,
+            )
+            .limit(1)
+            .with_for_update()
+        )
 
     async def _acquire_lock(self, session_id: uuid.UUID) -> None:
         self._lock_key = int.from_bytes(session_id.bytes[:8], byteorder="big", signed=True)

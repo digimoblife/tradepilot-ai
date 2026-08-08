@@ -5,16 +5,19 @@ export type AnalysisPayload = Record<string, unknown>;
 const knownFields: Record<AnalysisType, readonly string[]> = {
   INITIAL_ANALYSIS: [
     "summary", "orderbook_analysis", "three_month_chart_analysis", "six_month_chart_analysis",
+    "foreign_flow_analysis",
     "support", "resistance", "entry_area", "stop_recommendation", "target_recommendation",
     "probabilities", "risks", "trading_plan", "conclusion",
   ],
   WAIT_UPDATE: [
     "update_summary", "current_price", "orderbook_assessment", "change_from_previous_analysis",
+    "broker_flow_analysis",
     "current_entry_condition", "upside_probability", "downside_probability", "key_risks",
     "recommended_action", "next_plan", "conclusion",
   ],
   POSITION_UPDATE: [
     "update_summary", "current_price", "position_condition", "orderbook_assessment",
+    "broker_flow_analysis",
     "change_from_previous_analysis", "target_realism", "downside_risk", "target_probability",
     "trading_plan", "monitoring_points", "warnings", "conclusion",
   ],

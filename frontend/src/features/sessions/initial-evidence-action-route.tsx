@@ -8,7 +8,7 @@ import { useRouteSession } from "@/features/sessions/use-route-session";
 import { useSessionCurrentStep } from "@/features/sessions/use-session-current-step";
 import { submitInitialAnalysis, uploadInitialEvidence } from "@/features/trade-workspace/api";
 
-type EvidenceField = "orderbook" | "chart_3_month" | "chart_6_month";
+type EvidenceField = "orderbook" | "chart_3_month" | "chart_6_month" | "foreign_flow_1w";
 type Files = Partial<Record<EvidenceField, File>>;
 type Operation = "idle" | "uploading" | "reconciling" | "submitting-analysis" | "confirmation-failed";
 
@@ -16,6 +16,7 @@ const fields: ReadonlyArray<readonly [EvidenceField, string]> = [
   ["orderbook", "Orderbook"],
   ["chart_3_month", "Chart 3 Bulan"],
   ["chart_6_month", "Chart 6 Bulan"],
+  ["foreign_flow_1w", "Foreign Flow — 1W"],
 ];
 
 function isActionable(step: { code: string; mode: string; read_only: boolean; workflow_actions: string[] }, action: string) {
@@ -69,7 +70,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
   const canSubmitAnalysis = detail.status === "success" && detail.currentStep.code === "INITIAL_ANALYSIS" && isActionable(detail.currentStep, "REQUEST_INITIAL_ANALYSIS");
   const processing = detail.status === "success" && detail.currentStep.mode === "PROCESSING" && actions.length === 0;
   const controlsLocked = operation !== "idle";
-  const complete = Boolean(files.orderbook && files.chart_3_month && files.chart_6_month);
+  const complete = Boolean(files.orderbook && files.chart_3_month && files.chart_6_month && files.foreign_flow_1w);
 
   const reconcile = async (requestedSessionId: string, requestedRouteGeneration: number, requestedMutationGeneration: number, message: string) => {
     if (!isCurrentMutation(requestedSessionId, requestedRouteGeneration, requestedMutationGeneration)) return false;
@@ -93,7 +94,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
 
   const upload = async () => {
     if (!complete) {
-      setFeedback("Lengkapi Orderbook, Chart 3 Bulan, dan Chart 6 Bulan sebelum mengunggah.");
+      setFeedback("Lengkapi Orderbook, Chart 3 Bulan, Chart 6 Bulan, dan Foreign Flow 1W sebelum mengunggah.");
       return;
     }
     if (!canUpload || uploadInFlightRef.current || analysisInFlightRef.current || controlsLocked) return;
@@ -143,7 +144,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
 
   const title = canUpload ? "Bukti Awal" : canSubmitAnalysis ? "Bukti Awal Lengkap" : processing ? "Analisis Awal Sedang Diproses" : "Bukti Awal Tidak Tersedia";
   const description = canUpload
-    ? "Unggah satu orderbook, chart 3 bulan, dan chart 6 bulan untuk menyiapkan Analisis Awal."
+    ? "Unggah satu orderbook, chart 3 bulan, chart 6 bulan, dan Foreign Flow 1W untuk menyiapkan Analisis Awal."
     : canSubmitAnalysis
       ? "Bukti Awal telah lengkap. Analisis Awal siap dimulai melalui tindakan terpisah."
       : processing
@@ -164,7 +165,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
           {fields.map(([key, label]) => (
             <label key={key} className="block min-w-0 text-sm font-semibold">
               {label}
-              <input type="file" accept="image/*" disabled={controlsLocked} onChange={(event) => select(key, event.target.files?.[0])} className="mt-2 block min-h-11 w-full min-w-0 text-sm" />
+              <input type="file" accept="image/*" required disabled={controlsLocked} onChange={(event) => select(key, event.target.files?.[0])} className="mt-2 block min-h-11 w-full min-w-0 text-sm" />
               {files[key] ? <span className="mt-1 block break-all [overflow-wrap:anywhere] font-normal text-[var(--color-text-muted)]">{files[key]?.name}</span> : null}
             </label>
           ))}

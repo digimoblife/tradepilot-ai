@@ -153,6 +153,8 @@ async def _post_input(
     *,
     form: dict[str, str] | None = None,
     file: tuple[str, bytes, str] | None = ("position.png", IMAGE, "image/png"),
+    broker_flow: tuple[str, bytes, str] | None = None,
+    foreign_flow: tuple[str, bytes, str] | None = None,
 ) -> tuple[int, dict[str, object]]:
     app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -161,7 +163,11 @@ async def _post_input(
                 "/api/auth/login", json={"email": email, "password": "testpass123"}
             )
             assert login.status_code == 200
-        files = {"orderbook": file} if file is not None else None
+        files = {"orderbook": file} if file is not None else {}
+        if broker_flow is not None:
+            files["broker_flow_1d"] = broker_flow
+        if foreign_flow is not None:
+            files["foreign_flow_1w"] = foreign_flow
         response = await client.post(
             f"/api/v2/trade-sessions/{session_id}/position-update-input",
             data=FORM if form is None else form,
@@ -238,6 +244,52 @@ async def test_owner_persists_position_update_input_without_lifecycle_changes(
     assert position.target_price == Decimal("1400.000000")
     assert position.note == "immutable position facts"
     assert await _count(db_session, AnalysisRequestV2, session_id) == 0
+
+
+async def test_position_update_input_accepts_optional_broker_flow_and_rejects_foreign_flow(
+    engine: AsyncEngine,
+    db_session: AsyncSession,
+    isolated_storage: LocalFileStorage,
+) -> None:
+    _, session_id, _, email = await _seed(engine)
+    code, _ = await _post_input(
+        db_session,
+        session_id,
+        email,
+        broker_flow=("broker-flow.png", IMAGE + b"broker", "image/png"),
+    )
+    assert code == 201
+    rows = list(
+        (
+            await db_session.scalars(
+                select(EvidenceUploadV2).where(EvidenceUploadV2.session_id == session_id)
+            )
+        ).all()
+    )
+    assert {row.evidence_type for row in rows} == {
+        EvidenceUploadV2Type.ORDERBOOK,
+        EvidenceUploadV2Type.BROKER_FLOW_1D,
+    }
+    broker = next(row for row in rows if row.evidence_type is EvidenceUploadV2Type.BROKER_FLOW_1D)
+    orderbook = next(
+        row
+        for row in rows
+        if row.evidence_type is EvidenceUploadV2Type.ORDERBOOK
+        and row.observation_timestamp == broker.observation_timestamp
+    )
+    assert broker.analysis_request_id is None
+    assert broker.uploaded_at == orderbook.uploaded_at
+    assert broker.current_price == orderbook.current_price
+
+    _, other_session_id, _, other_email = await _seed(engine)
+    rejected, _ = await _post_input(
+        db_session,
+        other_session_id,
+        other_email,
+        foreign_flow=("foreign-flow.png", IMAGE, "image/png"),
+    )
+    assert rejected == 422
+    assert await _count(db_session, EvidenceUploadV2, other_session_id) == 1
     assert await _count(db_session, SessionDecisionV2, session_id) == 0
     assert await _count(db_session, TradeClosureV2, session_id) == 0
 

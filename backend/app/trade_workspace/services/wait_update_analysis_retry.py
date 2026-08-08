@@ -189,11 +189,21 @@ class WaitUpdateAnalysisRetryService:
                 )
             ).all()
         )
-        if len(evidence) != 1:
+        if len(evidence) not in (1, 2):
             raise WaitUpdateAnalysisRetryEvidenceError(
-                "Exactly one linked WAIT Update evidence record is required"
+                "WAIT Update requires ORDERBOOK and at most one BROKER_FLOW_1D"
             )
-        item = evidence[0]
+        orderbooks = [
+            item for item in evidence if item.evidence_type is EvidenceUploadV2Type.ORDERBOOK
+        ]
+        broker_flows = [
+            item for item in evidence if item.evidence_type is EvidenceUploadV2Type.BROKER_FLOW_1D
+        ]
+        if len(orderbooks) != 1 or len(broker_flows) != len(evidence) - 1:
+            raise WaitUpdateAnalysisRetryEvidenceError(
+                "WAIT Update requires ORDERBOOK and optionally BROKER_FLOW_1D"
+            )
+        item = orderbooks[0]
         if (
             item.session_id != session_id
             or item.evidence_type is not EvidenceUploadV2Type.ORDERBOOK
@@ -208,6 +218,15 @@ class WaitUpdateAnalysisRetryService:
         ):
             raise WaitUpdateAnalysisRetryEvidenceError(
                 "Linked WAIT Update evidence is invalid"
+            )
+        if any(
+            broker.session_id != session_id
+            or not broker.file_path.strip()
+            or Path(broker.file_path).is_absolute()
+            for broker in broker_flows
+        ):
+            raise WaitUpdateAnalysisRetryEvidenceError(
+                "Linked WAIT Update Broker Flow evidence is invalid"
             )
         if not wait_retry_evidence_is_valid(
             session_id=session_id,

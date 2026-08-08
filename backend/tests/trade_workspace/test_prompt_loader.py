@@ -88,11 +88,13 @@ def test_initial_analysis_prompt_has_the_approved_contract() -> None:
         "one orderbook image",
         "one three-month chart image",
         "one six-month chart image",
+        "one one-week foreign flow image",
         "current price is not supplied separately",
         "no position exists",
         "initial orderbook screenshot",
         "three-month chart screenshot",
         "six-month chart screenshot",
+        "foreign flow 1w screenshot",
         "exactly one json object",
         "no extra fields",
         "do not use markdown code fences",
@@ -115,7 +117,9 @@ def test_initial_analysis_prompt_has_the_approved_contract() -> None:
 
     assert lowered.index("initial orderbook screenshot") < lowered.index(
         "three-month chart screenshot"
-    ) < lowered.index("six-month chart screenshot")
+    ) < lowered.index("six-month chart screenshot") < lowered.index(
+        "foreign flow 1w screenshot"
+    )
 
 
 def test_initial_analysis_prompt_covers_exact_schema_sections() -> None:
@@ -125,6 +129,7 @@ def test_initial_analysis_prompt_covers_exact_schema_sections() -> None:
         "orderbook_analysis",
         "three_month_chart_analysis",
         "six_month_chart_analysis",
+        "foreign_flow_analysis",
         "support",
         "resistance",
         "entry_area",
@@ -136,6 +141,33 @@ def test_initial_analysis_prompt_covers_exact_schema_sections() -> None:
         "conclusion",
     ):
         assert section in text
+
+
+def test_initial_prompt_covers_foreign_flow_reasoning_and_guardrails() -> None:
+    text = " ".join(
+        RebuildPromptLoader()
+        .load(RebuildPromptType.INITIAL_ANALYSIS)
+        .prompt_text.lower()
+        .split()
+    )
+
+    for phrase in (
+        "accumulation",
+        "neutral",
+        "distribution",
+        "visible trading days",
+        "sustained or isolated",
+        "visible magnitude",
+        "price direction",
+        "confirmation of or divergence",
+        "strengthens, weakens, or leaves the broader thesis unchanged",
+        "one large foreign-buying day",
+        "do not invent unreadable figures",
+        "do not claim certainty",
+        "supporting evidence",
+        "do not apply a fixed arithmetic bonus or penalty",
+    ):
+        assert phrase in text
 
 
 def test_initial_analysis_prompt_has_no_provider_or_fallback_instruction() -> None:

@@ -30,7 +30,6 @@ from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.session_decision import SessionDecisionV2
 from app.trade_workspace.models.trade_closure import TradeClosureV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
-from app.trade_workspace.queue.analysis_request_queue import AnalysisRequestQueue
 from app.trade_workspace.services.position_update_analysis_submission import (
     PositionUpdateAnalysisPersistenceError,
     PositionUpdateAnalysisSubmissionService,
@@ -244,6 +243,16 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
         session_id,
         observation_timestamp=OBSERVATION,
         current_price=Decimal("1234.567890"),
+        uploaded_at=OBSERVATION,
+    )
+    broker_flow_id = await _add_evidence(
+        engine,
+        session_id,
+        observation_timestamp=OBSERVATION,
+        current_price=Decimal("1234.567890"),
+        uploaded_at=OBSERVATION,
+        evidence_type=EvidenceUploadV2Type.BROKER_FLOW_1D,
+        file_path="user/session/broker-flow.png",
     )
     await _add_evidence(
         engine,
@@ -297,6 +306,10 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
         select(EvidenceUploadV2).where(EvidenceUploadV2.id == latest_id)
     )
     assert linked is not None and linked.analysis_request_id == request_id
+    linked_broker = await db_session.scalar(
+        select(EvidenceUploadV2).where(EvidenceUploadV2.id == broker_flow_id)
+    )
+    assert linked_broker is not None and linked_broker.analysis_request_id == request_id
     assert (
         await db_session.scalar(
             select(EvidenceUploadV2.analysis_request_id).where(
@@ -370,18 +383,10 @@ async def test_no_eligible_evidence_and_ownership_are_safe(
         current_price=None,
     )
     _, other_session, _, other_email = await _seed_session(engine)
-    cross_code, cross_payload = await _post(
-        db_session, session_id, other_email
-    )
-    missing_code, missing_payload = await _post(
-        db_session, uuid.uuid4(), owner_email
-    )
-    no_input_code, no_input_payload = await _post(
-        db_session, other_session, other_email
-    )
-    unauth_code, unauth_payload = await _post(
-        db_session, session_id, None
-    )
+    cross_code, cross_payload = await _post(db_session, session_id, other_email)
+    missing_code, missing_payload = await _post(db_session, uuid.uuid4(), owner_email)
+    no_input_code, no_input_payload = await _post(db_session, other_session, other_email)
+    unauth_code, unauth_payload = await _post(db_session, session_id, None)
     assert cross_code == missing_code == 404
     assert (
         cross_payload["error"]["code"] == missing_payload["error"]["code"] == "SESSION_NOT_FOUND"
@@ -458,6 +463,7 @@ async def test_concurrent_same_session_submission_creates_at_most_one_request(
     _, session_id, _, email = await _seed_session(engine)
     await _add_evidence(engine, session_id, observation_timestamp=OBSERVATION)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     async def submit() -> int:
         async with factory() as session:
             return (
@@ -482,6 +488,7 @@ async def test_session_a_does_not_block_session_b(
     await _add_evidence(engine, owner[1], observation_timestamp=OBSERVATION)
     await _add_evidence(engine, session_b, observation_timestamp=OBSERVATION)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     async def submit(session_id: uuid.UUID) -> int:
         async with factory() as session:
             return (

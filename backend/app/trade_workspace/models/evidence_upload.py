@@ -18,6 +18,8 @@ class EvidenceUploadV2Type(str, enum.Enum):
     ORDERBOOK = "ORDERBOOK"
     CHART_3_MONTH = "CHART_3_MONTH"
     CHART_6_MONTH = "CHART_6_MONTH"
+    FOREIGN_FLOW_1W = "FOREIGN_FLOW_1W"
+    BROKER_FLOW_1D = "BROKER_FLOW_1D"
 
 
 class EvidenceUploadV2(Base):

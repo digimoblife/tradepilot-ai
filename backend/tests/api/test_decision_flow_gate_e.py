@@ -203,7 +203,12 @@ async def test_gate_e_wait_is_auditable_and_preserves_related_data(
                 processed_response={"summary": "preserved"},
             )
         )
-        for evidence_type in EvidenceUploadV2Type:
+        for evidence_type in (
+            EvidenceUploadV2Type.ORDERBOOK,
+            EvidenceUploadV2Type.CHART_3_MONTH,
+            EvidenceUploadV2Type.CHART_6_MONTH,
+            EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+        ):
             await connection.execute(
                 EvidenceUploadV2.__table__.insert().values(
                     id=uuid.uuid4(),
@@ -243,7 +248,7 @@ async def test_gate_e_wait_is_auditable_and_preserves_related_data(
     assert await _count(db_session, PositionV2, session_id) == 0
     assert await _count(db_session, TradeClosureV2, session_id) == 0
     assert await _count(db_session, AnalysisRequestV2, session_id) == 1
-    assert await _count(db_session, EvidenceUploadV2, session_id) == 3
+    assert await _count(db_session, EvidenceUploadV2, session_id) == 4
     code, availability = await _request(
         db_session,
         f"/api/v2/trade-sessions/{session_id}/available-actions",
@@ -331,9 +336,7 @@ async def test_gate_e_buy_preserves_facts_creates_one_position_and_rejects_repea
     assert position.target_price == Decimal("120.750000")
     code, error = await _request(db_session, path, email, method="POST", body=BUY_BODY)
     assert code == 409 and error["error"]["code"] == "BUY_NOT_ALLOWED"
-    existing_position_session = await _seed_session(
-        engine, user_id, TradeSessionV2Status.ANALYZED
-    )
+    existing_position_session = await _seed_session(engine, user_id, TradeSessionV2Status.ANALYZED)
     async with engine.begin() as connection:
         await connection.execute(
             PositionV2.__table__.insert().values(

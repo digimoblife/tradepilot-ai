@@ -61,6 +61,43 @@ describe("SessionAnalysisView", () => {
     expect(screen.queryByText("ignore")).toBeNull();
   });
 
+  it("renders flow analysis conditionally in the active dashboard and keeps historical payloads safe", async () => {
+    vi.mocked(getSessionDetail).mockResolvedValue(detail({
+      initial_analysis: request("initial", "INITIAL_ANALYSIS", "2026-01-01T00:00:00Z", {
+        ...initial,
+        foreign_flow_analysis: { assessment: "ACCUMULATION", analysis: "Akumulasi asing konsisten." },
+      }),
+      wait_updates: [request("wait", "WAIT_UPDATE", "2026-02-01T00:00:00Z", {
+        ...wait,
+        broker_flow_analysis: { assessment: "NEUTRAL", analysis: "Aktivitas broker masih campuran." },
+      })],
+      position_updates: [request("position", "POSITION_UPDATE", "2026-03-01T00:00:00Z", {
+        ...position,
+        broker_flow_analysis: { assessment: "DISTRIBUTION", analysis: "Distribusi meningkatkan risiko posisi." },
+      })],
+    }) as never);
+    const user = userEvent.setup();
+    const { container, unmount } = render(<SessionAnalysisView sessionId={sessionId} />);
+
+    expect(await screen.findByText("Distribusi meningkatkan risiko posisi.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Analisa Broker Flow" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Analisis WAIT/ }));
+    expect(screen.getByText("Aktivitas broker masih campuran.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Analisis Awal/ }));
+    expect(screen.getByRole("heading", { name: "Analisa Foreign Flow" })).toBeInTheDocument();
+    expect(screen.getByText("Akumulasi asing konsisten.")).toBeInTheDocument();
+    const headings = [...container.querySelectorAll("article[aria-live] h3")].map((item) => item.textContent);
+    expect(headings.indexOf("Analisis Grafik 6 Bulan")).toBeLessThan(headings.indexOf("Analisa Foreign Flow"));
+    expect(headings.indexOf("Analisa Foreign Flow")).toBeLessThan(headings.indexOf("Support"));
+
+    unmount();
+    vi.mocked(getSessionDetail).mockResolvedValue(detail() as never);
+    render(<SessionAnalysisView sessionId={sessionId} />);
+    expect(await screen.findByText("Ringkasan awal yang dipertahankan")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Analisa Foreign Flow" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Analisa Broker Flow" })).toBeNull();
+  });
+
   it("uses stable ID descending as tie-breaker for equal completed_at timestamps", async () => {
     vi.mocked(getSessionDetail).mockResolvedValue(
       detail({

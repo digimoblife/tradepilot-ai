@@ -21,6 +21,13 @@ from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessio
 
 pytestmark = pytest.mark.database
 
+_INITIAL_EVIDENCE_TYPES = (
+    EvidenceUploadV2Type.ORDERBOOK,
+    EvidenceUploadV2Type.CHART_3_MONTH,
+    EvidenceUploadV2Type.CHART_6_MONTH,
+    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+)
+
 
 class RecordingQueue:
     def __init__(self, *, fail: bool = False) -> None:
@@ -37,7 +44,7 @@ async def _seed(
     engine: AsyncEngine,
     *,
     status: TradeSessionV2Status = TradeSessionV2Status.DRAFT,
-    evidence_types: tuple[EvidenceUploadV2Type, ...] = tuple(EvidenceUploadV2Type),
+    evidence_types: tuple[EvidenceUploadV2Type, ...] = _INITIAL_EVIDENCE_TYPES,
 ) -> tuple[uuid.UUID, uuid.UUID, str]:
     user_id, session_id = uuid.uuid4(), uuid.uuid4()
     email = f"p53-{user_id}@example.test"
@@ -134,7 +141,7 @@ async def test_initial_analysis_submission_persists_request_links_evidence_and_s
     assert request.observation_at is None
     assert request.input_snapshot["session_id"] == str(session_id)
     assert set(request.input_snapshot["evidence_ids"]) == {
-        item.value for item in EvidenceUploadV2Type
+        item.value for item in _INITIAL_EVIDENCE_TYPES
     }
 
     evidence = list(
@@ -144,7 +151,7 @@ async def test_initial_analysis_submission_persists_request_links_evidence_and_s
             )
         ).all()
     )
-    assert len(evidence) == 3
+    assert len(evidence) == 4
     assert {item.analysis_request_id for item in evidence} == {request_id}
     assert {item.observation_period for item in evidence} == {None}
     owner = await db_session.scalar(
@@ -153,13 +160,13 @@ async def test_initial_analysis_submission_persists_request_links_evidence_and_s
     assert owner == user_id
 
 
-@pytest.mark.parametrize("missing", list(EvidenceUploadV2Type))
+@pytest.mark.parametrize("missing", list(_INITIAL_EVIDENCE_TYPES))
 async def test_missing_required_role_is_rejected_without_queue_or_request(
     engine: AsyncEngine, db_session: AsyncSession, missing: EvidenceUploadV2Type
 ) -> None:
     _, session_id, email = await _seed(
         engine,
-        evidence_types=tuple(x for x in EvidenceUploadV2Type if x != missing),
+        evidence_types=tuple(x for x in _INITIAL_EVIDENCE_TYPES if x != missing),
     )
     app = _app(db_session)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

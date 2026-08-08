@@ -140,8 +140,29 @@ describe("PositionUpdateActionRoute", () => {
     render(<PositionUpdateActionRoute sessionId={sessionId} />);
 
     expect(screen.getByLabelText(/Gambar Orderbook Terbaru/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Broker Flow — 1D (Optional)")).not.toBeRequired();
     expect(screen.queryByLabelText(/Chart 3 Bulan/i)).toBeNull();
     expect(screen.queryByLabelText(/Chart 6 Bulan/i)).toBeNull();
+  });
+
+  it("includes optional Broker Flow in the exact Position upload request", async () => {
+    const user = userEvent.setup();
+    const orderbook = new File(["orderbook"], "orderbook.png", { type: "image/png" });
+    const brokerFlow = new File(["broker"], "broker-flow.png", { type: "image/png" });
+    vi.mocked(uploadPositionUpdateInput).mockResolvedValue({} as never);
+    vi.mocked(submitPositionUpdateAnalysis).mockResolvedValue({} as never);
+    render(<PositionUpdateActionRoute sessionId={sessionId} />);
+
+    await user.upload(screen.getByLabelText(/Gambar Orderbook Terbaru/i), orderbook);
+    await user.upload(screen.getByLabelText("Broker Flow — 1D (Optional)"), brokerFlow);
+    await user.type(screen.getByLabelText(/Harga Saat Ini/i), "5000");
+    await user.type(screen.getByLabelText(/Waktu Pengamatan/i), "2026-08-08T10:00");
+    await user.click(screen.getByRole("button", { name: "Kirim Pembaruan Posisi" }));
+
+    await waitFor(() => expect(uploadPositionUpdateInput).toHaveBeenCalledWith(sessionId, expect.objectContaining({
+      orderbook,
+      broker_flow_1d: brokerFlow,
+    })));
   });
 
   it("validates missing orderbook file, price, and timestamp before calling API", async () => {

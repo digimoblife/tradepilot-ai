@@ -214,13 +214,24 @@ async def upload_initial_evidence(
     orderbook: UploadFile = File(...),
     chart_3_month: UploadFile = File(...),
     chart_6_month: UploadFile = File(...),
+    foreign_flow_1w: UploadFile = File(...),
+    broker_flow_1d: UploadFile | None = File(None),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> InitialEvidenceUploadResponse:
+    if broker_flow_1d is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "INITIAL_EVIDENCE_INVALID_FILE",
+                "message": "BROKER_FLOW_1D is not valid Initial Evidence",
+            },
+        )
     uploads = (
         (orderbook, EvidenceUploadV2Type.ORDERBOOK),
         (chart_3_month, EvidenceUploadV2Type.CHART_3_MONTH),
         (chart_6_month, EvidenceUploadV2Type.CHART_6_MONTH),
+        (foreign_flow_1w, EvidenceUploadV2Type.FOREIGN_FLOW_1W),
     )
     inputs = [
         InitialEvidenceInput(
@@ -262,7 +273,6 @@ async def read_initial_evidence(
 
 
 @router.post(
-
     "/{session_id}/wait-update-input",
     response_model=WaitUpdateInputResponse,
     status_code=status.HTTP_201_CREATED,
@@ -270,12 +280,22 @@ async def read_initial_evidence(
 async def submit_wait_update_input(
     session_id: uuid.UUID,
     orderbook: UploadFile = File(...),
+    broker_flow_1d: UploadFile | None = File(None),
+    foreign_flow_1w: UploadFile | None = File(None),
     current_price: Decimal = Form(...),
     observation_period: AnalysisRequestV2ObservationPeriod = Form(...),
     observation_timestamp: datetime = Form(...),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> WaitUpdateInputResponse:
+    if foreign_flow_1w is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "WAIT_UPDATE_INPUT_INVALID",
+                "message": "FOREIGN_FLOW_1W is not valid WAIT Update evidence",
+            },
+        )
     try:
         result = await WaitUpdateInputService(db_session).submit(
             user_id=current_user.id,
@@ -286,6 +306,17 @@ async def submit_wait_update_input(
             current_price=current_price,
             observation_period=observation_period,
             observation_timestamp=observation_timestamp,
+            broker_flow_original_filename=(
+                _safe_original_filename(broker_flow_1d.filename)
+                if broker_flow_1d is not None
+                else None
+            ),
+            broker_flow_mime_type=(
+                broker_flow_1d.content_type or "" if broker_flow_1d is not None else None
+            ),
+            broker_flow_content=(
+                await broker_flow_1d.read() if broker_flow_1d is not None else None
+            ),
         )
     except WaitUpdateInputError as exc:
         if exc.code == "SESSION_NOT_FOUND":
@@ -317,12 +348,22 @@ async def submit_wait_update_input(
 async def submit_position_update_input(
     session_id: uuid.UUID,
     orderbook: UploadFile = File(...),
+    broker_flow_1d: UploadFile | None = File(None),
+    foreign_flow_1w: UploadFile | None = File(None),
     current_price: Decimal = Form(...),
     observation_period: AnalysisRequestV2ObservationPeriod = Form(...),
     observation_timestamp: datetime = Form(...),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> PositionUpdateInputResponse:
+    if foreign_flow_1w is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "POSITION_UPDATE_INPUT_INVALID",
+                "message": "FOREIGN_FLOW_1W is not valid Position Update evidence",
+            },
+        )
     try:
         result = await PositionUpdateInputService(db_session).submit(
             user_id=current_user.id,
@@ -333,6 +374,17 @@ async def submit_position_update_input(
             current_price=current_price,
             observation_period=observation_period,
             observation_timestamp=observation_timestamp,
+            broker_flow_original_filename=(
+                _safe_original_filename(broker_flow_1d.filename)
+                if broker_flow_1d is not None
+                else None
+            ),
+            broker_flow_mime_type=(
+                broker_flow_1d.content_type or "" if broker_flow_1d is not None else None
+            ),
+            broker_flow_content=(
+                await broker_flow_1d.read() if broker_flow_1d is not None else None
+            ),
         )
     except PositionUpdateInputError as exc:
         if exc.code == "SESSION_NOT_FOUND":

@@ -17,6 +17,13 @@ from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 from app.trade_workspace.services.current_step import CurrentStepService
 
+INITIAL_EVIDENCE_TYPES = (
+    EvidenceUploadV2Type.ORDERBOOK,
+    EvidenceUploadV2Type.CHART_3_MONTH,
+    EvidenceUploadV2Type.CHART_6_MONTH,
+    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+)
+
 NOW = datetime(2026, 8, 5, tzinfo=timezone.utc)
 
 
@@ -156,7 +163,7 @@ def test_terminal_and_archive_precedence(status, archived, code, mode, read_only
 def test_normal_action_matrix_and_inconsistent_states() -> None:
     draft = _session(TradeSessionV2Status.DRAFT)
     assert _derive(draft)["workflow_actions"] == ["SUBMIT_INITIAL_EVIDENCE"]
-    initial = tuple(_evidence(draft, item) for item in EvidenceUploadV2Type)
+    initial = tuple(_evidence(draft, item) for item in INITIAL_EVIDENCE_TYPES)
     assert _derive(draft, evidence=initial)["code"] == "INITIAL_ANALYSIS"
 
     analyzed = _session(TradeSessionV2Status.ANALYZED)
@@ -230,8 +237,7 @@ def test_latest_relevant_request_is_deterministic_and_supersedes_failure() -> No
         request_id=uuid.UUID(int=3),
     )
     assert (
-        _derive(trade_session, requests=(completed, same_time_processing))["code"]
-        == "PROCESSING"
+        _derive(trade_session, requests=(completed, same_time_processing))["code"] == "PROCESSING"
     )
 
     older_active = _request(
@@ -265,7 +271,7 @@ def test_failed_retry_contract_matches_supported_retry_services() -> None:
         AnalysisRequestV2Status.FAILED,
     )
     linked_initial = tuple(
-        _evidence(draft, item, request=initial_request) for item in EvidenceUploadV2Type
+        _evidence(draft, item, request=initial_request) for item in INITIAL_EVIDENCE_TYPES
     )
     initial_payload = _derive(
         draft,

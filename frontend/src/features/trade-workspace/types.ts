@@ -231,6 +231,7 @@ export interface WaitUpdateResult {
   update_summary: unknown;
   current_price: unknown;
   orderbook_assessment: unknown;
+  broker_flow_analysis?: FlowAnalysis | null;
   change_from_previous_analysis: unknown;
   current_entry_condition: unknown;
   upside_probability: unknown;
@@ -287,6 +288,7 @@ export interface InitialAnalysisResult {
   orderbook_analysis: string;
   three_month_chart_analysis: string;
   six_month_chart_analysis: string;
+  foreign_flow_analysis?: FlowAnalysis | null;
   support: { low: number | string; high: number | string; note: string };
   resistance: { low: number | string; high: number | string; note: string };
   entry_area: { low: number | string; high: number | string; note: string };
@@ -345,6 +347,7 @@ export interface PositionUpdateResult {
   current_price?: unknown;
   position_condition?: unknown;
   orderbook_assessment?: unknown;
+  broker_flow_analysis?: FlowAnalysis | null;
   change_from_previous_analysis?: unknown;
   target_realism?: unknown;
   downside_risk?: unknown;
@@ -353,6 +356,11 @@ export interface PositionUpdateResult {
   monitoring_points?: unknown;
   warnings?: unknown;
   conclusion?: unknown;
+}
+
+export interface FlowAnalysis {
+  assessment: "ACCUMULATION" | "NEUTRAL" | "DISTRIBUTION";
+  analysis: string;
 }
 
 export interface PositionUpdateItem {

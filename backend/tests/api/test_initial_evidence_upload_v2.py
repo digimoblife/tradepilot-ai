@@ -103,6 +103,7 @@ def _files(*, omit: str | None = None, content: bytes = _PNG) -> dict[str, tuple
         "orderbook": ("orderbook.png", content, "image/png"),
         "chart_3_month": ("three-month.png", content, "image/png"),
         "chart_6_month": ("six-month.png", content, "image/png"),
+        "foreign_flow_1w": ("foreign-flow.png", content, "image/png"),
     }
     if omit is not None:
         del all_files[omit]
@@ -113,9 +114,7 @@ def _storage_factory(root: Path) -> Callable[[object], LocalFileStorage]:
     return lambda _config: LocalFileStorage(root)
 
 
-async def _evidence_rows(
-    session: AsyncSession, session_id: uuid.UUID
-) -> list[EvidenceUploadV2]:
+async def _evidence_rows(session: AsyncSession, session_id: uuid.UUID) -> list[EvidenceUploadV2]:
     return list(
         (
             await session.scalars(
@@ -153,6 +152,7 @@ async def test_owner_uploads_exact_initial_set_and_persists_metadata(
         "ORDERBOOK",
         "CHART_3_MONTH",
         "CHART_6_MONTH",
+        "FOREIGN_FLOW_1W",
     ]
     required_fields = {
         "id",
@@ -167,14 +167,20 @@ async def test_owner_uploads_exact_initial_set_and_persists_metadata(
         "orderbook.png",
         "three-month.png",
         "six-month.png",
+        "foreign-flow.png",
     ]
     assert all(item["mime_type"] == "image/png" and item["size_bytes"] > 0 for item in items)
-    assert len(_stored_files(tmp_path)) == 3
+    assert len(_stored_files(tmp_path)) == 4
 
     rows = await _evidence_rows(db_session, session_id)
-    assert len(rows) == 3
+    assert len(rows) == 4
     assert {row.session_id for row in rows} == {session_id}
-    assert {row.evidence_type for row in rows} == set(EvidenceUploadV2Type)
+    assert {row.evidence_type for row in rows} == {
+        EvidenceUploadV2Type.ORDERBOOK,
+        EvidenceUploadV2Type.CHART_3_MONTH,
+        EvidenceUploadV2Type.CHART_6_MONTH,
+        EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+    }
     assert all(row.analysis_request_id is None for row in rows)
     assert all(row.observation_period is None for row in rows)
     assert all(row.file_path and not Path(row.file_path).is_absolute() for row in rows)
@@ -185,10 +191,19 @@ async def test_owner_uploads_exact_initial_set_and_persists_metadata(
         select(TradeSessionV2.user_id).where(TradeSessionV2.id == session_id)
     )
     assert user_id == owner
-    assert await db_session.scalar(select(func.count(AnalysisRequestV2.id))) == 0
+    assert (
+        await db_session.scalar(
+            select(func.count(AnalysisRequestV2.id)).where(
+                AnalysisRequestV2.session_id == session_id
+            )
+        )
+        == 0
+    )
 
 
-@pytest.mark.parametrize("omit", ["orderbook", "chart_3_month", "chart_6_month"])
+@pytest.mark.parametrize(
+    "omit", ["orderbook", "chart_3_month", "chart_6_month", "foreign_flow_1w"]
+)
 async def test_missing_required_file_is_rejected_without_side_effects(
     client: AsyncClient,
     engine: AsyncEngine,
@@ -204,6 +219,29 @@ async def test_missing_required_file_is_rejected_without_side_effects(
     response = await client.post(
         f"/api/v2/trade-sessions/{session_id}/initial-evidence",
         files=_files(omit=omit),
+    )
+
+    assert response.status_code == 422
+    assert len(await _evidence_rows(db_session, session_id)) == 0
+    assert _stored_files(tmp_path) == []
+
+
+async def test_broker_flow_is_rejected_as_initial_evidence(
+    client: AsyncClient,
+    engine: AsyncEngine,
+    db_session: AsyncSession,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, session_id, email = await _make_user_and_session(engine)
+    monkeypatch.setattr(evidence_service, "create_file_storage", _storage_factory(tmp_path))
+    await _login(client, email)
+    files = _files()
+    files["broker_flow_1d"] = ("broker-flow.png", _PNG, "image/png")
+
+    response = await client.post(
+        f"/api/v2/trade-sessions/{session_id}/initial-evidence",
+        files=files,
     )
 
     assert response.status_code == 422
@@ -227,10 +265,7 @@ async def test_invalid_file_is_rejected_without_side_effects(
     _, session_id, email = await _make_user_and_session(engine)
     monkeypatch.setattr(evidence_service, "create_file_storage", _storage_factory(tmp_path))
     await _login(client, email)
-    files = {
-        key: (filename, content, mime_type)
-        for key, (filename, _, _) in _files().items()
-    }
+    files = {key: (filename, content, mime_type) for key, (filename, _, _) in _files().items()}
 
     response = await client.post(
         f"/api/v2/trade-sessions/{session_id}/initial-evidence",
@@ -310,10 +345,7 @@ async def test_duplicate_complete_or_partial_set_is_rejected_unchanged(
     assert [
         (row.id, row.file_path) for row in await _evidence_rows(db_session, session_id)
     ] == before_rows
-    after_files = sorted(
-        str(path.relative_to(tmp_path))
-        for path in _stored_files(tmp_path)
-    )
+    after_files = sorted(str(path.relative_to(tmp_path)) for path in _stored_files(tmp_path))
     assert after_files == before_files
 
     _, partial_session_id, partial_email = await _make_user_and_session(engine)
@@ -346,6 +378,35 @@ async def test_duplicate_complete_or_partial_set_is_rejected_unchanged(
     )
     assert partial_duplicate.status_code == 409
     assert len(await _evidence_rows(db_session, partial_session_id)) == 1
+
+
+async def test_initial_evidence_cannot_be_appended_or_replaced_after_submission(
+    client: AsyncClient,
+    engine: AsyncEngine,
+    db_session: AsyncSession,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, session_id, email = await _make_user_and_session(engine)
+    monkeypatch.setattr(evidence_service, "create_file_storage", _storage_factory(tmp_path))
+    await _login(client, email)
+    first = await client.post(
+        f"/api/v2/trade-sessions/{session_id}/initial-evidence", files=_files()
+    )
+    assert first.status_code == 201
+    submitted = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis")
+    assert submitted.status_code == 202
+    before = [(item.id, item.file_path) for item in await _evidence_rows(db_session, session_id)]
+
+    repeated = await client.post(
+        f"/api/v2/trade-sessions/{session_id}/initial-evidence", files=_files()
+    )
+
+    assert repeated.status_code == 409
+    assert [
+        (item.id, item.file_path) for item in await _evidence_rows(db_session, session_id)
+    ] == before
+    assert len(before) == 4
 
 
 class _FailingStorage:

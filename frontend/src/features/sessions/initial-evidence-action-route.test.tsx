@@ -42,13 +42,16 @@ beforeEach(() => {
 describe("InitialEvidenceActionRoute", () => {
   it("renders exactly the required role inputs and validates their complete selection", () => {
     render(<InitialEvidenceActionRoute sessionId={sessionA} />);
-    expect(screen.getAllByLabelText(/Orderbook|Chart 3 Bulan|Chart 6 Bulan/)).toHaveLength(3);
+    expect(screen.getAllByLabelText(/Orderbook|Chart 3 Bulan|Chart 6 Bulan|Foreign Flow/)).toHaveLength(4);
+    expect(screen.getByLabelText("Foreign Flow — 1W")).toBeRequired();
     const submit = screen.getByRole("button", { name: "Unggah Bukti Awal" });
     expect(submit).toBeDisabled();
     choose("Orderbook", "orderbook-long-file-name-that-must-wrap-on-small-devices.png");
     choose("Chart 3 Bulan", "three.png");
     expect(submit).toBeDisabled();
     choose("Chart 6 Bulan", "six.png");
+    expect(screen.getByRole("button", { name: "Unggah Bukti Awal" })).toBeDisabled();
+    choose("Foreign Flow — 1W", "foreign-flow.png");
     expect(submit).toBeEnabled();
     expect(screen.getByText(/orderbook-long-file-name/).className).toContain("break-all");
   });
@@ -57,7 +60,7 @@ describe("InitialEvidenceActionRoute", () => {
     let resolve!: () => void;
     vi.mocked(uploadInitialEvidence).mockImplementation(() => new Promise<void>((done) => { resolve = done; }) as never);
     render(<InitialEvidenceActionRoute sessionId={sessionA} />);
-    choose("Orderbook", "orderbook.png"); choose("Chart 3 Bulan", "three.png"); choose("Chart 6 Bulan", "six.png");
+    choose("Orderbook", "orderbook.png"); choose("Chart 3 Bulan", "three.png"); choose("Chart 6 Bulan", "six.png"); choose("Foreign Flow — 1W", "foreign-flow.png");
     const form = screen.getByRole("button", { name: "Unggah Bukti Awal" }).closest("form")!;
     fireEvent.submit(form); fireEvent.submit(form);
     expect(uploadInitialEvidence).toHaveBeenCalledTimes(1);
@@ -71,7 +74,7 @@ describe("InitialEvidenceActionRoute", () => {
     let resolve!: () => void;
     vi.mocked(uploadInitialEvidence).mockImplementation(() => new Promise<void>((done) => { resolve = done; }) as never);
     const view = render(<InitialEvidenceActionRoute sessionId={sessionA} />);
-    choose("Orderbook", "orderbook.png"); choose("Chart 3 Bulan", "three.png"); choose("Chart 6 Bulan", "six.png");
+    choose("Orderbook", "orderbook.png"); choose("Chart 3 Bulan", "three.png"); choose("Chart 6 Bulan", "six.png"); choose("Foreign Flow — 1W", "foreign-flow.png");
     fireEvent.submit(screen.getByRole("button", { name: "Unggah Bukti Awal" }).closest("form")!);
     view.rerender(<InitialEvidenceActionRoute sessionId={sessionB} />);
     expect(screen.queryByText("orderbook.png")).toBeNull();

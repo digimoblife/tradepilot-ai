@@ -1,13 +1,14 @@
 import type { FormEvent } from "react";
 import type { EvidenceFile } from "../types";
 
-type EvidenceKey = "orderbook" | "chart_3_month" | "chart_6_month";
+type EvidenceKey = "orderbook" | "chart_3_month" | "chart_6_month" | "foreign_flow_1w";
 type EvidenceFiles = Partial<Record<EvidenceKey, File>>;
 
 const requiredEvidence: Array<[EvidenceKey, string]> = [
   ["orderbook", "Order Book"],
   ["chart_3_month", "Grafik 3 Bulan"],
   ["chart_6_month", "Grafik 6 Bulan"],
+  ["foreign_flow_1w", "Foreign Flow — 1W"],
 ];
 
 export function InitialEvidencePanel({
@@ -37,7 +38,7 @@ export function InitialEvidencePanel({
 
   return <form onSubmit={onUpload} aria-label="Evidence Initial Analysis" className="min-w-0 rounded-[var(--radius-standard)] border border-[var(--color-border-strong)] bg-[var(--color-surface-standard)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
     <h3 className="text-[var(--text-size-card-title)] font-semibold leading-[var(--text-line-heading)] text-[var(--color-text-strong)]">Evidence Initial Analysis</h3>
-    <p className="mt-[var(--space-1)] break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-muted)]">Unggah tepat tiga gambar: order book, grafik 3 bulan, dan grafik 6 bulan.</p>
+    <p className="mt-[var(--space-1)] break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-muted)]">Unggah tepat empat gambar: order book, grafik 3 bulan, grafik 6 bulan, dan Foreign Flow 1W.</p>
     <fieldset className="mt-[var(--space-4)] grid min-w-0 gap-[var(--space-field)]">
       <legend className="sr-only">Evidence fields</legend>
       {requiredEvidence.map(([key, label]) => {

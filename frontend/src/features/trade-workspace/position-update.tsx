@@ -62,14 +62,21 @@ export function PositionUpdateResultView({ result }: { result: PositionUpdateRes
       {resultSections.map(([key, label]) => {
         const val = result[key];
         if (val === undefined) return null;
-        return (
+        return (<div key={key} className="contents">
           <article key={key} className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] p-4">
             <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{label}</h4>
             <p className="mt-2 whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
               {displayValue(val)}
             </p>
           </article>
-        );
+          {key === "orderbook_assessment" && result.broker_flow_analysis && (
+            <article className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] p-4">
+              <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">Analisa Broker Flow</h4>
+              <p className="mt-2 text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{result.broker_flow_analysis.assessment}</p>
+              <p className="mt-1 whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{result.broker_flow_analysis.analysis}</p>
+            </article>
+          )}
+        </div>);
       })}
     </section>
   );
@@ -187,6 +194,7 @@ export function PositionUpdatePanel({
   onClosed?: () => void | Promise<void>;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [brokerFlowFile, setBrokerFlowFile] = useState<File | null>(null);
   const [currentPrice, setCurrentPrice] = useState("");
   const [period, setPeriod] = useState<ObservationPeriod | "">("");
   const [timestamp, setTimestamp] = useState("");
@@ -280,6 +288,7 @@ export function PositionUpdatePanel({
       const isoTimestamp = new Date(timestamp).toISOString();
       await uploadPositionUpdateInput(sessionId, {
         orderbook: file,
+        broker_flow_1d: brokerFlowFile,
         current_price: currentPrice.trim(),
         observation_period: period,
         observation_timestamp: isoTimestamp,
@@ -288,6 +297,7 @@ export function PositionUpdatePanel({
       const nextRead = await Promise.resolve(readPositionUpdates(sessionId));
       setReadData(nextRead);
       setFile(null);
+      setBrokerFlowFile(null);
       setCurrentPrice("");
       setPeriod("");
       setTimestamp("");
@@ -385,8 +395,10 @@ export function PositionUpdatePanel({
           timestamp={timestamp}
           note={note}
           busy={busy !== null}
+          brokerFlowFile={brokerFlowFile}
           onSubmit={handleSubmit}
           onFileChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          onBrokerFlowFileChange={(event) => setBrokerFlowFile(event.target.files?.[0] ?? null)}
           onCurrentPriceChange={setCurrentPrice}
           onPeriodChange={setPeriod}
           onTimestampChange={setTimestamp}

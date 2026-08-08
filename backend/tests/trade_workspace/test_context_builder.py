@@ -93,6 +93,51 @@ def position_data(session_id: uuid.UUID) -> dict[str, object]:
 
 
 @pytest.mark.database
+async def test_initial_context_requires_foreign_flow_1w(engine) -> None:
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    user_id, session_id, request_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    async with factory() as session:
+        async with session.begin():
+            session.add(
+                User(
+                    id=user_id,
+                    email=f"evidence-expansion-{user_id}@example.test",
+                    password_hash="test-only",
+                )
+            )
+            session.add(
+                TradeSessionV2(
+                    id=session_id,
+                    user_id=user_id,
+                    ticker="BBRI",
+                    company_name="Bank BRI",
+                )
+            )
+            await session.flush()
+            session.add(
+                AnalysisRequestV2(
+                    id=request_id,
+                    **request_data(session_id, AnalysisRequestV2Type.INITIAL_ANALYSIS),
+                )
+            )
+            session.add_all(
+                EvidenceUploadV2(**evidence_data(session_id, evidence_type))
+                for evidence_type in (
+                    EvidenceUploadV2Type.ORDERBOOK,
+                    EvidenceUploadV2Type.CHART_3_MONTH,
+                    EvidenceUploadV2Type.CHART_6_MONTH,
+                )
+            )
+        with pytest.raises(MissingRequiredEvidenceError, match="FOREIGN_FLOW_1W"):
+            await RebuildAnalysisContextBuilder(session).build(
+                user_id=user_id,
+                session_id=session_id,
+                analysis_type=RebuildAnalysisType.INITIAL_ANALYSIS,
+                analysis_request_id=request_id,
+            )
+
+
+@pytest.mark.database
 async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     user_id = uuid.uuid4()
@@ -270,6 +315,7 @@ async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> N
                         EvidenceUploadV2Type.ORDERBOOK,
                         EvidenceUploadV2Type.CHART_3_MONTH,
                         EvidenceUploadV2Type.CHART_6_MONTH,
+                        EvidenceUploadV2Type.FOREIGN_FLOW_1W,
                     ]
                 )
             ]
@@ -339,6 +385,7 @@ async def test_rebuild_context_builder_uses_bounded_rebuild_context(engine) -> N
                 EvidenceUploadV2Type.ORDERBOOK,
                 EvidenceUploadV2Type.CHART_3_MONTH,
                 EvidenceUploadV2Type.CHART_6_MONTH,
+                EvidenceUploadV2Type.FOREIGN_FLOW_1W,
             ]
             assert initial_context.position is None
             assert initial_context.current_observation is None

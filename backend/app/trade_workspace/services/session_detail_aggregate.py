@@ -89,7 +89,13 @@ class SessionDetailAggregateService:
             .where(
                 EvidenceUploadV2.session_id == session_id,
                 EvidenceUploadV2.evidence_type.in_(
-                    [EvidenceUploadV2Type.ORDERBOOK, EvidenceUploadV2Type.CHART_3_MONTH, EvidenceUploadV2Type.CHART_6_MONTH]
+                    [
+                        EvidenceUploadV2Type.ORDERBOOK,
+                        EvidenceUploadV2Type.CHART_3_MONTH,
+                        EvidenceUploadV2Type.CHART_6_MONTH,
+                        EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+                        EvidenceUploadV2Type.BROKER_FLOW_1D,
+                    ]
                 ),
             )
             .order_by(EvidenceUploadV2.uploaded_at.asc(), EvidenceUploadV2.id.asc())
@@ -131,6 +137,7 @@ class SessionDetailAggregateService:
             EvidenceUploadV2Type.ORDERBOOK,
             EvidenceUploadV2Type.CHART_3_MONTH,
             EvidenceUploadV2Type.CHART_6_MONTH,
+            EvidenceUploadV2Type.FOREIGN_FLOW_1W,
         }
         initial_requests = [item for item in requests if item.analysis_type is AnalysisRequestV2Type.INITIAL_ANALYSIS]
         initial_request_ids = {item.id for item in initial_requests}
@@ -143,7 +150,12 @@ class SessionDetailAggregateService:
         initial = _request(initial_requests[-1]) if initial_requests else None
         wait_requests = [item for item in requests if item.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE]
         position_requests = [item for item in requests if item.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE]
-        evidence_by_request = {item.analysis_request_id: item for item in evidence_rows if item.analysis_request_id is not None}
+        evidence_by_request = {
+            item.analysis_request_id: item
+            for item in evidence_rows
+            if item.analysis_request_id is not None
+            and item.evidence_type is EvidenceUploadV2Type.ORDERBOOK
+        }
 
         decision_rows = [
             {

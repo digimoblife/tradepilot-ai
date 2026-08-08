@@ -26,6 +26,7 @@ _REQUIRED_EVIDENCE = (
     EvidenceUploadV2Type.ORDERBOOK,
     EvidenceUploadV2Type.CHART_3_MONTH,
     EvidenceUploadV2Type.CHART_6_MONTH,
+    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
 )
 _SESSION_LOCKS: dict[uuid.UUID, asyncio.Lock] = {}
 _SESSION_LOCKS_GUARD = asyncio.Lock()

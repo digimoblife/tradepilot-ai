@@ -54,3 +54,27 @@ def test_initial_analysis_prompt_resolution_and_content_are_unchanged() -> None:
     assert "one orderbook image" in text
     assert "one three-month chart image" in text
     assert "one six-month chart image" in text
+
+
+def test_wait_prompt_handles_optional_broker_flow_without_fabrication() -> None:
+    text = " ".join(
+        RebuildPromptLoader().load(RebuildPromptType.WAIT_UPDATE).prompt_text.lower().split()
+    )
+    for phrase in (
+        "optional broker flow 1d image supplied as the second image",
+        "accumulation",
+        "neutral",
+        "distribution",
+        "dominant visible buying or selling",
+        "concentrated or mixed",
+        "confirms or weakens the current wait thesis",
+        "expected confirmation is starting to appear",
+        "do not prove one investor or institution",
+        "one-day broker flow can be noisy",
+        "do not invent unreadable broker codes",
+        "if image 2 is absent",
+        "do not fabricate broker flow commentary",
+        "omit `broker_flow_analysis`",
+        "do not apply fixed arithmetic bonuses or penalties",
+    ):
+        assert phrase in text

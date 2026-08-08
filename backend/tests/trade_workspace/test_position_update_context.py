@@ -35,6 +35,14 @@ pytestmark = pytest.mark.database
 NOW = datetime(2026, 7, 30, 4, 0, tzinfo=timezone.utc)
 
 
+def test_position_update_observation_periods_remain_unchanged() -> None:
+    assert [item.value for item in AnalysisRequestV2ObservationPeriod] == [
+        "MORNING",
+        "MIDDAY",
+        "AFTERNOON",
+    ]
+
+
 def _request(
     session_id: uuid.UUID,
     request_id: uuid.UUID,
@@ -79,12 +87,13 @@ def _evidence(
     request_id: uuid.UUID,
     *,
     file_path: str = "local/position-current.png",
+    evidence_type: EvidenceUploadV2Type = EvidenceUploadV2Type.ORDERBOOK,
 ) -> dict[str, object]:
     return {
         "id": uuid.uuid4(),
         "session_id": session_id,
         "analysis_request_id": request_id,
-        "evidence_type": EvidenceUploadV2Type.ORDERBOOK,
+        "evidence_type": evidence_type,
         "current_price": Decimal("1234.567890"),
         "observation_period": AnalysisRequestV2ObservationPeriod.MIDDAY,
         "observation_timestamp": NOW,
@@ -257,6 +266,57 @@ async def test_first_position_update_succeeds_without_optional_history(engine) -
 
     assert context.initial_analysis is not None
     assert context.history == ()
+
+
+async def test_position_update_context_orders_optional_broker_flow_after_orderbook(
+    engine,
+) -> None:
+    user_id, session_id, _, current_id = await _seed(engine)
+    async with engine.begin() as connection:
+        await connection.execute(
+            EvidenceUploadV2.__table__.insert().values(
+                **_evidence(
+                    session_id,
+                    current_id,
+                    evidence_type=EvidenceUploadV2Type.BROKER_FLOW_1D,
+                    file_path="local/position-broker-flow.png",
+                )
+            )
+        )
+
+    context = await _build(engine, user_id, session_id, current_id)
+
+    assert [item.evidence_type for item in context.evidence] == [
+        EvidenceUploadV2Type.ORDERBOOK,
+        EvidenceUploadV2Type.BROKER_FLOW_1D,
+    ]
+    assert all(item.analysis_request_id == current_id for item in context.evidence)
+    assert context.current_observation is not None
+    assert (
+        context.current_observation.observation_period is AnalysisRequestV2ObservationPeriod.MIDDAY
+    )
+
+
+async def test_position_update_rejects_foreign_flow_and_missing_orderbook(engine) -> None:
+    user_id, session_id, _, current_id = await _seed(engine)
+    async with engine.begin() as connection:
+        await connection.execute(
+            EvidenceUploadV2.__table__.delete().where(
+                EvidenceUploadV2.analysis_request_id == current_id
+            )
+        )
+        await connection.execute(
+            EvidenceUploadV2.__table__.insert().values(
+                **_evidence(
+                    session_id,
+                    current_id,
+                    evidence_type=EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+                )
+            )
+        )
+
+    with pytest.raises(MissingRequiredEvidenceError):
+        await _build(engine, user_id, session_id, current_id)
 
 
 @pytest.mark.parametrize(

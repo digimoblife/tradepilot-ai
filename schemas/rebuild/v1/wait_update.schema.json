@@ -18,6 +18,23 @@
       "type": "string",
       "description": "Concise assessment of the latest orderbook in Indonesian."
     },
+    "broker_flow_analysis": {
+      "type": ["object", "null"],
+      "description": "Optional advisory Broker Flow 1D assessment, present only when Broker Flow evidence was supplied.",
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "type": "string",
+          "enum": ["ACCUMULATION", "NEUTRAL", "DISTRIBUTION"],
+          "description": "Semantic classification of visible daily broker flow."
+        },
+        "analysis": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of visible broker activity and its impact on the WAIT thesis."
+        }
+      },
+      "required": ["assessment", "analysis"]
+    },
     "change_from_previous_analysis": {
       "type": "string",
       "description": "Concise Indonesian description of what improved, weakened, or remained unchanged."

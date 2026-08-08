@@ -35,6 +35,7 @@ _ROLES = (
     EvidenceUploadV2Type.ORDERBOOK,
     EvidenceUploadV2Type.CHART_3_MONTH,
     EvidenceUploadV2Type.CHART_6_MONTH,
+    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
 )
 
 
@@ -149,15 +150,11 @@ async def _retry(
                 json={"email": email, "password": "testpass123"},
             )
             assert login.status_code == 200
-        response = await client.post(
-            f"/api/v2/trade-sessions/{session_id}/initial-analysis/retry"
-        )
+        response = await client.post(f"/api/v2/trade-sessions/{session_id}/initial-analysis/retry")
     return response.status_code, response.json()
 
 
-async def _read_request(
-    session: AsyncSession, request_id: uuid.UUID
-) -> AnalysisRequestV2:
+async def _read_request(session: AsyncSession, request_id: uuid.UUID) -> AnalysisRequestV2:
     request = await session.scalar(
         select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
     )
@@ -216,9 +213,7 @@ async def test_failed_retry_reuses_request_and_evidence_and_transitions_session(
 async def test_pending_retry_reuses_request_without_resetting_fields(
     engine: AsyncEngine, db_session: AsyncSession
 ) -> None:
-    _, session_id, request_id, email = await _seed(
-        engine, status=AnalysisRequestV2Status.PENDING
-    )
+    _, session_id, request_id, email = await _seed(engine, status=AnalysisRequestV2Status.PENDING)
 
     status_code, payload = await _retry(db_session, session_id, email)
 
@@ -278,9 +273,7 @@ async def test_unauthenticated_and_non_draft_are_rejected(
 ) -> None:
     _, session_id, _, email = await _seed(engine, session_status=TradeSessionV2Status.ANALYZED)
 
-    unauthenticated_status, unauthenticated_payload = await _retry(
-        db_session, session_id, None
-    )
+    unauthenticated_status, unauthenticated_payload = await _retry(db_session, session_id, None)
     status_code, payload = await _retry(db_session, session_id, email)
 
     assert unauthenticated_status in {401, 403}
@@ -304,9 +297,7 @@ async def test_concurrent_retries_for_one_session_have_one_success(
         )
 
     outcomes = (first_result, second_result)
-    assert (
-        sum(isinstance(item, InitialAnalysisRetrySessionStateError) for item in outcomes) == 1
-    )
+    assert sum(isinstance(item, InitialAnalysisRetrySessionStateError) for item in outcomes) == 1
     assert sum(hasattr(item, "analysis_request_id") for item in outcomes) == 1
 
 

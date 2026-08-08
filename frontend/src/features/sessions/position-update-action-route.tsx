@@ -30,6 +30,7 @@ export function PositionUpdateActionRoute({ sessionId }: { sessionId: string }) 
   const navigatedRef = useRef(false);
 
   const [orderbookFile, setOrderbookFile] = useState<File | null>(null);
+  const [brokerFlowFile, setBrokerFlowFile] = useState<File | null>(null);
   const [currentPrice, setCurrentPrice] = useState("");
   const [observationPeriod, setObservationPeriod] = useState<ObservationPeriod>("MORNING");
   const [observationTimestamp, setObservationTimestamp] = useState("");
@@ -54,6 +55,7 @@ export function PositionUpdateActionRoute({ sessionId }: { sessionId: string }) 
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrderbookFile(null);
+    setBrokerFlowFile(null);
     setCurrentPrice("");
     setObservationPeriod("MORNING");
     setObservationTimestamp("");
@@ -131,6 +133,7 @@ export function PositionUpdateActionRoute({ sessionId }: { sessionId: string }) 
     try {
       await uploadPositionUpdateInput(reqSessionId, {
         orderbook: orderbookFile,
+        ...(brokerFlowFile ? { broker_flow_1d: brokerFlowFile } : {}),
         current_price: currentPrice,
         observation_period: observationPeriod,
         observation_timestamp: formattedTimestamp,
@@ -219,7 +222,7 @@ export function PositionUpdateActionRoute({ sessionId }: { sessionId: string }) 
                   Formulir Pembaruan Posisi
                 </h1>
                 <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                  Unggah orderbook terbaru dan masukkan informasi harga saat ini untuk memperbarui pemantauan posisi.
+                  Unggah orderbook terbaru, tambahkan Broker Flow 1D bila tersedia, dan masukkan informasi harga saat ini untuk memperbarui pemantauan posisi.
                 </p>
               </div>
 
@@ -249,6 +252,22 @@ export function PositionUpdateActionRoute({ sessionId }: { sessionId: string }) 
                 {orderbookFile ? (
                   <span className="mt-1 block break-all [overflow-wrap:anywhere] text-xs font-normal text-[var(--color-text-muted)]">
                     File terpilih: {orderbookFile.name} ({(orderbookFile.size / 1024).toFixed(1)} KB)
+                  </span>
+                ) : null}
+              </label>
+
+              <label className="block min-w-0 text-sm font-semibold text-[var(--color-text-strong)]">
+                Broker Flow — 1D (Optional)
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={isSubmitting}
+                  onChange={(e) => setBrokerFlowFile(e.target.files?.[0] ?? null)}
+                  className="mt-2 block min-h-11 w-full min-w-0 text-sm text-[var(--color-text-strong)] file:mr-4 file:min-h-11 file:rounded-[var(--radius-compact)] file:border-0 file:bg-[var(--color-surface-muted)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--color-text-strong)] hover:file:bg-[var(--color-border-default)]"
+                />
+                {brokerFlowFile ? (
+                  <span className="mt-1 block break-all [overflow-wrap:anywhere] text-xs font-normal text-[var(--color-text-muted)]">
+                    File terpilih: {brokerFlowFile.name} ({(brokerFlowFile.size / 1024).toFixed(1)} KB)
                   </span>
                 ) : null}
               </label>

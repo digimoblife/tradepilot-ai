@@ -16,6 +16,7 @@ INITIAL_EVIDENCE_TYPES = (
     EvidenceUploadV2Type.ORDERBOOK,
     EvidenceUploadV2Type.CHART_3_MONTH,
     EvidenceUploadV2Type.CHART_6_MONTH,
+    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
 )
 
 
@@ -57,7 +58,7 @@ def initial_evidence_set_is_complete(evidence: Iterable[EvidenceUploadV2]) -> bo
         and items[0].analysis_request_id is None
         and items[0].observation_period is None
         for items in grouped.values()
-    )
+    ) and len(rows) == len(INITIAL_EVIDENCE_TYPES)
 
 
 def linked_initial_evidence_is_valid(
@@ -119,18 +120,23 @@ def wait_retry_evidence_is_valid(
     evidence: Iterable[EvidenceUploadV2],
 ) -> bool:
     linked = tuple(item for item in evidence if item.analysis_request_id == request.id)
-    if len(linked) != 1:
+    if len(linked) not in (1, 2):
         return False
-    item = linked[0]
+    orderbooks = [item for item in linked if item.evidence_type is EvidenceUploadV2Type.ORDERBOOK]
+    broker_flows = [
+        item for item in linked if item.evidence_type is EvidenceUploadV2Type.BROKER_FLOW_1D
+    ]
+    if len(orderbooks) != 1 or len(broker_flows) != len(linked) - 1:
+        return False
+    orderbook = orderbooks[0]
     return (
-        item.session_id == session_id
-        and item.evidence_type is EvidenceUploadV2Type.ORDERBOOK
-        and item.current_price is not None
-        and item.observation_period is not None
-        and item.observation_timestamp is not None
-        and item.current_price == request.current_price
-        and item.observation_period is request.observation_period
-        and item.observation_timestamp == request.observation_at
-        and bool(item.file_path.strip())
-        and not Path(item.file_path).is_absolute()
+        all(item.session_id == session_id for item in linked)
+        and orderbook.current_price is not None
+        and orderbook.observation_period is not None
+        and orderbook.observation_timestamp is not None
+        and orderbook.current_price == request.current_price
+        and orderbook.observation_period is request.observation_period
+        and orderbook.observation_timestamp == request.observation_at
+        and all(bool(item.file_path.strip()) for item in linked)
+        and all(not Path(item.file_path).is_absolute() for item in linked)
     )

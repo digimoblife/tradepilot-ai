@@ -112,6 +112,7 @@ async def _create_fixture(
                 EvidenceUploadV2Type.ORDERBOOK,
                 EvidenceUploadV2Type.CHART_3_MONTH,
                 EvidenceUploadV2Type.CHART_6_MONTH,
+                EvidenceUploadV2Type.FOREIGN_FLOW_1W,
             ):
                 evidence = EvidenceUploadV2(
                     session_id=session_id,
@@ -191,7 +192,7 @@ async def test_gate_c_success_path_and_duplicate_protection(engine) -> None:
 
         persisted = await _read_request(factory, result.request_id)
         assert persisted.status is AnalysisRequestV2Status.PENDING
-        assert await _linked_evidence_count(factory, result.request_id) == 3
+        assert await _linked_evidence_count(factory, result.request_id) == 4
 
         resolver = RecordingImageResolver()
         adapter = RecordingAdapter("gemini-3.1-flash-lite", _initial_response(valid=True))
@@ -227,6 +228,7 @@ async def test_gate_c_success_path_and_duplicate_protection(engine) -> None:
                 EvidenceUploadV2Type.ORDERBOOK,
                 EvidenceUploadV2Type.CHART_3_MONTH,
                 EvidenceUploadV2Type.CHART_6_MONTH,
+                EvidenceUploadV2Type.FOREIGN_FLOW_1W,
             )
         ]
         assert len(adapter.calls) == 1
@@ -234,6 +236,7 @@ async def test_gate_c_success_path_and_duplicate_protection(engine) -> None:
             GeminiImagePart(data=b"image-1", mime_type="image/png"),
             GeminiImagePart(data=b"image-2", mime_type="image/png"),
             GeminiImagePart(data=b"image-3", mime_type="image/png"),
+            GeminiImagePart(data=b"image-4", mime_type="image/png"),
         )
         assert adapter.calls[0]["output_schema"]["title"] == "Initial Analysis"  # type: ignore[index]
         assert "Canonical rebuild context" in str(adapter.calls[0]["prompt_text"])
@@ -259,11 +262,14 @@ async def test_gate_c_success_path_and_duplicate_protection(engine) -> None:
             )
             assert trade_session is not None
             assert trade_session.status is TradeSessionV2Status.ANALYZED
-            assert await verify.scalar(
-                select(func.count(AnalysisRequestV2.id)).where(
-                    AnalysisRequestV2.session_id == session_id
+            assert (
+                await verify.scalar(
+                    select(func.count(AnalysisRequestV2.id)).where(
+                        AnalysisRequestV2.session_id == session_id
+                    )
                 )
-            ) == 1
+                == 1
+            )
     finally:
         await _cleanup(factory, user_id, session_id)
 

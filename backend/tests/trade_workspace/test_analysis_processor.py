@@ -348,7 +348,8 @@ async def test_position_update_failure_and_duplicate_preserve_persisted_state(en
 
 
 @pytest.mark.database
-async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
+@pytest.mark.parametrize("image_count", [1, 2])
+async def test_processor_claims_builds_calls_once_and_completes(engine, image_count: int) -> None:
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     user_id, session_id, request_id = await _setup_request(
         factory,
@@ -357,7 +358,7 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     )
     context_builder = FakeContextBuilder(_wait_context())
     prompt_loader = FakePromptLoader()
-    image_resolver = FakeImageResolver(count=1)
+    image_resolver = FakeImageResolver(count=image_count)
     validator = RecordingValidator(ResponseValidationResult(is_valid=True))
     adapters: list[FakeAdapter] = []
     observed_claim_status: list[AnalysisRequestV2Status] = []
@@ -416,7 +417,8 @@ async def test_processor_claims_builds_calls_once_and_completes(engine) -> None:
     assert len(adapters[0].calls) == 1
     assert adapters[0].calls[0]["image_parts"] == (
         GeminiImagePart(data=b"first", mime_type="image/png"),
-    )
+        GeminiImagePart(data=b"second", mime_type="image/jpeg"),
+    )[:image_count]
     assert adapters[0].calls[0]["output_schema"]
     assert "Approved prompt text" in str(adapters[0].calls[0]["prompt_text"])
 
@@ -456,7 +458,7 @@ async def test_wait_update_failure_is_terminal_and_returns_session_to_waiting(
     async with factory() as session:
         processor = RebuildAnalysisProcessor(
             session,
-            image_resolver=FakeImageResolver(count=2 if failure == "images" else 1),
+            image_resolver=FakeImageResolver(count=0 if failure == "images" else 1),
             context_builder=FakeContextBuilder(
                 _wait_context()
                 if failure != "context"

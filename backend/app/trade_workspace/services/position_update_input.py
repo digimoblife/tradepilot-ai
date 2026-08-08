@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -96,6 +97,9 @@ class PositionUpdateInputService:
         current_price: Decimal,
         observation_period: AnalysisRequestV2ObservationPeriod,
         observation_timestamp: datetime,
+        broker_flow_original_filename: str | None = None,
+        broker_flow_mime_type: str | None = None,
+        broker_flow_content: bytes | None = None,
     ) -> PositionUpdateInputResult:
         await self._session.execute(
             select(func.pg_advisory_xact_lock(_session_lock_key(session_id)))
@@ -107,17 +111,21 @@ class PositionUpdateInputService:
             content=content,
             current_price=current_price,
             observation_timestamp=observation_timestamp,
+            broker_flow_original_filename=broker_flow_original_filename,
+            broker_flow_mime_type=broker_flow_mime_type,
+            broker_flow_content=broker_flow_content,
         )
 
-        stored_reference: str | None = None
+        stored_references: list[str] = []
         try:
+            uploaded_at = datetime.now(timezone.utc)
             stored = self._storage.store(
                 user_id=user_id,
                 session_id=session_id,
                 original_filename=original_filename,
                 content=content,
             )
-            stored_reference = stored.file_reference
+            stored_references.append(stored.file_reference)
             evidence = EvidenceUploadV2(
                 session_id=session_id,
                 evidence_type=EvidenceUploadV2Type.ORDERBOOK,
@@ -129,20 +137,45 @@ class PositionUpdateInputService:
                 original_filename=original_filename,
                 mime_type=mime_type,
                 size_bytes=stored.size_bytes,
+                uploaded_at=uploaded_at,
             )
-            self._session.add(evidence)
+            records = [evidence]
+            if broker_flow_content is not None:
+                broker_stored = self._storage.store(
+                    user_id=user_id,
+                    session_id=session_id,
+                    original_filename=broker_flow_original_filename or "",
+                    content=broker_flow_content,
+                )
+                stored_references.append(broker_stored.file_reference)
+                records.append(
+                    EvidenceUploadV2(
+                        session_id=session_id,
+                        evidence_type=EvidenceUploadV2Type.BROKER_FLOW_1D,
+                        analysis_request_id=None,
+                        observation_period=observation_period,
+                        current_price=current_price,
+                        observation_timestamp=observation_timestamp,
+                        file_path=broker_stored.file_reference,
+                        original_filename=broker_flow_original_filename or "",
+                        mime_type=broker_flow_mime_type or "",
+                        size_bytes=broker_stored.size_bytes,
+                        uploaded_at=uploaded_at,
+                    )
+                )
+            self._session.add_all(records)
             await self._session.flush()
             await self._session.commit()
         except StorageError as exc:
-            await self._rollback_and_cleanup(stored_reference)
+            await self._rollback_and_cleanup(stored_references)
             raise PositionUpdateInputStorageError("Position Update input storage failed") from exc
         except (OSError, SQLAlchemyError) as exc:
-            await self._rollback_and_cleanup(stored_reference)
+            await self._rollback_and_cleanup(stored_references)
             raise PositionUpdateInputPersistenceError(
                 "Position Update input could not be persisted"
             ) from exc
         except Exception:
-            await self._rollback_and_cleanup(stored_reference)
+            await self._rollback_and_cleanup(stored_references)
             raise
 
         return PositionUpdateInputResult(
@@ -204,6 +237,9 @@ class PositionUpdateInputService:
         content: bytes,
         current_price: Decimal,
         observation_timestamp: datetime,
+        broker_flow_original_filename: str | None,
+        broker_flow_mime_type: str | None,
+        broker_flow_content: bytes | None,
     ) -> None:
         if not content:
             raise PositionUpdateInputValidationError("Orderbook file is empty")
@@ -224,14 +260,30 @@ class PositionUpdateInputService:
             raise PositionUpdateInputValidationError(
                 "Observation timestamp must include a timezone"
             )
+        broker_values = (
+            broker_flow_original_filename,
+            broker_flow_mime_type,
+            broker_flow_content,
+        )
+        if any(value is not None for value in broker_values):
+            if any(value is None for value in broker_values):
+                raise PositionUpdateInputValidationError("Broker Flow file is incomplete")
+            if not broker_flow_content:
+                raise PositionUpdateInputValidationError("Broker Flow file is empty")
+            if broker_flow_mime_type not in SUPPORTED_IMAGE_MIME_TYPES:
+                raise PositionUpdateInputValidationError("Broker Flow MIME type is unsupported")
+            if len(broker_flow_content) > self._max_size_bytes:
+                raise PositionUpdateInputValidationError("Broker Flow file is too large")
+            if not broker_flow_original_filename:
+                raise PositionUpdateInputValidationError("Broker Flow filename is missing")
 
-    async def _rollback_and_cleanup(self, reference: str | None) -> None:
+    async def _rollback_and_cleanup(self, references: Sequence[str]) -> None:
         await self._session.rollback()
-        if reference is not None:
+        for reference in references:
             try:
                 self._storage.delete(file_reference=reference)
             except (OSError, StorageError):
-                pass
+                continue
 
 
 def _session_lock_key(session_id: uuid.UUID) -> int:

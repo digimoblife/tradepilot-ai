@@ -28,11 +28,10 @@ from app.trade_workspace.models.analysis_request import (
     AnalysisRequestV2Status,
     AnalysisRequestV2Type,
 )
-from app.trade_workspace.models.evidence_upload import EvidenceUploadV2
+from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 from app.trade_workspace.queue.analysis_request_queue import AnalysisRequestQueue
 from app.trade_workspace.services import wait_update_input as wait_input_module
-from app.trade_workspace.services.analysis_request_claim import AnalysisRequestClaimService
 from app.trade_workspace.workers.analysis_processor import RebuildAnalysisProcessor
 
 pytestmark = pytest.mark.database
@@ -191,8 +190,11 @@ async def _login(client: AsyncClient, email: str) -> None:
 
 
 async def _upload_and_submit(
-    client: AsyncClient, session_id: uuid.UUID
+    client: AsyncClient, session_id: uuid.UUID, *, include_broker_flow: bool = False
 ) -> tuple[dict[str, object], dict[str, object]]:
+    files = {"orderbook": ("orderbook.png", IMAGE, "image/png")}
+    if include_broker_flow:
+        files["broker_flow_1d"] = ("broker-flow.png", IMAGE + b"broker", "image/png")
     upload = await client.post(
         f"/api/v2/trade-sessions/{session_id}/wait-update-input",
         data={
@@ -200,7 +202,7 @@ async def _upload_and_submit(
             "observation_period": "MIDDAY",
             "observation_timestamp": "2026-07-30T09:15:00+07:00",
         },
-        files={"orderbook": ("orderbook.png", IMAGE, "image/png")},
+        files=files,
     )
     assert upload.status_code == 201
     submit = await client.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
@@ -242,9 +244,22 @@ async def test_gate_f_success_repeated_cycle_and_decision_compatibility(
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _login(client, email)
-        upload_a, submit_a = await _upload_and_submit(client, session_id)
+        upload_a, submit_a = await _upload_and_submit(client, session_id, include_broker_flow=True)
         request_a = uuid.UUID(submit_a["analysis_request_id"])
         assert upload_a["evidence_id"] == submit_a["evidence_id"]
+        linked_a = list(
+            (
+                await db_session.scalars(
+                    select(EvidenceUploadV2).where(
+                        EvidenceUploadV2.analysis_request_id == request_a
+                    )
+                )
+            ).all()
+        )
+        assert {item.evidence_type for item in linked_a} == {
+            EvidenceUploadV2Type.ORDERBOOK,
+            EvidenceUploadV2Type.BROKER_FLOW_1D,
+        }
         await _process(db_session, request_a, resolver, adapter)
         read_a = await client.get(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis")
         assert read_a.status_code == 200
@@ -284,10 +299,10 @@ async def test_gate_f_success_repeated_cycle_and_decision_compatibility(
     evidence_count = await db_session.scalar(
         select(func.count(EvidenceUploadV2.id)).where(EvidenceUploadV2.session_id == session_id)
     )
-    assert evidence_count == 2
+    assert evidence_count == 3
     assert adapter.calls == 2
-    assert resolver.calls == [1, 1]
-    assert len(list(isolated_storage._root.rglob("*.png"))) == 2  # noqa: SLF001
+    assert resolver.calls == [2, 1]
+    assert len(list(isolated_storage._root.rglob("*.png"))) == 3  # noqa: SLF001
 
 
 async def test_gate_f_failure_retry_queue_recovery_and_ownership(
@@ -312,9 +327,7 @@ async def test_gate_f_failure_retry_queue_recovery_and_ownership(
             files={"orderbook": ("orderbook.png", IMAGE, "image/png")},
         )
         assert upload_response.status_code == 201
-        submit_response = await owner.post(
-            f"/api/v2/trade-sessions/{session_id}/wait-updates"
-        )
+        submit_response = await owner.post(f"/api/v2/trade-sessions/{session_id}/wait-updates")
         assert submit_response.status_code == 202
         request_id = uuid.UUID(submit_response.json()["analysis_request_id"])
 
@@ -338,9 +351,7 @@ async def test_gate_f_failure_retry_queue_recovery_and_ownership(
         assert failure.json()["processed_response"] is None
 
         good_adapter = RecordingAdapter(_valid_response())
-        retry = await owner.post(
-            f"/api/v2/trade-sessions/{session_id}/wait-update-analysis/retry"
-        )
+        retry = await owner.post(f"/api/v2/trade-sessions/{session_id}/wait-update-analysis/retry")
         assert retry.status_code == 202
         await _process(db_session, request_id, resolver, good_adapter)
         assert good_adapter.calls == 1

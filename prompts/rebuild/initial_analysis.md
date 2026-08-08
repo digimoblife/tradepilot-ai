@@ -12,7 +12,8 @@ Gemini receives exactly the following Initial Analysis inputs:
 - optional initial note;
 - one orderbook image;
 - one three-month chart image;
-- one six-month chart image.
+- one six-month chart image;
+- one one-week Foreign Flow image.
 
 Current price is not supplied separately for Initial Analysis. No position exists.
 Do not infer a confirmed position, order, fill, quantity, entry, or execution fact
@@ -46,10 +47,31 @@ The supplied images are ordered as follows:
 1. Initial orderbook screenshot: assess visible orderbook structure and pressure.
 2. Three-month chart screenshot: assess the three-month trend and structure.
 3. Six-month chart screenshot: assess the six-month trend and structure.
+4. Foreign Flow 1W screenshot: assess visible foreign accumulation or
+   distribution over the recent week.
 
 Do not treat the orderbook image as a chart or a chart as an orderbook. Do not
 infer unrelated data from any image, request OCR-specific processing, or invent
 data that is not visible.
+
+For Image 4, return `foreign_flow_analysis.assessment` as exactly one of
+`ACCUMULATION`, `NEUTRAL`, or `DISTRIBUTION`. Evaluate all of the following:
+
+- consistency across the visible trading days and whether activity is sustained
+  or isolated;
+- visible magnitude relative to the screenshot context;
+- the relationship between foreign flow and price direction;
+- confirmation of or divergence from the chart and orderbook thesis; and
+- whether Foreign Flow strengthens, weakens, or leaves the broader thesis
+  unchanged.
+
+Do not treat one large foreign-buying day as automatically bullish; evaluate the
+preceding visible days. Do not invent unreadable figures, transaction values, or
+quantities. If the evidence is unclear, acknowledge that limitation and use a
+cautious `NEUTRAL` assessment. Do not claim certainty. Treat flow as supporting
+evidence within the broader thesis, not a standalone decision signal. Confidence
+and probability changes must come from qualitative evidence synthesis; do not
+apply a fixed arithmetic bonus or penalty.
 
 Analyze only the approved Initial Analysis scope using these exact schema
 property names:
@@ -58,6 +80,7 @@ property names:
 - `orderbook_analysis`;
 - `three_month_chart_analysis`;
 - `six_month_chart_analysis`;
+- `foreign_flow_analysis`;
 - support;
 - resistance;
 - `entry_area`;

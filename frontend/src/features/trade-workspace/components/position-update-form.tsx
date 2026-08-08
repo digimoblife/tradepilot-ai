@@ -13,8 +13,10 @@ export function PositionUpdateForm({
   timestamp,
   note,
   busy,
+  brokerFlowFile,
   onSubmit,
   onFileChange,
+  onBrokerFlowFileChange,
   onCurrentPriceChange,
   onPeriodChange,
   onTimestampChange,
@@ -25,8 +27,10 @@ export function PositionUpdateForm({
   timestamp: string;
   note: string;
   busy: boolean;
+  brokerFlowFile: File | null;
   onSubmit: (event: FormEvent) => void;
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onBrokerFlowFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onCurrentPriceChange: (value: string) => void;
   onPeriodChange: (value: ObservationPeriod | "") => void;
   onTimestampChange: (value: string) => void;
@@ -38,12 +42,17 @@ export function PositionUpdateForm({
         <div className="flex items-start justify-between gap-4">
           <h3 className="text-[var(--text-size-section-title)] font-semibold text-[var(--color-text-strong)]">Position Update</h3>
         </div>
-        <p className="mt-2 max-w-2xl text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-muted)]">Unggah satu orderbook screenshot dan masukkan observasi terbaru posisi Anda.</p>
+        <p className="mt-2 max-w-2xl text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-muted)]">Unggah orderbook screenshot, tambahkan Broker Flow 1D bila tersedia, dan masukkan observasi terbaru posisi Anda.</p>
       </div>
       <div className="grid gap-[var(--space-5)] px-[var(--space-card)] py-[var(--space-6)] md:grid-cols-2">
         <label className="block text-[var(--text-size-label)] font-medium text-[var(--color-text-default)] md:col-span-2" htmlFor="position-orderbook">
           Orderbook screenshot
           <input id="position-orderbook" type="file" accept="image/*" required onChange={onFileChange} className="mt-2 block min-h-11 w-full max-w-full min-w-0 text-[var(--text-size-compact-body)] text-[var(--color-text-default)] file:mr-3 file:min-h-11 file:rounded-[var(--radius-compact)] file:border-0 file:bg-[var(--color-surface-muted)] file:px-3 file:py-2 file:font-semibold file:text-[var(--color-text-default)]" />
+        </label>
+        <label className="block text-[var(--text-size-label)] font-medium text-[var(--color-text-default)] md:col-span-2" htmlFor="position-broker-flow">
+          Broker Flow — 1D (Optional)
+          <input id="position-broker-flow" type="file" accept="image/*" onChange={onBrokerFlowFileChange} className="mt-2 block min-h-11 w-full max-w-full min-w-0 text-[var(--text-size-compact-body)] text-[var(--color-text-default)] file:mr-3 file:min-h-11 file:rounded-[var(--radius-compact)] file:border-0 file:bg-[var(--color-surface-muted)] file:px-3 file:py-2 file:font-semibold file:text-[var(--color-text-default)]" />
+          {brokerFlowFile && <span className="mt-1 block break-words text-[var(--text-size-label)] font-normal text-[var(--color-text-muted)]">{brokerFlowFile.name}</span>}
         </label>
         <label className="block text-[var(--text-size-label)] font-medium" htmlFor="position-current-price">
           Harga saat ini

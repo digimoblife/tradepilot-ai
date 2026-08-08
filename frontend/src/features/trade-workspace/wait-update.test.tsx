@@ -97,6 +97,7 @@ describe("WAIT Update frontend", () => {
 
     expect(await screen.findByRole("heading", { name: "WAIT Update" })).toBeTruthy();
     expect(screen.getByLabelText("Orderbook")).toBeTruthy();
+    expect(screen.getByLabelText("Broker Flow — 1D (Optional)")).not.toBeRequired();
     expect(screen.getByLabelText("Harga saat ini")).toBeTruthy();
     expect(screen.getByLabelText("Periode observasi")).toBeTruthy();
     expect(screen.getByLabelText("Waktu observasi")).toBeTruthy();
@@ -114,6 +115,7 @@ describe("WAIT Update frontend", () => {
     await waitFor(() => expect(uploadWaitUpdateInput).toHaveBeenCalledTimes(1));
     expect(uploadWaitUpdateInput).toHaveBeenCalledWith("session-a", {
       orderbook: file,
+      broker_flow_1d: null,
       current_price: "123.45",
       observation_period: "MIDDAY",
       observation_timestamp: expect.any(String),
@@ -177,6 +179,52 @@ describe("WAIT Update frontend", () => {
     ]) expect(screen.getByRole("heading", { name: label })).toBeTruthy();
     expect(screen.queryByText(/raw_response|input_snapshot/i)).toBeNull();
     expect(sessionProps.onFinished).toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Analisa Broker Flow" })).toBeNull();
+  });
+
+  it("uploads optional Broker Flow and renders its analysis only when present", async () => {
+    const user = userEvent.setup();
+    const orderbook = new File(["orderbook"], "orderbook.png", { type: "image/png" });
+    const brokerFlow = new File(["broker"], "broker-flow.png", { type: "image/png" });
+    vi.mocked(uploadWaitUpdateInput).mockResolvedValue({
+      evidence_id: "evidence-a", session_id: "session-a", evidence_type: "ORDERBOOK",
+      original_filename: "orderbook.png", mime_type: "image/png", size_bytes: 5,
+      current_price: "123", observation_period: "MORNING",
+      observation_timestamp: "2026-07-30T05:00:00Z", uploaded_at: "2026-07-30T05:01:00Z",
+      session_status: "WAITING",
+    });
+    render(<WaitUpdatePanel {...sessionProps} />);
+    await screen.findByRole("heading", { name: "WAIT Update" });
+    await user.upload(screen.getByLabelText("Orderbook"), orderbook);
+    await user.upload(screen.getByLabelText("Broker Flow — 1D (Optional)"), brokerFlow);
+    await user.type(screen.getByLabelText("Harga saat ini"), "123");
+    fireEvent.change(screen.getByLabelText("Periode observasi"), { target: { value: "MORNING" } });
+    fireEvent.change(screen.getByLabelText("Waktu observasi"), { target: { value: "2026-07-30T08:00" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Terima Input WAIT Update" }).closest("form")!);
+
+    await waitFor(() => expect(uploadWaitUpdateInput).toHaveBeenCalledWith("session-a", {
+      orderbook,
+      broker_flow_1d: brokerFlow,
+      current_price: "123",
+      observation_period: "MORNING",
+      observation_timestamp: expect.any(String),
+    }));
+
+    vi.mocked(readWaitUpdateAnalysis).mockResolvedValue({
+      ...completed,
+      processed_response: {
+        ...completed.processed_response!,
+        broker_flow_analysis: {
+          assessment: "ACCUMULATION",
+          analysis: "Pembelian terlihat dominan namun bukti satu hari tetap terbatas.",
+        },
+      },
+    });
+    const { unmount } = render(<WaitUpdatePanel {...sessionProps} />);
+    expect(await screen.findByRole("heading", { name: "Analisa Broker Flow" })).toBeTruthy();
+    expect(screen.getByText("ACCUMULATION")).toBeTruthy();
+    expect(screen.getByText(/Pembelian terlihat dominan/)).toBeTruthy();
+    unmount();
   });
 
   it("offers explicit recovery for FAILED and PENDING plus WAITING without uploading again", async () => {

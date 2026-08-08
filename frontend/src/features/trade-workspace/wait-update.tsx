@@ -62,12 +62,21 @@ export function WaitUpdateResultView({ result }: { result: WaitUpdateResult }) {
     <section aria-label="Hasil WAIT Update" className="min-w-0 max-w-[var(--layout-text-readable)] space-y-[var(--space-3)] rounded-[var(--radius-standard)] border border-[var(--color-status-information)] bg-[var(--color-surface-advisory)] p-[var(--space-card)]">
       <h3 className="sr-only">Hasil WAIT Update</h3>
       {resultSections.map(([key, label]) => (
-        <article key={key} className="min-w-0 border-b border-[var(--color-border-default)] pb-[var(--space-3)] last:border-b-0 last:pb-0">
+        <div key={key} className="contents">
+        <article className="min-w-0 border-b border-[var(--color-border-default)] pb-[var(--space-3)] last:border-b-0 last:pb-0">
           <h3 className="break-words text-[var(--text-size-label)] font-semibold leading-[var(--text-line-body)] text-[var(--color-text-strong)]">{label}</h3>
           <p className="mt-[var(--space-2)] break-words whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
             {displayValue(result[key])}
           </p>
         </article>
+        {key === "orderbook_assessment" && result.broker_flow_analysis && (
+          <article className="min-w-0 border-b border-[var(--color-border-default)] pb-[var(--space-3)] last:border-b-0 last:pb-0">
+            <h3 className="break-words text-[var(--text-size-label)] font-semibold leading-[var(--text-line-body)] text-[var(--color-text-strong)]">Analisa Broker Flow</h3>
+            <p className="mt-[var(--space-2)] break-words text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{result.broker_flow_analysis.assessment}</p>
+            <p className="mt-[var(--space-1)] break-words whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{result.broker_flow_analysis.analysis}</p>
+          </article>
+        )}
+        </div>
       ))}
     </section>
   );
@@ -85,6 +94,7 @@ export function WaitUpdatePanel({
   onFinished: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [brokerFlowFile, setBrokerFlowFile] = useState<File | null>(null);
   const [currentPrice, setCurrentPrice] = useState("");
   const [period, setPeriod] = useState<ObservationPeriod | "">("");
   const [timestamp, setTimestamp] = useState("");
@@ -165,6 +175,7 @@ export function WaitUpdatePanel({
     try {
       const next = await uploadWaitUpdateInput(sessionId, {
         orderbook: file,
+        broker_flow_1d: brokerFlowFile,
         current_price: currentPrice.trim(),
         observation_period: period,
         observation_timestamp: new Date(timestamp).toISOString(),
@@ -237,7 +248,7 @@ export function WaitUpdatePanel({
       {analysis?.request_status === "COMPLETED" && analysis.processed_response && (
         <WaitUpdateResultView result={analysis.processed_response} />
       )}
-      {sessionStatus === "WAITING" && !processing && !uploaded && <WaitUpdateForm file={file} currentPrice={currentPrice} period={period} timestamp={timestamp} periods={periods} busy={busy !== null} onFileChange={setFile} onCurrentPriceChange={setCurrentPrice} onPeriodChange={setPeriod} onTimestampChange={setTimestamp} onSubmit={upload} />}
+      {sessionStatus === "WAITING" && !processing && !uploaded && <WaitUpdateForm file={file} brokerFlowFile={brokerFlowFile} currentPrice={currentPrice} period={period} timestamp={timestamp} periods={periods} busy={busy !== null} onFileChange={setFile} onBrokerFlowFileChange={setBrokerFlowFile} onCurrentPriceChange={setCurrentPrice} onPeriodChange={setPeriod} onTimestampChange={setTimestamp} onSubmit={upload} />}
       {uploaded && !processing && (
         <section className="min-w-0 rounded-[var(--radius-standard)] border border-[var(--color-status-success)] bg-[var(--color-surface-factual)] p-[var(--space-card)]">
           <h3 className="text-[var(--text-size-card-title)] font-semibold leading-[var(--text-line-heading)] text-[var(--color-text-strong)]">Input WAIT Update diterima</h3>

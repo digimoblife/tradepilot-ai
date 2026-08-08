@@ -76,12 +76,13 @@ def _evidence(
     observation_timestamp: datetime | None = NOW,
     file_path: str = "local/wait-current.png",
     uploaded_at: datetime = NOW,
+    evidence_type: EvidenceUploadV2Type = EvidenceUploadV2Type.ORDERBOOK,
 ) -> dict[str, object]:
     return {
         "id": evidence_id,
         "session_id": session_id,
         "analysis_request_id": request_id,
-        "evidence_type": EvidenceUploadV2Type.ORDERBOOK,
+        "evidence_type": evidence_type,
         "observation_period": observation_period,
         "current_price": current_price,
         "observation_timestamp": observation_timestamp,
@@ -193,8 +194,7 @@ async def test_wait_update_context_contains_only_current_image_and_latest_prior_
     assert context.current_observation is not None
     assert context.current_observation.current_price == Decimal("1234.567890")
     assert (
-        context.current_observation.observation_period
-        is AnalysisRequestV2ObservationPeriod.MIDDAY
+        context.current_observation.observation_period is AnalysisRequestV2ObservationPeriod.MIDDAY
     )
     assert context.current_observation.observation_at == NOW
     assert len(context.evidence) == 1
@@ -205,6 +205,78 @@ async def test_wait_update_context_contains_only_current_image_and_latest_prior_
     assert context.initial_analysis.processed_response == {"summary": "initial accepted"}
     assert [item.analysis_id for item in context.history] == [prior_latest_id]
     assert context.history[0].processed_response == {"summary": "latest wait"}
+
+
+async def test_wait_update_context_orders_optional_broker_flow_after_orderbook(engine) -> None:
+    user_id, session_id = await _seed_base(engine)
+    current_id = uuid.uuid4()
+    async with engine.begin() as connection:
+        await connection.execute(
+            AnalysisRequestV2.__table__.insert().values(
+                **_request(
+                    session_id,
+                    current_id,
+                    AnalysisRequestV2Type.WAIT_UPDATE,
+                    created_at=NOW,
+                    status=AnalysisRequestV2Status.PROCESSING,
+                    processed_response=None,
+                )
+            )
+        )
+        await connection.execute(
+            EvidenceUploadV2.__table__.insert(),
+            [
+                _evidence(session_id, uuid.uuid4(), current_id),
+                _evidence(
+                    session_id,
+                    uuid.uuid4(),
+                    current_id,
+                    evidence_type=EvidenceUploadV2Type.BROKER_FLOW_1D,
+                    file_path="local/wait-broker-flow.png",
+                ),
+            ],
+        )
+
+    context = await _build(engine, user_id, session_id, current_id)
+
+    assert [item.evidence_type for item in context.evidence] == [
+        EvidenceUploadV2Type.ORDERBOOK,
+        EvidenceUploadV2Type.BROKER_FLOW_1D,
+    ]
+    assert all(item.analysis_request_id == current_id for item in context.evidence)
+    assert context.current_observation is not None
+    assert context.current_observation.current_price == Decimal("1234.567890")
+
+
+async def test_wait_update_rejects_foreign_flow_and_missing_orderbook(engine) -> None:
+    user_id, session_id = await _seed_base(engine)
+    current_id = uuid.uuid4()
+    async with engine.begin() as connection:
+        await connection.execute(
+            AnalysisRequestV2.__table__.insert().values(
+                **_request(
+                    session_id,
+                    current_id,
+                    AnalysisRequestV2Type.WAIT_UPDATE,
+                    created_at=NOW,
+                    status=AnalysisRequestV2Status.PROCESSING,
+                    processed_response=None,
+                )
+            )
+        )
+        await connection.execute(
+            EvidenceUploadV2.__table__.insert().values(
+                **_evidence(
+                    session_id,
+                    uuid.uuid4(),
+                    current_id,
+                    evidence_type=EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+                )
+            )
+        )
+
+    with pytest.raises(MissingRequiredEvidenceError):
+        await _build(engine, user_id, session_id, current_id)
 
 
 async def test_first_wait_update_succeeds_without_prior_and_excludes_noncompleted_history(
@@ -276,9 +348,7 @@ async def test_invalid_current_evidence_fails_without_repair(
     user_id, session_id = await _seed_base(engine)
     current_id = uuid.uuid4()
     evidence_values = _evidence(session_id, uuid.uuid4(), current_id)
-    evidence_values[field] = (
-        None if field != "file_path" else "/private/absolute/orderbook.png"
-    )
+    evidence_values[field] = None if field != "file_path" else "/private/absolute/orderbook.png"
     async with engine.begin() as connection:
         await connection.execute(
             AnalysisRequestV2.__table__.insert().values(

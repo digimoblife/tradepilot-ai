@@ -21,6 +21,23 @@
       "type": "string",
       "description": "Concise observations from the six-month chart in Indonesian."
     },
+    "foreign_flow_analysis": {
+      "type": "object",
+      "description": "Advisory Foreign Flow 1W assessment and concise analysis in Indonesian.",
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "type": "string",
+          "enum": ["ACCUMULATION", "NEUTRAL", "DISTRIBUTION"],
+          "description": "Semantic classification of visible weekly foreign flow."
+        },
+        "analysis": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of weekly consistency, visible magnitude, price relationship, and thesis alignment."
+        }
+      },
+      "required": ["assessment", "analysis"]
+    },
     "support": {
       "type": "object",
       "description": "Advisory support area or level only; not a confirmed user fact.",
@@ -154,6 +171,7 @@
     "orderbook_analysis",
     "three_month_chart_analysis",
     "six_month_chart_analysis",
+    "foreign_flow_analysis",
     "support",
     "resistance",
     "entry_area",

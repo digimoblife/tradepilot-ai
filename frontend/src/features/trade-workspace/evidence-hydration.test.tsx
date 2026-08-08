@@ -74,6 +74,14 @@ const mockPersistedEvidence: InitialEvidenceUploadResponse = {
       size_bytes: 34567,
       uploaded_at: "2026-07-31T10:00:00Z",
     },
+    {
+      id: "ev-4",
+      evidence_type: "FOREIGN_FLOW_1W",
+      original_filename: "foreign-flow.png",
+      mime_type: "image/png",
+      size_bytes: 45678,
+      uploaded_at: "2026-07-31T10:00:00Z",
+    },
   ],
 };
 
@@ -91,7 +99,7 @@ afterEach(() => {
 });
 
 describe("Initial Evidence Hydration", () => {
-  it("fresh session with no evidence requires all three file uploads", async () => {
+  it("fresh session with no evidence requires all four file uploads", async () => {
     vi.mocked(readInitialEvidence).mockResolvedValue({ evidence: [] });
 
     render(<TradeWorkspace />);
@@ -104,7 +112,7 @@ describe("Initial Evidence Hydration", () => {
     expect(uploadInitialEvidence).not.toHaveBeenCalled();
   });
 
-  it("keeps upload disabled until all three required files are selected and submits that file set", async () => {
+  it("keeps upload disabled until all four required files are selected and submits that file set", async () => {
     const user = userEvent.setup();
     vi.mocked(readInitialEvidence).mockResolvedValue({ evidence: [] });
     vi.mocked(uploadInitialEvidence).mockResolvedValue(mockPersistedEvidence);
@@ -120,26 +128,33 @@ describe("Initial Evidence Hydration", () => {
       orderbook: new File(["orderbook"], "orderbook.png", { type: "image/png" }),
       chart3m: new File(["chart3m"], "chart-3m.png", { type: "image/png" }),
       chart6m: new File(["chart6m"], "chart-6m.png", { type: "image/png" }),
+      foreignFlow: new File(["foreign-flow"], "foreign-flow.png", { type: "image/png" }),
     };
 
     await user.upload(screen.getByLabelText("Order Book"), files.orderbook);
     await user.upload(screen.getByLabelText("Grafik 3 Bulan"), files.chart3m);
     await user.upload(screen.getByLabelText("Grafik 6 Bulan"), files.chart6m);
 
+    expect(uploadButton).toBeDisabled();
+    expect(screen.getByLabelText("Foreign Flow — 1W")).toBeRequired();
+    await user.upload(screen.getByLabelText("Foreign Flow — 1W"), files.foreignFlow);
+
     expect(uploadButton).toBeEnabled();
     expect(screen.getByText("orderbook.png")).toBeInTheDocument();
     expect(screen.getByText("chart-3m.png")).toBeInTheDocument();
     expect(screen.getByText("chart-6m.png")).toBeInTheDocument();
+    expect(screen.getByText("foreign-flow.png")).toBeInTheDocument();
     fireEvent.submit(uploadButton.closest("form")!);
 
     await waitFor(() => expect(uploadInitialEvidence).toHaveBeenCalledWith("session-tlkm", {
       orderbook: files.orderbook,
       chart_3_month: files.chart3m,
       chart_6_month: files.chart6m,
+      foreign_flow_1w: files.foreignFlow,
     }));
   });
 
-  it("reopened session with all three persisted evidence types does not require re-upload", async () => {
+  it("reopened session with all four persisted evidence types does not require re-upload", async () => {
     vi.mocked(readInitialEvidence).mockResolvedValue(mockPersistedEvidence);
 
     render(<TradeWorkspace />);
@@ -148,7 +163,7 @@ describe("Initial Evidence Hydration", () => {
       expect(screen.getByText("Evidence siap")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("3 file diterima.")).toBeInTheDocument();
+    expect(screen.getByText("4 file diterima.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Minta Initial Analysis" })).toBeInTheDocument();
     expect(screen.queryByText("Evidence Initial Analysis")).not.toBeInTheDocument();
     expect(uploadInitialEvidence).not.toHaveBeenCalled();
@@ -170,7 +185,7 @@ describe("Initial Evidence Hydration", () => {
     await waitFor(() => {
       expect(screen.getByText("Evidence siap")).toBeInTheDocument();
     });
-    expect(screen.getByText("3 file diterima.")).toBeInTheDocument();
+    expect(screen.getByText("4 file diterima.")).toBeInTheDocument();
   });
 
   it("failed Initial Analysis submission does not clear persisted evidence", async () => {

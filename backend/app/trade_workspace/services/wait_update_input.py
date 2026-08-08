@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -90,6 +91,9 @@ class WaitUpdateInputService:
         current_price: Decimal,
         observation_period: AnalysisRequestV2ObservationPeriod,
         observation_timestamp: datetime,
+        broker_flow_original_filename: str | None = None,
+        broker_flow_mime_type: str | None = None,
+        broker_flow_content: bytes | None = None,
     ) -> WaitUpdateInputResult:
         trade_session = await self._load_owned_waiting_session(user_id, session_id)
         self._validate(
@@ -98,16 +102,20 @@ class WaitUpdateInputService:
             content=content,
             current_price=current_price,
             observation_timestamp=observation_timestamp,
+            broker_flow_original_filename=broker_flow_original_filename,
+            broker_flow_mime_type=broker_flow_mime_type,
+            broker_flow_content=broker_flow_content,
         )
-        stored_reference: str | None = None
+        stored_references: list[str] = []
         try:
+            uploaded_at = datetime.now(timezone.utc)
             stored = self._storage.store(
                 user_id=user_id,
                 session_id=session_id,
                 original_filename=original_filename,
                 content=content,
             )
-            stored_reference = stored.file_reference
+            stored_references.append(stored.file_reference)
             evidence = EvidenceUploadV2(
                 session_id=trade_session.id,
                 evidence_type=EvidenceUploadV2Type.ORDERBOOK,
@@ -119,20 +127,45 @@ class WaitUpdateInputService:
                 original_filename=original_filename,
                 mime_type=mime_type,
                 size_bytes=stored.size_bytes,
+                uploaded_at=uploaded_at,
             )
-            self._session.add(evidence)
+            records = [evidence]
+            if broker_flow_content is not None:
+                broker_stored = self._storage.store(
+                    user_id=user_id,
+                    session_id=session_id,
+                    original_filename=broker_flow_original_filename or "",
+                    content=broker_flow_content,
+                )
+                stored_references.append(broker_stored.file_reference)
+                records.append(
+                    EvidenceUploadV2(
+                        session_id=trade_session.id,
+                        evidence_type=EvidenceUploadV2Type.BROKER_FLOW_1D,
+                        analysis_request_id=None,
+                        observation_period=observation_period,
+                        current_price=current_price,
+                        observation_timestamp=observation_timestamp,
+                        file_path=broker_stored.file_reference,
+                        original_filename=broker_flow_original_filename or "",
+                        mime_type=broker_flow_mime_type or "",
+                        size_bytes=broker_stored.size_bytes,
+                        uploaded_at=uploaded_at,
+                    )
+                )
+            self._session.add_all(records)
             await self._session.flush()
             await self._session.commit()
         except StorageError as exc:
-            await self._rollback_and_cleanup(stored_reference)
+            await self._rollback_and_cleanup(stored_references)
             raise WaitUpdateInputStorageError("WAIT Update input storage failed") from exc
         except (OSError, SQLAlchemyError) as exc:
-            await self._rollback_and_cleanup(stored_reference)
+            await self._rollback_and_cleanup(stored_references)
             raise WaitUpdateInputPersistenceError(
                 "WAIT Update input could not be persisted"
             ) from exc
         except Exception:
-            await self._rollback_and_cleanup(stored_reference)
+            await self._rollback_and_cleanup(stored_references)
             raise
         return WaitUpdateInputResult(
             evidence_id=evidence.id,
@@ -177,6 +210,9 @@ class WaitUpdateInputService:
         content: bytes,
         current_price: Decimal,
         observation_timestamp: datetime,
+        broker_flow_original_filename: str | None,
+        broker_flow_mime_type: str | None,
+        broker_flow_content: bytes | None,
     ) -> None:
         if not content:
             raise WaitUpdateInputValidationError("Orderbook file is empty")
@@ -190,18 +226,30 @@ class WaitUpdateInputService:
             raise WaitUpdateInputValidationError("Current price must be positive")
         decimal_places = max(0, -current_price.as_tuple().exponent)
         if decimal_places > 6 or current_price.adjusted() > 13:
-            raise WaitUpdateInputValidationError(
-                "Current price exceeds the approved precision"
-            )
+            raise WaitUpdateInputValidationError("Current price exceeds the approved precision")
         if observation_timestamp.tzinfo is None or observation_timestamp.utcoffset() is None:
-            raise WaitUpdateInputValidationError(
-                "Observation timestamp must include a timezone"
-            )
+            raise WaitUpdateInputValidationError("Observation timestamp must include a timezone")
+        broker_values = (
+            broker_flow_original_filename,
+            broker_flow_mime_type,
+            broker_flow_content,
+        )
+        if any(value is not None for value in broker_values):
+            if any(value is None for value in broker_values):
+                raise WaitUpdateInputValidationError("Broker Flow file is incomplete")
+            if not broker_flow_content:
+                raise WaitUpdateInputValidationError("Broker Flow file is empty")
+            if broker_flow_mime_type not in SUPPORTED_IMAGE_MIME_TYPES:
+                raise WaitUpdateInputValidationError("Broker Flow MIME type is unsupported")
+            if len(broker_flow_content) > self._max_size_bytes:
+                raise WaitUpdateInputValidationError("Broker Flow file is too large")
+            if not broker_flow_original_filename:
+                raise WaitUpdateInputValidationError("Broker Flow filename is missing")
 
-    async def _rollback_and_cleanup(self, reference: str | None) -> None:
+    async def _rollback_and_cleanup(self, references: Sequence[str]) -> None:
         await self._session.rollback()
-        if reference is not None:
+        for reference in references:
             try:
                 self._storage.delete(file_reference=reference)
             except (OSError, StorageError):
-                pass
+                continue

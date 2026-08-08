@@ -274,9 +274,7 @@ async def test_existing_position_or_buy_rejects_duplicate(
     seed_kw: str,
     expected_code: str,
 ) -> None:
-    _, session_id, email = await _seed(
-        engine, TradeSessionV2Status.ANALYZED, **{seed_kw: True}
-    )
+    _, session_id, email = await _seed(engine, TradeSessionV2Status.ANALYZED, **{seed_kw: True})
     code, payload = await _post_buy(db_session, session_id, email)
     assert code == 409
     assert payload["error"]["code"] == expected_code
@@ -308,7 +306,12 @@ async def test_buy_preserves_prior_wait_evidence_and_analysis(
                 processed_response={"summary": "preserved"},
             )
         )
-        for evidence_type in EvidenceUploadV2Type:
+        for evidence_type in (
+            EvidenceUploadV2Type.ORDERBOOK,
+            EvidenceUploadV2Type.CHART_3_MONTH,
+            EvidenceUploadV2Type.CHART_6_MONTH,
+            EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+        ):
             await connection.execute(
                 EvidenceUploadV2.__table__.insert().values(
                     id=uuid.uuid4(),
@@ -324,7 +327,7 @@ async def test_buy_preserves_prior_wait_evidence_and_analysis(
     code, _ = await _post_buy(db_session, session_id, email)
     assert code == 201
     assert await _count(db_session, SessionDecisionV2, session_id) == 2
-    assert await _count(db_session, EvidenceUploadV2, session_id) == 3
+    assert await _count(db_session, EvidenceUploadV2, session_id) == 4
     analysis = await db_session.scalar(
         select(AnalysisRequestV2).where(AnalysisRequestV2.id == request_id)
     )

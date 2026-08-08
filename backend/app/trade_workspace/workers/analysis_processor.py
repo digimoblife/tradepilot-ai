@@ -240,9 +240,12 @@ class RebuildAnalysisProcessor:
             )
         schema = _load_schema(self._schemas_root, claim.analysis_type)
         image_parts = await self._image_resolver.resolve(context.evidence)
-        if claim.analysis_type is RebuildAnalysisType.WAIT_UPDATE and len(image_parts) != 1:
+        if (
+            claim.analysis_type is RebuildAnalysisType.WAIT_UPDATE
+            and len(image_parts) not in (1, 2)
+        ):
             raise InvalidWaitUpdateImageCountError(
-                "WAIT_UPDATE requires exactly one current orderbook image"
+                "WAIT_UPDATE requires one Orderbook image and optionally one Broker Flow image"
             )
         prompt_text = _compose_prompt(prompt, context)
         adapter = self._adapter_factory(claim.model)

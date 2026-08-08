@@ -22,6 +22,23 @@
       "type": "string",
       "description": "Concise assessment of the latest orderbook in Indonesian."
     },
+    "broker_flow_analysis": {
+      "type": ["object", "null"],
+      "description": "Optional advisory Broker Flow 1D assessment, present only when Broker Flow evidence was supplied.",
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "type": "string",
+          "enum": ["ACCUMULATION", "NEUTRAL", "DISTRIBUTION"],
+          "description": "Semantic classification of visible daily broker flow for the open position."
+        },
+        "analysis": {
+          "type": "string",
+          "description": "Concise Indonesian explanation of accumulation continuity or emerging distribution and position risk."
+        }
+      },
+      "required": ["assessment", "analysis"]
+    },
     "change_from_previous_analysis": {
       "type": "string",
       "description": "Concise Indonesian description of material change from earlier analysis."

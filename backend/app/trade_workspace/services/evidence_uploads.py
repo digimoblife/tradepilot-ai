@@ -23,6 +23,7 @@ INITIAL_EVIDENCE_TYPES = (
     EvidenceUploadV2Type.ORDERBOOK,
     EvidenceUploadV2Type.CHART_3_MONTH,
     EvidenceUploadV2Type.CHART_6_MONTH,
+    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
 )
 
 
@@ -192,7 +193,7 @@ class InitialEvidenceUploadService:
 
     def _validate_inputs(self, files: Sequence[InitialEvidenceInput]) -> None:
         if len(files) != len(INITIAL_EVIDENCE_TYPES):
-            raise InitialEvidenceFileError("Exactly three initial evidence files are required")
+            raise InitialEvidenceFileError("Exactly four initial evidence files are required")
         if tuple(item.evidence_type for item in files) != INITIAL_EVIDENCE_TYPES:
             raise InitialEvidenceFileError("Initial evidence roles are invalid")
         for item in files:

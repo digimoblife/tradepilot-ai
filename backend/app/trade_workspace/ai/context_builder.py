@@ -196,7 +196,7 @@ class RebuildAnalysisContextBuilder:
 
         if resolved_type is RebuildAnalysisType.WAIT_UPDATE:
             current_evidence = self._wait_update_evidence(linked_evidence, request.id)
-            observation = self._wait_update_observation_facts(request, current_evidence)
+            observation = self._wait_update_observation_facts(request, current_evidence[0])
             current_position = await self._load_positions(session_id)
             if current_position:
                 raise UnexpectedPositionError(
@@ -210,7 +210,7 @@ class RebuildAnalysisContextBuilder:
                 analysis_type=resolved_type,
                 session=session_facts,
                 current_observation=observation,
-                evidence=(self._evidence_reference(current_evidence),),
+                evidence=tuple(self._evidence_reference(item) for item in current_evidence),
                 initial_analysis=initial_analysis,
                 history=(prior_wait,) if prior_wait is not None else (),
                 position=None,
@@ -219,7 +219,7 @@ class RebuildAnalysisContextBuilder:
         current_position = await self._load_positions(session_id)
         position = self._position_update_position(current_position, request, session_id)
         current_evidence = self._position_update_evidence(linked_evidence, request.id)
-        observation = self._position_update_observation_facts(request, current_evidence)
+        observation = self._position_update_observation_facts(request, current_evidence[0])
         (
             initial_analysis,
             prior_wait,
@@ -234,7 +234,7 @@ class RebuildAnalysisContextBuilder:
             analysis_type=resolved_type,
             session=session_facts,
             current_observation=observation,
-            evidence=(self._evidence_reference(current_evidence),),
+            evidence=tuple(self._evidence_reference(item) for item in current_evidence),
             initial_analysis=initial_analysis,
             history=history,
             position=position,
@@ -301,6 +301,7 @@ class RebuildAnalysisContextBuilder:
             EvidenceUploadV2Type.ORDERBOOK,
             EvidenceUploadV2Type.CHART_3_MONTH,
             EvidenceUploadV2Type.CHART_6_MONTH,
+            EvidenceUploadV2Type.FOREIGN_FLOW_1W,
         )
         evidence = list(
             (
@@ -348,12 +349,26 @@ class RebuildAnalysisContextBuilder:
     def _wait_update_evidence(
         linked_evidence: list[EvidenceUploadV2],
         analysis_request_id: uuid.UUID,
-    ) -> EvidenceUploadV2:
-        if len(linked_evidence) != 1:
+    ) -> tuple[EvidenceUploadV2, ...]:
+        if len(linked_evidence) not in (1, 2):
             raise MissingRequiredEvidenceError(
-                "WAIT_UPDATE requires exactly one linked current evidence record"
+                "WAIT_UPDATE requires ORDERBOOK and at most one BROKER_FLOW_1D"
             )
-        evidence = linked_evidence[0]
+        orderbooks = [
+            item
+            for item in linked_evidence
+            if item.evidence_type is EvidenceUploadV2Type.ORDERBOOK
+        ]
+        broker_flows = [
+            item
+            for item in linked_evidence
+            if item.evidence_type is EvidenceUploadV2Type.BROKER_FLOW_1D
+        ]
+        if len(orderbooks) != 1 or len(broker_flows) != len(linked_evidence) - 1:
+            raise MissingRequiredEvidenceError(
+                "WAIT_UPDATE requires ORDERBOOK and optionally BROKER_FLOW_1D"
+            )
+        evidence = orderbooks[0]
         if (
             evidence.analysis_request_id != analysis_request_id
             or evidence.session_id is None
@@ -367,7 +382,17 @@ class RebuildAnalysisContextBuilder:
             raise MissingRequiredEvidenceError(
                 "WAIT_UPDATE current evidence is missing required persisted facts"
             )
-        return evidence
+        for broker_flow in broker_flows:
+            if (
+                broker_flow.analysis_request_id != analysis_request_id
+                or broker_flow.session_id != evidence.session_id
+                or not broker_flow.file_path.strip()
+                or Path(broker_flow.file_path).is_absolute()
+            ):
+                raise MissingRequiredEvidenceError(
+                    "WAIT_UPDATE Broker Flow evidence is not owned by this request"
+                )
+        return (evidence, *broker_flows)
 
     @staticmethod
     def _wait_update_observation_facts(
@@ -394,12 +419,26 @@ class RebuildAnalysisContextBuilder:
     def _position_update_evidence(
         linked_evidence: list[EvidenceUploadV2],
         analysis_request_id: uuid.UUID,
-    ) -> EvidenceUploadV2:
-        if len(linked_evidence) != 1:
+    ) -> tuple[EvidenceUploadV2, ...]:
+        if len(linked_evidence) not in (1, 2):
             raise MissingRequiredEvidenceError(
-                "POSITION_UPDATE requires exactly one linked current evidence record"
+                "POSITION_UPDATE requires ORDERBOOK and at most one BROKER_FLOW_1D"
             )
-        evidence = linked_evidence[0]
+        orderbooks = [
+            item
+            for item in linked_evidence
+            if item.evidence_type is EvidenceUploadV2Type.ORDERBOOK
+        ]
+        broker_flows = [
+            item
+            for item in linked_evidence
+            if item.evidence_type is EvidenceUploadV2Type.BROKER_FLOW_1D
+        ]
+        if len(orderbooks) != 1 or len(broker_flows) != len(linked_evidence) - 1:
+            raise MissingRequiredEvidenceError(
+                "POSITION_UPDATE requires ORDERBOOK and optionally BROKER_FLOW_1D"
+            )
+        evidence = orderbooks[0]
         if (
             evidence.analysis_request_id != analysis_request_id
             or evidence.session_id is None
@@ -413,7 +452,17 @@ class RebuildAnalysisContextBuilder:
             raise MissingRequiredEvidenceError(
                 "POSITION_UPDATE current evidence is missing required persisted facts"
             )
-        return evidence
+        for broker_flow in broker_flows:
+            if (
+                broker_flow.analysis_request_id != analysis_request_id
+                or broker_flow.session_id != evidence.session_id
+                or not broker_flow.file_path.strip()
+                or Path(broker_flow.file_path).is_absolute()
+            ):
+                raise MissingRequiredEvidenceError(
+                    "POSITION_UPDATE Broker Flow evidence is not owned by this request"
+                )
+        return (evidence, *broker_flows)
 
     @staticmethod
     def _position_update_observation_facts(

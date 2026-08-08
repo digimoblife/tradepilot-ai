@@ -55,6 +55,11 @@ async def _seed_user_and_session(
                 (EvidenceUploadV2Type.ORDERBOOK, "orderbook.png", "/secret/storage/path/ob.png"),
                 (EvidenceUploadV2Type.CHART_3_MONTH, "chart3m.png", "/secret/storage/path/c3.png"),
                 (EvidenceUploadV2Type.CHART_6_MONTH, "chart6m.png", "/secret/storage/path/c6.png"),
+                (
+                    EvidenceUploadV2Type.FOREIGN_FLOW_1W,
+                    "foreign-flow.png",
+                    "/secret/storage/path/foreign.png",
+                ),
             ]
             for etype, fname, fpath in evidence_types:
                 await connection.execute(
@@ -110,13 +115,23 @@ async def test_read_initial_evidence_success(engine: AsyncEngine) -> None:
 
         assert "evidence" in data
         evidence_items = data["evidence"]
-        assert len(evidence_items) == 3
+        assert len(evidence_items) == 4
 
         types = [e["evidence_type"] for e in evidence_items]
-        assert types == ["ORDERBOOK", "CHART_3_MONTH", "CHART_6_MONTH"]
+        assert types == [
+            "ORDERBOOK",
+            "CHART_3_MONTH",
+            "CHART_6_MONTH",
+            "FOREIGN_FLOW_1W",
+        ]
 
         filenames = [e["original_filename"] for e in evidence_items]
-        assert filenames == ["orderbook.png", "chart3m.png", "chart6m.png"]
+        assert filenames == [
+            "orderbook.png",
+            "chart3m.png",
+            "chart6m.png",
+            "foreign-flow.png",
+        ]
 
         # Ensure no physical file paths or storage internals exposed
         for item in evidence_items:

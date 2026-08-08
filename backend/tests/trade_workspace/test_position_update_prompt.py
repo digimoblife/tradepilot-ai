@@ -68,3 +68,29 @@ def test_initial_and_wait_prompt_resolution_remain_unchanged() -> None:
     assert initial.prompt_version == wait.prompt_version == "v1"
     assert "one three-month chart image" in initial.prompt_text.lower()
     assert "current wait update orderbook image" in wait.prompt_text.lower()
+
+
+def test_position_prompt_handles_optional_broker_flow_without_fabrication() -> None:
+    text = " ".join(
+        RebuildPromptLoader()
+        .load(RebuildPromptType.POSITION_UPDATE)
+        .prompt_text.lower()
+        .split()
+    )
+    for phrase in (
+        "optional broker flow 1d image supplied as the second image",
+        "accumulation",
+        "neutral",
+        "distribution",
+        "accumulation is continuing or distribution is emerging",
+        "aligns or conflicts with the orderbook",
+        "implication for risk to the current position",
+        "do not prove one investor or institution",
+        "one-day broker flow can be noisy",
+        "do not invent unreadable broker codes",
+        "if image 2 is absent",
+        "do not fabricate broker flow commentary",
+        "omit `broker_flow_analysis`",
+        "do not apply fixed arithmetic bonuses or penalties",
+    ):
+        assert phrase in text

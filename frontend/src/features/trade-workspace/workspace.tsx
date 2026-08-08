@@ -232,8 +232,8 @@ export function SessionWorkspace({
 
   async function upload(event: React.FormEvent) {
     event.preventDefault();
-    if (!files.orderbook || !files.chart_3_month || !files.chart_6_month) {
-      setError("Tiga file evidence wajib dipilih.");
+    if (!files.orderbook || !files.chart_3_month || !files.chart_6_month || !files.foreign_flow_1w) {
+      setError("Empat file evidence wajib dipilih, termasuk Foreign Flow 1W.");
       return;
     }
     setBusy(true);
@@ -243,6 +243,7 @@ export function SessionWorkspace({
         orderbook: File;
         chart_3_month: File;
         chart_6_month: File;
+        foreign_flow_1w: File;
       });
       onEvidence(response.evidence);
     } catch (reason: unknown) {

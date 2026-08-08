@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -15,6 +15,35 @@ from app.trade_workspace.models.analysis_request import (
 )
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2, EvidenceUploadV2Type
 from app.trade_workspace.models.trade_session import TradeSessionV2
+
+
+def test_evidence_upload_v2_type_values_are_backward_compatible() -> None:
+    assert [item.value for item in EvidenceUploadV2Type] == [
+        "ORDERBOOK",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "FOREIGN_FLOW_1W",
+        "BROKER_FLOW_1D",
+    ]
+
+
+@pytest.mark.database
+async def test_evidence_upload_v2_postgresql_enum_contains_all_values(engine) -> None:
+    async with engine.connect() as connection:
+        values = list(
+            (
+                await connection.scalars(
+                    text("SELECT unnest(enum_range(NULL::evidence_upload_v2_type_enum))::text")
+                )
+            ).all()
+        )
+    assert values == [
+        "ORDERBOOK",
+        "CHART_3_MONTH",
+        "CHART_6_MONTH",
+        "FOREIGN_FLOW_1W",
+        "BROKER_FLOW_1D",
+    ]
 
 
 def evidence_data(session_id: uuid.UUID, **overrides: object) -> dict[str, object]:
@@ -158,14 +187,10 @@ async def test_evidence_uploads_v2_persistence(engine) -> None:
         async with factory() as cleanup_session:
             async with cleanup_session.begin():
                 await cleanup_session.execute(
-                    delete(EvidenceUploadV2).where(
-                        EvidenceUploadV2.session_id == trade_session_id
-                    )
+                    delete(EvidenceUploadV2).where(EvidenceUploadV2.session_id == trade_session_id)
                 )
                 await cleanup_session.execute(
-                    delete(AnalysisRequestV2).where(
-                        AnalysisRequestV2.id == analysis_request_id
-                    )
+                    delete(AnalysisRequestV2).where(AnalysisRequestV2.id == analysis_request_id)
                 )
                 await cleanup_session.execute(
                     delete(TradeSessionV2).where(TradeSessionV2.id == trade_session_id)
