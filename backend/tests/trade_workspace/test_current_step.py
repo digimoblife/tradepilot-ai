@@ -171,7 +171,12 @@ def test_normal_action_matrix_and_inconsistent_states() -> None:
     assert _derive(analyzed, positions=(_position(analyzed),))["code"] == "INCONSISTENT"
 
     waiting = _session(TradeSessionV2Status.WAITING)
-    assert _derive(waiting)["workflow_actions"] == ["BUY", "WAIT", "SKIP"]
+    assert _derive(waiting)["workflow_actions"] == [
+        "BUY",
+        "WAIT",
+        "SKIP",
+        "SUBMIT_WAIT_UPDATE",
+    ]
     wait_input = _evidence(waiting, EvidenceUploadV2Type.ORDERBOOK, update=True)
     assert _derive(waiting, evidence=(wait_input,))["workflow_actions"] == [
         "BUY",
@@ -182,7 +187,8 @@ def test_normal_action_matrix_and_inconsistent_states() -> None:
 
     open_session = _session(TradeSessionV2Status.OPEN_POSITION)
     assert _derive(open_session, positions=(_position(open_session),))["workflow_actions"] == [
-        "CLOSE"
+        "SUBMIT_POSITION_UPDATE",
+        "CLOSE",
     ]
     position_input = _evidence(open_session, EvidenceUploadV2Type.ORDERBOOK, update=True)
     assert _derive(
@@ -260,7 +266,7 @@ def test_other_session_request_cannot_affect_current_step() -> None:
     )
     payload = _derive(trade_session, requests=(foreign_request,))
     assert payload["code"] == "WAIT_UPDATE"
-    assert payload["workflow_actions"] == ["BUY", "WAIT", "SKIP"]
+    assert payload["workflow_actions"] == ["BUY", "WAIT", "SKIP", "SUBMIT_WAIT_UPDATE"]
 
 
 def test_failed_retry_contract_matches_supported_retry_services() -> None:

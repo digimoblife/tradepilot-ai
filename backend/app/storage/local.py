@@ -15,6 +15,7 @@ from app.storage.base import (
     StorageWriteError,
     StoredFile,
 )
+from app.storage.image_compressor import compress_image_bytes
 
 _safe_ext_pattern = re.compile(r"^[a-zA-Z0-9]+$")
 
@@ -41,6 +42,7 @@ class LocalFileStorage(FileStorage):
         original_filename: str,
         content: bytes,
     ) -> StoredFile:
+        content = compress_image_bytes(content)
         generated = self._generate_filename(original_filename)
         relative = Path(str(user_id)) / str(session_id) / generated
         full_path = self._root / relative

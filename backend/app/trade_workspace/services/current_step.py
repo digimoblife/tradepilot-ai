@@ -23,7 +23,6 @@ from app.trade_workspace.services.eligibility import (
     request_is_active,
     request_is_retryable,
     single_open_position,
-    update_evidence_is_ready,
     wait_retry_evidence_is_valid,
     wait_update_session_is_eligible,
 )
@@ -226,10 +225,6 @@ class CurrentStepService:
             wait_actions = (
                 (WorkflowAction.SUBMIT_WAIT_UPDATE,)
                 if wait_update_session_is_eligible(status)
-                and any(
-                    update_evidence_is_ready(item, require_relative_path=False)
-                    for item in evidence_rows
-                )
                 else ()
             )
             return CurrentStep(
@@ -245,10 +240,6 @@ class CurrentStepService:
             position_update_actions = (
                 (WorkflowAction.SUBMIT_POSITION_UPDATE,)
                 if open_position_session_is_eligible(status)
-                and any(
-                    update_evidence_is_ready(item, require_relative_path=True)
-                    for item in evidence_rows
-                )
                 else ()
             )
             close_actions = (WorkflowAction.CLOSE,) if closure is None else ()
