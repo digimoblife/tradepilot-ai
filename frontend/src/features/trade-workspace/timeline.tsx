@@ -110,26 +110,88 @@ const timelinePresentation: Record<TimelineEventType, TimelinePresentation> = {
 
 function TimelineEventItem({ event }: { event: TimelineEvent }) {
   const presentation = timelinePresentation[event.type];
-  return <li className="relative min-w-0 pl-8">
-    <span aria-hidden="true" className={`absolute left-[0.4375rem] top-5 z-10 h-3 w-3 ${presentation.marker}`} />
-    <article className={`min-w-0 rounded-[var(--radius-compact)] border p-[var(--space-card)] ${presentation.surface}`}>
-      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <h4 className="min-w-0 break-words font-semibold text-[var(--color-text-strong)]">{event.title}</h4>
-        <time dateTime={event.timestamp ?? undefined} className="min-w-0 break-words text-xs text-[var(--color-text-muted)] sm:max-w-[12rem] sm:text-right">{formatTime(event.timestamp)}</time>
-      </div>
-      <dl className="mt-[var(--space-3)] grid min-w-0 grid-cols-1 gap-x-[var(--space-5)] gap-y-[var(--space-3)] text-[var(--text-size-compact-body)] sm:grid-cols-2">
-        {event.details.map(([label, value]) => <div key={`${event.id}:${label}`} className="min-w-0">
-          <dt className="break-words text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">{label}</dt>
-          <dd className="mt-1 min-w-0 break-words whitespace-pre-wrap text-[var(--color-text-default)]">{value}</dd>
-        </div>)}
-      </dl>
-    </article>
-  </li>;
+  return (
+    <li className="relative min-w-0 pl-8">
+      <span
+        aria-hidden="true"
+        className={`absolute left-[0.375rem] top-5 z-10 h-3.5 w-3.5 shadow-xs ${presentation.marker}`}
+      />
+      <article
+        className={`min-w-0 rounded-[var(--radius-standard)] border p-[var(--space-card)] shadow-[var(--elevation-low)] ${presentation.surface}`}
+      >
+        <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <h4 className="min-w-0 break-words font-semibold text-[var(--color-text-strong)]">
+            {event.title}
+          </h4>
+          <time
+            dateTime={event.timestamp ?? undefined}
+            className="min-w-0 break-words text-xs text-[var(--color-text-muted)] sm:max-w-[12rem] sm:text-right"
+          >
+            {formatTime(event.timestamp)}
+          </time>
+        </div>
+        <dl className="mt-[var(--space-3)] grid min-w-0 grid-cols-1 gap-x-[var(--space-5)] gap-y-[var(--space-3)] text-[var(--text-size-compact-body)] sm:grid-cols-2">
+          {event.details.map(([label, value]) => (
+            <div key={`${event.id}:${label}`} className="min-w-0">
+              <dt className="break-words text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                {label}
+              </dt>
+              <dd className="mt-1 min-w-0 break-words whitespace-pre-wrap text-[var(--color-text-default)]">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </article>
+    </li>
+  );
 }
 
-export function SessionTimeline({ aggregate, loading, error }: { aggregate: SessionDetailAggregate | null; loading: boolean; error: string | null }) {
-  if (loading && !aggregate) return <section aria-label="Riwayat sesi" className="rounded-xl border border-zinc-200 bg-white p-5"><p className="text-zinc-500" aria-live="polite">Memuat riwayat sesi…</p></section>;
-  if (error && !aggregate) return <section aria-label="Riwayat sesi" className="rounded-xl border border-red-200 bg-red-50 p-5"><p className="text-red-700" role="alert">Gagal memuat riwayat sesi</p></section>;
+export function SessionTimeline({
+  aggregate,
+  loading,
+  error,
+}: {
+  aggregate: SessionDetailAggregate | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading && !aggregate) {
+    return (
+      <section aria-label="Riwayat sesi" className="rounded-xl border border-zinc-200 bg-white p-5">
+        <p className="text-zinc-500" aria-live="polite">
+          Memuat riwayat sesi…
+        </p>
+      </section>
+    );
+  }
+  if (error && !aggregate) {
+    return (
+      <section aria-label="Riwayat sesi" className="rounded-xl border border-red-200 bg-red-50 p-5">
+        <p className="text-red-700" role="alert">
+          Gagal memuat riwayat sesi
+        </p>
+      </section>
+    );
+  }
   const events = aggregate ? buildTimelineEvents(aggregate) : [];
-  return <section aria-label="Riwayat sesi" className="min-w-0 space-y-3"><h3 className="text-lg font-semibold text-[var(--color-text-strong)]">Riwayat Sesi</h3>{events.length === 0 ? <p className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-card)] text-[var(--color-text-muted)]">Belum ada riwayat sesi.</p> : <ol className="relative min-w-0 space-y-[var(--space-4)] before:absolute before:bottom-2 before:left-[0.75rem] before:top-2 before:w-px before:bg-[var(--color-border-default)]" aria-label="Urutan riwayat sesi">{events.map((event) => <TimelineEventItem key={event.id} event={event} />)}</ol>}</section>;
+  return (
+    <section aria-label="Riwayat sesi" className="min-w-0 space-y-3">
+      <h3 className="text-lg font-semibold text-[var(--color-text-strong)]">Riwayat Sesi</h3>
+      {events.length === 0 ? (
+        <p className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-card)] text-[var(--color-text-muted)]">
+          Belum ada riwayat sesi.
+        </p>
+      ) : (
+        <ol
+          className="relative min-w-0 space-y-[var(--space-4)] before:absolute before:bottom-2 before:left-[0.75rem] before:top-2 before:w-0.5 before:bg-[var(--color-border-strong)]"
+          aria-label="Urutan riwayat sesi"
+        >
+          {events.map((event) => (
+            <TimelineEventItem key={event.id} event={event} />
+          ))}
+        </ol>
+      )}
+    </section>
+  );
 }

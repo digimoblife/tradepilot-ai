@@ -48,12 +48,20 @@ export function SessionsListSurface() {
 
   if (state.sessions.length === 0) {
     return (
-      <div className="mt-6 text-sm text-[var(--color-text-muted)] space-y-4">
-        <p>Belum ada sesi perdagangan.</p>
-        <div>
+      <div className="mt-8 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-8 text-center shadow-[var(--elevation-low)] sm:p-12">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600 text-2xl font-bold">
+          📊
+        </div>
+        <h3 className="mt-4 text-lg font-bold text-[var(--color-text-strong)]">
+          Belum ada sesi perdagangan.
+        </h3>
+        <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-muted)]">
+          Mulai analisis saham baru Anda dengan mengunggah bukti orderbook dan grafik teknikal untuk evaluasi berbasis AI.
+        </p>
+        <div className="mt-6">
           <Link
             href="/sessions/new"
-            className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+            className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
           >
             Buat Sesi Baru
           </Link>
@@ -69,7 +77,7 @@ export function SessionsListSurface() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link
           href="/sessions/new"
-          className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+          className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-5 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
         >
           Buat Sesi Baru
         </Link>

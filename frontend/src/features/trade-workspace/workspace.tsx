@@ -377,27 +377,207 @@ export function SessionWorkspace({
   const handleBuyChange = (field: keyof BuyFormState, value: string) => {
     setBuyForm((current) => ({ ...current, [field]: value }));
   };
-  return <section className="min-w-0 space-y-[var(--space-section)]">
-    <header aria-label="Ringkasan sesi" className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-strong)] bg-[var(--color-surface-factual)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
-      {!headerSession ? <p role={aggregateError ? "alert" : undefined} aria-live={aggregateError ? undefined : "polite"} className={aggregateError ? "text-red-700" : "text-zinc-500"}>{aggregateError ?? "Memuat ringkasan sesi…"}</p> : <>
-        <div className="flex min-w-0 flex-col gap-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="break-words text-[var(--text-size-ticker)] font-bold leading-[var(--text-line-compact)] tracking-[0.04em] text-[var(--color-text-strong)]">{headerSession.ticker}</p><h2 className="mt-[var(--space-1)] break-words text-[var(--text-size-section-title)] font-semibold leading-[var(--text-line-heading)] text-[var(--color-text-default)]">{headerSession.company_name}</h2></div><span className={`w-fit shrink-0 rounded-[var(--radius-compact)] border px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-size-status)] font-semibold leading-[var(--text-line-compact)] ${statusToneClasses[headerSession.status]}`}>{statusLabels[headerSession.status]}</span></div>
-        <dl className="mt-[var(--space-6)] grid min-w-0 grid-cols-1 gap-x-[var(--space-6)] gap-y-[var(--space-4)] text-[var(--text-size-compact-body)] sm:grid-cols-2"><div className="min-w-0"><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Status</dt><dd className="mt-[var(--space-1)] break-words font-semibold text-[var(--color-text-strong)]">{statusLabels[headerSession.status]}</dd></div><div className="min-w-0"><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Keputusan Aktif</dt><dd className="mt-[var(--space-1)] break-words font-semibold text-[var(--color-text-strong)]">{latestDecision(aggregate)}</dd></div><div className="min-w-0"><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Dibuat</dt><dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">{formatTime(headerSession.created_at)}</dd></div><div className="min-w-0"><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Pembaruan Terakhir</dt><dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">{formatTime(headerSession.updated_at)}</dd></div><div className="min-w-0"><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Ditutup</dt><dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">{formatTime(headerSession.closed_at)}</dd></div>{aggregate.position && <div className="min-w-0"><dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">Status posisi</dt><dd className="mt-[var(--space-1)] break-words font-semibold text-[var(--color-text-strong)]">{String(aggregate.position.status ?? "—")}</dd></div>}</dl>
-        {headerSession.initial_note && <section aria-label="Catatan" className="mt-[var(--space-6)] rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-[var(--space-4)] py-[var(--space-3)]"><p className="whitespace-pre-wrap break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{headerSession.initial_note}</p></section>}
-      </>}
-    </header>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    <div className="space-y-[var(--space-section)]">
-    {showDecisionPanel && <DecisionPanel actions={actions} decisionSubmitting={decisionSubmitting} decisionError={decisionError} decisionSuccess={decisionSuccess} buyForm={buyForm} skipReasons={skipReasons} skipReason={skipReason} skipNote={skipNote} onBuyChange={handleBuyChange} onBuySubmit={submitBuy} onWait={submitWait} onSkipReasonChange={setSkipReason} onSkipNoteChange={setSkipNote} onSkipSubmit={submitSkip} />}
-    {!showDecisionPanel && decisionError && <p role="alert" className="break-words rounded-[var(--radius-compact)] border border-[var(--color-status-danger)] bg-[var(--color-status-danger-subtle)] p-[var(--space-3)] text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{decisionError}</p>}
-    {!showDecisionPanel && decisionSuccess && <p role="status" aria-live="polite" className="break-words rounded-[var(--radius-compact)] border border-[var(--color-status-success)] bg-[var(--color-surface-feedback)] p-[var(--space-3)] text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{decisionSuccess}</p>}
-    {(waitPanelActive || session.status === "WAITING") && <WaitUpdatePanel key={`${sessionId}-${waitCycle}`} sessionId={sessionId} sessionStatus={session.status} onProcessing={handleWaitProcessing} onFinished={refreshDecisionWorkspace} />}
-    {(session.status === "OPEN_POSITION" || session.status === "CLOSED") && <PositionUpdatePanel sessionId={sessionId} sessionStatus={session.status} onClosed={refreshDecisionWorkspace} initialPosition={buyResult ? { id: buyResult.position_id, session_id: sessionId, status: buyResult.position_status, entry_price: buyResult.entry_price, entry_timestamp: buyResult.entry_timestamp, quantity: buyResult.quantity, stop_loss: buyResult.stop_loss, target_price: buyResult.target_price, note: buyResult.note, created_at: buyResult.decision_at } : null} />}
-    {!analysis && session.status === "DRAFT" && <InitialEvidencePanel files={files} knownEvidence={knownEvidence} busy={busy} onFileSelected={(key, file) => setFiles((current) => ({ ...current, [key]: file }))} onUpload={upload} onRequestAnalysis={submitAnalysis} />}
-    <AnalysisRequestFeedback analysis={analysis} complete={complete} failed={failed} busy={busy} onRetry={retry} />
-    </div>
-    {completedResult && <div className="max-w-[var(--layout-text-readable)]"><InitialAnalysisResultView result={completedResult} /></div>}
-    <div>
-      <SessionTimeline aggregate={aggregate} loading={aggregateLoading} error={aggregateError} />
-    </div>
-  </section>;
+  return (
+    <section className="min-w-0 space-y-[var(--space-section)]">
+      <header
+        aria-label="Ringkasan sesi"
+        className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-strong)] bg-[var(--color-surface-factual)] p-[var(--space-card)] shadow-[var(--elevation-low)]"
+      >
+        {!headerSession ? (
+          <p
+            role={aggregateError ? "alert" : undefined}
+            aria-live={aggregateError ? undefined : "polite"}
+            className={aggregateError ? "text-red-700" : "text-zinc-500"}
+          >
+            {aggregateError ?? "Memuat ringkasan sesi…"}
+          </p>
+        ) : (
+          <>
+            <div className="flex min-w-0 flex-col gap-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="break-words text-[var(--text-size-ticker)] font-bold leading-[var(--text-line-compact)] tracking-[0.04em] text-[var(--color-text-strong)]">
+                  {headerSession.ticker}
+                </p>
+                <h2 className="mt-[var(--space-1)] break-words text-[var(--text-size-section-title)] font-semibold leading-[var(--text-line-heading)] text-[var(--color-text-default)]">
+                  {headerSession.company_name}
+                </h2>
+              </div>
+              <span
+                className={`w-fit shrink-0 rounded-[var(--radius-compact)] border px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-size-status)] font-semibold leading-[var(--text-line-compact)] ${statusToneClasses[headerSession.status]}`}
+              >
+                {statusLabels[headerSession.status]}
+              </span>
+            </div>
+
+            <dl className="mt-[var(--space-6)] grid min-w-0 grid-cols-1 gap-x-[var(--space-6)] gap-y-[var(--space-4)] text-[var(--text-size-compact-body)] sm:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                  Status
+                </dt>
+                <dd className="mt-[var(--space-1)] break-words font-semibold text-[var(--color-text-strong)]">
+                  {statusLabels[headerSession.status]}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                  Keputusan Aktif
+                </dt>
+                <dd className="mt-[var(--space-1)] break-words font-semibold text-[var(--color-text-strong)]">
+                  {latestDecision(aggregate)}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                  Dibuat
+                </dt>
+                <dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">
+                  {formatTime(headerSession.created_at)}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                  Pembaruan Terakhir
+                </dt>
+                <dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">
+                  {formatTime(headerSession.updated_at)}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                  Ditutup
+                </dt>
+                <dd className="mt-[var(--space-1)] break-words text-[var(--color-text-default)]">
+                  {formatTime(headerSession.closed_at)}
+                </dd>
+              </div>
+              {aggregate?.position && (
+                <div className="min-w-0">
+                  <dt className="text-[var(--text-size-label)] font-medium text-[var(--color-text-muted)]">
+                    Status posisi
+                  </dt>
+                  <dd className="mt-[var(--space-1)] break-words font-semibold text-[var(--color-text-strong)]">
+                    {String(aggregate.position.status ?? "—")}
+                  </dd>
+                </div>
+              )}
+            </dl>
+
+            {headerSession.initial_note && (
+              <section
+                aria-label="Catatan"
+                className="mt-[var(--space-6)] rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] px-[var(--space-4)] py-[var(--space-3)]"
+              >
+                <p className="whitespace-pre-wrap break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
+                  {headerSession.initial_note}
+                </p>
+              </section>
+            )}
+          </>
+        )}
+      </header>
+
+      {error && (
+        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </p>
+      )}
+
+      <div className="space-y-[var(--space-section)]">
+        {showDecisionPanel && (
+          <DecisionPanel
+            actions={actions}
+            decisionSubmitting={decisionSubmitting}
+            decisionError={decisionError}
+            decisionSuccess={decisionSuccess}
+            buyForm={buyForm}
+            skipReasons={skipReasons}
+            skipReason={skipReason}
+            skipNote={skipNote}
+            onBuyChange={handleBuyChange}
+            onBuySubmit={submitBuy}
+            onWait={submitWait}
+            onSkipReasonChange={setSkipReason}
+            onSkipNoteChange={setSkipNote}
+            onSkipSubmit={submitSkip}
+          />
+        )}
+        {!showDecisionPanel && decisionError && (
+          <p
+            role="alert"
+            className="break-words rounded-[var(--radius-compact)] border border-[var(--color-status-danger)] bg-[var(--color-status-danger-subtle)] p-[var(--space-3)] text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]"
+          >
+            {decisionError}
+          </p>
+        )}
+        {!showDecisionPanel && decisionSuccess && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="break-words rounded-[var(--radius-compact)] border border-[var(--color-status-success)] bg-[var(--color-surface-feedback)] p-[var(--space-3)] text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]"
+          >
+            {decisionSuccess}
+          </p>
+        )}
+        {(waitPanelActive || session.status === "WAITING") && (
+          <WaitUpdatePanel
+            key={`${sessionId}-${waitCycle}`}
+            sessionId={sessionId}
+            sessionStatus={session.status}
+            onProcessing={handleWaitProcessing}
+            onFinished={refreshDecisionWorkspace}
+          />
+        )}
+        {(session.status === "OPEN_POSITION" || session.status === "CLOSED") && (
+          <PositionUpdatePanel
+            sessionId={sessionId}
+            sessionStatus={session.status}
+            onClosed={refreshDecisionWorkspace}
+            initialPosition={
+              buyResult
+                ? {
+                    id: buyResult.position_id,
+                    session_id: sessionId,
+                    status: buyResult.position_status,
+                    entry_price: buyResult.entry_price,
+                    entry_timestamp: buyResult.entry_timestamp,
+                    quantity: buyResult.quantity,
+                    stop_loss: buyResult.stop_loss,
+                    target_price: buyResult.target_price,
+                    note: buyResult.note,
+                    created_at: buyResult.decision_at,
+                  }
+                : null
+            }
+          />
+        )}
+        {!analysis && session.status === "DRAFT" && (
+          <InitialEvidencePanel
+            files={files}
+            knownEvidence={knownEvidence}
+            busy={busy}
+            onFileSelected={(key, file) => setFiles((current) => ({ ...current, [key]: file }))}
+            onUpload={upload}
+            onRequestAnalysis={submitAnalysis}
+          />
+        )}
+        <AnalysisRequestFeedback
+          analysis={analysis}
+          complete={complete}
+          failed={failed}
+          busy={busy}
+          onRetry={retry}
+        />
+      </div>
+
+      {completedResult && (
+        <div className="max-w-[var(--layout-text-readable)]">
+          <InitialAnalysisResultView result={completedResult} />
+        </div>
+      )}
+
+      <div>
+        <SessionTimeline aggregate={aggregate} loading={aggregateLoading} error={aggregateError} />
+      </div>
+    </section>
+  );
 }

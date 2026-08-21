@@ -256,27 +256,27 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
         {records?.length ? (
           <div className="mt-5 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
             <nav aria-label="Pilihan analisis" className="min-w-0">
-              <ul className="space-y-2">
+              <ul className="flex min-w-0 gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-x-visible lg:pb-0">
                 {records.map((item, index) => {
                   const isLatest = index === 0;
                   const isSelected = current?.id === item.id;
                   return (
-                    <li key={item.id}>
+                    <li key={item.id} className="min-w-[14rem] shrink-0 lg:min-w-0 lg:shrink">
                       <button
                         type="button"
                         onClick={() => setSelected(item.id)}
                         aria-pressed={isSelected}
-                        className={`min-h-11 w-full min-w-0 rounded border p-3 text-left outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring ${
+                        className={`min-h-11 w-full min-w-0 rounded-[var(--radius-standard)] border p-3 text-left transition-colors outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring ${
                           isSelected
-                            ? "border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] font-medium"
+                            ? "border-[var(--color-action-primary)] bg-[var(--color-action-primary-subtle)] font-medium shadow-xs"
                             : "border-[var(--color-border-default)] bg-[var(--color-surface-standard)] hover:bg-[var(--color-surface-muted)]"
                         }`}
                       >
-                        <span className="break-words font-semibold text-[var(--color-text-strong)]">
+                        <span className="block break-words font-semibold text-[var(--color-text-strong)]">
                           {labels[item.type]}
                           {isLatest ? " · Terbaru" : ""}
                         </span>
-                        <span className="mt-1 block break-words text-sm text-[var(--color-text-muted)]">
+                        <span className="mt-1 block break-words text-xs text-[var(--color-text-muted)]">
                           {new Intl.DateTimeFormat("id-ID", {
                             dateStyle: "medium",
                             timeStyle: "short",
@@ -290,7 +290,7 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
             </nav>
             <article
               aria-live="polite"
-              className="min-w-0 max-w-3xl rounded border p-4 sm:p-6"
+              className="min-w-0 max-w-3xl rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-4 shadow-[var(--elevation-low)] sm:p-6"
             >
               <h2 className="break-words text-xl font-bold text-[var(--color-text-strong)]">
                 {current && currentHasContent

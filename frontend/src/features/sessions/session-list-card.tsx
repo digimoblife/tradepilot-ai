@@ -85,41 +85,45 @@ export function SessionListCard({ session }: { session: TradeSessionListItem }) 
   const updatedAt = formatSessionUpdatedAt(session.updated_at);
 
   return (
-    <article className="min-w-0 rounded-[var(--radius-standard)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-card)] shadow-[var(--elevation-low)]">
-      <div className="grid min-w-0 gap-[var(--space-4)] sm:grid-cols-[minmax(0,1fr)_auto]">
+    <article className="group min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs transition-all duration-200 hover:border-blue-300 hover:shadow-md sm:p-6">
+      <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
-          <h3 className="break-all text-lg font-bold leading-[var(--text-line-heading)] text-[var(--color-text-strong)]">
-            {session.ticker}
-          </h3>
-          <p className="mt-[var(--space-1)] [overflow-wrap:anywhere] text-sm text-[var(--color-text-muted)]">
-            {session.company_name}
-          </p>
-
-          <div className="mt-[var(--space-3)] min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h3 className="break-all text-xl font-bold tracking-tight text-[var(--color-text-strong)] group-hover:text-[var(--color-action-primary)] transition-colors">
+              {session.ticker}
+            </h3>
             <span
               data-canonical-status={session.status}
-              className={`inline-flex max-w-full rounded-full border px-2.5 py-1 text-xs font-semibold leading-[var(--text-line-compact)] ${status.badgeClassName}`}
+              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-2xs ${status.badgeClassName}`}
             >
               {status.label}
             </span>
-            <p className="mt-[var(--space-2)] break-words text-sm leading-[var(--text-line-compact)] text-[var(--color-text-default)]">
+          </div>
+
+          <p className="mt-1 [overflow-wrap:anywhere] text-sm font-medium text-[var(--color-text-muted)]">
+            {session.company_name}
+          </p>
+
+          <div className="mt-4 rounded-[var(--radius-compact)] bg-[var(--color-surface-factual)] border border-[var(--color-border-default)] px-3.5 py-2.5">
+            <p className="break-words text-xs leading-relaxed text-[var(--color-text-default)]">
+              <span className="font-semibold text-[var(--color-text-strong)]">Tahap berikutnya: </span>
               {status.nextStage}
             </p>
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-col items-start gap-[var(--space-3)] sm:items-end sm:justify-between">
-          <p className="max-w-full break-words text-xs leading-[var(--text-line-compact)] text-[var(--color-text-muted)] sm:text-right">
+        <div className="flex min-w-0 flex-col items-start gap-4 sm:items-end sm:justify-between sm:pl-4">
+          <p className="max-w-full break-words text-xs text-[var(--color-text-muted)] sm:text-right">
             Diperbarui:{" "}
             {updatedAt ? (
-              <time dateTime={session.updated_at}>{updatedAt}</time>
+              <time dateTime={session.updated_at} className="font-medium text-[var(--color-text-default)]">{updatedAt}</time>
             ) : (
               <span>waktu tidak tersedia</span>
             )}
           </p>
           <Link
             href={`/sessions/${session.id}`}
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-5 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
           >
             Buka Sesi
           </Link>
