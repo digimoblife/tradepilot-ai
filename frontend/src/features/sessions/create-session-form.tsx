@@ -7,6 +7,37 @@ import { createSession } from "@/features/trade-workspace/api";
 import type { TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 
+const IDX_COMPANIES: Record<string, string> = {
+  BBCA: "Bank Central Asia Tbk",
+  BBRI: "Bank Rakyat Indonesia (Persero) Tbk",
+  BMRI: "Bank Mandiri (Persero) Tbk",
+  BBNI: "Bank Negara Indonesia (Persero) Tbk",
+  TLKM: "Telkom Indonesia (Persero) Tbk",
+  ASII: "Astra International Tbk",
+  AMMN: "Amman Mineral Internasional Tbk",
+  BREN: "Barito Renewables Energy Tbk",
+  GOTO: "GoTo Gojek Tokopedia Tbk",
+  BRIS: "Bank Syariah Indonesia Tbk",
+  ICBP: "Indofood CBP Sukses Makmur Tbk",
+  INDF: "Indofood Sukses Makmur Tbk",
+  KLBF: "Kalbe Farma Tbk",
+  PGAS: "Perusahaan Gas Negara Tbk",
+  ADRO: "Adaro Energy Indonesia Tbk",
+  UNTR: "United Tractors Tbk",
+  ANTM: "Aneka Tambang Tbk",
+  MDKA: "Merdeka Copper Gold Tbk",
+  INCO: "Vale Indonesia Tbk",
+  PTBA: "Bukit Asam Tbk",
+  CPIN: "Charoen Pokphand Indonesia Tbk",
+  SMGR: "Semen Indonesia (Persero) Tbk",
+  MEDC: "Medco Energi Internasional Tbk",
+  ACES: "Aspirasi Hidup Indonesia Tbk",
+};
+
+const POPULAR_TICKERS = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "BREN", "AMMN", "GOTO"];
+const TRADING_STYLES = ["Day Trade", "Swing Trade", "Scalping"] as const;
+export type TradingStyle = (typeof TRADING_STYLES)[number];
+
 type FieldErrors = {
   ticker?: string;
   companyName?: string;
@@ -21,11 +52,13 @@ export function CreateSessionForm({
 }) {
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [tradingStyle, setTradingStyle] = useState<TradingStyle>("Swing Trade");
   const [note, setNote] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState<"authentication" | "request" | null>(null);
   const [pending, setPending] = useState(false);
   const [createdSession, setCreatedSession] = useState<TradeSession | null>(null);
+
   const pendingRef = useRef(false);
   const attemptRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
@@ -36,10 +69,22 @@ export function CreateSessionForm({
     controllerRef.current?.abort();
   }, []);
 
+  function handleTickerChange(val: string) {
+    setTicker(val);
+    setFieldErrors((current) => ({ ...current, ticker: undefined }));
+  }
+
+  function handleSelectTickerChip(symbol: string) {
+    if (pending || createdSession) return;
+    setTicker(symbol);
+    setCompanyName(IDX_COMPANIES[symbol] || `${symbol} Tbk`);
+    setFieldErrors({});
+  }
+
   function validate(): FieldErrors {
     const errors: FieldErrors = {};
     const normalizedTicker = ticker.trim();
-    const normalizedCompanyName = companyName.trim();
+    const normalizedCompanyName = (companyName || (normalizedTicker ? IDX_COMPANIES[normalizedTicker.toUpperCase()] || `${normalizedTicker.toUpperCase()} Tbk` : "")).trim();
 
     if (!normalizedTicker) errors.ticker = "Kode saham wajib diisi.";
     else if (normalizedTicker.length > 32) errors.ticker = "Kode saham maksimal 32 karakter.";
@@ -61,6 +106,9 @@ export function CreateSessionForm({
     setGeneralError(null);
     if (Object.keys(errors).length > 0) return;
 
+    const finalTicker = ticker.trim().toUpperCase();
+    const finalCompany = (companyName || IDX_COMPANIES[finalTicker] || `${finalTicker} Tbk`).trim();
+
     pendingRef.current = true;
     setPending(true);
     const attempt = ++attemptRef.current;
@@ -70,8 +118,8 @@ export function CreateSessionForm({
     try {
       const session = await createSession(
         {
-          ticker: ticker.trim().toUpperCase(),
-          company_name: companyName.trim(),
+          ticker: finalTicker,
+          company_name: finalCompany,
           note: note.length === 0 ? null : note,
         },
         controller.signal,
@@ -115,11 +163,36 @@ export function CreateSessionForm({
       ) : null}
 
       {createdSession ? (
-        <p role="status" className="text-sm text-[var(--color-status-success)]">
+        <p role="status" className="text-sm font-semibold text-[var(--color-status-success)]">
           {successMessage}
         </p>
       ) : null}
 
+      {/* 1. Quick Popular Tickers */}
+      <div className="min-w-0">
+        <span className="block text-xs font-semibold text-[var(--color-text-muted)]">
+          Pilihan Cepat Saham Populer:
+        </span>
+        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Saham Populer">
+          {POPULAR_TICKERS.map((symbol) => (
+            <button
+              key={symbol}
+              type="button"
+              disabled={pending || createdSession !== null}
+              onClick={() => handleSelectTickerChip(symbol)}
+              className={`rounded-md border px-2.5 py-1 text-xs font-mono font-bold transition-colors ${
+                ticker.trim().toUpperCase() === symbol
+                  ? "border-[var(--color-action-primary)] bg-[var(--color-action-primary)] text-white shadow-xs"
+                  : "border-[var(--color-border-default)] bg-[var(--color-surface-standard)] text-[var(--color-text-strong)] hover:border-[var(--color-border-strong)]"
+              }`}
+            >
+              {symbol}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. Ticker Input */}
       <div className="min-w-0">
         <label htmlFor="ticker" className="block text-sm font-semibold text-[var(--color-text-strong)]">
           Kode Saham
@@ -127,11 +200,9 @@ export function CreateSessionForm({
         <input
           id="ticker"
           name="ticker"
+          placeholder="Contoh: BBCA, BBRI, TLKM..."
           value={ticker}
-          onChange={(event) => {
-            setTicker(event.target.value);
-            setFieldErrors((current) => ({ ...current, ticker: undefined }));
-          }}
+          onChange={(event) => handleTickerChange(event.target.value)}
           maxLength={32}
           autoCapitalize="characters"
           autoComplete="off"
@@ -151,6 +222,7 @@ export function CreateSessionForm({
         ) : null}
       </div>
 
+      {/* 3. Company Name */}
       <div className="min-w-0">
         <label htmlFor="companyName" className="block text-sm font-semibold text-[var(--color-text-strong)]">
           Nama Perusahaan
@@ -158,6 +230,7 @@ export function CreateSessionForm({
         <input
           id="companyName"
           name="company_name"
+          placeholder="Terisi otomatis saat kode saham dimasukkan"
           value={companyName}
           onChange={(event) => {
             setCompanyName(event.target.value);
@@ -177,6 +250,31 @@ export function CreateSessionForm({
         ) : null}
       </div>
 
+      {/* 4. Trading Style Selector */}
+      <div className="min-w-0">
+        <span className="block text-sm font-semibold text-[var(--color-text-strong)]">
+          Trading Style
+        </span>
+        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Gaya Trading">
+          {TRADING_STYLES.map((style) => (
+            <button
+              key={style}
+              type="button"
+              disabled={pending || createdSession !== null}
+              onClick={() => setTradingStyle(style)}
+              className={`rounded-lg border px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                tradingStyle === style
+                  ? "border-[var(--color-action-primary)] bg-[var(--color-action-primary)] text-white shadow-xs"
+                  : "border-[var(--color-border-default)] bg-[var(--color-surface-standard)] text-[var(--color-text-default)] hover:bg-[var(--color-surface-muted)]"
+              }`}
+            >
+              {style}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5. Note Textarea */}
       <div className="min-w-0">
         <label htmlFor="note" className="block text-sm font-semibold text-[var(--color-text-strong)]">
           Catatan <span className="font-normal text-[var(--color-text-muted)]">(opsional)</span>
@@ -184,7 +282,8 @@ export function CreateSessionForm({
         <textarea
           id="note"
           name="note"
-          rows={5}
+          rows={3}
+          placeholder="Contoh: Menunggu konfirmasi pantulan support MA50..."
           value={note}
           onChange={(event) => setNote(event.target.value)}
           disabled={pending || createdSession !== null}
@@ -192,18 +291,28 @@ export function CreateSessionForm({
         />
       </div>
 
+      {/* 6. Action Buttons */}
       <div className="flex min-w-0 flex-col gap-[var(--space-3)] sm:flex-row sm:items-center">
         <button
           type="submit"
           disabled={pending || createdSession !== null}
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          aria-label={pending ? "Membuat sesi…" : createdSession ? "Sesi dibuat" : "Buat Sesi"}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 text-sm font-bold text-[var(--color-text-inverse)] shadow-sm hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
-          {pending ? "Membuat sesi…" : createdSession ? "Sesi dibuat" : "Buat Sesi"}
+          {pending ? (
+            "⚡ Mengambil Data & Memproses…"
+          ) : createdSession ? (
+            "Sesi dibuat"
+          ) : (
+            <>
+              <span>⚡ Ambil Data & Mulai Analisa</span>
+            </>
+          )}
         </button>
         {!createdSession ? (
           <Link
             href="/sessions"
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] px-4 text-sm font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] px-4 text-sm font-semibold text-[var(--color-action-primary)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
           >
             Batal
           </Link>

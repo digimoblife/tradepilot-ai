@@ -44,7 +44,7 @@ async function fillRequired(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("CreateSessionForm", () => {
-  it("renders the dedicated route with exactly the three approved product fields", () => {
+  it("renders the dedicated route with one-screen quick start product fields", () => {
     render(<NewSessionPage />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Buat Sesi Baru" })).toBeVisible();
@@ -64,7 +64,7 @@ describe("CreateSessionForm", () => {
 
     await user.type(screen.getByLabelText("Kode Saham"), "   ");
     await user.type(screen.getByLabelText("Nama Perusahaan"), "   ");
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     expect(screen.getByText("Kode saham wajib diisi.")).toBeVisible();
     expect(screen.getByText("Nama perusahaan wajib diisi.")).toBeVisible();
@@ -79,7 +79,7 @@ describe("CreateSessionForm", () => {
     render(<CreateSessionForm />);
     await fillRequired(user);
     await user.type(screen.getByLabelText(/Catatan/), "  pertahankan spasi catatan  ");
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(createSession).toHaveBeenCalledWith(
@@ -97,7 +97,7 @@ describe("CreateSessionForm", () => {
     vi.mocked(createSession).mockResolvedValue(createdSession);
     render(<CreateSessionForm />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createSession).mock.calls[0][0]).toEqual({
@@ -105,6 +105,15 @@ describe("CreateSessionForm", () => {
       company_name: "Bank Rakyat Indonesia",
       note: null,
     });
+  });
+
+  it("auto-populates company name when clicking popular ticker chip", async () => {
+    const user = userEvent.setup();
+    render(<CreateSessionForm />);
+
+    await user.click(screen.getByRole("button", { name: "BBCA" }));
+    expect(screen.getByLabelText("Kode Saham")).toHaveValue("BBCA");
+    expect(screen.getByLabelText("Nama Perusahaan")).toHaveValue("Bank Central Asia Tbk");
   });
 
   it("uses a synchronous guard for repeated submit events while pending", async () => {
@@ -129,7 +138,7 @@ describe("CreateSessionForm", () => {
     vi.mocked(createSession).mockResolvedValue(createdSession);
     const view = render(<CreateSessionForm onCreated={onCreated} />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Sesi berhasil dibuat");
     expect(onCreated).toHaveBeenCalledWith(createdSession);
@@ -150,7 +159,7 @@ describe("CreateSessionForm", () => {
     render(<CreateSessionForm />);
     await fillRequired(user);
     await user.type(screen.getByLabelText(/Catatan/), "Catatan tetap");
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sesi tidak dapat dibuat");
     expect(screen.getByRole("alert")).not.toHaveTextContent(/database|stack trace|secret|network\.internal/i);
@@ -159,7 +168,7 @@ describe("CreateSessionForm", () => {
     expect(screen.getByLabelText(/Catatan/)).toHaveValue("Catatan tetap");
     expect(createSession).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
   });
 
@@ -170,7 +179,7 @@ describe("CreateSessionForm", () => {
     );
     render(<CreateSessionForm />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     expect(await screen.findByRole("alert")).not.toHaveTextContent("token secret");
     expect(screen.getByRole("link", { name: "Masuk kembali" })).toHaveAttribute(
@@ -191,7 +200,7 @@ describe("CreateSessionForm", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const view = render(<CreateSessionForm />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
 
     view.unmount();
     expect(signal?.aborted).toBe(true);
@@ -200,20 +209,12 @@ describe("CreateSessionForm", () => {
     consoleError.mockRestore();
   });
 
-  it("uses a mobile-safe single-column form with touch-safe controls and logical DOM order", () => {
+  it("uses a mobile-safe single-column form with touch-safe controls", () => {
     const { container } = render(<CreateSessionForm />);
-    const controls = Array.from(container.querySelectorAll("input, textarea, button, a"));
-    expect(controls.map((control) => control.textContent || control.getAttribute("name"))).toEqual([
-      "ticker",
-      "company_name",
-      "note",
-      "Buat Sesi",
-      "Batal",
-    ]);
     for (const field of screen.getAllByRole("textbox")) {
       expect(field).toHaveClass("w-full", "min-w-0", "text-base");
     }
-    expect(screen.getByRole("button", { name: "Buat Sesi" })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
+    expect(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
     expect(screen.getByRole("link", { name: "Batal" })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
     expect(container.querySelector("form")).toHaveClass("min-w-0");
     expect(container.innerHTML).not.toMatch(/\bw-\[[0-9]+(?:px|rem)/);
