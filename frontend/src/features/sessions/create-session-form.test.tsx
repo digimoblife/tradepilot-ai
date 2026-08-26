@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/trade-workspace/api", () => ({
   createSession: vi.fn(),
+  analyzeSession: vi.fn().mockResolvedValue({}),
   acquireMarketEvidence: vi.fn().mockResolvedValue({
     snapshot: {
       symbol: "BBRI",

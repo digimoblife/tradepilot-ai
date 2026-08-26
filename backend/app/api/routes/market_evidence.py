@@ -195,3 +195,126 @@ async def compute_market_evidence_delta(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to compute delta: {str(exc)}",
         )
+
+
+from app.services.market_analysis_engine import MarketAnalysisEngine
+
+_ANALYSIS_CACHE: dict[str, dict[str, Any]] = {}
+
+
+@router.post(
+    "/{session_id}/analyze",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
+)
+async def analyze_trade_session(
+    session_id: uuid.UUID,
+    symbol: str | None = Query(default=None, description="Optional override symbol"),
+    config: AppConfig = Depends(get_config),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Execute AI Market Analysis on authoritative ZAPI data and update session state."""
+    session = await _find_session_by_id(session_id, db)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    target_symbol = symbol or session.ticker
+    collector = MarketDataCollector(config)
+
+    try:
+        snapshot, val_result = await collector.acquire_snapshot(
+            session_id=session_id,
+            symbol=target_symbol,
+            snapshot_type="INITIAL",
+        )
+
+        note = getattr(session, "note", None) or ""
+        trading_style = "Swing Trade"
+        if note.startswith("[") and "]" in note:
+            trading_style = note[1 : note.index("]")]
+
+        engine = MarketAnalysisEngine(config)
+        analysis_result = await engine.analyze(
+            snapshot=snapshot,
+            trading_style=trading_style,
+            setup_note=note,
+        )
+
+        # Update session status if in DRAFT
+        try:
+            from app.trade_workspace.models.trade_session import TradeSessionV2Status
+            if getattr(session, "status", None) == TradeSessionV2Status.DRAFT:
+                session.status = TradeSessionV2Status.ANALYZED
+                await db.commit()
+        except Exception:
+            pass
+
+        _ANALYSIS_CACHE[str(session_id)] = analysis_result
+        return analysis_result
+    except Exception as exc:
+        logger.error("Failed to run AI market analysis: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to analyze market evidence: {str(exc)}",
+        )
+
+
+@router.get(
+    "/{session_id}/workspace",
+    response_model=dict[str, Any],
+    status_code=status.HTTP_200_OK,
+)
+async def get_session_workspace_data(
+    session_id: uuid.UUID,
+    config: AppConfig = Depends(get_config),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Retrieve full workspace data including session identity, market snapshot, and AI analysis."""
+    session = await _find_session_by_id(session_id, db)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    cached_analysis = _ANALYSIS_CACHE.get(str(session_id))
+
+    if not cached_analysis:
+        collector = MarketDataCollector(config)
+        try:
+            snapshot, _ = await collector.acquire_snapshot(
+                session_id=session_id,
+                symbol=session.ticker,
+                snapshot_type="INITIAL",
+            )
+            note = getattr(session, "note", None) or ""
+            trading_style = "Swing Trade"
+            if note.startswith("[") and "]" in note:
+                trading_style = note[1 : note.index("]")]
+            engine = MarketAnalysisEngine(config)
+            cached_analysis = await engine.analyze(
+                snapshot=snapshot,
+                trading_style=trading_style,
+                setup_note=note,
+            )
+            _ANALYSIS_CACHE[str(session_id)] = cached_analysis
+        except Exception:
+            cached_analysis = None
+
+    status_val = getattr(session, "status", "DRAFT")
+    if hasattr(status_val, "value"):
+        status_val = status_val.value
+    elif hasattr(status_val, "name"):
+        status_val = status_val.name
+    else:
+        status_val = str(status_val)
+
+    return {
+        "session": {
+            "id": str(session.id),
+            "ticker": session.ticker,
+            "company_name": session.company_name,
+            "status": status_val,
+            "note": getattr(session, "note", None),
+            "created_at": session.created_at.isoformat() if hasattr(session, "created_at") and session.created_at else None,
+            "updated_at": session.updated_at.isoformat() if hasattr(session, "updated_at") and session.updated_at else None,
+        },
+        "analysis": cached_analysis,
+    }

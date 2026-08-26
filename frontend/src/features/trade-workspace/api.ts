@@ -103,6 +103,22 @@ export function acquireMarketEvidence(
   return post(`/api/sessions/${sessionId}/market-evidence/acquire?${params.toString()}`, {}, { signal });
 }
 
+export function analyzeSession(
+  sessionId: string,
+  symbol?: string,
+  signal?: AbortSignal,
+): Promise<any> {
+  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : "";
+  return post(`/api/sessions/${sessionId}/analyze${query}`, {}, { signal });
+}
+
+export function getSessionWorkspaceData(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<{ session: TradeSession; analysis: any }> {
+  return get(`/api/sessions/${sessionId}/workspace`, undefined, signal);
+}
+
 export type { EvidenceFile };
 
 const CURRENT_STEP_CODES = new Set<CurrentStepCode>([

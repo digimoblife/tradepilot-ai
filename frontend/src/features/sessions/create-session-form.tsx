@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { acquireMarketEvidence, createSession } from "@/features/trade-workspace/api";
+import { acquireMarketEvidence, analyzeSession, createSession } from "@/features/trade-workspace/api";
 import type { TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 
@@ -171,8 +171,16 @@ export function CreateSessionForm({
     }
   }
 
-  function handleStartAnalysis() {
-    if (!createdSession) return;
+  const [startingAnalysis, setStartingAnalysis] = useState(false);
+
+  async function handleStartAnalysis() {
+    if (!createdSession || startingAnalysis) return;
+    setStartingAnalysis(true);
+    try {
+      await analyzeSession(createdSession.id);
+    } catch {
+      // workspace will load/auto-evaluate
+    }
     onCreated?.(createdSession);
   }
 

@@ -1,4 +1,4 @@
-import { RouteSessionPlaceholder } from "@/app/sessions/_components/route-session-placeholder";
+import { ModernSessionWorkspace } from "@/features/sessions/modern-session-workspace";
 
 type SessionDetailPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -6,16 +6,5 @@ type SessionDetailPageProps = {
 
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
   const { sessionId } = await params;
-
-  return (
-    <RouteSessionPlaceholder
-      sessionId={sessionId}
-      currentHref={`/sessions/${sessionId}`}
-      title="Ringkasan Sesi"
-      description="Ringkasan dan langkah berikutnya untuk sesi ini akan tersedia pada tahap berikutnya."
-      backHref="/sessions"
-      backLabel="Kembali ke Sesi"
-      successMode="session-detail-header"
-    />
-  );
+  return <ModernSessionWorkspace sessionId={sessionId} />;
 }

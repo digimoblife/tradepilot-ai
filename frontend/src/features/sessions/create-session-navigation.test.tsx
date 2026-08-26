@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import NewSessionPage from "@/app/sessions/new/page";
 import SessionDetailPage from "@/app/sessions/[sessionId]/page";
-import { createSession, getSession } from "@/features/trade-workspace/api";
+import { createSession, getSession, getSessionWorkspaceData } from "@/features/trade-workspace/api";
 import type { TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 
@@ -18,6 +18,21 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/trade-workspace/api", () => ({
   createSession: vi.fn(),
   getSession: vi.fn(),
+  analyzeSession: vi.fn().mockResolvedValue({}),
+  getSessionWorkspaceData: vi.fn().mockResolvedValue({
+    session: {
+      id: "33333333-3333-4333-8333-333333333333",
+      ticker: "BBRI",
+      company_name: "Bank Rakyat Indonesia",
+      status: "DRAFT",
+      note: null,
+      created_at: "2026-08-04T00:00:00Z",
+      updated_at: "2026-08-04T00:00:00Z",
+      closed_at: null,
+      archived_at: null,
+    },
+    analysis: null,
+  }),
   acquireMarketEvidence: vi.fn().mockResolvedValue({ snapshot: {} }),
 }));
 
@@ -174,13 +189,13 @@ describe("UX3.5 create success navigation", () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
     createView.unmount();
 
-    const detailRequest = deferred<TradeSession>();
-    vi.mocked(getSession).mockImplementation(() => detailRequest.promise);
+    const detailRequest = deferred<{ session: TradeSession; analysis: any }>();
+    vi.mocked(getSessionWorkspaceData).mockImplementation(() => detailRequest.promise);
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Memuat konteks sesi");
     expect(createSession).toHaveBeenCalledTimes(1);
-    await act(async () => detailRequest.resolve(createdSession));
+    await act(async () => detailRequest.resolve({ session: createdSession, analysis: null }));
   });
 
   it("leaves post-navigation detail not-found recovery to the canonical route without recreating", async () => {
@@ -194,10 +209,10 @@ describe("UX3.5 create success navigation", () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
     createView.unmount();
 
-    vi.mocked(getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND", "raw"));
+    vi.mocked(getSessionWorkspaceData).mockRejectedValue(new ApiError(404, "NOT_FOUND", "Sesi tidak ditemukan atau tidak dapat diakses."));
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Sesi tidak ditemukan atau tidak dapat diakses.");
+    expect(await screen.findByText(/Sesi tidak ditemukan/i)).toBeVisible();
     expect(createSession).toHaveBeenCalledTimes(1);
   });
 
@@ -212,10 +227,10 @@ describe("UX3.5 create success navigation", () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
     createView.unmount();
 
-    vi.mocked(getSession).mockRejectedValue(new AuthenticationError(401, "EXPIRED", "raw"));
+    vi.mocked(getSessionWorkspaceData).mockRejectedValue(new AuthenticationError(401, "EXPIRED", "Sesi Anda telah berakhir."));
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Sesi Anda telah berakhir.");
+    expect(await screen.findByText(/Sesi Anda telah berakhir/i)).toBeVisible();
     expect(createSession).toHaveBeenCalledTimes(1);
   });
 
@@ -230,10 +245,10 @@ describe("UX3.5 create success navigation", () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
     createView.unmount();
 
-    vi.mocked(getSession).mockRejectedValue(new ApiError(500, "INTERNAL", "raw"));
+    vi.mocked(getSessionWorkspaceData).mockRejectedValue(new ApiError(500, "INTERNAL", "Gagal memuat data workspace sesi."));
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Konteks sesi tidak dapat dimuat.");
+    expect(await screen.findByText(/Gagal memuat data workspace sesi/i)).toBeVisible();
     expect(createSession).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,4 @@
-import { SessionAnalysisView } from "@/features/sessions/session-analysis-view";
+import { ModernSessionWorkspace } from "@/features/sessions/modern-session-workspace";
 
 type SessionAnalysisPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -6,6 +6,5 @@ type SessionAnalysisPageProps = {
 
 export default async function SessionAnalysisPage({ params }: SessionAnalysisPageProps) {
   const { sessionId } = await params;
-
-  return <SessionAnalysisView sessionId={sessionId} />;
+  return <ModernSessionWorkspace sessionId={sessionId} />;
 }
