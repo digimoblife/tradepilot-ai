@@ -6,10 +6,7 @@ import { hasPresentationContent, parsePresentationPayload, type AnalysisPayload 
 import { SessionDetailHeader } from "@/features/sessions/session-detail-header";
 import { SessionNavigation } from "@/features/sessions/session-navigation";
 import { useRouteSession } from "@/features/sessions/use-route-session";
-import { getSessionDetail, submitWaitUpdateAnalysis, submitPositionUpdateAnalysis } from "@/features/trade-workspace/api";
-import { previewMarketEvidence } from "@/lib/api/market-evidence";
-import { EvidenceInspector } from "@/features/evidence/evidence-inspector";
-import type { EvidenceSnapshot } from "@/types/market-evidence";
+import { getSessionDetail } from "@/features/trade-workspace/api";
 import type { AnalysisType, SessionDetailAggregate } from "@/features/trade-workspace/types";
 
 type AnalysisRecord = { id: string; type: AnalysisType; completedAt: string; payload: AnalysisPayload };
@@ -63,20 +60,20 @@ function TextSection({ title, value }: { title: string; value: unknown }) {
 function ValueRow({ label, value }: { label: string; value: unknown }) {
   const content = scalar(value);
   return content ? (
-    <div className="min-w-0 rounded-[var(--radius-compact)] bg-[var(--color-surface-factual)] border border-[var(--color-border-default)] p-3">
-      <dt className="break-words text-xs font-medium text-[var(--color-text-muted)]">{label}</dt>
-      <dd className="mt-0.5 break-words text-base font-bold text-[var(--color-text-strong)] whitespace-pre-wrap">{content}</dd>
+    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+      <dt className="text-sm font-semibold text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="break-words font-mono text-sm font-bold text-[var(--color-text-strong)] sm:text-right">{content}</dd>
     </div>
   ) : null;
 }
 
 function ListSection({ title, value }: { title: string; value: unknown }) {
-  const items = Array.isArray(value) ? value.map(text).filter((item): item is string => item !== null) : [];
+  const items = Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
   return items.length ? (
     <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
       <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
-      <ul className="mt-3 list-disc space-y-2 break-words pl-5 text-sm leading-relaxed text-[var(--color-text-default)]">
-        {items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+      <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-[var(--color-text-default)]">
+        {items.map((item, index) => <li key={`${item}-${index}`} className="break-words">{item}</li>)}
       </ul>
     </section>
   ) : null;
@@ -85,16 +82,18 @@ function ListSection({ title, value }: { title: string; value: unknown }) {
 function RangeSection({ title, value }: { title: string; value: unknown }) {
   const range = payloadObject(value);
   if (!range) return null;
-  const low = scalar(range.low); const high = scalar(range.high); const note = text(range.note);
-  if (!low && !high && !note) return null;
+  const start = scalar(range.start);
+  const end = scalar(range.end);
+  const explanation = text(range.explanation);
+  if (!start && !end && !explanation) return null;
   return (
     <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
       <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
-      <dl className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-        <ValueRow label="Batas bawah" value={range.low} />
-        <ValueRow label="Batas atas" value={range.high} />
+      <dl className="mt-3 space-y-2">
+        <ValueRow label="Batas bawah" value={start} />
+        <ValueRow label="Batas atas" value={end} />
       </dl>
-      {note ? <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-default)]">{note}</p> : null}
+      {explanation ? <p className="mt-3 break-words text-xs text-[var(--color-text-muted)]">{explanation}</p> : null}
     </section>
   );
 }
@@ -102,22 +101,23 @@ function RangeSection({ title, value }: { title: string; value: unknown }) {
 function LevelSection({ title, value }: { title: string; value: unknown }) {
   const level = payloadObject(value);
   if (!level) return null;
-  const amount = scalar(level.level); const note = text(level.note);
-  if (!amount && !note) return null;
+  const price = scalar(level.price);
+  const reason = text(level.reason);
+  if (!price && !reason) return null;
   return (
     <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
       <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
       <dl className="mt-3">
-        <ValueRow label="Level" value={level.level} />
+        <ValueRow label="Harga" value={price} />
       </dl>
-      {note ? <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-default)]">{note}</p> : null}
+      {reason ? <p className="mt-3 break-words text-xs text-[var(--color-text-muted)]">{reason}</p> : null}
     </section>
   );
 }
 
 function FlowSection({ title, value }: { title: string; value: unknown }) {
   const flow = payloadObject(value);
-  if (!flow || !text(flow.assessment) || !text(flow.analysis)) return null;
+  if (!flow) return null;
   return (
     <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
       <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
@@ -204,14 +204,12 @@ function PositionUpdateRenderer({ payload }: { payload: AnalysisPayload }) {
       <TextSection title="Penilaian Orderbook" value={payload.orderbook_assessment} />
       <FlowSection title="Analisa Broker Flow" value={payload.broker_flow_analysis} />
       <TextSection title="Perubahan dari Analisis Sebelumnya" value={payload.change_from_previous_analysis} />
-      <TextSection title="Realisme Target" value={payload.target_realism} />
-      <TextSection title="Risiko Penurunan" value={payload.downside_risk} />
+      <ListSection title="Risiko Utama" value={payload.key_risks} />
       <dl>
-        <ValueRow label="Probabilitas Target" value={payload.target_probability} />
+        <ValueRow label="Rekomendasi" value={payload.recommended_action} />
       </dl>
-      <TextSection title="Rencana Trading" value={payload.trading_plan} />
-      <ListSection title="Poin Pemantauan" value={payload.monitoring_points} />
-      <ListSection title="Peringatan" value={payload.warnings} />
+      <TextSection title="Penyesuaian Stop Loss / Target" value={payload.stop_loss_target_adjustment} />
+      <TextSection title="Rencana Berikutnya" value={payload.next_plan} />
       <TextSection title="Kesimpulan" value={payload.conclusion} />
     </div>
   );
@@ -230,71 +228,6 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
   const [records, setRecords] = useState<AnalysisRecord[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  const [snapshot, setSnapshot] = useState<EvidenceSnapshot | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (identity.status === "success" && identity.session.ticker) {
-      void previewMarketEvidence(sessionId, identity.session.ticker)
-        .then((res) => setSnapshot(res.snapshot))
-        .catch(() => {});
-    }
-  }, [sessionId, identity]);
-
-  const handleRefreshAnalysis = async () => {
-    if (refreshing || identity.status !== "success") return;
-    setRefreshing(true);
-    setRefreshMessage("Mengambil data pasar terkini dari ZAPI...");
-    try {
-      const res = await previewMarketEvidence(sessionId, identity.session.ticker);
-      setSnapshot(res.snapshot);
-      setRefreshMessage("Menganalisis delta pergeseran dengan AI...");
-
-      if (identity.session.status === "WAITING") {
-        await submitWaitUpdateAnalysis(sessionId);
-      } else if (identity.session.status === "OPEN_POSITION") {
-        await submitPositionUpdateAnalysis(sessionId);
-      }
-      setRefreshMessage("Analisis berhasil diperbarui!");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } catch (err: any) {
-      setRefreshMessage(err?.message || "Gagal memperbarui analisis.");
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    const current = ++generation.current;
-    const controller = new AbortController();
-    activeControllerRef.current?.abort();
-    activeControllerRef.current = controller;
-
-    // URL identity reset prevents stale Session A analysis from rendering under Session B.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRecords(null);
-    setSelected(null);
-    setFailed(false);
-
-    void getSessionDetail(sessionId, controller.signal)
-      .then((detail) => {
-        if (controller.signal.aborted || current !== generation.current) return;
-        const next = collect(detail);
-        setRecords(next);
-        setSelected(next[0]?.id ?? null);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted && current === generation.current) {
-          setFailed(true);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [sessionId]);
 
   const reloadAnalysis = useCallback(() => {
     const current = ++generation.current;
@@ -318,6 +251,34 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
           setFailed(true);
         }
       });
+  }, [sessionId]);
+
+  useEffect(() => {
+    const current = ++generation.current;
+    const controller = new AbortController();
+    activeControllerRef.current?.abort();
+    activeControllerRef.current = controller;
+
+    setRecords(null);
+    setSelected(null);
+    setFailed(false);
+
+    void getSessionDetail(sessionId, controller.signal)
+      .then((detail) => {
+        if (controller.signal.aborted || current !== generation.current) return;
+        const next = collect(detail);
+        setRecords(next);
+        setSelected(next[0]?.id ?? null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted && current === generation.current) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
   }, [sessionId]);
 
   if (identity.status === "loading") {
@@ -368,27 +329,7 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
       <SessionDetailHeader session={identity.session} />
       <SessionNavigation sessionId={sessionId} />
       <main className="mx-auto w-full min-w-0 max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h1 className="break-words text-2xl font-bold text-[var(--color-text-strong)]">Analisis</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Evaluasi setup perdagangan berbasis multi-sumber data bursa (ZAPI: Pluang, IDX, Stockbit).
-            </p>
-          </div>
-          {(identity.session.status === "WAITING" || identity.session.status === "OPEN_POSITION" || identity.session.status === "ANALYZED") && (
-            <button
-              type="button"
-              disabled={refreshing}
-              onClick={handleRefreshAnalysis}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-action-primary)] px-4 text-xs font-semibold text-white shadow hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
-            >
-              {refreshing ? "Memperbarui Data..." : "🔄 Refresh Data Pasar & Re-Evaluasi"}
-            </button>
-          )}
-        </div>
-        {refreshMessage && (
-          <p className="mt-3 text-xs font-semibold text-primary animate-pulse">{refreshMessage}</p>
-        )}
+        <h1 className="break-words text-2xl font-bold text-[var(--color-text-strong)]">Analisis</h1>
 
         {records === null && !failed ? (
           <p role="status" className="mt-4 text-sm text-[var(--color-text-muted)]">
@@ -483,20 +424,6 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
                   <div className="mt-6 min-w-0">
                     <AnalysisRenderer record={current} />
                   </div>
-
-                  {/* Bukti Pasar yang Digunakan (Evidence Used) */}
-                  <details className="mt-8 rounded-xl border border-border bg-card p-5" open>
-                    <summary className="cursor-pointer text-sm font-bold text-foreground">
-                      📊 Bukti Pasar yang Digunakan (Evidence Used)
-                    </summary>
-                    <div className="mt-4 border-t border-border pt-4">
-                      {snapshot ? (
-                        <EvidenceInspector snapshot={snapshot} />
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Memuat snapshot bukti pasar...</p>
-                      )}
-                    </div>
-                  </details>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-[var(--color-text-muted)]">
