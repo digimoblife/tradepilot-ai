@@ -37,6 +37,11 @@ class AppConfig(BaseSettings):
     deepseek_timeout_seconds: int = Field(default=120, ge=1)
     provider_order: str = "gemini"
 
+    # ---- ZAPI Market Data Provider ----
+    zapi_api_key: str = ""
+    zapi_base_url: str = "https://api.zpi.web.id"
+    zapi_timeout_seconds: int = Field(default=15, ge=1)
+
     # ---- Security (TP-1604) ----
     allowed_hosts: list[str] = Field(default=["*"])
     cors_origins: list[str] = Field(default=["*"])

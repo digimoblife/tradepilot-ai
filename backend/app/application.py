@@ -16,6 +16,7 @@ from app.api.routes.context import router as context_router
 from app.api.routes.evaluation import router as evaluation_router
 from app.api.routes.evidence import evidence_router
 from app.api.routes.evidence import session_router as evidence_session_router
+from app.api.routes.market_evidence import router as market_evidence_router
 from app.api.routes.timeline import router as timeline_router
 from app.api.routes.trade_actions import router as trade_actions_router
 from app.api.routes.trade_sessions import router as trade_sessions_router
@@ -91,6 +92,7 @@ def create_application() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(evidence_session_router)
     app.include_router(evidence_router)
+    app.include_router(market_evidence_router)
     app.include_router(analysis_session_router)
     app.include_router(analysis_router)
     app.include_router(analysis_jobs_router)
