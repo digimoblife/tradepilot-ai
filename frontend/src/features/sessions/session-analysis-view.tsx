@@ -82,9 +82,9 @@ function ListSection({ title, value }: { title: string; value: unknown }) {
 function RangeSection({ title, value }: { title: string; value: unknown }) {
   const range = payloadObject(value);
   if (!range) return null;
-  const start = scalar(range.start);
-  const end = scalar(range.end);
-  const explanation = text(range.explanation);
+  const start = scalar(range.low ?? range.start);
+  const end = scalar(range.high ?? range.end);
+  const explanation = text(range.note ?? range.explanation);
   if (!start && !end && !explanation) return null;
   return (
     <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
@@ -101,8 +101,8 @@ function RangeSection({ title, value }: { title: string; value: unknown }) {
 function LevelSection({ title, value }: { title: string; value: unknown }) {
   const level = payloadObject(value);
   if (!level) return null;
-  const price = scalar(level.price);
-  const reason = text(level.reason);
+  const price = scalar(level.level ?? level.price);
+  const reason = text(level.note ?? level.reason);
   if (!price && !reason) return null;
   return (
     <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">

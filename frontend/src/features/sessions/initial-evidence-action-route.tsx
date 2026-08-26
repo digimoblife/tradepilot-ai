@@ -215,7 +215,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
     const requestedRouteGeneration = routeGeneration.current;
     const requestedMutationGeneration = ++mutationGeneration.current;
     setOperation("submitting-analysis");
-    setFeedback("Memulai Analisis Awal dengan AI…");
+    setFeedback("Memulai Analisis Awal…");
     try {
       await submitInitialAnalysis(requestedSessionId);
       if (
@@ -242,6 +242,22 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
     }
   };
 
+  const title = canUpload
+    ? "Bukti Awal"
+    : canSubmitAnalysis
+      ? "Bukti Awal Lengkap"
+      : processing
+        ? "Analisis Awal Sedang Diproses"
+        : "Bukti Awal Tidak Tersedia";
+
+  const description = canUpload
+    ? "Unggah satu orderbook, chart 3 bulan, chart 6 bulan, dan Foreign Flow 1W untuk menyiapkan Analisis Awal."
+    : canSubmitAnalysis
+      ? "Bukti Awal telah lengkap. Analisis Awal siap dimulai melalui tindakan terpisah."
+      : processing
+        ? "Permintaan Analisis Awal sedang diproses."
+        : "Tindakan Bukti Awal tidak tersedia untuk kondisi sesi saat ini.";
+
   if (identity.status !== "success") {
     return (
       <section className="mx-auto w-full max-w-3xl min-w-0 px-4 py-10">
@@ -257,21 +273,13 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
 
   return (
     <section className="mx-auto flex w-full max-w-3xl min-w-0 flex-col px-4 py-10">
-      {/* Session Title */}
-      <div className="border-b border-border pb-4">
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-            IDX:{ticker}
-          </span>
-          <span className="text-xs text-muted-foreground">{company}</span>
-        </div>
-        <h1 className="mt-2 text-2xl font-bold text-foreground">
-          Bukti Pasar & Analisa Awal
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Kumpulkan bukti pasar otoritatif secara instan dari ZAPI untuk memulai analisa AI.
-        </p>
-      </div>
+      <p className="break-words text-sm text-[var(--color-text-muted)]">
+        {ticker} · {company}
+      </p>
+      <h1 className="mt-3 break-words text-2xl font-bold text-[var(--color-text-strong)]">
+        {title}
+      </h1>
+      <p className="mt-3 break-words text-[var(--color-text-muted)]">{description}</p>
 
       {/* Error Alert */}
       {fetchError && (
@@ -287,109 +295,123 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
         </div>
       )}
 
-      {/* 1-Click Automated Ingestion Stepper Card */}
-      <div className="mt-6 rounded-xl border border-primary/40 bg-primary/5 p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center rounded-md bg-primary/20 px-2.5 py-0.5 text-xs font-bold text-primary">
-            ⚡ REKOMENDASI (1-CLICK)
-          </span>
-        </div>
-        <h2 className="mt-3 text-lg font-bold text-foreground">
-          Ambil Bukti Otomatis dari ZAPI (Pluang, IDX, Stockbit)
-        </h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          TradePilot akan secara otomatis mengunduh harga terkini, kedalaman orderbook, riwayat 130 candle bursa, Foreign Flow harian/mingguan, dan ringkasan broker 1D dalam hitungan detik.
-        </p>
-
-        {/* Live Stepper Progress */}
-        {operation === "fetching-market" || operation === "submitting-analysis" ? (
-          <div className="mt-5 space-y-2.5 rounded-lg border border-primary/20 bg-background/80 p-4 font-mono text-xs">
-            <div className={`flex items-center gap-2 ${acquisitionStep >= 1 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
-              <span>{acquisitionStep >= 1 ? "✓" : "○"}</span>
-              <span>1. Mengambil Harga Terkini & Live Orderbook (Pluang)</span>
-            </div>
-            <div className={`flex items-center gap-2 ${acquisitionStep >= 2 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
-              <span>{acquisitionStep >= 2 ? "✓" : "○"}</span>
-              <span>2. Mengunduh 130 Candle Bursa & Foreign Flow (IDX)</span>
-            </div>
-            <div className={`flex items-center gap-2 ${acquisitionStep >= 3 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
-              <span>{acquisitionStep >= 3 ? "✓" : "○"}</span>
-              <span>3. Menganalisis Akumulasi Broker 1D (Pluang)</span>
-            </div>
-            <div className={`flex items-center gap-2 ${acquisitionStep >= 4 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
-              <span>{acquisitionStep >= 4 ? "✓" : "○"}</span>
-              <span>4. Validasi Snapshot Lengkap & Memulai Analisis AI...</span>
-            </div>
+      {/* 1-Click Automated Ingestion Card (when upload is needed) */}
+      {canUpload && (
+        <div className="mt-6 rounded-xl border border-primary/40 bg-primary/5 p-6 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center rounded-md bg-primary/20 px-2.5 py-0.5 text-xs font-bold text-primary">
+              ⚡ REKOMENDASI (1-CLICK)
+            </span>
           </div>
-        ) : (
-          <button
-            type="button"
-            disabled={controlsLocked}
-            onClick={handleAutoAcquisition}
-            className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-white shadow transition-all hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-          >
-            ⚡ Ambil Bukti Otomatis & Mulai Analisa
-          </button>
-        )}
-      </div>
-
-      {/* Manual Upload Fallback Accordion */}
-      <details className="mt-6 rounded-xl border border-border bg-card p-4">
-        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
-          Atau unggah screenshot manual (Opsi Cadangan)
-        </summary>
-        <div className="mt-4 border-t border-border pt-4">
-          <p className="text-xs text-muted-foreground">
-            Unggah tepat 4 screenshot jika Anda memiliki analisa visual khusus:
+          <h2 className="mt-3 text-lg font-bold text-foreground">
+            Ambil Bukti Otomatis dari ZAPI (Pluang, IDX, Stockbit)
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            TradePilot akan secara otomatis mengunduh harga terkini, kedalaman orderbook, riwayat 130 candle bursa, Foreign Flow harian/mingguan, dan ringkasan broker 1D dalam hitungan detik.
           </p>
+
+          {operation === "fetching-market" || operation === "submitting-analysis" ? (
+            <div className="mt-5 space-y-2.5 rounded-lg border border-primary/20 bg-background/80 p-4 font-mono text-xs">
+              <div className={`flex items-center gap-2 ${acquisitionStep >= 1 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
+                <span>{acquisitionStep >= 1 ? "✓" : "○"}</span>
+                <span>1. Mengambil Harga Terkini & Live Orderbook (Pluang)</span>
+              </div>
+              <div className={`flex items-center gap-2 ${acquisitionStep >= 2 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
+                <span>{acquisitionStep >= 2 ? "✓" : "○"}</span>
+                <span>2. Mengunduh 130 Candle Bursa & Foreign Flow (IDX)</span>
+              </div>
+              <div className={`flex items-center gap-2 ${acquisitionStep >= 3 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
+                <span>{acquisitionStep >= 3 ? "✓" : "○"}</span>
+                <span>3. Menganalisis Akumulasi Broker 1D (Pluang)</span>
+              </div>
+              <div className={`flex items-center gap-2 ${acquisitionStep >= 4 ? "text-emerald-500 font-semibold" : "text-muted-foreground"}`}>
+                <span>{acquisitionStep >= 4 ? "✓" : "○"}</span>
+                <span>4. Validasi Snapshot Lengkap & Memulai Analisis AI...</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={controlsLocked}
+              onClick={handleAutoAcquisition}
+              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-white shadow transition-all hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              ⚡ Ambil Bukti Otomatis & Mulai Analisa
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Manual Upload Form */}
+      {canUpload ? (
+        <details className="mt-6 rounded-xl border border-border bg-card p-4">
+          <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
+            Atau unggah screenshot manual (Opsi Cadangan)
+          </summary>
           <form
-            className="mt-4 space-y-3"
+            className="mt-4 min-w-0 space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
               void upload();
             }}
+            aria-busy={controlsLocked}
           >
             {fields.map(([key, label]) => (
-              <label key={key} className="block text-xs font-semibold">
+              <label key={key} className="block min-w-0 text-sm font-semibold">
                 {label}
                 <input
                   type="file"
                   accept="image/*"
+                  required
                   disabled={controlsLocked}
                   onChange={(event) => select(key, event.target.files?.[0])}
-                  className="mt-1 block min-h-10 w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-semibold"
+                  className="mt-2 block min-h-11 w-full min-w-0 text-sm"
                 />
-                {files[key] && (
-                  <span className="mt-0.5 block font-mono text-[11px] text-emerald-500">
-                    ✓ {files[key]?.name}
+                {files[key] ? (
+                  <span className="mt-1 block break-all [overflow-wrap:anywhere] font-normal text-[var(--color-text-muted)]">
+                    {files[key]?.name}
                   </span>
-                )}
+                ) : null}
               </label>
             ))}
             <button
               type="submit"
               disabled={controlsLocked || !complete}
-              className="mt-3 inline-flex min-h-10 items-center justify-center rounded-md border border-border px-4 text-xs font-semibold text-foreground hover:bg-accent disabled:opacity-50"
+              aria-busy={operation === "uploading" || operation === "reconciling"}
+              className="min-h-11 w-full rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
             >
-              Unggah File Manual
+              Unggah Bukti Awal
             </button>
           </form>
-        </div>
-      </details>
+        </details>
+      ) : null}
+
+      {/* Mulai Analisis Button */}
+      {canSubmitAnalysis ? (
+        <button
+          type="button"
+          onClick={() => void submitAnalysis()}
+          disabled={controlsLocked}
+          aria-busy={operation === "submitting-analysis" || operation === "reconciling"}
+          className="mt-6 min-h-11 w-full rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-fit"
+        >
+          Mulai Analisis Awal
+        </button>
+      ) : null}
 
       {/* Feedback Message */}
-      {feedback && (
-        <p aria-live="polite" className="mt-4 text-xs text-muted-foreground">
+      {feedback ? (
+        <p aria-live="polite" className="mt-4 min-w-0 break-words text-sm">
           {feedback}
         </p>
-      )}
+      ) : null}
 
       {/* Back Link */}
       <Link
         href={backHref}
-        className="mt-8 inline-flex items-center text-xs font-semibold text-primary hover:underline"
+        className="mt-8 inline-flex min-h-11 w-fit items-center font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
       >
-        ← Kembali ke Ringkasan Sesi
+        Kembali ke Ringkasan
       </Link>
     </section>
   );
