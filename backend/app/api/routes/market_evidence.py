@@ -306,6 +306,54 @@ async def get_session_workspace_data(
     else:
         status_val = str(status_val)
 
+    from app.trade_workspace.models.position import PositionV2
+    from app.trade_workspace.models.closure import PositionClosureV2
+    from app.trade_workspace.models.session_decision import SessionDecisionV2
+
+    pos = await db.scalar(
+        select(PositionV2).where(PositionV2.session_id == session_id).limit(1)
+    )
+    pos_data = None
+    if pos:
+        pos_data = {
+            "id": str(pos.id),
+            "entry_price": float(pos.entry_price),
+            "quantity": float(pos.quantity),
+            "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
+            "target_price": float(pos.target_price) if pos.target_price else None,
+            "status": pos.status.value if hasattr(pos.status, "value") else str(pos.status),
+            "entry_timestamp": pos.entry_timestamp.isoformat() if pos.entry_timestamp else None,
+        }
+
+    closure = await db.scalar(
+        select(PositionClosureV2).where(PositionClosureV2.session_id == session_id).limit(1)
+    )
+    closure_data = None
+    if closure:
+        closure_data = {
+            "id": str(closure.id),
+            "close_price": float(closure.close_price),
+            "close_reason": closure.close_reason,
+            "realized_profit_loss": float(closure.realized_profit_loss),
+            "note": closure.note,
+            "closed_at": closure.closed_at.isoformat() if closure.closed_at else None,
+        }
+
+    latest_decision = await db.scalar(
+        select(SessionDecisionV2)
+        .where(SessionDecisionV2.session_id == session_id)
+        .order_by(SessionDecisionV2.decision_at.desc())
+        .limit(1)
+    )
+    decision_data = None
+    if latest_decision:
+        decision_data = {
+            "decision": latest_decision.decision.value if hasattr(latest_decision.decision, "value") else str(latest_decision.decision),
+            "reason": latest_decision.reason.value if hasattr(latest_decision.reason, "value") else (str(latest_decision.reason) if latest_decision.reason else None),
+            "note": latest_decision.note,
+            "decision_at": latest_decision.decision_at.isoformat() if latest_decision.decision_at else None,
+        }
+
     return {
         "session": {
             "id": str(session.id),
@@ -317,4 +365,7 @@ async def get_session_workspace_data(
             "updated_at": session.updated_at.isoformat() if hasattr(session, "updated_at") and session.updated_at else None,
         },
         "analysis": cached_analysis,
+        "position": pos_data,
+        "closure": closure_data,
+        "decision": decision_data,
     }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   analyzeSession,
   buyDecision,
+  closePosition,
   getSessionWorkspaceData,
   skipDecision,
   waitDecision,
@@ -16,6 +17,9 @@ type ActionType = "BUY" | "WAIT" | "SKIP";
 export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<TradeSession | null>(null);
   const [analysis, setAnalysis] = useState<any | null>(null);
+  const [position, setPosition] = useState<any | null>(null);
+  const [closure, setClosure] = useState<any | null>(null);
+  const [decision, setDecision] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +28,15 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   // Modal states
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showSkipModal, setShowSkipModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+
   const [buyPrice, setBuyPrice] = useState("");
   const [buyLots, setBuyLots] = useState("10");
+
+  const [closePrice, setClosePrice] = useState("");
+  const [closeReason, setCloseReason] = useState("MANUAL");
+  const [closeNote, setCloseNote] = useState("");
+
   const [submittingAction, setSubmittingAction] = useState(false);
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -37,12 +48,18 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       if (isRefresh) {
         const freshAnalysis = await analyzeSession(sessionId);
         setAnalysis(freshAnalysis);
-        const data = await getSessionWorkspaceData(sessionId);
+        const data: any = await getSessionWorkspaceData(sessionId);
         setSession(data.session);
+        setPosition(data.position);
+        setClosure(data.closure);
+        setDecision(data.decision);
       } else {
-        const data = await getSessionWorkspaceData(sessionId);
+        const data: any = await getSessionWorkspaceData(sessionId);
         setSession(data.session);
         setAnalysis(data.analysis);
+        setPosition(data.position);
+        setClosure(data.closure);
+        setDecision(data.decision);
       }
     } catch (err: any) {
       setError(err?.message || "Gagal memuat data workspace sesi.");
@@ -76,10 +93,34 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       });
 
       setShowBuyModal(false);
-      setActionSuccess(`Posisi BUY berhasil dicatat untuk ${session.ticker} sebanyak ${buyLots} lot!`);
+      setActionSuccess(`Posisi BUY berhasil dibuka untuk ${session.ticker} sebanyak ${buyLots} lot! Mode Monitoring Aktif.`);
       loadData(false);
     } catch (err: any) {
       setError(err?.message || "Gagal mencatat keputusan BUY.");
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleClosePosition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) return;
+    setSubmittingAction(true);
+    setError(null);
+    try {
+      const p = closePrice || String(quote?.last_price || position?.entry_price || "0");
+      await closePosition(session.id, {
+        close_price: p,
+        close_timestamp: new Date().toISOString(),
+        close_reason: closeReason,
+        note: closeNote || `Tutup posisi ${session.ticker} pada Rp ${p} (${closeReason})`,
+      });
+
+      setShowCloseModal(false);
+      setActionSuccess(`Posisi ${session.ticker} berhasil ditutup!`);
+      loadData(false);
+    } catch (err: any) {
+      setError(err?.message || "Gagal menutup posisi.");
     } finally {
       setSubmittingAction(false);
     }
@@ -142,6 +183,17 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const reasoning = analysis?.reasoning;
   const action: ActionType = analysis?.action || "WAIT";
 
+  const currentPrice = Number(quote?.last_price || keyLevels?.current_price || 0);
+
+  // Position PnL Calculations
+  const entryPrice = position ? Number(position.entry_price) : 0;
+  const quantityLots = position ? Number(position.quantity) : 0;
+  const totalShares = quantityLots * 100;
+  const capitalInvested = entryPrice * totalShares;
+  const currentValue = currentPrice * totalShares;
+  const floatingPnL = currentValue - capitalInvested;
+  const floatingPnLPercent = capitalInvested > 0 ? (floatingPnL / capitalInvested) * 100 : 0;
+
   const actionColors: Record<ActionType, { badge: string; border: string; bg: string; text: string }> = {
     BUY: {
       badge: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
@@ -179,7 +231,17 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--color-text-muted)] border border-[var(--color-border-subtle)]">
             🎯 {analysis?.trading_style || "Swing Trade"}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-bold text-[var(--color-text-strong)] border border-[var(--color-border-subtle)]">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${
+              session?.status === "OPEN_POSITION"
+                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+                : session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED"
+                  ? "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                  : session?.status === "WAITING"
+                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40"
+                    : "bg-[var(--color-surface-muted)] text-[var(--color-text-strong)] border-[var(--color-border-subtle)]"
+            }`}
+          >
             STATUS: {session?.status || "ANALYZED"}
           </span>
         </div>
@@ -196,6 +258,94 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-400 font-semibold">
           ⚠️ {error}
         </div>
+      ) : null}
+
+      {/* ACTIVE POSITION CARD (IF STATUS === OPEN_POSITION) */}
+      {session?.status === "OPEN_POSITION" && position ? (
+        <section className="rounded-[var(--radius-large)] border-2 border-emerald-500/60 bg-emerald-500/10 p-5 sm:p-6 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-500/30 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🚀</span>
+              <h2 className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+                POSISI AKTIF TERBUKA (MONITORING)
+              </h2>
+            </div>
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              Dibuka: {position.entry_timestamp ? new Date(position.entry_timestamp).toLocaleTimeString("id-ID") : "-"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)]">HARGA BELI (ENTRY)</span>
+              <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
+                Rp {entryPrice.toLocaleString("id-ID")}
+              </p>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {quantityLots} Lot ({totalShares.toLocaleString("id-ID")} lbr)
+              </span>
+            </div>
+
+            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)]">HARGA PASAR TERKINI</span>
+              <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
+                Rp {currentPrice.toLocaleString("id-ID")}
+              </p>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Modal: Rp {capitalInvested.toLocaleString("id-ID")}
+              </span>
+            </div>
+
+            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)]">FLOATING PnL</span>
+              <p
+                className={`mt-1 text-xl font-black ${
+                  floatingPnL >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                {floatingPnL >= 0 ? "+" : ""}
+                Rp {floatingPnL.toLocaleString("id-ID")}
+              </p>
+              <span
+                className={`text-xs font-bold ${
+                  floatingPnL >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                ({floatingPnLPercent >= 0 ? "+" : ""}
+                {floatingPnLPercent.toFixed(2)}%)
+              </span>
+            </div>
+
+            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
+              <span className="text-xs font-semibold text-[var(--color-text-muted)]">DISIPLIN TARGET & SL</span>
+              <p className="mt-1 text-sm font-bold text-emerald-600">
+                TP1: Rp {position.target_price?.toLocaleString("id-ID") ?? keyLevels?.target_price_1?.toLocaleString("id-ID")}
+              </p>
+              <p className="text-sm font-bold text-rose-600">
+                SL: Rp {position.stop_loss?.toLocaleString("id-ID") ?? keyLevels?.stop_loss?.toLocaleString("id-ID")}
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* CLOSED / SKIPPED NOTICE (IF SESSION TERMINATED) */}
+      {session?.status === "CLOSED" && closure ? (
+        <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-muted)] p-5 shadow-xs">
+          <h3 className="text-base font-bold text-[var(--color-text-strong)]">✓ Ringkasan Penutupan Posisi</h3>
+          <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+            Posisi ditutup pada harga <strong>Rp {closure.close_price?.toLocaleString("id-ID")}</strong> ({closure.close_reason}) dengan Realized PnL: <strong className={closure.realized_profit_loss >= 0 ? "text-emerald-600" : "text-rose-600"}>Rp {closure.realized_profit_loss?.toLocaleString("id-ID")}</strong>.
+          </p>
+        </section>
+      ) : null}
+
+      {session?.status === "CLOSED_SKIPPED" ? (
+        <section className="rounded-[var(--radius-large)] border border-rose-500/30 bg-rose-500/5 p-5 shadow-xs">
+          <h3 className="text-base font-bold text-rose-600 dark:text-rose-400">🛑 Setup Saham Dilewati (SKIP)</h3>
+          <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+            Setup emiten ini telah dilewati dan dicatat ke dalam journal trading. Anda dapat mengevaluasi ulang jika ada momentum baru.
+          </p>
+        </section>
       ) : null}
 
       {/* Header Card */}
@@ -407,17 +557,21 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       <section className="sticky bottom-4 z-20 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)]/95 backdrop-blur-md p-4 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-[var(--color-text-muted)]">
-            {session?.status === "CLOSED_SKIPPED" ? (
+            {session?.status === "OPEN_POSITION" ? (
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                🚀 Posisi Aktif Terbuka ({quantityLots} Lot @ Rp {entryPrice.toLocaleString("id-ID")})
+              </span>
+            ) : session?.status === "WAITING" ? (
+              <span className="font-bold text-amber-600 dark:text-amber-400">
+                ⏳ Menunggu Konfirmasi Setup (Status: WAITING)
+              </span>
+            ) : session?.status === "CLOSED_SKIPPED" ? (
               <span className="font-bold text-rose-600 dark:text-rose-400">
                 🛑 Sesi telah di-SKIP / Ditutup.
               </span>
             ) : session?.status === "CLOSED" ? (
               <span className="font-bold text-[var(--color-text-strong)]">
                 ✓ Posisi telah selesai / Ditutup.
-              </span>
-            ) : session?.status === "OPEN_POSITION" ? (
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                🚀 Posisi Aktif Terbuka (Monitoring Mode)
               </span>
             ) : (
               <>
@@ -427,21 +581,80 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED" ? (
+            {session?.status === "OPEN_POSITION" ? (
+              /* OPEN POSITION ACTIONS: REFRESH & CLOSE */
+              <>
+                <button
+                  type="button"
+                  onClick={() => loadData(true)}
+                  disabled={evaluating}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
+                >
+                  {evaluating ? "Memperbarui…" : "⚡ Update Posisi"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClosePrice(String(currentPrice || entryPrice));
+                    setShowCloseModal(true);
+                  }}
+                  disabled={submittingAction}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-rose-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                >
+                  🚪 Tutup Posisi (CLOSE)
+                </button>
+              </>
+            ) : session?.status === "WAITING" ? (
+              /* WAITING ACTIONS: REFRESH, BUY NOW, SKIP */
+              <>
+                <button
+                  type="button"
+                  onClick={() => loadData(true)}
+                  disabled={evaluating}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
+                >
+                  {evaluating ? "Memperbarui…" : "⚡ Update Data"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuyPrice(String(currentPrice || ""));
+                    setShowBuyModal(true);
+                  }}
+                  disabled={submittingAction}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                >
+                  🚀 BUY Sekarang
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSkipModal(true)}
+                  disabled={submittingAction}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                >
+                  ⏭️ SKIP
+                </button>
+              </>
+            ) : session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED" ? (
+              /* TERMINAL ACTIONS: RE-EVALUATE */
               <button
                 type="button"
                 onClick={() => loadData(true)}
                 disabled={evaluating}
                 className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
               >
-                🔄 Re-Evaluasi Ulang
+                🔄 Re-Evaluasi Setup
               </button>
             ) : (
+              /* DRAFT / ANALYZED ACTIONS: BUY, WAIT, SKIP */
               <>
                 <button
                   type="button"
                   onClick={() => {
-                    setBuyPrice(String(keyLevels?.current_price || ""));
+                    setBuyPrice(String(currentPrice || ""));
                     setShowBuyModal(true);
                   }}
                   disabled={submittingAction}
@@ -489,7 +702,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="number"
                   value={buyPrice}
                   onChange={(e) => setBuyPrice(e.target.value)}
-                  placeholder={String(keyLevels?.current_price || "0")}
+                  placeholder={String(currentPrice || "0")}
                   required
                   className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base font-bold text-[var(--color-text-strong)]"
                 />
@@ -507,6 +720,9 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   required
                   className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base font-bold text-[var(--color-text-strong)]"
                 />
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                  Total Nilai: Rp {(Number(buyPrice || currentPrice) * Number(buyLots || 0) * 100).toLocaleString("id-ID")}
+                </p>
               </div>
 
               <div className="rounded-lg bg-[var(--color-surface-muted)] p-3 text-xs text-[var(--color-text-muted)] space-y-1">
@@ -534,6 +750,96 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   className="rounded-md bg-emerald-600 px-6 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {submittingAction ? "Menyimpan…" : "Konfirmasi BUY"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Close Position Modal */}
+      {showCloseModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-6 shadow-xl space-y-4">
+            <h3 className="text-xl font-bold text-[var(--color-text-strong)]">
+              🚪 Tutup Posisi (Jual) - {session?.ticker}
+            </h3>
+            <form onSubmit={handleClosePosition} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                  Harga Jual / Exit (Rp)
+                </label>
+                <input
+                  type="number"
+                  value={closePrice}
+                  onChange={(e) => setClosePrice(e.target.value)}
+                  placeholder={String(currentPrice || "0")}
+                  required
+                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base font-bold text-[var(--color-text-strong)]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                  Alasan Penutupan Posisi
+                </label>
+                <select
+                  value={closeReason}
+                  onChange={(e) => setCloseReason(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-sm font-semibold text-[var(--color-text-strong)]"
+                >
+                  <option value="TARGET_HIT">🎯 Mencapai Target TP1 / TP2</option>
+                  <option value="STOP_LOSS_HIT">🛑 Kena Stop Loss (SL)</option>
+                  <option value="MANUAL">💼 Tutup Manual / Amankan Profit</option>
+                  <option value="INVALIDATED">⚠️ Struktur Berubah (Invalidasi)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                  Catatan Exit (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={closeNote}
+                  onChange={(e) => setCloseNote(e.target.value)}
+                  placeholder="Catatan evaluasi trading..."
+                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-sm text-[var(--color-text-default)]"
+                />
+              </div>
+
+              <div className="rounded-lg bg-[var(--color-surface-muted)] p-3 text-xs text-[var(--color-text-muted)] space-y-1">
+                <div className="flex justify-between">
+                  <span>Harga Beli (Entry):</span>
+                  <span className="font-bold text-[var(--color-text-strong)]">Rp {entryPrice.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Estimasi Realized PnL:</span>
+                  <span
+                    className={`font-bold ${
+                      (Number(closePrice || currentPrice) - entryPrice) >= 0 ? "text-emerald-600" : "text-rose-600"
+                    }`}
+                  >
+                    {((Number(closePrice || currentPrice) - entryPrice) * totalShares) >= 0 ? "+" : ""}
+                    Rp {((Number(closePrice || currentPrice) - entryPrice) * totalShares).toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCloseModal(false)}
+                  className="rounded-md border border-[var(--color-border-default)] px-4 py-2 text-sm font-semibold text-[var(--color-text-strong)]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAction}
+                  className="rounded-md bg-rose-600 px-6 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                >
+                  {submittingAction ? "Menutup Posisi…" : "Konfirmasi CLOSE"}
                 </button>
               </div>
             </form>
