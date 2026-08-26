@@ -42,7 +42,7 @@ export function InitialEvidencePanel({
           Evidence siap
         </h3>
         <p className="mt-[var(--space-1)] break-words text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
-          {knownEvidence.length} bukti pasar diterima.
+          {knownEvidence.length} file diterima.
         </p>
         <button
           type="button"
