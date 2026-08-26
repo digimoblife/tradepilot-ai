@@ -307,7 +307,7 @@ async def get_session_workspace_data(
         status_val = str(status_val)
 
     from app.trade_workspace.models.position import PositionV2
-    from app.trade_workspace.models.closure import PositionClosureV2
+    from app.trade_workspace.models.trade_closure import TradeClosureV2
     from app.trade_workspace.models.session_decision import SessionDecisionV2
 
     pos = await db.scalar(
@@ -322,11 +322,15 @@ async def get_session_workspace_data(
             "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
             "target_price": float(pos.target_price) if pos.target_price else None,
             "status": pos.status.value if hasattr(pos.status, "value") else str(pos.status),
-            "entry_timestamp": pos.entry_timestamp.isoformat() if pos.entry_timestamp else None,
+            "entry_timestamp": (
+                pos.entry_at.isoformat()
+                if hasattr(pos, "entry_at") and pos.entry_at
+                else None
+            ),
         }
 
     closure = await db.scalar(
-        select(PositionClosureV2).where(PositionClosureV2.session_id == session_id).limit(1)
+        select(TradeClosureV2).where(TradeClosureV2.session_id == session_id).limit(1)
     )
     closure_data = None
     if closure:
@@ -336,13 +340,13 @@ async def get_session_workspace_data(
             "close_reason": closure.close_reason,
             "realized_profit_loss": float(closure.realized_profit_loss),
             "note": closure.note,
-            "closed_at": closure.closed_at.isoformat() if closure.closed_at else None,
+            "closed_at": closure.close_at.isoformat() if closure.close_at else None,
         }
 
     latest_decision = await db.scalar(
         select(SessionDecisionV2)
         .where(SessionDecisionV2.session_id == session_id)
-        .order_by(SessionDecisionV2.decision_at.desc())
+        .order_by(SessionDecisionV2.created_at.desc())
         .limit(1)
     )
     decision_data = None
@@ -351,7 +355,7 @@ async def get_session_workspace_data(
             "decision": latest_decision.decision.value if hasattr(latest_decision.decision, "value") else str(latest_decision.decision),
             "reason": latest_decision.reason.value if hasattr(latest_decision.reason, "value") else (str(latest_decision.reason) if latest_decision.reason else None),
             "note": latest_decision.note,
-            "decision_at": latest_decision.decision_at.isoformat() if latest_decision.decision_at else None,
+            "decision_at": latest_decision.created_at.isoformat() if latest_decision.created_at else None,
         }
 
     return {
