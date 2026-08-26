@@ -8,10 +8,10 @@ export type TimelineEventType =
 type TimelineEvent = { id: string; type: TimelineEventType; timestamp: string | null; title: string; details: string[][] };
 type RecordValue = Record<string, unknown>;
 
-const text = (value: unknown): string => value === null || value === undefined || value === "" ? "—" : String(value);
+const text = (value: unknown): string => value === null || value === undefined || value === "" ? "-" : String(value);
 const record = (value: unknown): RecordValue => value && typeof value === "object" ? value as RecordValue : {};
 const dateValue = (value: unknown): string | null => typeof value === "string" && value ? value : null;
-const formatTime = (value: string | null): string => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
+const formatTime = (value: string | null): string => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "-";
 const statusLabel: Record<string, string> = { PENDING: "Menunggu", PROCESSING: "Diproses", COMPLETED: "Selesai", FAILED: "Gagal" };
 const reasonLabel: Record<string, string> = { RISK_TOO_HIGH: "Risiko terlalu tinggi", SETUP_NOT_ATTRACTIVE: "Setup tidak menarik", ORDERBOOK_WEAK: "Order book lemah", MARKET_CONDITION_UNFAVORABLE: "Kondisi pasar tidak mendukung", WAITING_TOO_LONG: "Menunggu terlalu lama", USER_DECISION: "Keputusan pengguna", OTHER: "Lainnya" };
 

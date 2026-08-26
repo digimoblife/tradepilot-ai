@@ -116,7 +116,7 @@ function makeArchivedSkippedDetail(): SessionDetailAggregate {
   };
 }
 
-describe("UX6.3 — Archived Session Read-Only Detail", () => {
+describe("UX6.3 - Archived Session Read-Only Detail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

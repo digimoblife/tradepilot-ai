@@ -63,6 +63,6 @@ describe("P10.2 session header", () => {
     render(<SessionWorkspace sessionId={session.id} knownEvidence={[]} onEvidence={vi.fn()} />);
 
     expect(await screen.findByText("Belum ada keputusan")).toBeInTheDocument();
-    expect(within(screen.getByRole("banner", { name: "Ringkasan sesi" })).getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByRole("banner", { name: "Ringkasan sesi" })).getByText("-")).toBeInTheDocument();
   });
 });

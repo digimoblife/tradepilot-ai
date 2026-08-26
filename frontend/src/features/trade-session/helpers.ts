@@ -53,10 +53,10 @@ export function actionLabel(action: string): string {
 }
 
 export function formatTimestamp(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   try {
     const d = new Date(iso);
-    if (isNaN(d.getTime())) return "—";
+    if (isNaN(d.getTime())) return "-";
     return d.toLocaleDateString("id-ID", {
       year: "numeric",
       month: "short",
@@ -65,7 +65,7 @@ export function formatTimestamp(iso: string | null | undefined): string {
       minute: "2-digit",
     });
   } catch {
-    return "—";
+    return "-";
   }
 }
 

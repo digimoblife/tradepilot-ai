@@ -7,7 +7,7 @@ interface Props {
 }
 
 export function AnalysisValue({ label, value, className = "" }: Props) {
-  const display = value === null || value === undefined ? "—" : value;
+  const display = value === null || value === undefined ? "-" : value;
   return (
     <div className={`text-sm ${className}`}>
       <span className="text-zinc-400">{label}</span>

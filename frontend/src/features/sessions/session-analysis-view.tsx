@@ -49,17 +49,34 @@ function payloadObject(value: unknown): Record<string, unknown> | null {
 
 function TextSection({ title, value }: { title: string; value: unknown }) {
   const content = text(value);
-  return content ? <section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">{title}</h3><p className="break-words whitespace-pre-wrap leading-7">{content}</p></section> : null;
+  return content ? (
+    <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+      <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
+      <p className="mt-2.5 break-words whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-default)]">{content}</p>
+    </section>
+  ) : null;
 }
 
 function ValueRow({ label, value }: { label: string; value: unknown }) {
   const content = scalar(value);
-  return content ? <div className="min-w-0"><dt className="break-words text-sm font-medium text-muted-foreground">{label}</dt><dd className="break-words whitespace-pre-wrap">{content}</dd></div> : null;
+  return content ? (
+    <div className="min-w-0 rounded-[var(--radius-compact)] bg-[var(--color-surface-factual)] border border-[var(--color-border-default)] p-3">
+      <dt className="break-words text-xs font-medium text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="mt-0.5 break-words text-base font-bold text-[var(--color-text-strong)] whitespace-pre-wrap">{content}</dd>
+    </div>
+  ) : null;
 }
 
 function ListSection({ title, value }: { title: string; value: unknown }) {
   const items = Array.isArray(value) ? value.map(text).filter((item): item is string => item !== null) : [];
-  return items.length ? <section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">{title}</h3><ul className="list-disc space-y-2 break-words pl-5 leading-7">{items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></section> : null;
+  return items.length ? (
+    <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+      <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
+      <ul className="mt-3 list-disc space-y-2 break-words pl-5 text-sm leading-relaxed text-[var(--color-text-default)]">
+        {items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+      </ul>
+    </section>
+  ) : null;
 }
 
 function RangeSection({ title, value }: { title: string; value: unknown }) {
@@ -67,7 +84,16 @@ function RangeSection({ title, value }: { title: string; value: unknown }) {
   if (!range) return null;
   const low = scalar(range.low); const high = scalar(range.high); const note = text(range.note);
   if (!low && !high && !note) return null;
-  return <section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">{title}</h3><dl className="space-y-2"><ValueRow label="Batas bawah" value={range.low} /><ValueRow label="Batas atas" value={range.high} /></dl>{note ? <p className="break-words whitespace-pre-wrap leading-7">{note}</p> : null}</section>;
+  return (
+    <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+      <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
+      <dl className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+        <ValueRow label="Batas bawah" value={range.low} />
+        <ValueRow label="Batas atas" value={range.high} />
+      </dl>
+      {note ? <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-default)]">{note}</p> : null}
+    </section>
+  );
 }
 
 function LevelSection({ title, value }: { title: string; value: unknown }) {
@@ -75,26 +101,117 @@ function LevelSection({ title, value }: { title: string; value: unknown }) {
   if (!level) return null;
   const amount = scalar(level.level); const note = text(level.note);
   if (!amount && !note) return null;
-  return <section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">{title}</h3><dl><ValueRow label="Level" value={level.level} /></dl>{note ? <p className="break-words whitespace-pre-wrap leading-7">{note}</p> : null}</section>;
+  return (
+    <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+      <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
+      <dl className="mt-3">
+        <ValueRow label="Level" value={level.level} />
+      </dl>
+      {note ? <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-default)]">{note}</p> : null}
+    </section>
+  );
 }
 
 function FlowSection({ title, value }: { title: string; value: unknown }) {
   const flow = payloadObject(value);
   if (!flow || !text(flow.assessment) || !text(flow.analysis)) return null;
-  return <section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">{title}</h3><dl><ValueRow label="Penilaian" value={flow.assessment} /></dl><p className="break-words whitespace-pre-wrap leading-7">{text(flow.analysis)}</p></section>;
+  return (
+    <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+      <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">{title}</h3>
+      <dl className="mt-3">
+        <ValueRow label="Penilaian" value={flow.assessment} />
+      </dl>
+      <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-default)]">{text(flow.analysis)}</p>
+    </section>
+  );
 }
 
 function InitialAnalysisRenderer({ payload }: { payload: AnalysisPayload }) {
   const probabilities = payloadObject(payload.probabilities);
-  return <div className="min-w-0 space-y-7"><TextSection title="Ringkasan" value={payload.summary} /><TextSection title="Analisis Orderbook" value={payload.orderbook_analysis} /><section className="min-w-0 space-y-3"><TextSection title="Analisis Grafik 3 Bulan" value={payload.three_month_chart_analysis} /><TextSection title="Analisis Grafik 6 Bulan" value={payload.six_month_chart_analysis} /></section><FlowSection title="Analisa Foreign Flow" value={payload.foreign_flow_analysis} /><RangeSection title="Support" value={payload.support} /><RangeSection title="Resistance" value={payload.resistance} /><RangeSection title="Area Entry" value={payload.entry_area} /><LevelSection title="Rekomendasi Stop Loss" value={payload.stop_recommendation} /><LevelSection title="Rekomendasi Target" value={payload.target_recommendation} />{probabilities ? <section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">Probabilitas</h3><dl className="grid min-w-0 gap-3 sm:grid-cols-2"><ValueRow label="Potensi naik" value={probabilities.upside} /><ValueRow label="Potensi turun" value={probabilities.downside} /></dl></section> : null}<ListSection title="Risiko" value={payload.risks} /><TextSection title="Rencana Trading" value={payload.trading_plan} /><TextSection title="Kesimpulan" value={payload.conclusion} /></div>;
+  return (
+    <div className="min-w-0 space-y-6">
+      <TextSection title="Ringkasan" value={payload.summary} />
+      <TextSection title="Analisis Orderbook" value={payload.orderbook_analysis} />
+      <div className="grid min-w-0 grid-cols-1 gap-6 sm:grid-cols-2">
+        <TextSection title="Analisis Grafik 3 Bulan" value={payload.three_month_chart_analysis} />
+        <TextSection title="Analisis Grafik 6 Bulan" value={payload.six_month_chart_analysis} />
+      </div>
+      <FlowSection title="Analisa Foreign Flow" value={payload.foreign_flow_analysis} />
+      <div className="grid min-w-0 grid-cols-1 gap-6 sm:grid-cols-3">
+        <RangeSection title="Support" value={payload.support} />
+        <RangeSection title="Area Entry" value={payload.entry_area} />
+        <RangeSection title="Resistance" value={payload.resistance} />
+      </div>
+      <div className="grid min-w-0 grid-cols-1 gap-6 sm:grid-cols-2">
+        <LevelSection title="Rekomendasi Stop Loss" value={payload.stop_recommendation} />
+        <LevelSection title="Rekomendasi Target" value={payload.target_recommendation} />
+      </div>
+      {probabilities ? (
+        <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+          <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">Probabilitas</h3>
+          <dl className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+            <ValueRow label="Potensi naik" value={probabilities.upside} />
+            <ValueRow label="Potensi turun" value={probabilities.downside} />
+          </dl>
+        </section>
+      ) : null}
+      <ListSection title="Risiko" value={payload.risks} />
+      <TextSection title="Rencana Trading" value={payload.trading_plan} />
+      <TextSection title="Kesimpulan" value={payload.conclusion} />
+    </div>
+  );
 }
 
 function WaitUpdateRenderer({ payload }: { payload: AnalysisPayload }) {
-  return <div className="min-w-0 space-y-7"><TextSection title="Ringkasan Pembaruan" value={payload.update_summary} /><dl className="min-w-0"><ValueRow label="Harga saat ini" value={payload.current_price} /></dl><TextSection title="Penilaian Orderbook" value={payload.orderbook_assessment} /><FlowSection title="Analisa Broker Flow" value={payload.broker_flow_analysis} /><TextSection title="Perubahan dari Analisis Sebelumnya" value={payload.change_from_previous_analysis} /><TextSection title="Kondisi Entry Saat Ini" value={payload.current_entry_condition} /><section className="min-w-0 space-y-2"><h3 className="break-words text-lg font-semibold">Probabilitas</h3><dl className="grid min-w-0 gap-3 sm:grid-cols-2"><ValueRow label="Potensi naik" value={payload.upside_probability} /><ValueRow label="Potensi turun" value={payload.downside_probability} /></dl></section><ListSection title="Risiko Utama" value={payload.key_risks} /><dl><ValueRow label="Rekomendasi" value={payload.recommended_action} /></dl><TextSection title="Rencana Berikutnya" value={payload.next_plan} /><TextSection title="Kesimpulan" value={payload.conclusion} /></div>;
+  return (
+    <div className="min-w-0 space-y-6">
+      <TextSection title="Ringkasan Pembaruan" value={payload.update_summary} />
+      <dl className="min-w-0">
+        <ValueRow label="Harga saat ini" value={payload.current_price} />
+      </dl>
+      <TextSection title="Penilaian Orderbook" value={payload.orderbook_assessment} />
+      <FlowSection title="Analisa Broker Flow" value={payload.broker_flow_analysis} />
+      <TextSection title="Perubahan dari Analisis Sebelumnya" value={payload.change_from_previous_analysis} />
+      <TextSection title="Kondisi Entry Saat Ini" value={payload.current_entry_condition} />
+      <section className="min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 shadow-xs sm:p-6">
+        <h3 className="break-words text-base font-bold text-[var(--color-text-strong)] sm:text-lg">Probabilitas</h3>
+        <dl className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+          <ValueRow label="Potensi naik" value={payload.upside_probability} />
+          <ValueRow label="Potensi turun" value={payload.downside_probability} />
+        </dl>
+      </section>
+      <ListSection title="Risiko Utama" value={payload.key_risks} />
+      <dl>
+        <ValueRow label="Rekomendasi" value={payload.recommended_action} />
+      </dl>
+      <TextSection title="Rencana Berikutnya" value={payload.next_plan} />
+      <TextSection title="Kesimpulan" value={payload.conclusion} />
+    </div>
+  );
 }
 
 function PositionUpdateRenderer({ payload }: { payload: AnalysisPayload }) {
-  return <div className="min-w-0 space-y-7"><TextSection title="Ringkasan Pembaruan" value={payload.update_summary} /><dl><ValueRow label="Harga saat ini" value={payload.current_price} /></dl><TextSection title="Kondisi Posisi" value={payload.position_condition} /><TextSection title="Penilaian Orderbook" value={payload.orderbook_assessment} /><FlowSection title="Analisa Broker Flow" value={payload.broker_flow_analysis} /><TextSection title="Perubahan dari Analisis Sebelumnya" value={payload.change_from_previous_analysis} /><TextSection title="Realisme Target" value={payload.target_realism} /><TextSection title="Risiko Penurunan" value={payload.downside_risk} /><dl><ValueRow label="Probabilitas Target" value={payload.target_probability} /></dl><TextSection title="Rencana Trading" value={payload.trading_plan} /><ListSection title="Poin Pemantauan" value={payload.monitoring_points} /><ListSection title="Peringatan" value={payload.warnings} /><TextSection title="Kesimpulan" value={payload.conclusion} /></div>;
+  return (
+    <div className="min-w-0 space-y-6">
+      <TextSection title="Ringkasan Pembaruan" value={payload.update_summary} />
+      <dl>
+        <ValueRow label="Harga saat ini" value={payload.current_price} />
+      </dl>
+      <TextSection title="Kondisi Posisi" value={payload.position_condition} />
+      <TextSection title="Penilaian Orderbook" value={payload.orderbook_assessment} />
+      <FlowSection title="Analisa Broker Flow" value={payload.broker_flow_analysis} />
+      <TextSection title="Perubahan dari Analisis Sebelumnya" value={payload.change_from_previous_analysis} />
+      <TextSection title="Realisme Target" value={payload.target_realism} />
+      <TextSection title="Risiko Penurunan" value={payload.downside_risk} />
+      <dl>
+        <ValueRow label="Probabilitas Target" value={payload.target_probability} />
+      </dl>
+      <TextSection title="Rencana Trading" value={payload.trading_plan} />
+      <ListSection title="Poin Pemantauan" value={payload.monitoring_points} />
+      <ListSection title="Peringatan" value={payload.warnings} />
+      <TextSection title="Kesimpulan" value={payload.conclusion} />
+    </div>
+  );
 }
 
 function AnalysisRenderer({ record: selected }: { record: AnalysisRecord }) {

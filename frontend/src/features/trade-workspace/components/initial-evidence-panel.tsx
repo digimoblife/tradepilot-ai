@@ -8,7 +8,7 @@ const requiredEvidence: Array<[EvidenceKey, string]> = [
   ["orderbook", "Order Book"],
   ["chart_3_month", "Grafik 3 Bulan"],
   ["chart_6_month", "Grafik 6 Bulan"],
-  ["foreign_flow_1w", "Foreign Flow — 1W"],
+  ["foreign_flow_1w", "Foreign Flow - 1W"],
 ];
 
 export function InitialEvidencePanel({

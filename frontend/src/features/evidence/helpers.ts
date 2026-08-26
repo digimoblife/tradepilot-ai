@@ -60,16 +60,16 @@ export function getRequiredTypesStatus(
 }
 
 export function formatTimestamp(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   try {
     const d = new Date(iso);
-    if (isNaN(d.getTime())) return "—";
+    if (isNaN(d.getTime())) return "-";
     return d.toLocaleDateString("id-ID", {
       year: "numeric", month: "short", day: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
   } catch {
-    return "—";
+    return "-";
   }
 }
 

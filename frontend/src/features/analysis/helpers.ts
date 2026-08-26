@@ -110,23 +110,23 @@ const ENUM_LABELS: Record<string, Record<string, string>> = {
 };
 
 export function enumLabel(category: string, value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const map = ENUM_LABELS[category];
   if (map && map[value]) return map[value];
   return value;
 }
 
 export function percentage(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "-";
   return `${value}%`;
 }
 
 export function currency(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "-";
   return value.toLocaleString("id-ID");
 }
 
 export function displayBool(value: boolean | null | undefined): string {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "-";
   return value ? "Ya" : "Tidak";
 }

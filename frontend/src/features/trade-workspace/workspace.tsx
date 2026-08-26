@@ -66,7 +66,7 @@ const statusToneClasses: Record<SessionStatus, string> = {
 };
 
 function formatTime(value: string | null): string {
-  if (!value) return "—";
+  if (!value) return "-";
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
