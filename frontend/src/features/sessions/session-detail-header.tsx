@@ -98,6 +98,10 @@ export function SessionDetailHeader({ session }: { session: TradeSession }) {
     : null;
   const note = session.note?.trim() ? session.note : null;
 
+  const noteMatch = note?.match(/^\[(Day Trade|Swing Trade|Scalping)\]\s*(.*)$/);
+  const tradingStyle = noteMatch ? noteMatch[1] : null;
+  const cleanNote = noteMatch ? (noteMatch[2].trim() || null) : note;
+
   return (
     <section
       aria-labelledby="session-detail-title"
@@ -115,15 +119,27 @@ export function SessionDetailHeader({ session }: { session: TradeSession }) {
       <header className="mt-4 min-w-0 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-[var(--space-card)] shadow-[var(--elevation-low)] sm:p-6">
         <div className="grid min-w-0 gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div className="min-w-0">
-            <h1
-              id="session-detail-title"
-              className="break-all text-3xl font-bold leading-[var(--text-line-heading)] tracking-tight text-[var(--color-text-strong)]"
-            >
-              {session.ticker}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1
+                id="session-detail-title"
+                className="break-all text-3xl font-bold leading-[var(--text-line-heading)] tracking-tight text-[var(--color-text-strong)]"
+              >
+                {session.ticker}
+              </h1>
+              {tradingStyle ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-action-primary)]/40 bg-[var(--color-action-primary)]/10 px-2.5 py-0.5 text-xs font-bold text-[var(--color-action-primary)]">
+                  🎯 {tradingStyle}
+                </span>
+              ) : null}
+            </div>
             <p className="mt-2 [overflow-wrap:anywhere] text-base text-[var(--color-text-muted)]">
               {session.company_name}
             </p>
+            {cleanNote ? (
+              <p className="mt-2 text-xs italic text-[var(--color-text-muted)]">
+                Catatan: {cleanNote}
+              </p>
+            ) : null}
           </div>
 
           <span

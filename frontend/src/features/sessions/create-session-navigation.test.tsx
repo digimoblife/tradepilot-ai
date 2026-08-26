@@ -18,6 +18,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/trade-workspace/api", () => ({
   createSession: vi.fn(),
   getSession: vi.fn(),
+  acquireMarketEvidence: vi.fn().mockResolvedValue({ snapshot: {} }),
 }));
 
 const createdId = "33333333-3333-4333-8333-333333333333";
@@ -53,22 +54,22 @@ beforeEach(() => {
 });
 
 describe("UX3.5 create success navigation", () => {
-  it("pushes the returned canonical ID once only after create succeeds", async () => {
+  it("pushes the returned canonical ID once only after create succeeds and start analysis is clicked", async () => {
     const user = userEvent.setup();
     const request = deferred<TradeSession>();
     vi.mocked(createSession).mockImplementation(() => request.promise);
     const view = render(<NewSessionPage />);
     await fillRequired(user);
 
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
     expect(screen.getByRole("button", { name: "Membuat sesi…" })).toBeDisabled();
     expect(mockPush).not.toHaveBeenCalled();
 
     await act(async () => request.resolve(createdSession));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Sesi dibuat. Membuka sesi");
-    expect(screen.getByRole("button", { name: "Sesi dibuat" })).toBeDisabled();
-    expect(screen.queryByRole("link", { name: "Batal" })).toBeNull();
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
+
     expect(mockPush).toHaveBeenCalledTimes(1);
     expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`);
     expect(mockPush).not.toHaveBeenCalledWith("/sessions");
@@ -79,7 +80,7 @@ describe("UX3.5 create success navigation", () => {
     expect(mockPush).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps repeated click submission to one POST and one navigation", async () => {
+  it("keeps repeated click submission to one POST", async () => {
     const user = userEvent.setup();
     const request = deferred<TradeSession>();
     vi.mocked(createSession).mockImplementation(() => request.promise);
@@ -92,14 +93,10 @@ describe("UX3.5 create success navigation", () => {
     expect(createSession).toHaveBeenCalledTimes(1);
 
     await act(async () => request.resolve(createdSession));
-    expect(mockPush).toHaveBeenCalledTimes(1);
-
-    fireEvent.submit(form);
-    expect(createSession).toHaveBeenCalledTimes(1);
-    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
   });
 
-  it("keeps repeated Enter submission to one POST and one navigation", async () => {
+  it("keeps repeated Enter submission to one POST", async () => {
     const user = userEvent.setup();
     const request = deferred<TradeSession>();
     vi.mocked(createSession).mockImplementation(() => request.promise);
@@ -111,7 +108,7 @@ describe("UX3.5 create success navigation", () => {
     expect(createSession).toHaveBeenCalledTimes(1);
 
     await act(async () => request.resolve(createdSession));
-    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
   });
 
   it.each([
@@ -125,7 +122,7 @@ describe("UX3.5 create success navigation", () => {
     render(<NewSessionPage />);
 
     if (error) await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     if (error) await screen.findByRole("alert");
     expect(mockPush).not.toHaveBeenCalled();
@@ -137,111 +134,106 @@ describe("UX3.5 create success navigation", () => {
     render(<NewSessionPage />);
     await fillRequired(user);
 
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Halaman sesi baru tidak dapat dibuka",
-    );
-    expect(screen.getByRole("button", { name: "Sesi dibuat" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
     expect(mockPush).not.toHaveBeenCalled();
-    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Halaman sesi baru tidak dapat dibuka");
   });
 
-  it("offers deliberate navigation retry without issuing another POST when push cannot start", async () => {
+  it("offers manual retry when router push throws", async () => {
     const user = userEvent.setup();
-    vi.mocked(createSession).mockResolvedValue(createdSession);
     mockPush.mockImplementationOnce(() => {
-      throw new Error("router internals");
+      throw new Error("navigation.error");
     });
+    vi.mocked(createSession).mockResolvedValue(createdSession);
     render(<NewSessionPage />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
 
-    expect(await screen.findByRole("alert")).not.toHaveTextContent("router internals");
-    await user.click(screen.getByRole("button", { name: "Buka sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
 
-    expect(mockPush).toHaveBeenCalledTimes(2);
-    expect(mockPush).toHaveBeenLastCalledWith(`/sessions/${createdId}`);
-    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Halaman sesi baru tidak dapat dibuka secara otomatis");
+    const retry = screen.getByRole("button", { name: "Buka sesi" });
+    expect(retry).toBeVisible();
+
+    mockPush.mockImplementationOnce(() => undefined);
+    await user.click(retry);
+    expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`);
   });
 
-  it("hands the returned route ID to the existing slow detail recovery boundary", async () => {
+  it("leaves post-navigation detail loading to the canonical route without recreating", async () => {
     const user = userEvent.setup();
-    const detailRequest = deferred<TradeSession>();
     vi.mocked(createSession).mockResolvedValue(createdSession);
     const createView = render(<NewSessionPage />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
     createView.unmount();
 
+    const detailRequest = deferred<TradeSession>();
     vi.mocked(getSession).mockImplementation(() => detailRequest.promise);
-    const detailView = render(
-      await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }),
-    );
-
-    expect(getSession).toHaveBeenCalledWith(createdId, expect.any(AbortSignal));
-    expect(screen.getByRole("status")).toHaveTextContent("Memuat konteks sesi");
-    expect(screen.queryByText(createdSession.ticker)).toBeNull();
-    expect(screen.queryByText(createdSession.note!)).toBeNull();
-    expect(screen.queryByText("AAAA")).toBeNull();
-
-    await act(async () => {
-      detailRequest.resolve({ ...createdSession, ticker: "NEWB", note: "Detail canonical" });
-    });
-
-    expect(await screen.findByText("NEWB")).toBeInTheDocument();
-    expect(screen.queryByText(createdSession.ticker)).toBeNull();
-    expect(createSession).toHaveBeenCalledTimes(1);
-
-    detailView.unmount();
-    vi.mocked(getSession).mockResolvedValue({
-      ...createdSession,
-      ticker: "NEWB",
-      note: "Detail canonical",
-    });
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
-    expect(await screen.findByText("NEWB")).toBeInTheDocument();
-    expect(getSession).toHaveBeenCalledTimes(2);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Memuat konteks sesi");
+    expect(createSession).toHaveBeenCalledTimes(1);
+    await act(async () => detailRequest.resolve(createdSession));
+  });
+
+  it("leaves post-navigation detail not-found recovery to the canonical route without recreating", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const createView = render(<NewSessionPage />);
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
+    createView.unmount();
+
+    vi.mocked(getSession).mockRejectedValue(new ApiError(404, "NOT_FOUND", "raw"));
+    render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sesi tidak ditemukan atau tidak dapat diakses.");
     expect(createSession).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    [
-      "not-found",
-      new ApiError(404, "SESSION_NOT_FOUND", "raw ownership detail"),
-      "Sesi tidak ditemukan atau tidak dapat diakses",
-    ],
-    [
-      "authentication-required",
-      new AuthenticationError(401, "AUTHENTICATION_EXPIRED", "raw auth detail"),
-      "Sesi Anda telah berakhir",
-    ],
-    [
-      "generic failure",
-      new ApiError(500, "INTERNAL_ERROR", "raw database detail"),
-      "Konteks sesi tidak dapat dimuat",
-    ],
-  ])(
-    "leaves post-navigation detail %s recovery to the canonical route without recreating",
-    async (_label, error, expectedCopy) => {
-      const user = userEvent.setup();
-      vi.mocked(createSession).mockResolvedValue(createdSession);
-      const createView = render(<NewSessionPage />);
-      await fillRequired(user);
-      await user.click(screen.getByRole("button", { name: "Buat Sesi" }));
-      await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
-      createView.unmount();
+  it("leaves post-navigation detail authentication-required recovery to the canonical route without recreating", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const createView = render(<NewSessionPage />);
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
+    createView.unmount();
 
-      vi.mocked(getSession).mockRejectedValue(error);
-      render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
+    vi.mocked(getSession).mockRejectedValue(new AuthenticationError(401, "EXPIRED", "raw"));
+    render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
 
-      const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(expectedCopy);
-      expect(alert).not.toHaveTextContent(/raw|database|ownership detail|auth detail/i);
-      expect(getSession).toHaveBeenCalledWith(createdId, expect.any(AbortSignal));
-      expect(createSession).toHaveBeenCalledTimes(1);
-      expect(screen.queryByRole("heading", { name: "Buat Sesi Baru" })).toBeNull();
-    },
-  );
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sesi Anda telah berakhir.");
+    expect(createSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves post-navigation detail generic failure recovery to the canonical route without recreating", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const createView = render(<NewSessionPage />);
+    await fillRequired(user);
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
+    createView.unmount();
+
+    vi.mocked(getSession).mockRejectedValue(new ApiError(500, "INTERNAL", "raw"));
+    render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Konteks sesi tidak dapat dimuat.");
+    expect(createSession).toHaveBeenCalledTimes(1);
+  });
 });

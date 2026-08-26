@@ -64,7 +64,7 @@ describe("CreateSessionForm", () => {
 
     await user.type(screen.getByLabelText("Kode Saham"), "   ");
     await user.type(screen.getByLabelText("Nama Perusahaan"), "   ");
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     expect(screen.getByText("Kode saham wajib diisi.")).toBeVisible();
     expect(screen.getByText("Nama perusahaan wajib diisi.")).toBeVisible();
@@ -79,7 +79,7 @@ describe("CreateSessionForm", () => {
     render(<CreateSessionForm />);
     await fillRequired(user);
     await user.type(screen.getByLabelText(/Catatan/), "  pertahankan spasi catatan  ");
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(createSession).toHaveBeenCalledWith(
@@ -97,7 +97,7 @@ describe("CreateSessionForm", () => {
     vi.mocked(createSession).mockResolvedValue(createdSession);
     render(<CreateSessionForm />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createSession).mock.calls[0][0]).toEqual({
@@ -132,17 +132,17 @@ describe("CreateSessionForm", () => {
     await act(async () => request.resolve(createdSession));
   });
 
-  it("retains the successful response through onCreated without resubmission", async () => {
+  it("retains the successful response and triggers onCreated when clicking Mulai Analisa AI", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     vi.mocked(createSession).mockResolvedValue(createdSession);
     const view = render(<CreateSessionForm onCreated={onCreated} />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Sesi berhasil dibuat");
+    expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
     expect(onCreated).toHaveBeenCalledWith(createdSession);
-    expect(screen.getByRole("button", { name: "Sesi dibuat" })).toBeDisabled();
     view.rerender(<CreateSessionForm onCreated={onCreated} />);
     expect(createSession).toHaveBeenCalledTimes(1);
   });
@@ -159,7 +159,7 @@ describe("CreateSessionForm", () => {
     render(<CreateSessionForm />);
     await fillRequired(user);
     await user.type(screen.getByLabelText(/Catatan/), "Catatan tetap");
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sesi tidak dapat dibuat");
     expect(screen.getByRole("alert")).not.toHaveTextContent(/database|stack trace|secret|network\.internal/i);
@@ -168,7 +168,7 @@ describe("CreateSessionForm", () => {
     expect(screen.getByLabelText(/Catatan/)).toHaveValue("Catatan tetap");
     expect(createSession).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
   });
 
@@ -179,7 +179,7 @@ describe("CreateSessionForm", () => {
     );
     render(<CreateSessionForm />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     expect(await screen.findByRole("alert")).not.toHaveTextContent("token secret");
     expect(screen.getByRole("link", { name: "Masuk kembali" })).toHaveAttribute(
@@ -200,7 +200,7 @@ describe("CreateSessionForm", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const view = render(<CreateSessionForm />);
     await fillRequired(user);
-    await user.click(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i }));
+    await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
     view.unmount();
     expect(signal?.aborted).toBe(true);
