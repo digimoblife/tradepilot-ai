@@ -266,8 +266,12 @@ export function SessionHistoryView({ sessionId }: { sessionId: string }) {
   if (routeState.status === "loading" || detailState.status === "loading") {
     return (
       <section className="mx-auto w-full max-w-[var(--layout-application-max)] min-w-0 px-4 py-10 sm:px-6 lg:px-8">
+        <h1 className="sr-only">Riwayat Sesi</h1>
+        <Link href={`/sessions/${encodeURIComponent(sessionId)}`} className="sr-only">
+          Kembali
+        </Link>
         <p role="status" className="text-sm text-[var(--color-text-muted)]">
-          Memuat riwayat sesi…
+          Memuat konteks sesi…
         </p>
       </section>
     );

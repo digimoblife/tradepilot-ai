@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { hasPresentationContent, parsePresentationPayload, type AnalysisPayload } from "@/features/sessions/analysis-schema";
@@ -284,6 +285,10 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
   if (identity.status === "loading") {
     return (
       <main className="mx-auto w-full max-w-[var(--layout-application-max)] min-w-0 px-4 py-8 sm:px-6 lg:px-8">
+        <h1 className="sr-only">Analisis Sesi</h1>
+        <Link href={`/sessions/${encodeURIComponent(sessionId)}`} className="sr-only">
+          Kembali
+        </Link>
         <p role="status" className="text-sm text-[var(--color-text-muted)]">
           Memuat konteks sesi…
         </p>
