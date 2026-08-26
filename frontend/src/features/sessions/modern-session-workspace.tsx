@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   analyzeSession,
+  archiveSessionV2,
   buyDecision,
   closePosition,
   getSessionWorkspaceData,
+  restoreSessionV2,
   skipDecision,
   waitDecision,
 } from "@/features/trade-workspace/api";
@@ -160,6 +162,36 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
     }
   };
 
+  const handleArchive = async () => {
+    if (!session) return;
+    setSubmittingAction(true);
+    setError(null);
+    try {
+      await archiveSessionV2(session.id);
+      setActionSuccess(`Sesi ${session.ticker} berhasil diarsipkan ke halaman riwayat!`);
+      loadData(false);
+    } catch (err: any) {
+      setError(err?.message || "Gagal mengarsipkan sesi.");
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!session) return;
+    setSubmittingAction(true);
+    setError(null);
+    try {
+      await restoreSessionV2(session.id);
+      setActionSuccess(`Sesi ${session.ticker} berhasil dipulihkan dari arsip!`);
+      loadData(false);
+    } catch (err: any) {
+      setError(err?.message || "Gagal memulihkan sesi dari arsip.");
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
@@ -231,6 +263,11 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--color-text-muted)] border border-[var(--color-border-subtle)]">
             🎯 {analysis?.trading_style || "Swing Trade"}
           </span>
+          {session?.archived_at ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-500/20 px-3 py-1 text-xs font-bold text-[var(--color-text-strong)] border border-zinc-500/30">
+              📦 DIARSIPKAN
+            </span>
+          ) : null}
           <span
             className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${
               session?.status === "OPEN_POSITION"
@@ -331,20 +368,56 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
       {/* CLOSED / SKIPPED NOTICE (IF SESSION TERMINATED) */}
       {session?.status === "CLOSED" && closure ? (
-        <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-muted)] p-5 shadow-xs">
-          <h3 className="text-base font-bold text-[var(--color-text-strong)]">✓ Ringkasan Penutupan Posisi</h3>
-          <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-            Posisi ditutup pada harga <strong>Rp {closure.close_price?.toLocaleString("id-ID")}</strong> ({closure.close_reason}) dengan Realized PnL: <strong className={closure.realized_profit_loss >= 0 ? "text-emerald-600" : "text-rose-600"}>Rp {closure.realized_profit_loss?.toLocaleString("id-ID")}</strong>.
-          </p>
+        <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-muted)] p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-[var(--color-text-strong)]">✓ Ringkasan Penutupan Posisi</h3>
+            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+              Posisi ditutup pada harga <strong>Rp {closure.close_price?.toLocaleString("id-ID")}</strong> ({closure.close_reason}) dengan Realized PnL: <strong className={closure.realized_profit_loss >= 0 ? "text-emerald-600" : "text-rose-600"}>Rp {closure.realized_profit_loss?.toLocaleString("id-ID")}</strong>.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {session.archived_at ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-zinc-500/20 px-3 py-1.5 text-xs font-bold text-[var(--color-text-strong)]">
+                📦 Sudah Masuk Riwayat
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleArchive}
+                disabled={submittingAction}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+              >
+                📦 Pindah ke Riwayat
+              </button>
+            )}
+          </div>
         </section>
       ) : null}
 
       {session?.status === "CLOSED_SKIPPED" ? (
-        <section className="rounded-[var(--radius-large)] border border-rose-500/30 bg-rose-500/5 p-5 shadow-xs">
-          <h3 className="text-base font-bold text-rose-600 dark:text-rose-400">🛑 Setup Saham Dilewati (SKIP)</h3>
-          <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-            Setup emiten ini telah dilewati dan dicatat ke dalam journal trading. Anda dapat mengevaluasi ulang jika ada momentum baru.
-          </p>
+        <section className="rounded-[var(--radius-large)] border border-rose-500/30 bg-rose-500/5 p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-rose-600 dark:text-rose-400">🛑 Setup Saham Dilewati (SKIP)</h3>
+            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+              Setup emiten ini telah dilewati ({decision?.reason || "Risiko Tinggi"}) dan dicatat ke dalam journal trading.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {session.archived_at ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-zinc-500/20 px-3 py-1.5 text-xs font-bold text-[var(--color-text-strong)]">
+                📦 Sudah Masuk Riwayat
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleArchive}
+                disabled={submittingAction}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+              >
+                📦 Pindah ke Riwayat
+              </button>
+            )}
+          </div>
         </section>
       ) : null}
 
@@ -639,15 +712,45 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 </button>
               </>
             ) : session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED" ? (
-              /* TERMINAL ACTIONS: RE-EVALUATE */
-              <button
-                type="button"
-                onClick={() => loadData(true)}
-                disabled={evaluating}
-                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
-              >
-                🔄 Re-Evaluasi Setup
-              </button>
+              /* TERMINAL ACTIONS: ARCHIVE & RE-EVALUATE */
+              <>
+                {session.archived_at ? (
+                  <>
+                    <Link
+                      href="/sessions/archived"
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] shadow-xs"
+                    >
+                      📂 Buka Riwayat
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleRestore}
+                      disabled={submittingAction}
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 text-sm font-semibold text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
+                    >
+                      ↩️ Batal Arsip
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleArchive}
+                    disabled={submittingAction}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  >
+                    📦 Arsipkan ke Riwayat
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => loadData(true)}
+                  disabled={evaluating}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
+                >
+                  🔄 Re-Evaluasi Setup
+                </button>
+              </>
             ) : (
               /* DRAFT / ANALYZED ACTIONS: BUY, WAIT, SKIP */
               <>

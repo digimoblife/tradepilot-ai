@@ -365,6 +365,8 @@ async def get_session_workspace_data(
             "company_name": session.company_name,
             "status": status_val,
             "note": getattr(session, "note", None),
+            "archived_at": session.archived_at.isoformat() if hasattr(session, "archived_at") and session.archived_at else None,
+            "closed_at": session.closed_at.isoformat() if hasattr(session, "closed_at") and session.closed_at else None,
             "created_at": session.created_at.isoformat() if hasattr(session, "created_at") and session.created_at else None,
             "updated_at": session.updated_at.isoformat() if hasattr(session, "updated_at") and session.updated_at else None,
         },
