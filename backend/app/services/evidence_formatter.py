@@ -102,7 +102,7 @@ class EvidenceFormatter:
             f"- Waktu Berlalu: {d.time_elapsed_minutes} menit\n"
             f"- Pergerakan Harga: Rp {d.price_delta.previous_price:,.0f} -> Rp {d.price_delta.current_price:,.0f} ({d.price_delta.diff:+,.0f} / {d.price_delta.percent:+.2f}%)\n"
             f"- Pergeseran Orderbook: Rasio Bid/Ask {d.orderbook_delta.previous_bid_ask_ratio:.2f}x -> {d.orderbook_delta.current_bid_ask_ratio:.2f}x ({d.orderbook_delta.bid_pressure_trend})\n"
-            f"- Aliran Dana Asing: Tambahan net foreign {d.foreign_flow_delta.additional_net_shares // 100:+,,} lot ({d.foreign_flow_delta.status})\n"
+            f"- Aliran Dana Asing: Tambahan net foreign {int(d.foreign_flow_delta.additional_net_shares // 100):+,} lot ({d.foreign_flow_delta.status})\n"
             f"- Bandarmology Shift: {d.broker_flow_delta.bandar_status_shift}\n"
             f"\nPeristiwa Utama:\n{events_str}\n"
         )
