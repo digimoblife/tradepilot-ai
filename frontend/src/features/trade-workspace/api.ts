@@ -83,6 +83,26 @@ export function restoreSessionV2(id: string): Promise<{ id: string; status: stri
   return request(`${base}/${id}/restore`, { method: "POST" });
 }
 
+export function previewMarketEvidence(
+  sessionId: string,
+  symbol?: string,
+  signal?: AbortSignal,
+): Promise<{ snapshot: any; validation: { is_valid: boolean; completeness_status: string; critical_errors: string[]; warnings: string[] } }> {
+  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : "";
+  return get(`/api/sessions/${sessionId}/market-evidence/preview${query}`, undefined, signal);
+}
+
+export function acquireMarketEvidence(
+  sessionId: string,
+  snapshotType = "INITIAL",
+  symbol?: string,
+  signal?: AbortSignal,
+): Promise<{ snapshot: any; validation: { is_valid: boolean; completeness_status: string; critical_errors: string[]; warnings: string[] } }> {
+  const params = new URLSearchParams({ snapshot_type: snapshotType });
+  if (symbol) params.append("symbol", symbol);
+  return post(`/api/sessions/${sessionId}/market-evidence/acquire?${params.toString()}`, {}, { signal });
+}
+
 export type { EvidenceFile };
 
 const CURRENT_STEP_CODES = new Set<CurrentStepCode>([
