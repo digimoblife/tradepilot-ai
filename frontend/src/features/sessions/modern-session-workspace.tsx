@@ -407,39 +407,68 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       <section className="sticky bottom-4 z-20 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)]/95 backdrop-blur-md p-4 shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-[var(--color-text-muted)]">
-            <span className="font-semibold text-[var(--color-text-strong)]">Aksi Cepat:</span> Eksekusi atau pantau setup emiten ini
+            {session?.status === "CLOSED_SKIPPED" ? (
+              <span className="font-bold text-rose-600 dark:text-rose-400">
+                🛑 Sesi telah di-SKIP / Ditutup.
+              </span>
+            ) : session?.status === "CLOSED" ? (
+              <span className="font-bold text-[var(--color-text-strong)]">
+                ✓ Posisi telah selesai / Ditutup.
+              </span>
+            ) : session?.status === "OPEN_POSITION" ? (
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                🚀 Posisi Aktif Terbuka (Monitoring Mode)
+              </span>
+            ) : (
+              <>
+                <span className="font-semibold text-[var(--color-text-strong)]">Aksi Cepat:</span> Eksekusi atau pantau setup emiten ini
+              </>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setBuyPrice(String(keyLevels?.current_price || ""));
-                setShowBuyModal(true);
-              }}
-              disabled={submittingAction}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-            >
-              🚀 BUY
-            </button>
+            {session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED" ? (
+              <button
+                type="button"
+                onClick={() => loadData(true)}
+                disabled={evaluating}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
+              >
+                🔄 Re-Evaluasi Ulang
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuyPrice(String(keyLevels?.current_price || ""));
+                    setShowBuyModal(true);
+                  }}
+                  disabled={submittingAction}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                >
+                  🚀 BUY
+                </button>
 
-            <button
-              type="button"
-              onClick={handleWait}
-              disabled={submittingAction}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-amber-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-            >
-              ⏳ WAIT
-            </button>
+                <button
+                  type="button"
+                  onClick={handleWait}
+                  disabled={submittingAction}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-amber-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                >
+                  ⏳ WAIT
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setShowSkipModal(true)}
-              disabled={submittingAction}
-              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-            >
-              ⏭️ SKIP
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSkipModal(true)}
+                  disabled={submittingAction}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                >
+                  ⏭️ SKIP
+                </button>
+              </>
+            )}
           </div>
         </div>
       </section>
