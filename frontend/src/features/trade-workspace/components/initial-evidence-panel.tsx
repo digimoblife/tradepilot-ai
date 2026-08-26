@@ -5,9 +5,9 @@ type EvidenceKey = "orderbook" | "chart_3_month" | "chart_6_month" | "foreign_fl
 type EvidenceFiles = Partial<Record<EvidenceKey, File>>;
 
 const requiredEvidence: Array<[EvidenceKey, string]> = [
-  ["orderbook", "Orderbook"],
-  ["chart_3_month", "Chart 3 Bulan"],
-  ["chart_6_month", "Chart 6 Bulan"],
+  ["orderbook", "Order Book"],
+  ["chart_3_month", "Grafik 3 Bulan"],
+  ["chart_6_month", "Grafik 6 Bulan"],
   ["foreign_flow_1w", "Foreign Flow — 1W"],
 ];
 
