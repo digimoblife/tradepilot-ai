@@ -135,7 +135,8 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
 
   // 1-Click Automated Acquisition & AI Trigger
   const handleAutoAcquisition = async () => {
-    if (!identity.session?.ticker) return;
+    if (identity.status !== "success" || !identity.session.ticker) return;
+    const ticker = identity.session.ticker;
     setOperation("fetching-market");
     setFetchError(null);
     setAcquisitionStep(1);
@@ -145,7 +146,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
       await new Promise((r) => setTimeout(r, 400));
       setAcquisitionStep(2);
 
-      const res = await previewMarketEvidence(sessionId, identity.session.ticker);
+      const res = await previewMarketEvidence(sessionId, ticker);
       setSnapshot(res.snapshot);
       setAcquisitionStep(3);
 

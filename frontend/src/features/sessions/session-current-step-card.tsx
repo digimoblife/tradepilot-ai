@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { SessionCurrentStepPresentation } from "@/features/sessions/session-current-step";
 
 const STATE_STYLES: Record<SessionCurrentStepPresentation["state"], string> = {
@@ -38,8 +39,14 @@ export function SessionCurrentStepCard({
           {presentation.supportingText}
         </p>
       ) : null}
-      {presentation.navigationAction && sessionId ? <Link href={`/sessions/${encodeURIComponent(sessionId)}/initial-evidence`} className="mt-4 inline-flex min-h-11 items-center font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]">{presentation.navigationAction.label}</Link> : null}
+      {presentation.navigationAction && sessionId ? (
+        <Link
+          href={`/sessions/${encodeURIComponent(sessionId)}/initial-evidence`}
+          className="mt-4 inline-flex min-h-11 items-center font-semibold text-[var(--color-action-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+        >
+          {presentation.navigationAction.label}
+        </Link>
+      ) : null}
     </article>
   );
 }
-import Link from "next/link";

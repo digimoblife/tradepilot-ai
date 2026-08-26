@@ -6,7 +6,10 @@ import { hasPresentationContent, parsePresentationPayload, type AnalysisPayload 
 import { SessionDetailHeader } from "@/features/sessions/session-detail-header";
 import { SessionNavigation } from "@/features/sessions/session-navigation";
 import { useRouteSession } from "@/features/sessions/use-route-session";
-import { getSessionDetail } from "@/features/trade-workspace/api";
+import { getSessionDetail, submitWaitUpdateAnalysis, submitPositionUpdateAnalysis } from "@/features/trade-workspace/api";
+import { previewMarketEvidence } from "@/lib/api/market-evidence";
+import { EvidenceInspector } from "@/features/evidence/evidence-inspector";
+import type { EvidenceSnapshot } from "@/types/market-evidence";
 import type { AnalysisType, SessionDetailAggregate } from "@/features/trade-workspace/types";
 
 type AnalysisRecord = { id: string; type: AnalysisType; completedAt: string; payload: AnalysisPayload };
@@ -227,6 +230,41 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
   const [records, setRecords] = useState<AnalysisRecord[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [snapshot, setSnapshot] = useState<EvidenceSnapshot | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (identity.status === "success" && identity.session.ticker) {
+      void previewMarketEvidence(sessionId, identity.session.ticker)
+        .then((res) => setSnapshot(res.snapshot))
+        .catch(() => {});
+    }
+  }, [sessionId, identity]);
+
+  const handleRefreshAnalysis = async () => {
+    if (refreshing || identity.status !== "success") return;
+    setRefreshing(true);
+    setRefreshMessage("Mengambil data pasar terkini dari ZAPI...");
+    try {
+      const res = await previewMarketEvidence(sessionId, identity.session.ticker);
+      setSnapshot(res.snapshot);
+      setRefreshMessage("Menganalisis delta pergeseran dengan AI...");
+
+      if (identity.session.status === "WAITING") {
+        await submitWaitUpdateAnalysis(sessionId);
+      } else if (identity.session.status === "OPEN_POSITION") {
+        await submitPositionUpdateAnalysis(sessionId);
+      }
+      setRefreshMessage("Analisis berhasil diperbarui!");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      setRefreshMessage(err?.message || "Gagal memperbarui analisis.");
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const current = ++generation.current;
@@ -330,7 +368,27 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
       <SessionDetailHeader session={identity.session} />
       <SessionNavigation sessionId={sessionId} />
       <main className="mx-auto w-full min-w-0 max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
-        <h1 className="break-words text-2xl font-bold text-[var(--color-text-strong)]">Analisis</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <h1 className="break-words text-2xl font-bold text-[var(--color-text-strong)]">Analisis</h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Evaluasi setup perdagangan berbasis multi-sumber data bursa (ZAPI: Pluang, IDX, Stockbit).
+            </p>
+          </div>
+          {(identity.session.status === "WAITING" || identity.session.status === "OPEN_POSITION" || identity.session.status === "ANALYZED") && (
+            <button
+              type="button"
+              disabled={refreshing}
+              onClick={handleRefreshAnalysis}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[var(--color-action-primary)] px-4 text-xs font-semibold text-white shadow hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
+            >
+              {refreshing ? "Memperbarui Data..." : "🔄 Refresh Data Pasar & Re-Evaluasi"}
+            </button>
+          )}
+        </div>
+        {refreshMessage && (
+          <p className="mt-3 text-xs font-semibold text-primary animate-pulse">{refreshMessage}</p>
+        )}
 
         {records === null && !failed ? (
           <p role="status" className="mt-4 text-sm text-[var(--color-text-muted)]">
@@ -425,6 +483,20 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
                   <div className="mt-6 min-w-0">
                     <AnalysisRenderer record={current} />
                   </div>
+
+                  {/* Bukti Pasar yang Digunakan (Evidence Used) */}
+                  <details className="mt-8 rounded-xl border border-border bg-card p-5" open>
+                    <summary className="cursor-pointer text-sm font-bold text-foreground">
+                      📊 Bukti Pasar yang Digunakan (Evidence Used)
+                    </summary>
+                    <div className="mt-4 border-t border-border pt-4">
+                      {snapshot ? (
+                        <EvidenceInspector snapshot={snapshot} />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Memuat snapshot bukti pasar...</p>
+                      )}
+                    </div>
+                  </details>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-[var(--color-text-muted)]">

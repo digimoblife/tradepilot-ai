@@ -59,20 +59,27 @@ export function CreateSessionNavigation() {
             : "Sesi dibuat. Membuka sesi…"
         }
       />
-
       {navigation.status === "failed" ? (
-        <div role="alert" className="mt-4 text-sm text-[var(--color-status-danger)]">
-          <p>Halaman sesi baru tidak dapat dibuka. Sesi tidak akan dibuat ulang.</p>
+        <section
+          role="alert"
+          className="mt-6 min-w-0 rounded-[var(--radius-compact)] border border-[var(--color-status-danger)] bg-[var(--color-status-danger-subtle)] p-4 text-sm text-[var(--color-status-danger)]"
+        >
+          <p className="break-words font-semibold">
+            Halaman sesi baru tidak dapat dibuka secara otomatis.
+          </p>
+          <p className="mt-1 break-words">
+            Sesi Anda telah berhasil dibuat. Coba buka kembali secara manual.
+          </p>
           {navigation.href ? (
             <button
               type="button"
               onClick={retryNavigation}
-              className="mt-3 min-h-11 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+              className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
             >
-              Buka sesi
+              Buka Sesi
             </button>
           ) : null}
-        </div>
+        </section>
       ) : null}
     </>
   );
