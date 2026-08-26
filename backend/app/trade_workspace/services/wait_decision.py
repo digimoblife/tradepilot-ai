@@ -73,6 +73,7 @@ class WaitDecisionService:
         if trade_session is None:
             raise WaitDecisionSessionNotFoundError("Rebuild session was not found")
         if trade_session.status not in {
+            TradeSessionV2Status.DRAFT,
             TradeSessionV2Status.ANALYZED,
             TradeSessionV2Status.WAITING,
         }:

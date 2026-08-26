@@ -96,6 +96,7 @@ class BuyDecisionService:
         if trade_session is None:
             raise BuyDecisionSessionNotFoundError("Rebuild session was not found")
         if trade_session.status not in {
+            TradeSessionV2Status.DRAFT,
             TradeSessionV2Status.ANALYZED,
             TradeSessionV2Status.WAITING,
         }:
