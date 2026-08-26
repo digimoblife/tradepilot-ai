@@ -32,6 +32,12 @@ const IDX_COMPANIES: Record<string, string> = {
   SMGR: "Semen Indonesia (Persero) Tbk",
   MEDC: "Medco Energi Internasional Tbk",
   ACES: "Aspirasi Hidup Indonesia Tbk",
+  SGER: "Sumber Global Energy Tbk",
+  HRUM: "Harum Energy Tbk",
+  CUAN: "Petrindo Jaya Kreasi Tbk",
+  TPIA: "Chandra Asri Pacific Tbk",
+  BRPT: "Barito Pacific Tbk",
+  PTRO: "Petrosea Tbk",
 };
 
 const POPULAR_TICKERS = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "BREN", "AMMN", "GOTO"];
@@ -59,6 +65,7 @@ export function CreateSessionForm({
   const [pending, setPending] = useState(false);
   const [createdSession, setCreatedSession] = useState<TradeSession | null>(null);
   const [previewData, setPreviewData] = useState<any | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [fetchingPreview, setFetchingPreview] = useState(false);
 
   const pendingRef = useRef(false);
@@ -66,9 +73,12 @@ export function CreateSessionForm({
   const controllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    controllerRef.current?.abort();
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      controllerRef.current?.abort();
+    };
   }, []);
 
   function handleTickerChange(val: string) {
@@ -101,24 +111,15 @@ export function CreateSessionForm({
 
   async function fetchMarketData(session: TradeSession, signal?: AbortSignal) {
     setFetchingPreview(true);
+    setPreviewError(null);
     try {
       const data = await acquireMarketEvidence(session.id, "INITIAL", session.ticker, signal);
       if (mountedRef.current && data?.snapshot) {
         setPreviewData(data.snapshot);
       }
-    } catch {
-      // Fallback preview representation from session ticker
+    } catch (err: any) {
       if (mountedRef.current) {
-        setPreviewData({
-          symbol: session.ticker,
-          quote: { last_price: 6325, change_percent: 1.2, volume_lots: 458200 },
-          orderbook: { best_bid: 6325, best_ask: 6350, bid_ask_ratio: 1.3, spread: 25 },
-          foreign_flow: { foreign_status: "ACCUMULATION" },
-          broker_flow: { bandar_status: "ACCUMULATION" },
-          historical_ohlcv: {
-            computed_technical: { rsi14: 58.4, ma20: 6210, key_supports: [6250, 6100], key_resistances: [6350, 6500] },
-          },
-        });
+        setPreviewError(err?.message || "Gagal mengambil data live bursa. Periksa koneksi ZAPI.");
       }
     } finally {
       if (mountedRef.current) {
@@ -138,7 +139,6 @@ export function CreateSessionForm({
 
     const finalTicker = ticker.trim().toUpperCase();
     const finalCompany = (companyName || IDX_COMPANIES[finalTicker] || `${finalTicker} Tbk`).trim();
-
     pendingRef.current = true;
     setPending(true);
     const attempt = ++attemptRef.current;
@@ -199,8 +199,8 @@ export function CreateSessionForm({
 
       {/* STEP 2: PRATINJAU DATA PASAR TERAKUISISI */}
       {createdSession ? (
-        <div className="space-y-4">
-          <div className="rounded-[var(--radius-large)] border border-[var(--color-status-success)] bg-[var(--color-surface-standard)] p-6 shadow-sm space-y-5">
+        <div className="space-y-4 min-w-0">
+          <div className="rounded-[var(--radius-large)] border border-[var(--color-status-success)] bg-[var(--color-surface-standard)] p-5 sm:p-6 shadow-sm space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-subtle)] pb-4">
               <div>
                 <span className="text-xs font-semibold text-[var(--color-status-success)]">
@@ -219,48 +219,76 @@ export function CreateSessionForm({
               </span>
             </div>
 
-            {/* 4 Metric Badges */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
-                <span className="text-xs text-[var(--color-text-muted)]">Harga Terkini</span>
-                <p className="text-lg font-bold text-[var(--color-text-strong)]">
-                  Rp {previewData?.quote?.last_price?.toLocaleString("id-ID") ?? "6,325"}
+            {/* Error state if fetching fails */}
+            {previewError ? (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-400">
+                <p className="font-semibold">⚠️ {previewError}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pastikan ZAPI_API_KEY aktif dan server backend dapat menjangkau api.zpi.web.id.
                 </p>
-                <span className={`text-xs font-semibold ${(previewData?.quote?.change_percent ?? 1.2) >= 0 ? "text-[var(--color-status-success)]" : "text-[var(--color-status-danger)]"}`}>
-                  {(previewData?.quote?.change_percent ?? 1.2) >= 0 ? "+" : ""}{(previewData?.quote?.change_percent ?? 1.2).toFixed(2)}%
-                </span>
               </div>
+            ) : null}
 
-              <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
-                <span className="text-xs text-[var(--color-text-muted)]">Orderbook Depth</span>
-                <p className="text-lg font-bold text-[var(--color-text-strong)]">
-                  {(previewData?.orderbook?.bid_ask_ratio ?? 1.3).toFixed(2)}x
+            {/* Loading state */}
+            {fetchingPreview && !previewData ? (
+              <div className="p-8 text-center">
+                <p className="text-sm font-semibold text-[var(--color-action-primary)] animate-pulse">
+                  ⚡ Mengambil data pasar real-time {createdSession.ticker} dari ZAPI…
                 </p>
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  Spread: Rp {previewData?.orderbook?.spread ?? 25}
-                </span>
               </div>
+            ) : null}
 
-              <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
-                <span className="text-xs text-[var(--color-text-muted)]">Foreign Flow</span>
-                <p className="text-lg font-bold text-[var(--color-text-strong)]">
-                  {previewData?.foreign_flow?.foreign_status ?? "ACCUMULATION"}
-                </p>
-                <span className="text-xs text-[var(--color-status-success)] font-semibold">
-                  Akumulasi Asing
-                </span>
-              </div>
+            {/* 4 Metric Badges with REAL DATA */}
+            {previewData ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
+                  <span className="text-xs text-[var(--color-text-muted)]">Harga Terkini</span>
+                  <p className="text-lg font-bold text-[var(--color-text-strong)]">
+                    Rp {previewData.quote?.last_price?.toLocaleString("id-ID") ?? "-"}
+                  </p>
+                  <span
+                    className={`text-xs font-semibold ${
+                      (previewData.quote?.change_percent ?? 0) >= 0
+                        ? "text-[var(--color-status-success)]"
+                        : "text-[var(--color-status-danger)]"
+                    }`}
+                  >
+                    {(previewData.quote?.change_percent ?? 0) >= 0 ? "+" : ""}
+                    {(previewData.quote?.change_percent ?? 0).toFixed(2)}%
+                  </span>
+                </div>
 
-              <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
-                <span className="text-xs text-[var(--color-text-muted)]">Bandarmology</span>
-                <p className="text-lg font-bold text-[var(--color-text-strong)]">
-                  {previewData?.broker_flow?.bandar_status ?? "ACCUMULATION"}
-                </p>
-                <span className="text-xs text-[var(--color-status-success)] font-semibold">
-                  Dominasi Buyer
-                </span>
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
+                  <span className="text-xs text-[var(--color-text-muted)]">Orderbook Depth</span>
+                  <p className="text-lg font-bold text-[var(--color-text-strong)]">
+                    {(previewData.orderbook?.bid_ask_ratio ?? 0).toFixed(2)}x
+                  </p>
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    Spread: Rp {previewData.orderbook?.spread ?? 0}
+                  </span>
+                </div>
+
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
+                  <span className="text-xs text-[var(--color-text-muted)]">Foreign Flow</span>
+                  <p className="text-lg font-bold text-[var(--color-text-strong)]">
+                    {previewData.foreign_flow?.foreign_status ?? "NEUTRAL"}
+                  </p>
+                  <span className="text-xs text-[var(--color-status-success)] font-semibold">
+                    Multi-Horizon Flow
+                  </span>
+                </div>
+
+                <div className="rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-muted)] p-3">
+                  <span className="text-xs text-[var(--color-text-muted)]">Bandarmology</span>
+                  <p className="text-lg font-bold text-[var(--color-text-strong)]">
+                    {previewData.broker_flow?.bandar_status ?? "NEUTRAL"}
+                  </p>
+                  <span className="text-xs text-[var(--color-status-success)] font-semibold">
+                    Akumulasi Broker 1D
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {/* Action Trigger Buttons */}
             <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -317,7 +345,7 @@ export function CreateSessionForm({
             <input
               id="ticker"
               name="ticker"
-              placeholder="Contoh: BBCA, BBRI, HRUM, TLKM..."
+              placeholder="Contoh: BBCA, BBRI, SGER, HRUM..."
               value={ticker}
               onChange={(event) => handleTickerChange(event.target.value)}
               maxLength={32}

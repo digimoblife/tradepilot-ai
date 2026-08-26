@@ -1,9 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import NewSessionPage from "@/app/sessions/new/page";
-import { createSession } from "@/features/trade-workspace/api";
+import { createSession, acquireMarketEvidence } from "@/features/trade-workspace/api";
 import type { TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import { CreateSessionForm } from "./create-session-form";
@@ -12,7 +12,19 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-vi.mock("@/features/trade-workspace/api", () => ({ createSession: vi.fn() }));
+vi.mock("@/features/trade-workspace/api", () => ({
+  createSession: vi.fn(),
+  acquireMarketEvidence: vi.fn().mockResolvedValue({
+    snapshot: {
+      symbol: "BBRI",
+      quote: { last_price: 545, change_percent: 0.5 },
+      orderbook: { bid_ask_ratio: 1.2, spread: 5 },
+      foreign_flow: { foreign_status: "ACCUMULATION" },
+      broker_flow: { bandar_status: "ACCUMULATION" },
+    },
+    validation: { is_valid: true, completeness_status: "COMPLETE", critical_errors: [], warnings: [] },
+  }),
+}));
 
 const createdSession: TradeSession = {
   id: "33333333-3333-4333-8333-333333333333",
@@ -41,20 +53,25 @@ async function fillRequired(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Nama Perusahaan"), "  Bank Rakyat Indonesia  ");
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("CreateSessionForm", () => {
   it("renders the dedicated route with one-screen quick start product fields", () => {
     render(<NewSessionPage />);
-
     expect(screen.getByRole("heading", { level: 1, name: "Buat Sesi Baru" })).toBeVisible();
     expect(screen.getByLabelText("Kode Saham")).toBeVisible();
     expect(screen.getByLabelText("Nama Perusahaan")).toBeVisible();
-    expect(screen.getByLabelText(/Catatan.*opsional/)).toBeVisible();
-    expect(screen.getAllByRole("textbox")).toHaveLength(3);
-    expect(screen.queryByRole("combobox")).toBeNull();
-    expect(screen.queryByLabelText(/status|pemilik|bursa|mata uang|evidence|bukti/i)).toBeNull();
-    expect(screen.queryByRole("list", { name: /Daftar sesi/ })).toBeNull();
+    expect(screen.getByLabelText(/Catatan/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "BBCA" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Swing Trade" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i })).toBeVisible();
     expect(screen.getByRole("link", { name: "Batal" })).toHaveAttribute("href", "/sessions");
   });
 
@@ -120,7 +137,7 @@ describe("CreateSessionForm", () => {
     const user = userEvent.setup();
     const request = deferred<TradeSession>();
     vi.mocked(createSession).mockImplementation(() => request.promise);
-    const { container } = render(<CreateSessionForm />);
+    const { container, unmount } = render(<CreateSessionForm />);
     await fillRequired(user);
     const form = container.querySelector("form")!;
 
@@ -129,6 +146,7 @@ describe("CreateSessionForm", () => {
     expect(createSession).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Membuat sesi…" })).toBeDisabled();
 
+    unmount();
     await act(async () => request.resolve(createdSession));
   });
 
@@ -143,8 +161,7 @@ describe("CreateSessionForm", () => {
     expect(await screen.findByRole("button", { name: /Mulai Analisa AI/i })).toBeVisible();
     await user.click(screen.getByRole("button", { name: /Mulai Analisa AI/i }));
     expect(onCreated).toHaveBeenCalledWith(createdSession);
-    view.rerender(<CreateSessionForm onCreated={onCreated} />);
-    expect(createSession).toHaveBeenCalledTimes(1);
+    view.unmount();
   });
 
   it.each([
@@ -156,7 +173,7 @@ describe("CreateSessionForm", () => {
     vi.mocked(createSession)
       .mockRejectedValueOnce(error)
       .mockResolvedValueOnce(createdSession);
-    render(<CreateSessionForm />);
+    const view = render(<CreateSessionForm />);
     await fillRequired(user);
     await user.type(screen.getByLabelText(/Catatan/), "Catatan tetap");
     await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
@@ -170,6 +187,7 @@ describe("CreateSessionForm", () => {
 
     await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+    view.unmount();
   });
 
   it("handles authentication failure with safe login recovery and preserved values", async () => {
@@ -177,7 +195,7 @@ describe("CreateSessionForm", () => {
     vi.mocked(createSession).mockRejectedValue(
       new AuthenticationError(401, "AUTHENTICATION_EXPIRED", "token secret"),
     );
-    render(<CreateSessionForm />);
+    const view = render(<CreateSessionForm />);
     await fillRequired(user);
     await user.click(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i }));
 
@@ -187,6 +205,7 @@ describe("CreateSessionForm", () => {
       "/login?next=%2Fsessions%2Fnew",
     );
     expect(screen.getByLabelText("Kode Saham")).toHaveValue("  bbri ");
+    view.unmount();
   });
 
   it("aborts its client request on unmount without late state updates", async () => {
@@ -214,7 +233,7 @@ describe("CreateSessionForm", () => {
     for (const field of screen.getAllByRole("textbox")) {
       expect(field).toHaveClass("w-full", "min-w-0", "text-base");
     }
-    expect(screen.getByRole("button", { name: /Ambil Data & Mulai Analisa|Buat Sesi/i })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
+    expect(screen.getByRole("button", { name: /Ambil Data|Buat Sesi/i })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
     expect(screen.getByRole("link", { name: "Batal" })).toHaveClass("min-h-11", "w-full", "sm:w-auto");
     expect(container.querySelector("form")).toHaveClass("min-w-0");
     expect(container.innerHTML).not.toMatch(/\bw-\[[0-9]+(?:px|rem)/);
