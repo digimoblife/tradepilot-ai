@@ -135,11 +135,6 @@ export function SessionDetailHeader({ session }: { session: TradeSession }) {
             <p className="mt-2 [overflow-wrap:anywhere] text-base text-[var(--color-text-muted)]">
               {session.company_name}
             </p>
-            {cleanNote ? (
-              <p className="mt-2 text-xs italic text-[var(--color-text-muted)]">
-                Catatan: {cleanNote}
-              </p>
-            ) : null}
           </div>
 
           <span
