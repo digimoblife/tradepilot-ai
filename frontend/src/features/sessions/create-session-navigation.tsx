@@ -76,7 +76,7 @@ export function CreateSessionNavigation() {
               onClick={retryNavigation}
               className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
             >
-              Buka Sesi
+              Buka sesi
             </button>
           ) : null}
         </section>
