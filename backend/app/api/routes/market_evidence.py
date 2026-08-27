@@ -266,6 +266,7 @@ async def analyze_trade_session(
 )
 async def get_session_workspace_data(
     session_id: uuid.UUID,
+    refresh: bool = Query(default=False, description="Force re-evaluation of market evidence"),
     config: AppConfig = Depends(get_config),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
@@ -276,7 +277,7 @@ async def get_session_workspace_data(
 
     cached_analysis = _ANALYSIS_CACHE.get(str(session_id))
 
-    if not cached_analysis:
+    if not cached_analysis or refresh:
         collector = MarketDataCollector(config)
         try:
             snapshot, _ = await collector.acquire_snapshot(

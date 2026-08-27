@@ -114,9 +114,11 @@ export function analyzeSession(
 
 export function getSessionWorkspaceData(
   sessionId: string,
+  refresh: boolean = false,
   signal?: AbortSignal,
-): Promise<{ session: TradeSession; analysis: any }> {
-  return get(`/api/sessions/${sessionId}/workspace`, undefined, signal);
+): Promise<{ session: TradeSession; analysis: any; position: any; closure: any; decision: any }> {
+  const query = refresh ? "?refresh=true" : "";
+  return get(`/api/sessions/${sessionId}/workspace${query}`, undefined, signal);
 }
 
 export type { EvidenceFile };

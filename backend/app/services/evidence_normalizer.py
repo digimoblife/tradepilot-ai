@@ -123,7 +123,11 @@ class EvidenceNormalizer:
         return raw if isinstance(raw, dict) else {}
 
     @staticmethod
-    def normalize_quote(raw: dict[str, Any], provider: str = "PLUANG") -> QuoteDomain:
+    def normalize_quote(
+        raw: dict[str, Any],
+        stockbit_chart: dict[str, Any] | None = None,
+        provider: str = "PLUANG",
+    ) -> QuoteDomain:
         raw = EvidenceNormalizer._unwrap(raw)
         stats = raw.get("keyStats") or {}
 
@@ -148,14 +152,31 @@ class EvidenceNormalizer:
         calc_pct = (change / previous_close * 100) if previous_close else 0.0
         change_pct = _to_float(change_pct_raw, calc_pct)
 
+        # Real-time overlay from Stockbit Intraday Chart (Highest real-time fidelity during market hours)
+        if stockbit_chart and isinstance(stockbit_chart, dict):
+            sb_items = stockbit_chart.get("items") or []
+            if sb_items and isinstance(sb_items, list) and isinstance(sb_items[0], dict):
+                sb_p = _to_float(sb_items[0].get("price"))
+                if sb_p > 0:
+                    last_price = sb_p
+                sb_prev = _to_float(stockbit_chart.get("previousClose"))
+                if sb_prev > 0:
+                    previous_close = sb_prev
+                sb_chg = _to_float(stockbit_chart.get("change") or sb_items[0].get("change"))
+                if sb_chg != 0 or sb_prev > 0:
+                    change = sb_chg if sb_chg != 0 else (last_price - previous_close)
+                sb_chg_pct = _to_float(stockbit_chart.get("changePercent") or sb_items[0].get("changePercent"))
+                if sb_chg_pct != 0 or sb_prev > 0:
+                    change_pct = sb_chg_pct if sb_chg_pct != 0 else ((change / previous_close * 100) if previous_close else 0.0)
+
         open_raw = raw.get("openPrice") or raw.get("OpenPrice") or raw.get("open")
         open_price = _to_float(open_raw, last_price)
 
         high_raw = raw.get("highPrice") or raw.get("High") or raw.get("high") or raw.get("highestIndicativePrice")
-        high_price = _to_float(high_raw, last_price)
+        high_price = _to_float(high_raw, max(last_price, open_price))
 
         low_raw = raw.get("lowPrice") or raw.get("Low") or raw.get("low")
-        low_price = _to_float(low_raw, last_price)
+        low_price = _to_float(low_raw, min(last_price, open_price))
 
         volume_shares = _to_int(raw.get("volume") or raw.get("Volume"), 0)
         volume_lots = volume_shares // 100 if volume_shares > 0 else 0
@@ -426,6 +447,7 @@ class EvidenceNormalizer:
         history_raw: dict[str, Any],
         broker_raw: dict[str, Any],
         index_raw: dict[str, Any],
+        stockbit_chart_raw: dict[str, Any] | None = None,
         snapshot_type: str = "INITIAL",
         sequence_number: int = 1,
         providers_used: dict[str, str] | None = None,
@@ -434,7 +456,7 @@ class EvidenceNormalizer:
         now_wib = datetime.now(JAKARTA_TZ)
         snapshot_id = f"SNP-{now_wib.strftime('%Y%m%d')}-{symbol.upper()}-{sequence_number:03d}"
 
-        quote = cls.normalize_quote(quote_raw)
+        quote = cls.normalize_quote(quote_raw, stockbit_chart=stockbit_chart_raw)
         orderbook = cls.normalize_orderbook(orderbook_raw)
         history, foreign_flow = cls.normalize_history_and_foreign_flow(history_raw)
         broker_flow = cls.normalize_broker_flow(broker_raw)
@@ -442,7 +464,9 @@ class EvidenceNormalizer:
 
         # Fallback for quote price if after-hours or missing in quote endpoint
         if quote.last_price <= 0:
-            if history.recent_bars and history.recent_bars[0].close > 0:
+            if orderbook.best_bid > 0:
+                quote.last_price = orderbook.best_bid
+            elif history.recent_bars and history.recent_bars[0].close > 0:
                 quote.last_price = history.recent_bars[0].close
                 quote.open = history.recent_bars[0].open or quote.last_price
                 quote.high = max(history.recent_bars[0].high or quote.last_price, quote.high)
@@ -452,8 +476,6 @@ class EvidenceNormalizer:
                     quote.volume_lots = quote.volume_shares // 100
                 if quote.value_idr <= 0:
                     quote.value_idr = history.recent_bars[0].value or (quote.volume_shares * quote.last_price)
-            elif orderbook.best_bid > 0:
-                quote.last_price = orderbook.best_bid
 
             if quote.previous_close <= 0 and len(history.recent_bars) > 1:
                 quote.previous_close = history.recent_bars[1].close

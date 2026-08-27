@@ -61,13 +61,14 @@ class MarketDataCollector:
         results = await asyncio.gather(
             self.pluang.get_quote(symbol),
             self.pluang.get_orderbook(symbol),
+            self.stockbit.get_chart(symbol, count=1),
             self.idx.get_stock_history(symbol, length=130),
             self.pluang.get_broker_summary(symbol),
             self.idx.get_index_summary(),
             return_exceptions=True,
         )
 
-        quote_res, orderbook_res, history_res, broker_res, index_res = results
+        quote_res, orderbook_res, stockbit_chart_res, history_res, broker_res, index_res = results
 
         # 2. Handle Fallbacks
         # Fallback for Quote if Pluang fails
@@ -84,6 +85,10 @@ class MarketDataCollector:
         if isinstance(orderbook_res, Exception) or not orderbook_res:
             logger.warning("Pluang orderbook failed for %s: %s", symbol, orderbook_res)
             orderbook_res = {}
+
+        # Fallback for Stockbit chart
+        if isinstance(stockbit_chart_res, Exception) or not stockbit_chart_res:
+            stockbit_chart_res = {}
 
         # Fallback for History if IDX fails
         if isinstance(history_res, Exception) or not history_res:
@@ -112,6 +117,7 @@ class MarketDataCollector:
             history_raw=history_res if isinstance(history_res, dict) else {},
             broker_raw=broker_res if isinstance(broker_res, dict) else {},
             index_raw=index_res if isinstance(index_res, dict) else {},
+            stockbit_chart_raw=stockbit_chart_res if isinstance(stockbit_chart_res, dict) else {},
             snapshot_type=snapshot_type,
             sequence_number=sequence_number,
             providers_used=providers_used,

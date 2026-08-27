@@ -32,6 +32,9 @@ vi.mock("@/features/trade-workspace/api", () => ({
       archived_at: null,
     },
     analysis: null,
+    position: null,
+    closure: null,
+    decision: null,
   }),
   acquireMarketEvidence: vi.fn().mockResolvedValue({ snapshot: {} }),
 }));
@@ -189,13 +192,13 @@ describe("UX3.5 create success navigation", () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(`/sessions/${createdId}`));
     createView.unmount();
 
-    const detailRequest = deferred<{ session: TradeSession; analysis: any }>();
+    const detailRequest = deferred<{ session: TradeSession; analysis: any; position: any; closure: any; decision: any }>();
     vi.mocked(getSessionWorkspaceData).mockImplementation(() => detailRequest.promise);
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId: createdId }) }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Memuat konteks sesi");
     expect(createSession).toHaveBeenCalledTimes(1);
-    await act(async () => detailRequest.resolve({ session: createdSession, analysis: null }));
+    await act(async () => detailRequest.resolve({ session: createdSession, analysis: null, position: null, closure: null, decision: null }));
   });
 
   it("leaves post-navigation detail not-found recovery to the canonical route without recreating", async () => {

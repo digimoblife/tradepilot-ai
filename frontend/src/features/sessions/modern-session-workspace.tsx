@@ -50,13 +50,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       if (isRefresh) {
         const freshAnalysis = await analyzeSession(sessionId);
         setAnalysis(freshAnalysis);
-        const data: any = await getSessionWorkspaceData(sessionId);
+        const data: any = await getSessionWorkspaceData(sessionId, true);
         setSession(data.session);
         setPosition(data.position);
         setClosure(data.closure);
         setDecision(data.decision);
+        setActionSuccess(`Data pasar & analisa AI ${data.session?.ticker || ""} berhasil diperbarui ke harga terkini!`);
       } else {
-        const data: any = await getSessionWorkspaceData(sessionId);
+        const data: any = await getSessionWorkspaceData(sessionId, false);
         setSession(data.session);
         setAnalysis(data.analysis);
         setPosition(data.position);
