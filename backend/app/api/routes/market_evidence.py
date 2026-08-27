@@ -242,6 +242,9 @@ async def analyze_trade_session(
             ),
         }
 
+    target_symbol = symbol or session.ticker
+    collector = MarketDataCollector(config)
+
     try:
         snapshot, val_result = await collector.acquire_snapshot(
             session_id=session_id,
