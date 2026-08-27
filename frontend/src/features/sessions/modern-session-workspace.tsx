@@ -595,30 +595,45 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
         <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-standard)] p-5 space-y-4 shadow-xs">
           <div>
             <h3 className="text-sm font-bold text-[var(--color-text-strong)] uppercase tracking-wide">
-              💡 Analisa Setup & Tesis AI:
+              💡 Analisa Setup & Rangkuman Cepat:
             </h3>
             <p className="mt-1.5 text-sm text-[var(--color-text-default)] leading-relaxed">
               {reasoning?.thesis || "Analisa setup berbasis konfluensi teknikal dan flow pasar bursa."}
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-[var(--color-border-subtle)]">
+          <div className="grid gap-4 sm:grid-cols-2 pt-3 border-t border-[var(--color-border-subtle)]">
             <div>
-              <h4 className="text-xs font-bold text-[var(--color-text-strong)]">📈 Analisa Teknikal:</h4>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)] leading-relaxed">
+              <h4 className="text-xs font-bold text-[var(--color-text-strong)]">📈 Bacaan Grafik Singkat:</h4>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)] leading-relaxed whitespace-pre-line">
                 {reasoning?.technical_analysis || "-"}
               </p>
             </div>
             <div>
-              <h4 className="text-xs font-bold text-[var(--color-text-strong)]">🏦 Foreign Flow & Bandarmology:</h4>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)] leading-relaxed">
+              <h4 className="text-xs font-bold text-[var(--color-text-strong)]">🏦 Aliran Duit Bandar & Asing:</h4>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)] leading-relaxed whitespace-pre-line">
                 {reasoning?.flow_analysis || "-"}
               </p>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-[var(--color-border-subtle)]">
-            <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400">⚠️ Manajemen Risiko & Invalidasi:</h4>
+          {reasoning?.action_guidance || reasoning?.wait_guidance ? (
+            <div className="pt-3 border-t border-[var(--color-border-subtle)]">
+              <h4 className="text-xs font-bold text-[var(--color-text-strong)]">
+                {action === "WAIT"
+                  ? "⏳ PANDUAN WAIT (Tunggu Apa & Sampai Kapan?):"
+                  : action === "BUY"
+                    ? "🚀 PANDUAN ENTRY (Beli di Mana & Target):"
+                    : "⏭️ PANDUAN SKIP (Kenapa Dilewati?):"}
+              </h4>
+              <p className="mt-1 text-xs text-[var(--color-text-default)] leading-relaxed whitespace-pre-line">
+                {reasoning?.action_guidance || reasoning?.wait_guidance}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="pt-3 border-t border-[var(--color-border-subtle)]">
+            <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400">⚠️ Batas Aman:</h4>
             <p className="mt-1 text-xs text-[var(--color-text-muted)] leading-relaxed">
               {reasoning?.risk_factors || "-"}
             </p>
