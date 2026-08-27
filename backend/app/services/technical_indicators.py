@@ -9,23 +9,45 @@ from __future__ import annotations
 from typing import Any
 
 
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    """Safely convert any value to float, handling '-', None, and formatted strings."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        cleaned = val.strip().replace(",", "")
+        if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan", "Infinity", "-Infinity"):
+            return default
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 def calculate_sma(prices: list[float], period: int) -> float | None:
     """Calculate Simple Moving Average."""
-    if len(prices) < period:
+    valid_prices = [p for p in prices if p > 0]
+    if len(valid_prices) < period:
         return None
-    return round(sum(prices[-period:]) / period, 2)
+    return round(sum(valid_prices[-period:]) / period, 2)
 
 
 def calculate_rsi(closes: list[float], period: int = 14) -> float | None:
     """Calculate Relative Strength Index (RSI)."""
-    if len(closes) <= period:
+    valid_closes = [c for c in closes if c > 0]
+    if len(valid_closes) <= period:
         return None
 
     gains: list[float] = []
     losses: list[float] = []
 
-    for i in range(1, len(closes)):
-        diff = closes[i] - closes[i - 1]
+    for i in range(1, len(valid_closes)):
+        diff = valid_closes[i] - valid_closes[i - 1]
         if diff >= 0:
             gains.append(diff)
             losses.append(0.0)
@@ -57,9 +79,9 @@ def calculate_atr(bars: list[dict[str, Any]], period: int = 14) -> float | None:
 
     tr_list: list[float] = []
     for i in range(1, len(bars)):
-        high = float(bars[i].get("high") or bars[i].get("High") or 0)
-        low = float(bars[i].get("low") or bars[i].get("Low") or 0)
-        prev_close = float(bars[i - 1].get("close") or bars[i - 1].get("Close") or 0)
+        high = _safe_float(bars[i].get("high") or bars[i].get("High"))
+        low = _safe_float(bars[i].get("low") or bars[i].get("Low"))
+        prev_close = _safe_float(bars[i - 1].get("close") or bars[i - 1].get("Close"))
 
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
         tr_list.append(tr)
@@ -79,16 +101,16 @@ def find_swing_levels(bars: list[dict[str, Any]], window: int = 5) -> tuple[list
     supports: list[float] = []
     resistances: list[float] = []
 
-    highs = [float(b.get("high") or b.get("High") or 0) for b in bars]
-    lows = [float(b.get("low") or b.get("Low") or 0) for b in bars]
+    highs = [_safe_float(b.get("high") or b.get("High")) for b in bars]
+    lows = [_safe_float(b.get("low") or b.get("Low")) for b in bars]
 
     for i in range(window, len(bars) - window):
         current_high = highs[i]
         current_low = lows[i]
 
-        if current_high == max(highs[i - window : i + window + 1]):
+        if current_high > 0 and current_high == max(highs[i - window : i + window + 1]):
             resistances.append(current_high)
-        if current_low == min(lows[i - window : i + window + 1]):
+        if current_low > 0 and current_low == min(lows[i - window : i + window + 1]):
             supports.append(current_low)
 
     # Return top 3 most recent unique levels
@@ -103,9 +125,13 @@ def compute_technical_summary(bars: list[dict[str, Any]]) -> dict[str, Any]:
     if not bars:
         return {}
 
-    closes = [float(b.get("close") or b.get("Close") or 0) for b in bars]
-    highs = [float(b.get("high") or b.get("High") or 0) for b in bars]
-    lows = [float(b.get("low") or b.get("Low") or 0) for b in bars]
+    closes = [_safe_float(b.get("close") or b.get("Close")) for b in bars]
+    highs = [_safe_float(b.get("high") or b.get("High")) for b in bars]
+    lows = [_safe_float(b.get("low") or b.get("Low")) for b in bars]
+
+    valid_closes = [c for c in closes if c > 0]
+    valid_highs = [h for h in highs if h > 0]
+    valid_lows = [l for l in lows if l > 0]
 
     ma20 = calculate_sma(closes, 20)
     ma50 = calculate_sma(closes, 50)
@@ -113,12 +139,12 @@ def compute_technical_summary(bars: list[dict[str, Any]]) -> dict[str, Any]:
     rsi14 = calculate_rsi(closes, 14)
     atr14 = calculate_atr(bars, 14)
 
-    high_52w = max(highs) if highs else None
-    low_52w = min(lows) if lows else None
+    high_52w = max(valid_highs) if valid_highs else None
+    low_52w = min(valid_lows) if valid_lows else None
 
     supports, resistances = find_swing_levels(bars)
 
-    last_price = closes[-1] if closes else None
+    last_price = valid_closes[-1] if valid_closes else None
     ma_alignment = "UNKNOWN"
     if last_price and ma20 and ma50:
         if last_price > ma20 > ma50:

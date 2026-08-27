@@ -7,7 +7,7 @@ into standard canonical EvidenceSnapshot objects.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -29,6 +29,90 @@ from app.services.technical_indicators import compute_technical_summary
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
 
 
+def _to_float(val: Any, default: float = 0.0) -> float:
+    """Safely convert any value to float, handling '-', '', None, and formatted strings."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        cleaned = val.strip().replace(",", "")
+        if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan", "Infinity", "-Infinity"):
+            return default
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _to_optional_float(val: Any) -> float | None:
+    """Safely convert any value to float or None."""
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        cleaned = val.strip().replace(",", "")
+        if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan", "Infinity", "-Infinity"):
+            return None
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(val: Any, default: int = 0) -> int:
+    """Safely convert any value to int, handling '-', float strings, etc."""
+    if val is None:
+        return default
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        return int(val)
+    if isinstance(val, str):
+        cleaned = val.strip().replace(",", "")
+        if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan"):
+            return default
+        try:
+            return int(float(cleaned))
+        except (ValueError, TypeError):
+            return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _to_optional_int(val: Any) -> int | None:
+    """Safely convert any value to int or None."""
+    if val is None:
+        return None
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        return int(val)
+    if isinstance(val, str):
+        cleaned = val.strip().replace(",", "")
+        if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan"):
+            return None
+        try:
+            return int(float(cleaned))
+        except (ValueError, TypeError):
+            return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
 class EvidenceNormalizer:
     """Normalizes raw provider payloads into canonical EvidenceSnapshotSchema."""
 
@@ -42,27 +126,48 @@ class EvidenceNormalizer:
     def normalize_quote(raw: dict[str, Any], provider: str = "PLUANG") -> QuoteDomain:
         raw = EvidenceNormalizer._unwrap(raw)
         stats = raw.get("keyStats") or {}
-        
+
         # Try extracting price from multiple known fields
-        last_price_str = raw.get("lastPrice") or raw.get("Close") or raw.get("close") or raw.get("price") or stats.get("iep") or raw.get("highestIndicativePrice") or 0
-        if isinstance(last_price_str, str):
-            last_price_str = last_price_str.replace(",", "")
-        last_price = float(last_price_str or 0)
+        last_price_raw = (
+            raw.get("lastPrice")
+            or raw.get("Close")
+            or raw.get("close")
+            or raw.get("price")
+            or stats.get("iep")
+            or raw.get("highestIndicativePrice")
+        )
+        last_price = _to_float(last_price_raw, 0.0)
 
-        previous_close = float(raw.get("previousClose") or raw.get("Previous") or raw.get("previous") or last_price)
-        change = float(raw.get("change") or raw.get("Change") or (last_price - previous_close))
-        change_pct = float(raw.get("changePercent") or raw.get("percentage") or ((change / previous_close * 100) if previous_close else 0))
-        open_price = float(raw.get("openPrice") or raw.get("OpenPrice") or raw.get("open") or last_price)
-        high_price = float(raw.get("highPrice") or raw.get("High") or raw.get("high") or raw.get("highestIndicativePrice") or last_price)
-        low_price = float(raw.get("lowPrice") or raw.get("Low") or raw.get("low") or last_price)
-        volume_shares = int(raw.get("volume") or raw.get("Volume") or 0)
+        prev_raw = raw.get("previousClose") or raw.get("Previous") or raw.get("previous")
+        previous_close = _to_float(prev_raw, last_price)
+
+        change_raw = raw.get("change") or raw.get("Change")
+        change = _to_float(change_raw, last_price - previous_close)
+
+        change_pct_raw = raw.get("changePercent") or raw.get("percentage")
+        calc_pct = (change / previous_close * 100) if previous_close else 0.0
+        change_pct = _to_float(change_pct_raw, calc_pct)
+
+        open_raw = raw.get("openPrice") or raw.get("OpenPrice") or raw.get("open")
+        open_price = _to_float(open_raw, last_price)
+
+        high_raw = raw.get("highPrice") or raw.get("High") or raw.get("high") or raw.get("highestIndicativePrice")
+        high_price = _to_float(high_raw, last_price)
+
+        low_raw = raw.get("lowPrice") or raw.get("Low") or raw.get("low")
+        low_price = _to_float(low_raw, last_price)
+
+        volume_shares = _to_int(raw.get("volume") or raw.get("Volume"), 0)
         volume_lots = volume_shares // 100 if volume_shares > 0 else 0
-        value_idr = float(raw.get("value") or raw.get("Value") or (volume_shares * last_price))
-        freq = int(raw.get("frequency") or raw.get("Frequency") or 0)
 
-        pe = float(raw["pe"]) if raw.get("pe") is not None else None
-        pbv = float(raw["pbv"]) if raw.get("pbv") is not None else None
-        mcap = float(raw.get("marketCap") or raw.get("MarketCapital") or 0) or None
+        value_raw = raw.get("value") or raw.get("Value")
+        value_idr = _to_float(value_raw, volume_shares * last_price)
+
+        freq = _to_int(raw.get("frequency") or raw.get("Frequency"), 0)
+
+        pe = _to_optional_float(raw.get("pe"))
+        pbv = _to_optional_float(raw.get("pbv"))
+        mcap = _to_optional_float(raw.get("marketCap") or raw.get("MarketCapital"))
 
         return QuoteDomain(
             last_price=last_price,
@@ -88,12 +193,20 @@ class EvidenceNormalizer:
         raw_bids = raw.get("bids") or []
         raw_asks = raw.get("asks") or []
 
-        bids = [OrderbookLevel(price=float(b.get("price") or 0), lots=int(b.get("lots") or 0)) for b in raw_bids if b.get("price")]
-        asks = [OrderbookLevel(price=float(a.get("price") or 0), lots=int(a.get("lots") or 0)) for a in raw_asks if a.get("price")]
+        bids = [
+            OrderbookLevel(price=_to_float(b.get("price")), lots=_to_int(b.get("lots")))
+            for b in raw_bids
+            if b.get("price") and _to_float(b.get("price")) > 0
+        ]
+        asks = [
+            OrderbookLevel(price=_to_float(a.get("price")), lots=_to_int(a.get("lots")))
+            for a in raw_asks
+            if a.get("price") and _to_float(a.get("price")) > 0
+        ]
 
-        best_bid = float(raw.get("bestBid") or (bids[0].price if bids else 0))
-        best_ask = float(raw.get("bestAsk") or (asks[0].price if asks else 0))
-        spread = best_ask - best_bid if best_ask and best_bid else 0
+        best_bid = _to_float(raw.get("bestBid"), bids[0].price if bids else 0.0)
+        best_ask = _to_float(raw.get("bestAsk"), asks[0].price if asks else 0.0)
+        spread = best_ask - best_bid if best_ask and best_bid else 0.0
         spread_pct = round((spread / best_bid * 100), 2) if best_bid else 0.0
 
         total_bid_lots = sum(b.lots for b in bids)
@@ -125,22 +238,22 @@ class EvidenceNormalizer:
         items = raw_history.get("items") or raw_history.get("data") or []
         if isinstance(items, dict):
             items = items.get("items") or []
+
         # Ensure chronological order: oldest to newest
-        # Usually API returns newest first (index 0 = today), so reverse for technical computation
         bars_chronological = list(reversed(items)) if items else []
 
         parsed_bars: list[HistoricalBar] = []
-        for b in items[:15]:  # Keep recent 15 bars for prompt presentation
+        for b in items[:15]:
             parsed_bars.append(
                 HistoricalBar(
                     date=str(b.get("date") or b.get("Date") or ""),
-                    open=float(b.get("open") or b.get("OpenPrice") or 0),
-                    high=float(b.get("high") or b.get("High") or 0),
-                    low=float(b.get("low") or b.get("Low") or 0),
-                    close=float(b.get("close") or b.get("Close") or 0),
-                    volume=int(b.get("volume") or b.get("Volume") or 0),
-                    value=float(b.get("value") or b.get("Value") or 0),
-                    net_foreign_shares=int(b.get("netForeignShares") or 0) if b.get("netForeignShares") is not None else None,
+                    open=_to_float(b.get("open") or b.get("OpenPrice")),
+                    high=_to_float(b.get("high") or b.get("High")),
+                    low=_to_float(b.get("low") or b.get("Low")),
+                    close=_to_float(b.get("close") or b.get("Close")),
+                    volume=_to_int(b.get("volume") or b.get("Volume")),
+                    value=_to_float(b.get("value") or b.get("Value")),
+                    net_foreign_shares=_to_optional_int(b.get("netForeignShares")),
                 )
             )
 
@@ -158,10 +271,11 @@ class EvidenceNormalizer:
 
         # Compute Foreign Flow aggregations from daily net rows
         today_bar = items[0] if items else {}
-        today_net_shares = int(today_bar.get("netForeignShares") or 0)
-        today_net_val = float(today_bar.get("netForeignValue") or (today_net_shares * (today_bar.get("close") or 0)))
-        today_buy_shares = int(today_bar.get("foreignBuyShares") or 0) if today_bar.get("foreignBuyShares") else None
-        today_sell_shares = int(today_bar.get("foreignSellShares") or 0) if today_bar.get("foreignSellShares") else None
+        today_net_shares = _to_int(today_bar.get("netForeignShares"), 0)
+        today_close = _to_float(today_bar.get("close"), 0.0)
+        today_net_val = _to_float(today_bar.get("netForeignValue"), float(today_net_shares * today_close))
+        today_buy_shares = _to_optional_int(today_bar.get("foreignBuyShares"))
+        today_sell_shares = _to_optional_int(today_bar.get("foreignSellShares"))
 
         today_1d = ForeignFlowPeriod(
             net_shares=today_net_shares,
@@ -172,8 +286,14 @@ class EvidenceNormalizer:
 
         def sum_period(bars: list[dict[str, Any]], count: int) -> ForeignFlowPeriod:
             subset = bars[:count]
-            net_s = sum(int(b.get("netForeignShares") or 0) for b in subset)
-            net_v = sum(float(b.get("netForeignValue") or (int(b.get("netForeignShares") or 0) * (b.get("close") or 0))) for b in subset)
+            net_s = sum(_to_int(b.get("netForeignShares"), 0) for b in subset)
+            net_v = sum(
+                _to_float(
+                    b.get("netForeignValue"),
+                    float(_to_int(b.get("netForeignShares"), 0) * _to_float(b.get("close"), 0.0)),
+                )
+                for b in subset
+            )
             return ForeignFlowPeriod(net_shares=net_s, net_value_idr=net_v)
 
         w1 = sum_period(items, 5)
@@ -193,7 +313,11 @@ class EvidenceNormalizer:
             status = "NEUTRAL"
 
         recent_series = [
-            {"date": b.get("date"), "net_shares": b.get("netForeignShares", 0), "close": b.get("close", 0)}
+            {
+                "date": str(b.get("date") or ""),
+                "net_shares": _to_int(b.get("netForeignShares"), 0),
+                "close": _to_float(b.get("close"), 0.0),
+            }
             for b in items[:7]
         ]
 
@@ -217,31 +341,31 @@ class EvidenceNormalizer:
         buyers: list[BrokerItem] = []
         sellers: list[BrokerItem] = []
 
-        total_buy_lots = sum(int(b.get("lots") or 0) for b in buyers_raw)
-        total_sell_lots = sum(int(s.get("lots") or 0) for s in sellers_raw)
+        total_buy_lots = sum(_to_int(b.get("lots"), 0) for b in buyers_raw)
+        total_sell_lots = sum(_to_int(s.get("lots"), 0) for s in sellers_raw)
 
         for b in buyers_raw:
-            lots = int(b.get("lots") or 0)
+            lots = _to_int(b.get("lots"), 0)
             share = round(lots / total_buy_lots * 100, 1) if total_buy_lots > 0 else 0.0
             buyers.append(
                 BrokerItem(
                     broker=str(b.get("broker") or ""),
                     lots=lots,
-                    value_idr=float(b.get("value") or 0),
-                    avg_price=float(b.get("averagePrice") or b.get("avg_price") or 0),
+                    value_idr=_to_float(b.get("value"), 0.0),
+                    avg_price=_to_float(b.get("averagePrice") or b.get("avg_price"), 0.0),
                     market_share_percent=share,
                 )
             )
 
         for s in sellers_raw:
-            lots = int(s.get("lots") or 0)
+            lots = _to_int(s.get("lots"), 0)
             share = round(lots / total_sell_lots * 100, 1) if total_sell_lots > 0 else 0.0
             sellers.append(
                 BrokerItem(
                     broker=str(s.get("broker") or ""),
                     lots=lots,
-                    value_idr=float(s.get("value") or 0),
-                    avg_price=float(s.get("averagePrice") or s.get("avg_price") or 0),
+                    value_idr=_to_float(s.get("value"), 0.0),
+                    avg_price=_to_float(s.get("averagePrice") or s.get("avg_price"), 0.0),
                     market_share_percent=share,
                 )
             )
@@ -278,9 +402,9 @@ class EvidenceNormalizer:
         if not ihsg and items:
             ihsg = items[0]
 
-        price = float(ihsg.get("Close") or ihsg.get("close") or 0) if ihsg else None
-        prev = float(ihsg.get("Previous") or ihsg.get("previous") or price) if ihsg else None
-        change_pct = round(((price - prev) / prev * 100), 2) if price and prev else 0.0
+        price = _to_optional_float(ihsg.get("Close") or ihsg.get("close")) if ihsg else None
+        prev = _to_optional_float(ihsg.get("Previous") or ihsg.get("previous")) or price if ihsg else None
+        change_pct = round(((price - prev) / prev * 100), 2) if price and prev and prev > 0 else 0.0
 
         trend = "BULLISH" if change_pct > 0.2 else ("BEARISH" if change_pct < -0.2 else "NEUTRAL")
 
