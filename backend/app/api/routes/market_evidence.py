@@ -218,8 +218,29 @@ async def analyze_trade_session(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-    target_symbol = symbol or session.ticker
-    collector = MarketDataCollector(config)
+    from app.trade_workspace.models.position import PositionV2
+    from app.trade_workspace.models.trade_closure import TradeClosureV2
+    from app.trade_workspace.models.session_decision import SessionDecisionV2
+
+    pos = await db.scalar(
+        select(PositionV2).where(PositionV2.session_id == session_id).limit(1)
+    )
+    pos_data = None
+    if pos:
+        pos_status_str = pos.status.value if hasattr(pos.status, "value") else str(pos.status)
+        pos_data = {
+            "id": str(pos.id),
+            "entry_price": float(pos.entry_price),
+            "quantity": float(pos.quantity),
+            "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
+            "target_price": float(pos.target_price) if pos.target_price else None,
+            "status": pos_status_str,
+            "entry_timestamp": (
+                pos.entry_at.isoformat()
+                if hasattr(pos, "entry_at") and pos.entry_at
+                else None
+            ),
+        }
 
     try:
         snapshot, val_result = await collector.acquire_snapshot(
@@ -238,6 +259,7 @@ async def analyze_trade_session(
             snapshot=snapshot,
             trading_style=trading_style,
             setup_note=note,
+            position=pos_data if (pos_data and pos_data.get("status") == "OPEN") else None,
         )
 
         # Update session status if in DRAFT
@@ -275,6 +297,30 @@ async def get_session_workspace_data(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
+    from app.trade_workspace.models.position import PositionV2
+    from app.trade_workspace.models.trade_closure import TradeClosureV2
+    from app.trade_workspace.models.session_decision import SessionDecisionV2
+
+    pos = await db.scalar(
+        select(PositionV2).where(PositionV2.session_id == session_id).limit(1)
+    )
+    pos_data = None
+    if pos:
+        pos_status_str = pos.status.value if hasattr(pos.status, "value") else str(pos.status)
+        pos_data = {
+            "id": str(pos.id),
+            "entry_price": float(pos.entry_price),
+            "quantity": float(pos.quantity),
+            "stop_loss": float(pos.stop_loss) if pos.stop_loss else None,
+            "target_price": float(pos.target_price) if pos.target_price else None,
+            "status": pos_status_str,
+            "entry_timestamp": (
+                pos.entry_at.isoformat()
+                if hasattr(pos, "entry_at") and pos.entry_at
+                else None
+            ),
+        }
+
     cached_analysis = _ANALYSIS_CACHE.get(str(session_id))
 
     if not cached_analysis or refresh:
@@ -294,6 +340,7 @@ async def get_session_workspace_data(
                 snapshot=snapshot,
                 trading_style=trading_style,
                 setup_note=note,
+                position=pos_data if (pos_data and pos_data.get("status") == "OPEN") else None,
             )
             _ANALYSIS_CACHE[str(session_id)] = cached_analysis
         except Exception:

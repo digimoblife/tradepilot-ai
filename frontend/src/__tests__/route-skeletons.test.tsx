@@ -11,7 +11,7 @@ import SessionHistoryPage from "@/app/sessions/[sessionId]/history/page";
 import SessionDetailPage from "@/app/sessions/[sessionId]/page";
 import NewSessionPage from "@/app/sessions/new/page";
 import SessionsPage from "@/app/sessions/page";
-import { getSession, getSessionDetail, listArchivedSessions, listSessions } from "@/features/trade-workspace/api";
+import { getSession, getSessionDetail, getSessionWorkspaceData, listArchivedSessions, listSessions } from "@/features/trade-workspace/api";
 import type { SessionDetailAggregate, TradeSession } from "@/features/trade-workspace/types";
 import { middleware } from "@/middleware";
 
@@ -25,6 +25,24 @@ vi.mock("@/features/trade-workspace/api", () => ({
   getSessionDetail: vi.fn(),
   listSessions: vi.fn(),
   listArchivedSessions: vi.fn(),
+  analyzeSession: vi.fn().mockResolvedValue({}),
+  getSessionWorkspaceData: vi.fn().mockResolvedValue({
+    session: {
+      id: "11111111-1111-4111-8111-111111111111",
+      ticker: "BBRI",
+      company_name: "Bank Rakyat Indonesia",
+      status: "DRAFT",
+      note: null,
+      created_at: "2026-08-04T00:00:00Z",
+      updated_at: "2026-08-04T00:00:00Z",
+      closed_at: null,
+      archived_at: null,
+    },
+    analysis: null,
+    position: null,
+    closure: null,
+    decision: null,
+  }),
 }));
 
 const sessionId = "11111111-1111-4111-8111-111111111111";
@@ -90,27 +108,24 @@ describe("UX2.1 route shells", () => {
         page: await SessionDetailPage({ params: Promise.resolve({ sessionId }) }),
         heading: "BBRI",
         backHref: "/sessions",
-        backLinkName: "Kembali ke Sesi",
       },
       {
         page: await SessionAnalysisPage({ params: Promise.resolve({ sessionId }) }),
-        heading: "Analisis",
+        heading: "BBRI",
         backHref: "/sessions",
-        backLinkName: "Kembali ke Sesi",
       },
       {
         page: await SessionHistoryPage({ params: Promise.resolve({ sessionId }) }),
-        heading: "Riwayat Sesi",
+        heading: "BBRI",
         backHref: "/sessions",
-        backLinkName: "Kembali ke Sesi",
       },
     ];
 
-    for (const { page, heading, backHref, backLinkName } of pages) {
+    for (const { page, heading, backHref } of pages) {
       const view = render(page);
-      expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
-      if (backHref && backLinkName) {
-        const links = screen.getAllByRole("link", { name: backLinkName });
+      expect(await screen.findByRole("heading", { level: 1, name: new RegExp(heading, "i") })).toBeTruthy();
+      if (backHref) {
+        const links = screen.getAllByRole("link");
         expect(links.some((l) => l.getAttribute("href") === backHref)).toBe(true);
       }
       view.unmount();
@@ -123,7 +138,7 @@ describe("UX2.1 route shells", () => {
     render(await SessionDetailPage({ params: Promise.resolve({ sessionId }) }));
 
     await waitFor(() => {
-      expect(getSession).toHaveBeenCalledWith(sessionId, expect.any(AbortSignal));
+      expect(getSessionWorkspaceData).toHaveBeenCalledWith(sessionId, false);
     });
   });
 
