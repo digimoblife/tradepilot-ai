@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CreateSessionForm } from "./create-session-form";
 import { isStructurallyValidSessionId } from "./use-route-session";
 import type { TradeSession } from "@/features/trade-workspace/types";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 type NavigationState =
   | { status: "idle" }
@@ -16,6 +17,7 @@ export function CreateSessionNavigation() {
   const router = useRouter();
   const navigationAttempted = useRef(false);
   const [navigation, setNavigation] = useState<NavigationState>({ status: "idle" });
+  const [retrying, setRetrying] = useState(false);
 
   const pushToCreatedSession = useCallback(
     (href: string) => {
@@ -46,6 +48,7 @@ export function CreateSessionNavigation() {
 
   const retryNavigation = useCallback(() => {
     if (navigation.status !== "failed" || navigation.href === null) return;
+    setRetrying(true);
     pushToCreatedSession(navigation.href);
   }, [navigation, pushToCreatedSession]);
 
@@ -74,8 +77,10 @@ export function CreateSessionNavigation() {
             <button
               type="button"
               onClick={retryNavigation}
-              className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+              disabled={retrying}
+              className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
             >
+              {retrying && <ButtonSpinner className="h-4 w-4" />}
               Buka sesi
             </button>
           ) : null}

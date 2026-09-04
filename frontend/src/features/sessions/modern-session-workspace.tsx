@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ButtonSpinner } from "@/components/button-spinner";
 import {
   analyzeSession,
   archiveSessionV2,
@@ -40,6 +41,10 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const [closeNote, setCloseNote] = useState("");
 
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [skipPendingReason, setSkipPendingReason] = useState<SkipReason | null>(null);
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setEvaluating(true);
@@ -131,6 +136,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
   const handleWait = async () => {
     if (!session) return;
+    setIsWaiting(true);
     setSubmittingAction(true);
     setError(null);
     try {
@@ -140,12 +146,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
     } catch (err: any) {
       setError(err?.message || "Gagal mencatat keputusan WAIT.");
     } finally {
+      setIsWaiting(false);
       setSubmittingAction(false);
     }
   };
 
   const handleSkip = async (reason: SkipReason) => {
     if (!session) return;
+    setSkipPendingReason(reason);
     setSubmittingAction(true);
     setError(null);
     try {
@@ -159,12 +167,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
     } catch (err: any) {
       setError(err?.message || "Gagal mencatat keputusan SKIP.");
     } finally {
+      setSkipPendingReason(null);
       setSubmittingAction(false);
     }
   };
 
   const handleArchive = async () => {
     if (!session) return;
+    setIsArchiving(true);
     setSubmittingAction(true);
     setError(null);
     try {
@@ -174,12 +184,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
     } catch (err: any) {
       setError(err?.message || "Gagal mengarsipkan sesi.");
     } finally {
+      setIsArchiving(false);
       setSubmittingAction(false);
     }
   };
 
   const handleRestore = async () => {
     if (!session) return;
+    setIsRestoring(true);
     setSubmittingAction(true);
     setError(null);
     try {
@@ -189,6 +201,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
     } catch (err: any) {
       setError(err?.message || "Gagal memulihkan sesi dari arsip.");
     } finally {
+      setIsRestoring(false);
       setSubmittingAction(false);
     }
   };
@@ -412,9 +425,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 type="button"
                 onClick={handleArchive}
                 disabled={submittingAction}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                📦 Pindah ke Riwayat
+                {isArchiving ? (
+                  <>
+                    <ButtonSpinner className="h-3.5 w-3.5" />
+                    <span>Mengarsipkan…</span>
+                  </>
+                ) : (
+                  <>📦 Pindah ke Riwayat</>
+                )}
               </button>
             )}
           </div>
@@ -439,9 +459,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 type="button"
                 onClick={handleArchive}
                 disabled={submittingAction}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                📦 Pindah ke Riwayat
+                {isArchiving ? (
+                  <>
+                    <ButtonSpinner className="h-3.5 w-3.5" />
+                    <span>Mengarsipkan…</span>
+                  </>
+                ) : (
+                  <>📦 Pindah ke Riwayat</>
+                )}
               </button>
             )}
           </div>
@@ -793,9 +820,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="button"
                   onClick={() => loadData(true)}
                   disabled={evaluating}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  {evaluating ? "Memperbarui…" : "⚡ Update Posisi"}
+                  {evaluating ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Memperbarui…</span>
+                    </>
+                  ) : (
+                    <>⚡ Update Posisi</>
+                  )}
                 </button>
 
                 <button
@@ -805,7 +839,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                     setShowCloseModal(true);
                   }}
                   disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-rose-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-rose-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-rose-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
                   🚪 Tutup Posisi (CLOSE)
                 </button>
@@ -817,9 +851,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="button"
                   onClick={() => loadData(true)}
                   disabled={evaluating}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  {evaluating ? "Memperbarui…" : "⚡ Update Data"}
+                  {evaluating ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Memperbarui…</span>
+                    </>
+                  ) : (
+                    <>⚡ Update Data</>
+                  )}
                 </button>
 
                 <button
@@ -829,7 +870,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                     setShowBuyModal(true);
                   }}
                   disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
                   🚀 BUY Sekarang
                 </button>
@@ -838,7 +879,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="button"
                   onClick={() => setShowSkipModal(true)}
                   disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
                   ⏭️ SKIP
                 </button>
@@ -850,7 +891,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   <>
                     <Link
                       href="/sessions/archived"
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] shadow-xs"
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all shadow-xs"
                     >
                       📂 Buka Riwayat
                     </Link>
@@ -858,9 +899,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                       type="button"
                       onClick={handleRestore}
                       disabled={submittingAction}
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 text-sm font-semibold text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 text-sm font-semibold text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
                     >
-                      ↩️ Batal Arsip
+                      {isRestoring ? (
+                        <>
+                          <ButtonSpinner className="h-4 w-4" />
+                          <span>Memulihkan…</span>
+                        </>
+                      ) : (
+                        <>↩️ Batal Arsip</>
+                      )}
                     </button>
                   </>
                 ) : (
@@ -868,9 +916,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                     type="button"
                     onClick={handleArchive}
                     disabled={submittingAction}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                   >
-                    📦 Arsipkan ke Riwayat
+                    {isArchiving ? (
+                      <>
+                        <ButtonSpinner className="h-4 w-4" />
+                        <span>Mengarsipkan…</span>
+                      </>
+                    ) : (
+                      <>📦 Arsipkan ke Riwayat</>
+                    )}
                   </button>
                 )}
 
@@ -878,9 +933,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="button"
                   onClick={() => loadData(true)}
                   disabled={evaluating}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  🔄 Re-Evaluasi Setup
+                  {evaluating ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Mengevaluasi…</span>
+                    </>
+                  ) : (
+                    <>🔄 Re-Evaluasi Setup</>
+                  )}
                 </button>
               </>
             ) : (
@@ -893,7 +955,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                     setShowBuyModal(true);
                   }}
                   disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
                   🚀 BUY
                 </button>
@@ -902,16 +964,23 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="button"
                   onClick={handleWait}
                   disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-amber-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-amber-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-amber-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
-                  ⏳ WAIT
+                  {isWaiting ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Menyimpan WAIT…</span>
+                    </>
+                  ) : (
+                    <>⏳ WAIT</>
+                  )}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setShowSkipModal(true)}
                   disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
                   ⏭️ SKIP
                 </button>
@@ -982,9 +1051,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <button
                   type="submit"
                   disabled={submittingAction}
-                  className="rounded-md bg-emerald-600 px-6 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-6 py-2 text-sm font-bold text-white hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  {submittingAction ? "Menyimpan…" : "Konfirmasi BUY"}
+                  {submittingAction ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Menyimpan…</span>
+                    </>
+                  ) : (
+                    "Konfirmasi BUY"
+                  )}
                 </button>
               </div>
             </form>
@@ -1072,9 +1148,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <button
                   type="submit"
                   disabled={submittingAction}
-                  className="rounded-md bg-rose-600 px-6 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-rose-600 px-6 py-2 text-sm font-bold text-white hover:bg-rose-700 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  {submittingAction ? "Menutup Posisi…" : "Konfirmasi CLOSE"}
+                  {submittingAction ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Menutup Posisi…</span>
+                    </>
+                  ) : (
+                    "Konfirmasi CLOSE"
+                  )}
                 </button>
               </div>
             </form>
@@ -1094,34 +1177,25 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
             </p>
 
             <div className="grid gap-2">
-              <button
-                type="button"
-                onClick={() => handleSkip("RISK_TOO_HIGH")}
-                className="rounded-lg border border-[var(--color-border-default)] p-3 text-left text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)]"
-              >
-                🛑 Risiko Terlalu Tinggi / R:R Tidak Masuk
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSkip("ORDERBOOK_WEAK")}
-                className="rounded-lg border border-[var(--color-border-default)] p-3 text-left text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)]"
-              >
-                📉 Orderbook Lemah / Likuiditas Rendah
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSkip("MARKET_CONDITION_UNFAVORABLE")}
-                className="rounded-lg border border-[var(--color-border-default)] p-3 text-left text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)]"
-              >
-                🏦 Kondisi IHSG / Distribusi Asing Masif
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSkip("SETUP_NOT_ATTRACTIVE")}
-                className="rounded-lg border border-[var(--color-border-default)] p-3 text-left text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)]"
-              >
-                🔍 Setup Pola Tidak Menarik
-              </button>
+              {[
+                { reason: "RISK_TOO_HIGH" as const, label: "🛑 Risiko Terlalu Tinggi / R:R Tidak Masuk" },
+                { reason: "ORDERBOOK_WEAK" as const, label: "📉 Orderbook Lemah / Likuiditas Rendah" },
+                { reason: "MARKET_CONDITION_UNFAVORABLE" as const, label: "🏦 Kondisi IHSG / Distribusi Asing Masif" },
+                { reason: "SETUP_NOT_ATTRACTIVE" as const, label: "🔍 Setup Pola Tidak Menarik" },
+              ].map(({ reason, label }) => (
+                <button
+                  key={reason}
+                  type="button"
+                  disabled={submittingAction}
+                  onClick={() => handleSkip(reason)}
+                  className="flex items-center justify-between rounded-lg border border-[var(--color-border-default)] p-3 text-left text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  <span>{label}</span>
+                  {skipPendingReason === reason ? (
+                    <ButtonSpinner className="h-4 w-4 text-rose-600" />
+                  ) : null}
+                </button>
+              ))}
             </div>
 
             <div className="flex justify-end pt-2">

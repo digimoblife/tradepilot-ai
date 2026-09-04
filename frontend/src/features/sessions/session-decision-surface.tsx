@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ButtonSpinner } from "@/components/button-spinner";
 import { buyDecision, skipDecision, waitDecision } from "@/features/trade-workspace/api";
 import type { CurrentStep, SkipReason } from "@/features/trade-workspace/types";
 
@@ -422,9 +423,16 @@ export function SessionDecisionSurface({
                 type="submit"
                 disabled={isSubmitting}
                 aria-busy={isSubmitting}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-auto"
               >
-                {isSubmitting ? "Mengirim..." : "Kirim Keputusan BUY"}
+                {isSubmitting ? (
+                  <>
+                    <ButtonSpinner className="h-4 w-4" />
+                    <span>Mengirim...</span>
+                  </>
+                ) : (
+                  "Kirim Keputusan BUY"
+                )}
               </button>
             </div>
           </form>
@@ -450,9 +458,16 @@ export function SessionDecisionSurface({
                 type="submit"
                 disabled={isSubmitting}
                 aria-busy={isSubmitting}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-auto"
               >
-                {isSubmitting ? "Menyimpan WAIT..." : "Kirim Keputusan WAIT"}
+                {isSubmitting ? (
+                  <>
+                    <ButtonSpinner className="h-4 w-4" />
+                    <span>Menyimpan WAIT...</span>
+                  </>
+                ) : (
+                  "Kirim Keputusan WAIT"
+                )}
               </button>
             </div>
           </form>
@@ -519,13 +534,18 @@ export function SessionDecisionSurface({
                 type="submit"
                 disabled={isSubmitting}
                 aria-busy={isSubmitting}
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-auto"
               >
-                {isSubmitting
-                  ? "Menyimpan SKIP..."
-                  : showSkipConfirm
-                    ? "Konfirmasi Lewati Sesi"
-                    : "Kirim Keputusan SKIP"}
+                {isSubmitting ? (
+                  <>
+                    <ButtonSpinner className="h-4 w-4" />
+                    <span>Menyimpan SKIP...</span>
+                  </>
+                ) : showSkipConfirm ? (
+                  "Konfirmasi Lewati Sesi"
+                ) : (
+                  "Kirim Keputusan SKIP"
+                )}
               </button>
             </div>
           </form>

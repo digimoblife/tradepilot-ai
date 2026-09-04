@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { openPosition } from "@/lib/api/trade-actions";
 import { listAnalyses, getAnalysis } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -362,8 +363,9 @@ function OpenPositionForm({ sessionId, onClose, onSuccess }: { sessionId: string
             <button
               type="submit"
               disabled={submitState === "pending"}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             >
+              {submitState === "pending" && <ButtonSpinner className="h-4 w-4" />}
               {submitState === "pending" ? "Memproses…" : "Konfirmasi Buka Posisi"}
             </button>
           </div>

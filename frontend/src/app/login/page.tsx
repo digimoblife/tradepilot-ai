@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { Suspense } from "react";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 const defaultDestination = "/sessions";
 const protectedDestinationPatterns = [
@@ -127,8 +128,9 @@ function LoginForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
+            {submitting && <ButtonSpinner className="h-4 w-4" />}
             {submitting ? "Memproses..." : "Masuk"}
           </button>
         </form>

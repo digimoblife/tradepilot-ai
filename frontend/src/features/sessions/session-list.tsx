@@ -6,6 +6,7 @@ import { listSessions } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { TradeSessionSummary } from "@/types/trade-session";
 import { SessionCard } from "./session-card";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 type LoadState =
   | { status: "loading" }
@@ -15,6 +16,7 @@ type LoadState =
 export function SessionList() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [retryKey, setRetryKey] = useState(0);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,13 +71,22 @@ export function SessionList() {
     return (
       <div className="py-12 text-center">
         <p className="text-zinc-600">{state.message}</p>
-        <button
-          type="button"
-          onClick={() => setRetryKey((k) => k + 1)}
-          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          Coba Lagi
-        </button>
+        {state.isAuthError ? (
+          <Link
+            href="/login"
+            className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Masuk
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRetryKey((k) => k + 1)}
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Coba Lagi
+          </button>
+        )}
       </div>
     );
   }
@@ -86,9 +97,12 @@ export function SessionList() {
         <p className="text-lg text-zinc-500">Belum ada sesi trading.</p>
         <Link
           href="/sessions/new"
-          className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onClick={() => setIsCreating(true)}
+          aria-busy={isCreating}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          Buat Sesi Baru
+          {isCreating && <ButtonSpinner className="h-4 w-4" />}
+          {isCreating ? "Membuka Form…" : "Buat Sesi Baru"}
         </Link>
       </div>
     );

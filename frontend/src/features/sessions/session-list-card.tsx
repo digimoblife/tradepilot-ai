@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SessionCardOpenLink } from "./session-card-open-link";
 
 import type {
   SessionStatus,
@@ -121,12 +121,12 @@ export function SessionListCard({ session }: { session: TradeSessionListItem }) 
               <span>waktu tidak tersedia</span>
             )}
           </p>
-          <Link
+          <SessionCardOpenLink
             href={`/sessions/${session.id}`}
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-5 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-5 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
           >
             Buka Sesi
-          </Link>
+          </SessionCardOpenLink>
         </div>
       </div>
     </article>

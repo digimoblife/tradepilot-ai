@@ -10,6 +10,7 @@ import { SessionDetailHeader } from "@/features/sessions/session-detail-header";
 import { SessionNavigation } from "@/features/sessions/session-navigation";
 import { submitWaitUpdateAnalysis, uploadWaitUpdateInput } from "@/features/trade-workspace/api";
 import type { ObservationPeriod } from "@/features/trade-workspace/types";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 export const OBSERVATION_PERIOD_OPTIONS: ReadonlyArray<{ value: ObservationPeriod; label: string }> = [
   { value: "MORNING", label: "Sesi Pagi (MORNING)" },
@@ -327,9 +328,16 @@ export function WaitUpdateActionRoute({ sessionId }: { sessionId: string }) {
                   type="submit"
                   disabled={isSubmitting}
                   aria-busy={isSubmitting}
-                  className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-auto"
                 >
-                  {isSubmitting ? "Mengirim Pembaruan WAIT..." : "Kirim Pembaruan WAIT"}
+                  {isSubmitting ? (
+                    <>
+                      <ButtonSpinner className="h-4 w-4" />
+                      <span>Mengirim Pembaruan WAIT...</span>
+                    </>
+                  ) : (
+                    "Kirim Pembaruan WAIT"
+                  )}
                 </button>
               </div>
             </form>

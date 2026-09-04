@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import { partialExit } from "@/lib/api/trade-actions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import type { PartialExitRequest } from "@/types/trade-action";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 function generateIdempotencyKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -184,7 +185,8 @@ function PartialExitForm({ sessionId, onClose, onSuccess, remainingQuantity }: {
         <button type="button" onClick={onClose} disabled={submitState === "pending"}
           className="rounded border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-500 disabled:opacity-50">Batal</button>
         <button type="submit" disabled={submitState === "pending"}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+          className="inline-flex items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+          {submitState === "pending" && <ButtonSpinner className="h-4 w-4" />}
           {submitState === "pending" ? "Memproses…" : "Konfirmasi Partial Exit"}
         </button>
       </div>

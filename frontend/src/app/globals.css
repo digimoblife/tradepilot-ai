@@ -90,3 +90,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Oxygen, Ubuntu, Cantarell, sans-serif;
 }
+
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.98);
+  transition: transform var(--motion-duration-standard, 160ms) var(--motion-easing-standard, ease-out);
+}
+

@@ -10,6 +10,7 @@ import { submitInitialAnalysis, uploadInitialEvidence } from "@/features/trade-w
 import { previewMarketEvidence } from "@/lib/api/market-evidence";
 import type { EvidenceSnapshot } from "@/types/market-evidence";
 import { EvidenceInspector } from "@/features/evidence/evidence-inspector";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 type EvidenceField = "orderbook" | "chart_3_month" | "chart_6_month" | "foreign_flow_1w";
 type Files = Partial<Record<EvidenceField, File>>;
@@ -334,7 +335,7 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
               type="button"
               disabled={controlsLocked}
               onClick={handleAutoAcquisition}
-              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-white shadow transition-all hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-white shadow active:scale-[0.98] transition-all hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               ⚡ Ambil Bukti Otomatis & Mulai Analisa
             </button>
@@ -378,9 +379,12 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
               type="submit"
               disabled={controlsLocked || !complete}
               aria-busy={operation === "uploading" || operation === "reconciling"}
-              className="min-h-11 w-full rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-auto"
             >
-              Unggah Bukti Awal
+              {operation === "uploading" || operation === "reconciling" ? (
+                <ButtonSpinner className="h-4 w-4" />
+              ) : null}
+              <span>Unggah Bukti Awal</span>
             </button>
           </form>
         </details>
@@ -393,9 +397,12 @@ export function InitialEvidenceActionRoute({ sessionId }: { sessionId: string })
           onClick={() => void submitAnalysis()}
           disabled={controlsLocked}
           aria-busy={operation === "submitting-analysis" || operation === "reconciling"}
-          className="mt-6 min-h-11 w-full rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-fit"
+          className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-fit"
         >
-          Mulai Analisis Awal
+          {operation === "submitting-analysis" || operation === "reconciling" ? (
+            <ButtonSpinner className="h-4 w-4" />
+          ) : null}
+          <span>Mulai Analisis Awal</span>
         </button>
       ) : null}
 

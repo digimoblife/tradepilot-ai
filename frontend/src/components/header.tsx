@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
+import { ButtonSpinner } from "./button-spinner";
 
 function primaryLinkClass(active: boolean) {
   return [
@@ -80,9 +81,10 @@ export function Header() {
                 <button
                   onClick={handleLogout}
                   disabled={loggingOut}
-                  className="min-h-11 shrink-0 rounded-[var(--radius-compact)] bg-[var(--color-surface-muted)] px-3 text-sm text-[var(--color-text-default)] hover:bg-[var(--color-border-default)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-surface-muted)] px-3 text-sm text-[var(--color-text-default)] hover:bg-[var(--color-border-default)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
                 >
-                  {loggingOut ? "..." : "Keluar"}
+                  {loggingOut && <ButtonSpinner className="h-3.5 w-3.5" />}
+                  {loggingOut ? "Keluar…" : "Keluar"}
                 </button>
               </>
             ) : (

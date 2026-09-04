@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 import { groupSessions } from "./session-grouping";
 import { SessionListCard } from "./session-list-card";
@@ -8,6 +10,7 @@ import { useSessionsList } from "./use-sessions-list";
 
 export function SessionsListSurface() {
   const { state, retry } = useSessionsList();
+  const [isCreating, setIsCreating] = useState(false);
 
   if (state.status === "loading") {
     return (
@@ -61,9 +64,12 @@ export function SessionsListSurface() {
         <div className="mt-6">
           <Link
             href="/sessions/new"
-            className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+            onClick={() => setIsCreating(true)}
+            aria-busy={isCreating}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-6 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
           >
-            Buat Sesi Baru
+            {isCreating && <ButtonSpinner className="h-4 w-4" />}
+            {isCreating ? "Membuka Form…" : "Buat Sesi Baru"}
           </Link>
         </div>
       </div>
@@ -77,9 +83,12 @@ export function SessionsListSurface() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link
           href="/sessions/new"
-          className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-5 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+          onClick={() => setIsCreating(true)}
+          aria-busy={isCreating}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-standard)] bg-[var(--color-action-primary)] px-5 text-sm font-semibold text-[var(--color-text-inverse)] shadow-xs transition-all hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
         >
-          Buat Sesi Baru
+          {isCreating && <ButtonSpinner className="h-4 w-4" />}
+          {isCreating ? "Membuka Form…" : "Buat Sesi Baru"}
         </Link>
       </div>
 

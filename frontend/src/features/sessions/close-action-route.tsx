@@ -9,6 +9,7 @@ import { useSessionCurrentStep } from "@/features/sessions/use-session-current-s
 import { SessionDetailHeader } from "@/features/sessions/session-detail-header";
 import { SessionNavigation } from "@/features/sessions/session-navigation";
 import { closePosition } from "@/features/trade-workspace/api";
+import { ButtonSpinner } from "@/components/button-spinner";
 
 export function CloseActionRoute({ sessionId }: { sessionId: string }) {
   const routeState = useRouteSession(sessionId);
@@ -274,9 +275,16 @@ export function CloseActionRoute({ sessionId }: { sessionId: string }) {
                       disabled={isSubmitting}
                       aria-busy={isSubmitting}
                       onClick={() => void handleConfirmClose()}
-                      className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 sm:w-auto"
                     >
-                      {isSubmitting ? "Menutup posisi..." : "Konfirmasi Tutup Posisi"}
+                      {isSubmitting ? (
+                        <>
+                          <ButtonSpinner className="h-4 w-4" />
+                          <span>Menutup posisi...</span>
+                        </>
+                      ) : (
+                        "Konfirmasi Tutup Posisi"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -349,7 +357,7 @@ export function CloseActionRoute({ sessionId }: { sessionId: string }) {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+                      className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 font-semibold text-[var(--color-text-inverse)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
                     >
                       Lanjutkan
                     </button>

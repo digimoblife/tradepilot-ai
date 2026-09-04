@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { ButtonSpinner } from "@/components/button-spinner";
 import { acquireMarketEvidence, analyzeSession, createSession } from "@/features/trade-workspace/api";
 import type { TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
@@ -302,18 +303,33 @@ export function CreateSessionForm({
             <div className="pt-2 flex flex-wrap items-center gap-3">
               <button
                 type="button"
+                disabled={startingAnalysis}
                 onClick={handleStartAnalysis}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-8 text-base font-bold text-[var(--color-text-inverse)] shadow-md hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-8 text-base font-bold text-[var(--color-text-inverse)] shadow-md hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>🧠 Mulai Analisa AI Sekarang</span>
+                {startingAnalysis ? (
+                  <>
+                    <ButtonSpinner className="h-5 w-5" />
+                    <span>Memulai Analisa AI…</span>
+                  </>
+                ) : (
+                  <span>🧠 Mulai Analisa AI Sekarang</span>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => void fetchMarketData(createdSession)}
                 disabled={fetchingPreview}
-                className="inline-flex min-h-12 items-center justify-center rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-60"
               >
-                {fetchingPreview ? "Mengambil data…" : "🔄 Tarik Ulang Data"}
+                {fetchingPreview ? (
+                  <>
+                    <ButtonSpinner className="h-4 w-4 text-[var(--color-action-primary)]" />
+                    <span>Mengambil data…</span>
+                  </>
+                ) : (
+                  <>🔄 Tarik Ulang Data</>
+                )}
               </button>
             </div>
           </div>
@@ -450,13 +466,20 @@ export function CreateSessionForm({
               type="submit"
               disabled={pending}
               aria-label={pending ? "Membuat sesi…" : "Buat Sesi"}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 text-sm font-bold text-[var(--color-text-inverse)] shadow-sm hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-6 text-sm font-bold text-[var(--color-text-inverse)] shadow-sm hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {pending ? "⚡ Mengambil Data & Memproses…" : "⚡ Ambil Data Pasar"}
+              {pending ? (
+                <>
+                  <ButtonSpinner className="h-4 w-4" />
+                  <span>⚡ Mengambil Data & Memproses…</span>
+                </>
+              ) : (
+                "⚡ Ambil Data Pasar"
+              )}
             </button>
             <Link
               href="/sessions"
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] px-4 text-sm font-semibold text-[var(--color-action-primary)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-compact)] px-4 text-sm font-semibold text-[var(--color-action-primary)] hover:underline active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] sm:w-auto"
             >
               Batal
             </Link>

@@ -6,6 +6,7 @@ import { listEvidence } from "@/lib/api/evidence";
 import { ensureWatchingBatch, markWatchingBatchReady, markOpenPositionBatchReady, updateOpenPositionBatchCurrentPrice } from "@/lib/api/trade-sessions";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
 import { getRequiredTypesStatus } from "@/features/evidence/helpers";
+import { ButtonSpinner } from "@/components/button-spinner";
 import type { AnalysisJobCreated } from "@/types/analysis-job";
 import type { EvidenceBatchSummary } from "@/types/trade-session";
 
@@ -189,8 +190,9 @@ export function RequestAnalysis({ sessionId, analysisType, currentBatch, onSucce
         type="button"
         onClick={handleSubmit}
         disabled={submitState === "pending" || !allRequiredPresent || !!jobResult || (analysisType === "OPEN_POSITION_UPDATE" && (!currentPrice.trim() || !Number.isFinite(Number(currentPrice)) || Number(currentPrice) <= 0))}
-        className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
       >
+        {submitState === "pending" && <ButtonSpinner className="h-4 w-4" />}
         {submitState === "pending"
           ? "Mengirim…"
           : jobResult
