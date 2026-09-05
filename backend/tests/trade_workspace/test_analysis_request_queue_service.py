@@ -250,7 +250,7 @@ async def test_analysis_request_queue_service_persists_pending_request_and_sessi
                 prompt_version="initial-v1",
                 input_snapshot={"ticker": "BBRI"},
             )
-    assert default_result.model == "gemini-3.1-flash-lite"
+    assert default_result.model == "gemini-3.5-flash-lite"
 
     async with factory() as session:
         service = AnalysisRequestQueueService(session)

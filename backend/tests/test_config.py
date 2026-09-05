@@ -37,7 +37,7 @@ def test_dev_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.api_host == "127.0.0.1"
     assert config.api_port == 8000
     assert config.log_level == "INFO"
-    assert config.gemini_model == "gemini-3.1-flash-lite"
+    assert config.gemini_model == "gemini-3.5-flash-lite"
     assert config.provider_order == "gemini"
 
 

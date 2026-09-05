@@ -286,7 +286,7 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
     assert request.analysis_type is AnalysisRequestV2Type.POSITION_UPDATE
     assert request.status is AnalysisRequestV2Status.PENDING
     assert request.provider == "gemini"
-    assert request.model == "gemini-3.1-flash-lite"
+    assert request.model == "gemini-3.5-flash-lite"
     assert request.prompt_version == "v1"
     assert request.observation_period is AnalysisRequestV2ObservationPeriod.MIDDAY
     assert request.input_snapshot == {
@@ -299,7 +299,7 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
         "observation_period": "MIDDAY",
         "observation_timestamp": OBSERVATION.isoformat(),
         "provider": "gemini",
-        "model": "gemini-3.1-flash-lite",
+        "model": "gemini-3.5-flash-lite",
         "prompt_version": "v1",
     }
     linked = await db_session.scalar(

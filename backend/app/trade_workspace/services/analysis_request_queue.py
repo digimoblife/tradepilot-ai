@@ -20,7 +20,7 @@ from app.trade_workspace.models.analysis_request import (
 from app.trade_workspace.models.evidence_upload import EvidenceUploadV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
-DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 _ACTIVE_STATUSES = (
     AnalysisRequestV2Status.PENDING,
     AnalysisRequestV2Status.PROCESSING,

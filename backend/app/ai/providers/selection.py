@@ -52,7 +52,16 @@ _SUPPORTED_GEMINI_MODELS: Mapping[str, ProviderCapabilities] = {
         supports_json_schema=True,
         supports_multi_image=True,
         maximum_images=10,
-    )
+    ),
+    "gemini-3.5-flash-lite": ProviderCapabilities(
+        supports_images=True,
+        supports_text_output=True,
+        supports_structured_output=True,
+        supports_system_prompt=True,
+        supports_json_schema=True,
+        supports_multi_image=True,
+        maximum_images=10,
+    ),
 }
 
 _GEMINI_TRANSPORT_SCHEMA_FILES: Mapping[str, str] = {

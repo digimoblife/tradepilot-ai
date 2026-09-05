@@ -183,7 +183,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
     assert request.analysis_type is AnalysisRequestV2Type.WAIT_UPDATE
     assert request.status is AnalysisRequestV2Status.PENDING
     assert request.provider == "gemini"
-    assert request.model == "gemini-3.1-flash-lite"
+    assert request.model == "gemini-3.5-flash-lite"
     assert request.prompt_version == "v1"
     assert request.observation_period is AnalysisRequestV2ObservationPeriod.MIDDAY
     assert request.current_price == Decimal("1234.567890")
@@ -198,7 +198,7 @@ async def test_owner_can_submit_wait_update_analysis_from_waiting_session(
         "observation_period": "MIDDAY",
         "observation_timestamp": OBSERVATION.isoformat(),
         "provider": "gemini",
-        "model": "gemini-3.1-flash-lite",
+        "model": "gemini-3.5-flash-lite",
         "prompt_version": "v1",
     }
 

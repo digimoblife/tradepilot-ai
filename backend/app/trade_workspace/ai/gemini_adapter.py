@@ -8,7 +8,7 @@ from typing import Any, Protocol
 
 from app.config import AppConfig
 
-DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 
 @dataclass(frozen=True, slots=True)
