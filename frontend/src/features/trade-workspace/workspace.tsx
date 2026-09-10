@@ -571,7 +571,14 @@ export function SessionWorkspace({
 
       {completedResult && (
         <div className="max-w-[var(--layout-text-readable)]">
-          <InitialAnalysisResultView result={completedResult} />
+          <InitialAnalysisResultView
+            result={completedResult}
+            marketFacts={
+              analysis?.market_facts ??
+              ((aggregate?.initial_analysis as { market_facts?: any } | undefined)
+                ?.market_facts ?? null)
+            }
+          />
         </div>
       )}
 

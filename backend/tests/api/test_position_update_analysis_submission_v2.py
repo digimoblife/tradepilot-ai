@@ -289,7 +289,13 @@ async def test_owner_submits_latest_position_update_analysis_with_id_only_queue(
     assert request.model == "gemini-3.5-flash-lite"
     assert request.prompt_version == "v1"
     assert request.observation_period is AnalysisRequestV2ObservationPeriod.MIDDAY
-    assert request.input_snapshot == {
+    input_snapshot = dict(request.input_snapshot)
+    # market_facts is best-effort, system-fetched (live ZAPI) supplementary
+    # context: presence/content is non-deterministic in this environment and
+    # is covered separately by market_facts-focused tests, so it is excluded
+    # from this exact-snapshot assertion.
+    input_snapshot.pop("market_facts", None)
+    assert input_snapshot == {
         "session_id": str(session_id),
         "ticker": "BBRI",
         "analysis_type": "POSITION_UPDATE",

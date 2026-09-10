@@ -9,13 +9,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any
 
 from app.api.schemas.evidence_snapshot import EvidenceSnapshotSchema
 from app.config import AppConfig
 from app.services.evidence_normalizer import EvidenceNormalizer
 from app.services.evidence_validator import EvidenceValidator, ValidationResult
 from app.services.market_data.providers.idx import IdxProvider
+from app.services.market_data.providers.investing import InvestingProvider
 from app.services.market_data.providers.pluang import PluangProvider
 from app.services.market_data.providers.stockbit import StockbitProvider
 from app.services.market_data.zapi_client import ZapiClient
@@ -36,6 +36,7 @@ class MarketDataCollector:
         self.pluang = PluangProvider(self.client)
         self.idx = IdxProvider(self.client)
         self.stockbit = StockbitProvider(self.client)
+        self.investing = InvestingProvider(self.client)
 
     async def acquire_snapshot(
         self,
@@ -44,9 +45,14 @@ class MarketDataCollector:
         snapshot_type: str = "INITIAL",
         sequence_number: int = 1,
     ) -> tuple[EvidenceSnapshotSchema, ValidationResult]:
-        """Fetch all evidence domains concurrently and return assembled snapshot + validation result."""
+        """Fetch all evidence domains concurrently and return assembled snapshot."""
         symbol = symbol.upper()
-        logger.info("Acquiring %s market data snapshot for %s (Session: %s)", snapshot_type, symbol, session_id)
+        logger.info(
+            "Acquiring %s market data snapshot for %s (Session: %s)",
+            snapshot_type,
+            symbol,
+            session_id,
+        )
 
         providers_used: dict[str, str] = {
             "quote": "PLUANG",
@@ -55,6 +61,7 @@ class MarketDataCollector:
             "foreign_flow": "IDX",
             "broker_flow": "PLUANG",
             "market_context": "IDX",
+            "company_profile": "INVESTING+STOCKBIT",
         }
 
         # 1. Execute concurrent requests
@@ -65,15 +72,30 @@ class MarketDataCollector:
             self.idx.get_stock_history(symbol, length=130),
             self.pluang.get_broker_summary(symbol),
             self.idx.get_index_summary(),
+            self.investing.get_quote(symbol),
+            self.stockbit.get_symbol(symbol),
             return_exceptions=True,
         )
 
-        quote_res, orderbook_res, stockbit_chart_res, history_res, broker_res, index_res = results
+        (
+            quote_res,
+            orderbook_res,
+            stockbit_chart_res,
+            history_res,
+            broker_res,
+            index_res,
+            investing_res,
+            stockbit_symbol_res,
+        ) = results
 
         # 2. Handle Fallbacks
         # Fallback for Quote if Pluang fails
         if isinstance(quote_res, Exception) or not quote_res:
-            logger.warning("Pluang quote failed for %s, falling back to IDX: %s", symbol, quote_res)
+            logger.warning(
+                "Pluang quote failed for %s, falling back to IDX: %s",
+                symbol,
+                quote_res,
+            )
             try:
                 quote_res = await self.idx.get_stock_summary(symbol)
                 providers_used["quote"] = "IDX"
@@ -97,7 +119,11 @@ class MarketDataCollector:
 
         # Fallback for Broker Summary if Pluang fails
         if isinstance(broker_res, Exception) or not broker_res:
-            logger.warning("Pluang broker summary failed for %s, trying IDX fallback: %s", symbol, broker_res)
+            logger.warning(
+                "Pluang broker summary failed for %s, trying IDX fallback: %s",
+                symbol,
+                broker_res,
+            )
             try:
                 broker_res = await self.idx.get_foreign_flow(symbol)  # or IDX broker summary
                 providers_used["broker_flow"] = "IDX"
@@ -107,6 +133,20 @@ class MarketDataCollector:
         # Fallback for Index summary
         if isinstance(index_res, Exception) or not index_res:
             index_res = {}
+
+        # Fallback for Investing quote
+        if isinstance(investing_res, Exception) or not investing_res:
+            logger.warning("Investing quote failed for %s: %s", symbol, investing_res)
+            investing_res = {}
+
+        # Fallback for Stockbit symbol
+        if isinstance(stockbit_symbol_res, Exception) or not stockbit_symbol_res:
+            logger.warning(
+                "Stockbit symbol overview failed for %s: %s",
+                symbol,
+                stockbit_symbol_res,
+            )
+            stockbit_symbol_res = {}
 
         # 3. Assemble Snapshot
         snapshot = EvidenceNormalizer.assemble_snapshot(
@@ -118,6 +158,10 @@ class MarketDataCollector:
             broker_raw=broker_res if isinstance(broker_res, dict) else {},
             index_raw=index_res if isinstance(index_res, dict) else {},
             stockbit_chart_raw=stockbit_chart_res if isinstance(stockbit_chart_res, dict) else {},
+            investing_raw=investing_res if isinstance(investing_res, dict) else {},
+            stockbit_symbol_raw=(
+                stockbit_symbol_res if isinstance(stockbit_symbol_res, dict) else {}
+            ),
             snapshot_type=snapshot_type,
             sequence_number=sequence_number,
             providers_used=providers_used,

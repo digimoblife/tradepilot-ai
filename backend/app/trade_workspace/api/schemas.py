@@ -251,6 +251,7 @@ class InitialAnalysisReadResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    market_facts: dict[str, object] | None = None
 
 
 class WaitUpdateAnalysisReadResponse(BaseModel):
@@ -266,6 +267,7 @@ class WaitUpdateAnalysisReadResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    market_facts: dict[str, object] | None = None
 
 
 class WaitUpdateAnalysisRecoveryResponse(BaseModel):

@@ -1,6 +1,5 @@
 """Unit and integration tests for System-Acquired Evidence via ZAPI."""
 
-import pytest
 from app.services.evidence_delta import EvidenceDeltaCalculator
 from app.services.evidence_normalizer import EvidenceNormalizer
 from app.services.evidence_validator import EvidenceValidator
@@ -9,7 +8,6 @@ from app.services.technical_indicators import (
     calculate_rsi,
     calculate_sma,
     compute_technical_summary,
-    find_swing_levels,
 )
 
 
@@ -170,4 +168,57 @@ def test_evidence_formatter():
     assert "ORDERBOOK MICROSTRUCTURE" in md
     assert "FOREIGN FLOW" in md
     assert "BROKER FLOW 1D" in md
+
+
+def test_company_profile_normalization_and_backfill():
+    investing_mock = {
+        "symbol": "BBRI",
+        "peRatio": 8.16,
+        "pbvRatio": 2.15,
+        "dividendYieldPercent": 10.12,
+        "dividend": 346.0,
+        "eps": 406.65,
+        "beta": 0.18,
+        "oneYearReturn": "-9.76%",
+        "nextEarningsDate": "2026-10-28",
+    }
+    stockbit_mock = {
+        "symbol": "BBRI",
+        "sector": "Keuangan",
+        "subSector": "Bank",
+    }
+
+    profile = EvidenceNormalizer.normalize_company_profile(
+        investing_raw=investing_mock,
+        stockbit_raw=stockbit_mock,
+    )
+    assert profile.sector == "Keuangan"
+    assert profile.sub_sector == "Bank"
+    assert profile.pe_ratio == 8.16
+    assert profile.pbv_ratio == 2.15
+    assert profile.dividend_yield_percent == 10.12
+    assert profile.dividend_per_share == 346.0
+    assert profile.eps_ttm == 406.65
+    assert profile.beta == 0.18
+    assert profile.one_year_return_percent == -9.76
+    assert profile.next_earnings_date == "2026-10-28"
+
+    # Assemble snapshot and verify backfill of pe_ratio and pbv_ratio in quote
+    snapshot = EvidenceNormalizer.assemble_snapshot(
+        session_id="3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        symbol="BBRI",
+        quote_raw={"lastPrice": 4200, "openPrice": 4150, "highPrice": 4250, "lowPrice": 4150},
+        orderbook_raw={"bestBid": 4200, "bestAsk": 4210},
+        history_raw={"items": []},
+        broker_raw={"buyers": [], "sellers": []},
+        index_raw={"data": []},
+        investing_raw=investing_mock,
+        stockbit_symbol_raw=stockbit_mock,
+    )
+    assert snapshot.company_profile is not None
+    assert snapshot.company_profile.sector == "Keuangan"
+    assert snapshot.quote.pe_ratio == 8.16
+    assert snapshot.quote.pbv_ratio == 2.15
+    assert snapshot.providers_used["company_profile"] == "INVESTING+STOCKBIT"
+
 

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -107,6 +107,19 @@ class MarketContextDomain(BaseModel):
     index_trend: str = "NEUTRAL"
 
 
+class CompanyProfileDomain(BaseModel):
+    sector: str | None = None
+    sub_sector: str | None = None
+    pe_ratio: float | None = None
+    pbv_ratio: float | None = None
+    dividend_yield_percent: float | None = None
+    dividend_per_share: float | None = None
+    eps_ttm: float | None = None
+    beta: float | None = None
+    one_year_return_percent: float | None = None
+    next_earnings_date: str | None = None
+
+
 class EvidenceSnapshotSchema(BaseModel):
     snapshot_id: str
     session_id: uuid.UUID | str
@@ -123,6 +136,7 @@ class EvidenceSnapshotSchema(BaseModel):
     foreign_flow: ForeignFlowDomain
     broker_flow: BrokerFlowDomain
     market_context: MarketContextDomain
+    company_profile: CompanyProfileDomain | None = None
 
 
 class PriceDelta(BaseModel):

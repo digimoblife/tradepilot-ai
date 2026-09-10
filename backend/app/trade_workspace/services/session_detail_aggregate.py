@@ -65,8 +65,11 @@ def _request(item: AnalysisRequestV2, *, evidence: EvidenceUploadV2 | None = Non
     if evidence is not None:
         result["evidence"] = _evidence(evidence)
     snapshot = item.input_snapshot or {}
-    if isinstance(snapshot, dict) and "note" in snapshot:
-        result["note"] = snapshot.get("note")
+    if isinstance(snapshot, dict):
+        if "note" in snapshot:
+            result["note"] = snapshot.get("note")
+        if "market_facts" in snapshot:
+            result["market_facts"] = snapshot.get("market_facts")
     return result
 
 

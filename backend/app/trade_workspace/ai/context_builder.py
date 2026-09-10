@@ -129,6 +129,60 @@ class AnalysisSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class ForeignFlowPeriodFacts:
+    net_shares: int | None
+    net_value_idr: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class MarketFactsSnapshot:
+    """Best-effort, system-fetched supplementary facts (ZAPI-sourced).
+
+    These are supplementary context only, captured at submission time. Any
+    field may be ``None`` when the underlying data point was unavailable.
+    Gemini must treat these as confirmed facts when present and must not
+    invent them when absent.
+    """
+
+    captured_at: str | None
+    pe_ratio: float | None
+    pbv_ratio: float | None
+    market_cap: float | None
+    volume_shares_today: int | None
+    avg_volume_20d_shares: float | None
+    volume_vs_average_ratio: float | None
+    index_name: str | None
+    index_change_percent: float | None
+    index_trend: str | None
+    foreign_status: str | None
+    foreign_flow_1m: ForeignFlowPeriodFacts | None
+    foreign_flow_3m: ForeignFlowPeriodFacts | None
+    ma20: float | None = None
+    ma50: float | None = None
+    ma200: float | None = None
+    rsi14: float | None = None
+    atr14: float | None = None
+    high_52w: float | None = None
+    low_52w: float | None = None
+    ma_alignment: str | None = None
+    key_supports: tuple[float, ...] | None = None
+    key_resistances: tuple[float, ...] | None = None
+    avg_daily_value_idr_20d: float | None = None
+    system_spread_percent: float | None = None
+    system_bid_ask_ratio: float | None = None
+    system_total_bid_lots: int | None = None
+    system_total_ask_lots: int | None = None
+    sector: str | None = None
+    sub_sector: str | None = None
+    dividend_yield_percent: float | None = None
+    dividend_per_share: float | None = None
+    eps_ttm: float | None = None
+    beta: float | None = None
+    one_year_return_percent: float | None = None
+    next_earnings_date: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PositionFacts:
     position_id: uuid.UUID
     session_id: uuid.UUID
@@ -149,6 +203,7 @@ class AnalysisContext:
     initial_analysis: AnalysisSummary | None
     history: tuple[AnalysisSummary, ...]
     position: PositionFacts | None
+    market_facts: MarketFactsSnapshot | None = None
 
 
 class RebuildAnalysisContextBuilder:
@@ -192,6 +247,7 @@ class RebuildAnalysisContextBuilder:
                 initial_analysis=None,
                 history=(),
                 position=None,
+                market_facts=self._market_facts(request),
             )
 
         if resolved_type is RebuildAnalysisType.WAIT_UPDATE:
@@ -214,6 +270,7 @@ class RebuildAnalysisContextBuilder:
                 initial_analysis=initial_analysis,
                 history=(prior_wait,) if prior_wait is not None else (),
                 position=None,
+                market_facts=self._market_facts(request),
             )
 
         current_position = await self._load_positions(session_id)
@@ -238,6 +295,7 @@ class RebuildAnalysisContextBuilder:
             initial_analysis=initial_analysis,
             history=history,
             position=position,
+            market_facts=self._market_facts(request),
         )
 
     async def _load_owned_session(
@@ -515,6 +573,62 @@ class RebuildAnalysisContextBuilder:
             user_note=_user_note(request.input_snapshot),
         )
 
+    @staticmethod
+    def _market_facts(request: AnalysisRequestV2) -> MarketFactsSnapshot | None:
+        """Parse the optional, best-effort market facts captured at submission time.
+
+        Tolerant by design: a missing or malformed ``market_facts`` payload
+        yields ``None`` rather than raising, since this is supplementary
+        context, not an approved-evidence requirement.
+        """
+        snapshot = request.input_snapshot
+        if not isinstance(snapshot, Mapping):
+            return None
+        raw = snapshot.get("market_facts")
+        if not isinstance(raw, Mapping):
+            return None
+        try:
+            return MarketFactsSnapshot(
+                captured_at=_optional_str(raw.get("captured_at")),
+                pe_ratio=_optional_float(raw.get("pe_ratio")),
+                pbv_ratio=_optional_float(raw.get("pbv_ratio")),
+                market_cap=_optional_float(raw.get("market_cap")),
+                volume_shares_today=_optional_int(raw.get("volume_shares_today")),
+                avg_volume_20d_shares=_optional_float(raw.get("avg_volume_20d_shares")),
+                volume_vs_average_ratio=_optional_float(raw.get("volume_vs_average_ratio")),
+                index_name=_optional_str(raw.get("index_name")),
+                index_change_percent=_optional_float(raw.get("index_change_percent")),
+                index_trend=_optional_str(raw.get("index_trend")),
+                foreign_status=_optional_str(raw.get("foreign_status")),
+                foreign_flow_1m=_foreign_flow_period(raw.get("foreign_flow_1m")),
+                foreign_flow_3m=_foreign_flow_period(raw.get("foreign_flow_3m")),
+                ma20=_optional_float(raw.get("ma20")),
+                ma50=_optional_float(raw.get("ma50")),
+                ma200=_optional_float(raw.get("ma200")),
+                rsi14=_optional_float(raw.get("rsi14")),
+                atr14=_optional_float(raw.get("atr14")),
+                high_52w=_optional_float(raw.get("high_52w")),
+                low_52w=_optional_float(raw.get("low_52w")),
+                ma_alignment=_optional_str(raw.get("ma_alignment")),
+                key_supports=_optional_float_tuple(raw.get("key_supports")),
+                key_resistances=_optional_float_tuple(raw.get("key_resistances")),
+                avg_daily_value_idr_20d=_optional_float(raw.get("avg_daily_value_idr_20d")),
+                system_spread_percent=_optional_float(raw.get("system_spread_percent")),
+                system_bid_ask_ratio=_optional_float(raw.get("system_bid_ask_ratio")),
+                system_total_bid_lots=_optional_int(raw.get("system_total_bid_lots")),
+                system_total_ask_lots=_optional_int(raw.get("system_total_ask_lots")),
+                sector=_optional_str(raw.get("sector")),
+                sub_sector=_optional_str(raw.get("sub_sector")),
+                dividend_yield_percent=_optional_float(raw.get("dividend_yield_percent")),
+                dividend_per_share=_optional_float(raw.get("dividend_per_share")),
+                eps_ttm=_optional_float(raw.get("eps_ttm")),
+                beta=_optional_float(raw.get("beta")),
+                one_year_return_percent=_optional_float(raw.get("one_year_return_percent")),
+                next_earnings_date=_optional_str(raw.get("next_earnings_date")),
+            )
+        except (TypeError, ValueError):
+            return None
+
     async def _load_history(
         self,
         session_id: uuid.UUID,
@@ -773,3 +887,49 @@ def _user_note(input_snapshot: Mapping[str, object]) -> object | None:
         if key in input_snapshot:
             return input_snapshot[key]
     return None
+
+
+def _optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, str)):
+        return float(value)
+    raise TypeError(f"Cannot convert to float: {value!r}")
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, str)):
+        return int(value)
+    raise TypeError(f"Cannot convert to int: {value!r}")
+
+
+def _foreign_flow_period(value: object) -> ForeignFlowPeriodFacts | None:
+    if not isinstance(value, Mapping):
+        return None
+    return ForeignFlowPeriodFacts(
+        net_shares=_optional_int(value.get("net_shares")),
+        net_value_idr=_optional_float(value.get("net_value_idr")),
+    )
+
+
+def _optional_float_tuple(value: object) -> tuple[float, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        result: list[float] = []
+        for item in value:
+            if isinstance(item, (int, float, str)):
+                result.append(float(item))
+            else:
+                raise TypeError(f"Cannot convert sequence item to float: {item!r}")
+        return tuple(result)
+    raise TypeError(f"Cannot convert to float tuple: {value!r}")
+

@@ -40,6 +40,7 @@ class InitialAnalysisReadResult:
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    market_facts: dict[str, object] | None = None
 
 
 class InitialAnalysisReadService:
@@ -77,6 +78,12 @@ class InitialAnalysisReadService:
 
         is_completed = request.status is AnalysisRequestV2Status.COMPLETED
         is_failed = request.status is AnalysisRequestV2Status.FAILED
+        snapshot = request.input_snapshot or {}
+        market_facts = (
+            snapshot.get("market_facts")
+            if isinstance(snapshot, dict) and isinstance(snapshot.get("market_facts"), dict)
+            else None
+        )
         return InitialAnalysisReadResult(
             analysis_request_id=request.id,
             session_id=trade_session.id,
@@ -89,4 +96,5 @@ class InitialAnalysisReadService:
             created_at=request.created_at,
             started_at=request.started_at,
             completed_at=request.completed_at,
+            market_facts=market_facts,
         )

@@ -32,6 +32,8 @@ from app.trade_workspace.services.eligibility import (
     single_open_position,
     update_evidence_is_ready,
 )
+from app.trade_workspace.services.market_facts import collect_market_facts
+
 
 class PositionUpdateAnalysisSubmissionError(Exception):
     code = "POSITION_UPDATE_ANALYSIS_SUBMISSION_FAILED"
@@ -123,6 +125,13 @@ class PositionUpdateAnalysisSubmissionService:
                 "model": DEFAULT_GEMINI_MODEL,
                 "prompt_version": "v1",
             }
+            market_facts = await collect_market_facts(
+                config=AppConfig(),
+                session_id=trade_session.id,
+                symbol=trade_session.ticker,
+            )
+            if market_facts is not None:
+                snapshot["market_facts"] = market_facts
             try:
                 request_result = await AnalysisRequestQueueService(
                     self._session,

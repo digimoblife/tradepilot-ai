@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from app.api.schemas.evidence_snapshot import (
     BrokerFlowDomain,
     BrokerItem,
+    CompanyProfileDomain,
     EvidenceSnapshotSchema,
     ForeignFlowDomain,
     ForeignFlowPeriod,
@@ -30,13 +31,13 @@ JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
 
 
 def _to_float(val: Any, default: float = 0.0) -> float:
-    """Safely convert any value to float, handling '-', '', None, and formatted strings."""
+    """Safely convert any value to float, handling '-', '', None, formatted strings, and percentages."""
     if val is None:
         return default
     if isinstance(val, (int, float)):
         return float(val)
     if isinstance(val, str):
-        cleaned = val.strip().replace(",", "")
+        cleaned = val.strip().replace(",", "").rstrip("%").strip()
         if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan", "Infinity", "-Infinity"):
             return default
         try:
@@ -50,13 +51,13 @@ def _to_float(val: Any, default: float = 0.0) -> float:
 
 
 def _to_optional_float(val: Any) -> float | None:
-    """Safely convert any value to float or None."""
+    """Safely convert any value to float or None, handling percentages."""
     if val is None:
         return None
     if isinstance(val, (int, float)):
         return float(val)
     if isinstance(val, str):
-        cleaned = val.strip().replace(",", "")
+        cleaned = val.strip().replace(",", "").rstrip("%").strip()
         if not cleaned or cleaned in ("-", "--", "N/A", "null", "None", "nan", "Infinity", "-Infinity"):
             return None
         try:
@@ -437,6 +438,54 @@ class EvidenceNormalizer:
             index_trend=trend,
         )
 
+    @staticmethod
+    def normalize_company_profile(
+        investing_raw: dict[str, Any] | None = None,
+        stockbit_raw: dict[str, Any] | None = None,
+    ) -> CompanyProfileDomain:
+        investing = EvidenceNormalizer._unwrap(investing_raw or {})
+        stockbit = EvidenceNormalizer._unwrap(stockbit_raw or {})
+
+        sector = stockbit.get("sector")
+        clean_sector = sector.strip() if isinstance(sector, str) and sector.strip() else None
+
+        sub_sector = stockbit.get("subSector") or stockbit.get("sub_sector")
+        clean_sub_sector = (
+            sub_sector.strip() if isinstance(sub_sector, str) and sub_sector.strip() else None
+        )
+
+        pe = _to_optional_float(investing.get("peRatio") or investing.get("pe"))
+        pbv = _to_optional_float(investing.get("pbvRatio") or investing.get("pbv"))
+        div_yield = _to_optional_float(
+            investing.get("dividendYieldPercent") or investing.get("dividendYield")
+        )
+        div_share = _to_optional_float(investing.get("dividend"))
+        eps = _to_optional_float(investing.get("eps"))
+        beta = _to_optional_float(investing.get("beta"))
+        one_year_return = _to_optional_float(
+            investing.get("oneYearReturn") or investing.get("one_year_return")
+        )
+
+        earnings_date = investing.get("nextEarningsDate") or investing.get("next_earnings_date")
+        clean_earnings_date = (
+            earnings_date.strip()
+            if isinstance(earnings_date, str) and earnings_date.strip()
+            else None
+        )
+
+        return CompanyProfileDomain(
+            sector=clean_sector,
+            sub_sector=clean_sub_sector,
+            pe_ratio=pe,
+            pbv_ratio=pbv,
+            dividend_yield_percent=div_yield,
+            dividend_per_share=div_share,
+            eps_ttm=eps,
+            beta=beta,
+            one_year_return_percent=one_year_return,
+            next_earnings_date=clean_earnings_date,
+        )
+
     @classmethod
     def assemble_snapshot(
         cls,
@@ -448,6 +497,8 @@ class EvidenceNormalizer:
         broker_raw: dict[str, Any],
         index_raw: dict[str, Any],
         stockbit_chart_raw: dict[str, Any] | None = None,
+        investing_raw: dict[str, Any] | None = None,
+        stockbit_symbol_raw: dict[str, Any] | None = None,
         snapshot_type: str = "INITIAL",
         sequence_number: int = 1,
         providers_used: dict[str, str] | None = None,
@@ -461,6 +512,16 @@ class EvidenceNormalizer:
         history, foreign_flow = cls.normalize_history_and_foreign_flow(history_raw)
         broker_flow = cls.normalize_broker_flow(broker_raw)
         market_ctx = cls.normalize_market_context(index_raw)
+        company_profile = cls.normalize_company_profile(
+            investing_raw=investing_raw,
+            stockbit_raw=stockbit_symbol_raw,
+        )
+
+        # Backfill valuation ratios if missing in primary quote
+        if quote.pe_ratio is None and company_profile.pe_ratio is not None:
+            quote.pe_ratio = company_profile.pe_ratio
+        if quote.pbv_ratio is None and company_profile.pbv_ratio is not None:
+            quote.pbv_ratio = company_profile.pbv_ratio
 
         # Fallback for quote price if after-hours or missing in quote endpoint
         if quote.last_price <= 0:
@@ -498,6 +559,7 @@ class EvidenceNormalizer:
                 "foreign_flow": "IDX",
                 "broker_flow": "PLUANG",
                 "market_context": "IDX",
+                "company_profile": "INVESTING+STOCKBIT",
             },
             completeness_status="COMPLETE",
             quote=quote,
@@ -506,4 +568,5 @@ class EvidenceNormalizer:
             foreign_flow=foreign_flow,
             broker_flow=broker_flow,
             market_context=market_ctx,
+            company_profile=company_profile,
         )

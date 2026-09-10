@@ -30,6 +30,8 @@ from app.trade_workspace.services.eligibility import (
     update_evidence_is_ready,
     wait_update_session_is_eligible,
 )
+from app.trade_workspace.services.market_facts import collect_market_facts
+
 
 class WaitUpdateAnalysisSubmissionError(Exception):
     code = "WAIT_UPDATE_ANALYSIS_SUBMISSION_FAILED"
@@ -127,6 +129,13 @@ class WaitUpdateAnalysisSubmissionService:
                 "model": self._model,
                 "prompt_version": "v1",
             }
+            market_facts = await collect_market_facts(
+                config=self._config,
+                session_id=trade_session.id,
+                symbol=trade_session.ticker,
+            )
+            if market_facts is not None:
+                snapshot["market_facts"] = market_facts
             try:
                 request_result = await AnalysisRequestQueueService(
                     self._session,

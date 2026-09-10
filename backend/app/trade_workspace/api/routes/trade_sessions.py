@@ -671,6 +671,7 @@ async def read_initial_analysis(
         created_at=result.created_at,
         started_at=result.started_at,
         completed_at=result.completed_at,
+        market_facts=result.market_facts,
     )
 
 

@@ -169,10 +169,55 @@ export interface InitialAnalysisSubmission {
   request_status: RequestStatus; session_status: SessionStatus; created_at: string;
 }
 
+export interface ForeignFlowPeriodFacts {
+  net_shares?: number | null;
+  net_value_idr?: number | null;
+}
+
+export interface MarketFactsSnapshot {
+  captured_at?: string | null;
+  sector?: string | null;
+  sub_sector?: string | null;
+  pe_ratio?: number | null;
+  pbv_ratio?: number | null;
+  market_cap?: number | null;
+  dividend_yield_percent?: number | null;
+  dividend_per_share?: number | null;
+  eps_ttm?: number | null;
+  beta?: number | null;
+  one_year_return_percent?: number | null;
+  next_earnings_date?: string | null;
+  volume_shares_today?: number | null;
+  avg_volume_20d_shares?: number | null;
+  volume_vs_average_ratio?: number | null;
+  avg_daily_value_idr_20d?: number | null;
+  index_name?: string | null;
+  index_change_percent?: number | null;
+  index_trend?: string | null;
+  foreign_status?: string | null;
+  foreign_flow_1m?: ForeignFlowPeriodFacts | null;
+  foreign_flow_3m?: ForeignFlowPeriodFacts | null;
+  system_spread_percent?: number | null;
+  system_bid_ask_ratio?: number | null;
+  system_total_bid_lots?: number | null;
+  system_total_ask_lots?: number | null;
+  ma20?: number | null;
+  ma50?: number | null;
+  ma200?: number | null;
+  rsi14?: number | null;
+  atr14?: number | null;
+  high_52w?: number | null;
+  low_52w?: number | null;
+  ma_alignment?: string | null;
+  key_supports?: number[] | null;
+  key_resistances?: number[] | null;
+}
+
 export interface InitialAnalysisRead extends InitialAnalysisSubmission {
   processed_response: InitialAnalysisResult | null;
   error_code: string | null; error_message: string | null;
   started_at: string | null; completed_at: string | null;
+  market_facts?: MarketFactsSnapshot | null;
 }
 
 export type ObservationPeriod = "MORNING" | "MIDDAY" | "AFTERNOON";

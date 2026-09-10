@@ -27,6 +27,7 @@ from app.trade_workspace.services.eligibility import (
     initial_evidence_set_is_complete,
     request_is_active,
 )
+from app.trade_workspace.services.market_facts import collect_market_facts
 
 _REQUIRED_EVIDENCE = (
     EvidenceUploadV2Type.ORDERBOOK,
@@ -116,6 +117,13 @@ class InitialAnalysisSubmissionService:
                 "analysis_type": AnalysisRequestV2Type.INITIAL_ANALYSIS.value,
                 "evidence_ids": {item.evidence_type.value: str(item.id) for item in evidence},
             }
+            market_facts = await collect_market_facts(
+                config=self._config or AppConfig(),
+                session_id=trade_session.id,
+                symbol=trade_session.ticker,
+            )
+            if market_facts is not None:
+                snapshot["market_facts"] = market_facts
             try:
                 result = await AnalysisRequestQueueService(
                     self._session, config=self._config

@@ -46,14 +46,64 @@ Use only facts supplied by the rebuild context builder:
 - the latest accepted WAIT Update, when available;
 - the latest accepted prior Position Update, when available;
 - compact relevant session history when supplied;
-- confirmed current price, observation period, and observation timestamp; and
-- one current Position Update orderbook image; and
-- an optional Broker Flow 1D image supplied as the second image.
+- confirmed current price, observation period, and observation timestamp;
+- one current Position Update orderbook image;
+- an optional Broker Flow 1D image supplied as the second image; and
+- an optional `market_facts` object of system-fetched, confirmed numeric
+  facts (fundamental ratios, IHSG index context, volume versus its 20-day
+  average, and medium-term Foreign Flow), described below.
 
 The current request and current image are not prior history. Do not require or
 request new charts, additional broker data, live market data, web research, news, external
 catalysts, hidden context, or evidence from another session. Do not assume a
 chart was newly uploaded.
+
+### Optional system-fetched market facts
+
+When `market_facts` is present, its fields (`sector`, `sub_sector`,
+`pe_ratio`, `pbv_ratio`, `market_cap`, `eps_ttm`, `dividend_yield_percent`,
+`dividend_per_share`, `beta`, `one_year_return_percent`, `next_earnings_date`,
+`volume_shares_today`, `avg_volume_20d_shares`, `volume_vs_average_ratio`,
+`avg_daily_value_idr_20d`, `index_name`, `index_change_percent`, `index_trend`,
+`foreign_status`, `foreign_flow_1m`, `foreign_flow_3m`, `system_spread_percent`,
+`system_bid_ask_ratio`, `system_total_bid_lots`, `system_total_ask_lots`, `ma20`,
+`ma50`, `ma200`, `rsi14`, `atr14`, `high_52w`, `low_52w`, `ma_alignment`,
+`key_supports`, `key_resistances`) are confirmed facts, not inferred from the image.
+Any field, or the whole object, may be absent because acquisition is best effort;
+treat an absent field as unavailable and do not guess it.
+
+- Use `sector` and `sub_sector` for emiten sector/industry classification context.
+- Use `pe_ratio`, `pbv_ratio`, `market_cap`, `eps_ttm`, `dividend_yield_percent`,
+  and `dividend_per_share` only as light supporting valuation/income context.
+- Use `beta` for relative volatility vs IHSG, `one_year_return_percent` for
+  1-year trailing momentum, and `next_earnings_date` for earnings catalyst risk.
+
+- Use `volume_vs_average_ratio` to judge whether the current orderbook
+  activity coincides with unusually high or low traded volume relative to
+  the recent 20-day average, and fold that into `orderbook_assessment`.
+- Use `avg_daily_value_idr_20d` as the 20-day liquidity baseline (turnover in
+  IDR) to contextualize exit liquidity and execution risk.
+- Live system orderbook facts (`system_spread_percent`, `system_bid_ask_ratio`,
+  `system_total_bid_lots`, `system_total_ask_lots`) reflect exchange conditions
+  at API fetch time, NOT an OCR re-measurement of the orderbook image. If
+  values diverge, treat as a temporal observation rather than an error; never
+  let system figures replace visual evaluation of the orderbook image.
+- Use `index_change_percent` / `index_trend` only to note whether the
+  broader market (IHSG) is a tailwind, headwind, or neutral factor to the
+  position; never let it override position-specific evidence.
+- Use `foreign_flow_1m` / `foreign_flow_3m` (positive = net foreign buying,
+  negative = net foreign selling) only as medium-term context for
+  `downside_risk` and `target_realism`.
+- Use `ma_alignment`, `ma20`, `ma50`, and `ma200` to cross-check whether
+  the price trend remains aligned with holding or closing the position; do not
+  let moving averages replace visual chart analysis.
+- Use `rsi14` and `atr14` strictly as supporting momentum/volatility context
+  (extreme RSI is NOT an automatic buy/sell trigger).
+- Use `key_supports` / `key_resistances` only as supplementary references
+  alongside visual support/resistance analysis, never replacing it.
+- `market_facts` never adds a new output field; fold relevant observations
+  into the existing required fields below (`orderbook_assessment`, `thesis`,
+  `support`, `resistance`, `downside_risk`, `target_realism`, `summary`, etc.).
 
 ## Longitudinal analysis
 
