@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ButtonSpinner } from "@/components/button-spinner";
+import { InstitutionalBrand, Modal } from "@/components/ui";
 import {
   analyzeSession,
   archiveSessionV2,
@@ -401,25 +402,12 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
               ←
             </Link>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs font-bold text-base sm:text-lg">
-                ⚡
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1">
-                  <span className="font-bold text-sm sm:text-base tracking-tight text-slate-900">TradePilot</span>
-                  <span className="font-mono text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold uppercase border border-blue-200">
-                    AI
-                  </span>
-                </div>
-                <div className="hidden xs:flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium truncate max-w-[110px] sm:max-w-none">
-                    GEMINI ENGINE PRO
-                  </span>
-                </div>
-              </div>
-            </div>
+            <InstitutionalBrand
+              iconSizeClass="w-8 h-8 sm:w-9 sm:h-9"
+              textSizeClass="text-sm sm:text-base"
+              showEngineTag={true}
+              className="shrink-0"
+            />
 
             <div className="hidden xl:flex items-center gap-2 pl-3 border-l border-slate-200 text-xs text-slate-500 truncate">
               <Link
@@ -1258,225 +1246,217 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       </aside>
 
       {/* BUY Modal */}
-      {showBuyModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4">
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xl space-y-4">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900">
-              🚀 Eksekusi Posisi BUY - {session?.ticker}
-            </h3>
-            <form onSubmit={handleBuy} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase">
-                  Harga Beli (Rp)
-                </label>
-                <input
-                  type="number"
-                  value={buyPrice}
-                  onChange={(e) => setBuyPrice(e.target.value)}
-                  placeholder={String(currentPrice || "0")}
-                  required
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase">
-                  Jumlah Lot
-                </label>
-                <input
-                  type="number"
-                  value={buyLots}
-                  onChange={(e) => setBuyLots(e.target.value)}
-                  min="1"
-                  required
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
-                />
-                <p className="mt-1 text-xs text-slate-500 font-mono">
-                  Total Nilai: Rp {(Number(buyPrice || currentPrice) * Number(buyLots || 0) * 100).toLocaleString("id-ID")}
-                </p>
-              </div>
-
-              <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-mono">
-                <div className="flex justify-between">
-                  <span>Take Profit 1:</span>
-                  <span className="font-bold text-emerald-600">Rp {keyLevels?.target_price_1?.toLocaleString("id-ID")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Stop Loss:</span>
-                  <span className="font-bold text-rose-600">Rp {keyLevels?.stop_loss?.toLocaleString("id-ID")}</span>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowBuyModal(false)}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 min-h-[42px]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingAction}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 sm:px-6 py-2 text-sm font-bold text-white hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50 min-h-[42px]"
-                >
-                  {submittingAction ? (
-                    <>
-                      <ButtonSpinner className="h-4 w-4" />
-                      <span>Menyimpan…</span>
-                    </>
-                  ) : (
-                    "Konfirmasi BUY"
-                  )}
-                </button>
-              </div>
-            </form>
+      <Modal
+        open={showBuyModal}
+        title={`🚀 Eksekusi Posisi BUY - ${session?.ticker}`}
+        onClose={() => setShowBuyModal(false)}
+      >
+        <form onSubmit={handleBuy} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase">
+              Harga Beli (Rp)
+            </label>
+            <input
+              type="number"
+              value={buyPrice}
+              onChange={(e) => setBuyPrice(e.target.value)}
+              placeholder={String(currentPrice || "0")}
+              required
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
+            />
           </div>
-        </div>
-      ) : null}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase">
+              Jumlah Lot
+            </label>
+            <input
+              type="number"
+              value={buyLots}
+              onChange={(e) => setBuyLots(e.target.value)}
+              min="1"
+              required
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
+            />
+            <p className="mt-1 text-xs text-slate-500 font-mono">
+              Total Nilai: Rp {(Number(buyPrice || currentPrice) * Number(buyLots || 0) * 100).toLocaleString("id-ID")}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-mono">
+            <div className="flex justify-between">
+              <span>Take Profit 1:</span>
+              <span className="font-bold text-emerald-600">Rp {keyLevels?.target_price_1?.toLocaleString("id-ID")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Stop Loss:</span>
+              <span className="font-bold text-rose-600">Rp {keyLevels?.stop_loss?.toLocaleString("id-ID")}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowBuyModal(false)}
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 min-h-[42px]"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={submittingAction}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 sm:px-6 py-2 text-sm font-bold text-white hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50 min-h-[42px]"
+            >
+              {submittingAction ? (
+                <>
+                  <ButtonSpinner className="h-4 w-4" />
+                  <span>Menyimpan…</span>
+                </>
+              ) : (
+                "Konfirmasi BUY"
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* CLOSE Position Modal */}
-      {showCloseModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4">
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xl space-y-4">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900">
-              🚪 Tutup Posisi (Jual) - {session?.ticker}
-            </h3>
-            <form onSubmit={handleClosePosition} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase">
-                  Harga Jual / Exit (Rp)
-                </label>
-                <input
-                  type="number"
-                  value={closePrice}
-                  onChange={(e) => setClosePrice(e.target.value)}
-                  placeholder={String(currentPrice || "0")}
-                  required
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase">
-                  Alasan Penutupan Posisi
-                </label>
-                <select
-                  value={closeReason}
-                  onChange={(e) => setCloseReason(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
-                >
-                  <option value="TARGET_HIT">🎯 Mencapai Target TP1 / TP2</option>
-                  <option value="STOP_LOSS_HIT">🛑 Kena Stop Loss (SL)</option>
-                  <option value="MANUAL">💼 Tutup Manual / Amankan Profit</option>
-                  <option value="INVALIDATED">⚠️ Struktur Berubah (Invalidasi)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase">
-                  Catatan Exit (Opsional)
-                </label>
-                <input
-                  type="text"
-                  value={closeNote}
-                  onChange={(e) => setCloseNote(e.target.value)}
-                  placeholder="Catatan evaluasi trading..."
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-                />
-              </div>
-
-              <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-mono">
-                <div className="flex justify-between">
-                  <span>Harga Beli (Entry):</span>
-                  <span className="font-bold text-slate-900">Rp {entryPrice.toLocaleString("id-ID")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Estimasi Realized PnL:</span>
-                  <span
-                    className={`font-bold ${
-                      (Number(closePrice || currentPrice) - entryPrice) >= 0 ? "text-emerald-600" : "text-rose-600"
-                    }`}
-                  >
-                    {((Number(closePrice || currentPrice) - entryPrice) * totalShares) >= 0 ? "+" : ""}
-                    Rp {((Number(closePrice || currentPrice) - entryPrice) * totalShares).toLocaleString("id-ID")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCloseModal(false)}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 min-h-[42px]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingAction}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-rose-600 px-5 sm:px-6 py-2 text-sm font-bold text-white hover:bg-rose-700 active:scale-[0.98] transition-all disabled:opacity-50 min-h-[42px]"
-                >
-                  {submittingAction ? (
-                    <>
-                      <ButtonSpinner className="h-4 w-4" />
-                      <span>Menutup Posisi…</span>
-                    </>
-                  ) : (
-                    "Konfirmasi CLOSE"
-                  )}
-                </button>
-              </div>
-            </form>
+      <Modal
+        open={showCloseModal}
+        title={`🚪 Tutup Posisi (Jual) - ${session?.ticker}`}
+        onClose={() => setShowCloseModal(false)}
+      >
+        <form onSubmit={handleClosePosition} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase">
+              Harga Jual / Exit (Rp)
+            </label>
+            <input
+              type="number"
+              value={closePrice}
+              onChange={(e) => setClosePrice(e.target.value)}
+              placeholder={String(currentPrice || "0")}
+              required
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
+            />
           </div>
-        </div>
-      ) : null}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase">
+              Alasan Penutupan Posisi
+            </label>
+            <select
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+            >
+              <option value="TARGET_HIT">🎯 Mencapai Target TP1 / TP2</option>
+              <option value="STOP_LOSS_HIT">🛑 Kena Stop Loss (SL)</option>
+              <option value="MANUAL">💼 Tutup Manual / Amankan Profit</option>
+              <option value="INVALIDATED">⚠️ Struktur Berubah (Invalidasi)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase">
+              Catatan Exit (Opsional)
+            </label>
+            <input
+              type="text"
+              value={closeNote}
+              onChange={(e) => setCloseNote(e.target.value)}
+              placeholder="Catatan evaluasi trading..."
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+            />
+          </div>
+
+          <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-mono">
+            <div className="flex justify-between">
+              <span>Harga Beli (Entry):</span>
+              <span className="font-bold text-slate-900">Rp {entryPrice.toLocaleString("id-ID")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Estimasi Realized PnL:</span>
+              <span
+                className={`font-bold ${
+                  (Number(closePrice || currentPrice) - entryPrice) >= 0 ? "text-emerald-600" : "text-rose-600"
+                }`}
+              >
+                {((Number(closePrice || currentPrice) - entryPrice) * totalShares) >= 0 ? "+" : ""}
+                Rp {((Number(closePrice || currentPrice) - entryPrice) * totalShares).toLocaleString("id-ID")}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowCloseModal(false)}
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 min-h-[42px]"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={submittingAction}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-rose-600 px-5 sm:px-6 py-2 text-sm font-bold text-white hover:bg-rose-700 active:scale-[0.98] transition-all disabled:opacity-50 min-h-[42px]"
+            >
+              {submittingAction ? (
+                <>
+                  <ButtonSpinner className="h-4 w-4" />
+                  <span>Menutup Posisi…</span>
+                </>
+              ) : (
+                "Konfirmasi CLOSE"
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* SKIP Modal */}
-      {showSkipModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4">
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xl space-y-4">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900">
-              ⏭️ Lewati Saham ({session?.ticker})
-            </h3>
-            <p className="text-xs text-slate-500">
-              Pilih alasan utama mengapa setup ini dilewati untuk pencatatan trading journal:
-            </p>
+      <Modal
+        open={showSkipModal}
+        title={`⏭️ Lewati Saham (${session?.ticker})`}
+        onClose={() => setShowSkipModal(false)}
+      >
+        <p className="text-xs text-slate-500">
+          Pilih alasan utama mengapa setup ini dilewati untuk pencatatan trading journal:
+        </p>
 
-            <div className="grid gap-2">
-              {[
-                { reason: "RISK_TOO_HIGH" as const, label: "🛑 Risiko Terlalu Tinggi / R:R Tidak Masuk" },
-                { reason: "ORDERBOOK_WEAK" as const, label: "📉 Orderbook Lemah / Likuiditas Rendah" },
-                { reason: "MARKET_CONDITION_UNFAVORABLE" as const, label: "🏦 Kondisi IHSG / Distribusi Asing Masif" },
-                { reason: "SETUP_NOT_ATTRACTIVE" as const, label: "🔍 Setup Pola Tidak Menarik" },
-              ].map(({ reason, label }) => (
-                <button
-                  key={reason}
-                  type="button"
-                  disabled={submittingAction}
-                  onClick={() => handleSkip(reason)}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 p-2.5 sm:p-3 text-left text-xs sm:text-sm font-semibold text-slate-800 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50 min-h-[44px]"
-                >
-                  <span>{label}</span>
-                  {skipPendingReason === reason ? (
-                    <ButtonSpinner className="h-4 w-4 text-rose-600" />
-                  ) : null}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => setShowSkipModal(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 min-h-[42px]"
-              >
-                Batal
-              </button>
-            </div>
-          </div>
+        <div className="grid gap-2">
+          {[
+            { reason: "RISK_TOO_HIGH" as const, label: "🛑 Risiko Terlalu Tinggi / R:R Tidak Masuk" },
+            { reason: "ORDERBOOK_WEAK" as const, label: "📉 Orderbook Lemah / Likuiditas Rendah" },
+            { reason: "MARKET_CONDITION_UNFAVORABLE" as const, label: "🏦 Kondisi IHSG / Distribusi Asing Masif" },
+            { reason: "SETUP_NOT_ATTRACTIVE" as const, label: "🔍 Setup Pola Tidak Menarik" },
+          ].map(({ reason, label }) => (
+            <button
+              key={reason}
+              type="button"
+              disabled={submittingAction}
+              onClick={() => handleSkip(reason)}
+              className="flex items-center justify-between rounded-lg border border-slate-200 p-2.5 sm:p-3 text-left text-xs sm:text-sm font-semibold text-slate-800 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50 min-h-[44px]"
+            >
+              <span>{label}</span>
+              {skipPendingReason === reason ? (
+                <ButtonSpinner className="h-4 w-4 text-rose-600" />
+              ) : null}
+            </button>
+          ))}
         </div>
-      ) : null}
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
+            onClick={() => setShowSkipModal(false)}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 min-h-[42px]"
+          >
+            Batal
+          </button>
+        </div>
+      </Modal>
+
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { SessionCardOpenLink } from "./session-card-open-link";
 import { useSessionIntelligence } from "./use-session-intelligence";
+import { StatusBadge } from "@/components/ui";
 import type {
   SessionStatus,
   TradeSessionListItem,
@@ -144,13 +145,12 @@ export function SessionListCard({ session }: { session: TradeSessionListItem }) 
             <h3 className="break-all text-xl sm:text-2xl font-black tracking-tight text-slate-900 font-mono">
               {session.ticker}
             </h3>
-            <span
-              data-canonical-status={session.status}
-              className={`px-2.5 py-0.5 rounded-md text-xs font-bold border flex items-center gap-1.5 ${status.badgeClassName}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${status.dotClassName}`}></span>
-              {status.label}
-            </span>
+            <StatusBadge
+              status={session.status}
+              label={status.label}
+              badgeClassName={status.badgeClassName}
+              dotClassName={status.dotClassName}
+            />
             {intel?.indexTag && (
               <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">
                 {intel.indexTag}

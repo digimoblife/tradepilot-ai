@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ButtonSpinner } from "@/components/button-spinner";
+import { InstitutionalBrand } from "@/components/ui";
 
 const defaultDestination = "/sessions";
 const protectedDestinationPatterns = [
@@ -84,21 +85,12 @@ function LoginForm() {
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white font-bold text-xl shadow-md shadow-blue-500/20 mb-3">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-          <div className="flex items-center justify-center space-x-1.5 mb-1">
-            <span className="font-extrabold text-2xl tracking-tight text-slate-900">TradePilot</span>
-            <span className="text-xs font-bold uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-              AI
-            </span>
+          <div className="flex justify-center mb-3">
+            <InstitutionalBrand
+              iconSizeClass="w-12 h-12"
+              textSizeClass="text-2xl"
+              showEngineTag={false}
+            />
           </div>
           <p className="text-xs uppercase tracking-wider font-mono font-semibold text-slate-400">
             Institutional Trading Intelligence

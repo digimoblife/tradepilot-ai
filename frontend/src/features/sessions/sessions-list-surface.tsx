@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ButtonSpinner } from "@/components/button-spinner";
+import { MetricCard, SearchInput } from "@/components/ui";
 
 import { groupSessions } from "./session-grouping";
 import { SessionListCard } from "./session-list-card";
@@ -267,85 +268,67 @@ export function SessionsListSurface() {
 
         {/* Quick Metrics Institutional Strip */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-purpose="metrics-summary">
-          {/* Card 1: Sesi Butuh Keputusan */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Sesi Butuh Keputusan</p>
-              <p className="text-2xl font-bold font-mono text-amber-600 mt-1">
-                {needsAttentionCount} <span className="text-xs font-medium text-slate-400 font-sans">Emiten</span>
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
+          <MetricCard
+            label="Sesi Butuh Keputusan"
+            value={needsAttentionCount}
+            valueColorClass="text-amber-600"
+            unit="Emiten"
+            iconWrapperClass="bg-amber-50 border border-amber-200 text-amber-600"
+            icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </div>
-          </div>
+            }
+          />
 
-          {/* Card 2: Selesai / Terarsip */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Selesai / Terarsip</p>
-              <p className="text-2xl font-bold font-mono text-emerald-600 mt-1">
-                {completedCount} <span className="text-xs font-medium text-slate-400 font-sans">Sesi</span>
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
+          <MetricCard
+            label="Selesai / Terarsip"
+            value={completedCount}
+            valueColorClass="text-emerald-600"
+            unit="Sesi"
+            iconWrapperClass="bg-emerald-50 border border-emerald-200 text-emerald-600"
+            icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </div>
-          </div>
+            }
+          />
 
-          {/* Card 3: Total Nilai Terpantau */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Nilai Terpantau</p>
-              <p className="text-2xl font-bold font-mono text-slate-800 mt-1">
-                Rp {activeSessionsCount > 0 ? (activeSessionsCount * 0.82).toFixed(2) : "0.00"}{" "}
-                <span className="text-sm font-semibold text-slate-500">T</span>
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">
+          <MetricCard
+            label="Total Nilai Terpantau"
+            value={`Rp ${activeSessionsCount > 0 ? (activeSessionsCount * 0.82).toFixed(2) : "0.00"}`}
+            valueColorClass="text-slate-800"
+            unit="T"
+            iconWrapperClass="bg-blue-50 border border-blue-200 text-blue-600"
+            icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </div>
-          </div>
+            }
+          />
 
-          {/* Card 4: Rata-rata AI Conviction */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Rata-rata AI Conviction</p>
-              <p className="text-2xl font-bold font-mono text-indigo-600 mt-1">
-                71.5% <span className="text-xs font-medium text-emerald-600 font-sans">↑ Kuat</span>
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
+          <MetricCard
+            label="Rata-rata AI Conviction"
+            value="71.5%"
+            valueColorClass="text-indigo-600"
+            unit={<span className="text-xs font-medium text-emerald-600 font-sans">↑ Kuat</span>}
+            iconWrapperClass="bg-indigo-50 border border-indigo-200 text-indigo-600"
+            icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" strokeLinecap="round" strokeLinejoin="round"></path>
+                <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </div>
-          </div>
+            }
+          />
         </div>
 
         {/* Filter and Search Toolbar */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
           {/* Search */}
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
-              </svg>
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari kode saham (mis. BBCA, NCKL, PTBA)..."
-              className="block w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+          <SearchInput
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari kode saham (mis. BBCA, NCKL, PTBA)..."
+          />
 
           {/* Filter Dropdowns */}
           <div className="flex items-center gap-2">
