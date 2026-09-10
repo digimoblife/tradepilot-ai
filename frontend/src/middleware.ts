@@ -8,7 +8,9 @@ const COOKIE_NAME = "tradepilot_session";
 // Server-only internal backend URL — never exposed to the browser.
 // In Docker Compose this is http://backend:8000.
 const internalApiBaseUrl =
-  process.env.INTERNAL_API_BASE_URL || "http://backend:8000";
+  process.env.INTERNAL_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:8000";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
