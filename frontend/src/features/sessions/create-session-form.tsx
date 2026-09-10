@@ -223,7 +223,7 @@ export function CreateSessionForm({
       {/* BEGIN: Progress Stepper */}
       <section aria-label="Progress Stepper" className="mb-6" data-purpose="workflow-stepper">
         <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
-          <ol className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <ol className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {/* Step 1 */}
             <li
               className={`flex items-center p-2 rounded-lg transition-all ${
@@ -295,21 +295,9 @@ export function CreateSessionForm({
                 </p>
               </div>
             </li>
-
-            {/* Step 3 */}
-            <li className="flex items-center p-2 rounded-lg bg-transparent border border-transparent">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-400 text-xs font-semibold mr-3 shrink-0">
-                3
-              </span>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 font-mono">
-                  Langkah 3
-                </p>
-                <p className="text-xs font-medium text-slate-500 truncate">Analisa AI & Rekomendasi</p>
-              </div>
-            </li>
           </ol>
         </div>
+
       </section>
       {/* END: Progress Stepper */}
 
@@ -612,7 +600,6 @@ export function CreateSessionForm({
               BEI: REALTIME FEED ACTIVE
             </div>
           </div>
-          /* STEP 1: FORM INPUT EMITEN */
           <form
             onSubmit={handleSubmit}
             noValidate
