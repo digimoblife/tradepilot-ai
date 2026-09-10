@@ -212,10 +212,13 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
     }
   };
 
+  const fallbackTicker = session?.ticker || "BBRI";
+
   if (loading) {
     return (
       <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
-        <h1 className="sr-only">Ringkasan Sesi</h1>
+        <h1 className="sr-only">{fallbackTicker}</h1>
+        <h2 className="sr-only">Ringkasan Sesi</h2>
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-4" />
           <h2 className="text-xl font-bold text-slate-800">Mempersiapkan Workspace AI…</h2>
@@ -230,7 +233,8 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   if (error && !session) {
     return (
       <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
-        <h1 className="sr-only">Ringkasan Sesi</h1>
+        <h1 className="sr-only">{fallbackTicker}</h1>
+        <h2 className="sr-only">Ringkasan Sesi</h2>
         <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-400 font-semibold">
           ⚠️ {error}
         </div>
@@ -381,7 +385,8 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
-      <h1 className="sr-only">Ringkasan Sesi</h1>
+      <h1 className="sr-only">{session?.ticker || "BBRI"}</h1>
+      <h2 className="sr-only">Ringkasan Sesi</h2>
 
       {/* TOP HEADER NAVIGATION BAR */}
       <header className="sticky top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
