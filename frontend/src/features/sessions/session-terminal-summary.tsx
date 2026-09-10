@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 
 import { formatSessionDetailTimestamp } from "@/features/sessions/session-detail-header";
 import { archiveSessionV2, restoreSessionV2 } from "@/features/trade-workspace/api";
+import { ButtonSpinner } from "@/components/button-spinner";
 import type {
   SessionDetailAggregate,
   SessionSummaryClosure,
@@ -111,8 +112,9 @@ export function ArchiveActionButton({
             type="button"
             onClick={handleConfirm}
             disabled={isSubmitting}
-            className="inline-flex min-h-9 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-3 text-xs font-semibold text-[var(--color-text-inverse)] hover:opacity-90 disabled:opacity-50"
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-3 text-xs font-semibold text-[var(--color-text-inverse)] hover:opacity-90 disabled:opacity-50 active:scale-[0.98] transition-all"
           >
+            {isSubmitting && <ButtonSpinner className="h-3 w-3" />}
             {isSubmitting ? "Mengarsipkan…" : "Arsipkan Sesi"}
           </button>
           <button
@@ -210,8 +212,9 @@ export function RestoreActionButton({
             type="button"
             onClick={handleConfirm}
             disabled={isSubmitting}
-            className="inline-flex min-h-9 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-3 text-xs font-semibold text-[var(--color-text-inverse)] hover:opacity-90 disabled:opacity-50"
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-3 text-xs font-semibold text-[var(--color-text-inverse)] hover:opacity-90 disabled:opacity-50 active:scale-[0.98] transition-all"
           >
+            {isSubmitting && <ButtonSpinner className="h-3 w-3" />}
             {isSubmitting ? "Mengembalikan…" : "Kembalikan ke Daftar"}
           </button>
           <button

@@ -12,6 +12,8 @@ import type { SessionStatus } from "@/features/trade-workspace/types";
 export function SessionsListSurface() {
   const { state, retry } = useSessionsList();
   const [isCreating, setIsCreating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "NEEDS_ATTENTION" | "COMPLETED">("ALL");
   const [sortOrder, setSortOrder] = useState<"NEWEST" | "OLDEST">("NEWEST");
@@ -51,13 +53,57 @@ export function SessionsListSurface() {
 
   if (state.status === "loading") {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Sesi Perdagangan
-        </h1>
-        <p role="status" className="mt-4 text-sm text-slate-500">
-          Memuat sesi perdagangan…
-        </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8 animate-pulse">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Sesi Perdagangan
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                <ButtonSpinner className="h-3 w-3 text-blue-600" />
+                <span>Memuat Data…</span>
+              </span>
+            </div>
+            <p role="status" className="mt-4 text-sm text-slate-500">
+              Memuat sesi perdagangan…
+            </p>
+          </div>
+        </div>
+
+        {/* Skeleton Quick Metrics Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-3 w-24 bg-slate-200 rounded"></div>
+                <div className="h-6 w-16 bg-slate-200 rounded"></div>
+              </div>
+              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                <div className="w-5 h-5 bg-slate-200 rounded"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Skeleton Session Cards */}
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200"></div>
+                  <div className="space-y-1.5">
+                    <div className="h-5 w-20 bg-slate-200 rounded"></div>
+                    <div className="h-3.5 w-36 bg-slate-100 rounded"></div>
+                  </div>
+                </div>
+                <div className="h-9 w-28 bg-slate-100 rounded-lg"></div>
+              </div>
+              <div className="h-16 w-full bg-slate-50 rounded-xl border border-slate-100"></div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -91,10 +137,19 @@ export function SessionsListSurface() {
           <p className="font-semibold">Daftar sesi tidak dapat dimuat. Silakan coba lagi.</p>
           <button
             type="button"
-            onClick={retry}
-            className="mt-3 min-h-10 rounded-lg bg-rose-600 px-4 font-semibold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+            onClick={async () => {
+              setIsRetrying(true);
+              try {
+                await retry();
+              } finally {
+                setIsRetrying(false);
+              }
+            }}
+            disabled={isRetrying}
+            className="mt-3 min-h-10 inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 font-semibold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:opacity-60 active:scale-[0.98] transition-all"
           >
-            Coba lagi
+            {isRetrying && <ButtonSpinner className="h-4 w-4" />}
+            <span>{isRetrying ? "Memuat ulang…" : "Coba lagi"}</span>
           </button>
         </div>
       </div>
@@ -171,14 +226,26 @@ export function SessionsListSurface() {
           {/* Primary CTA Buttons */}
           <div className="flex items-center gap-3">
             <button
-              onClick={retry}
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await retry();
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+              disabled={isRefreshing}
               type="button"
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 border border-slate-300 shadow-xs text-sm font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 border border-slate-300 shadow-xs text-sm font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60"
             >
-              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" strokeLinecap="round" strokeLinejoin="round"></path>
-              </svg>
-              <span>Segarkan Data</span>
+              {isRefreshing ? (
+                <ButtonSpinner className="h-4 w-4 text-slate-600" />
+              ) : (
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" strokeLinecap="round" strokeLinejoin="round"></path>
+                </svg>
+              )}
+              <span>{isRefreshing ? "Menyegarkan…" : "Segarkan Data"}</span>
             </button>
             <Link
               href="/sessions/new"

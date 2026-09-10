@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ButtonSpinner } from "@/components/button-spinner";
+import { SessionCardOpenLink } from "./session-card-open-link";
 
 import { useArchivedSessionsList } from "./use-archived-sessions-list";
 import type { SessionStatus, TradeSessionListItem } from "@/features/trade-workspace/types";
@@ -121,12 +123,12 @@ export function ArchivedSessionCard({ session }: { session: TradeSessionListItem
 
         {/* Action Button */}
         <div className="flex-shrink-0 flex items-center md:self-center">
-          <Link
+          <SessionCardOpenLink
             href={detailHref}
-            className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2 min-h-11 sm:min-h-9 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
+            className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-4 py-2 min-h-11 sm:min-h-9 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600 active:scale-[0.98]"
           >
             Lihat Sesi
-          </Link>
+          </SessionCardOpenLink>
         </div>
       </div>
     </article>
@@ -138,6 +140,7 @@ export function ArchivedSessionsListSurface() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "CLOSED" | "CLOSED_SKIPPED">("ALL");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const filteredSessions = useMemo(() => {
     if (state.status !== "success") return [];
@@ -277,12 +280,25 @@ export function ArchivedSessionsListSurface() {
       {/* END: FilterAndSearchToolbar */}
 
       {state.status === "loading" ? (
-        <div
-          role="status"
-          className="rounded-xl border border-slate-200 bg-white p-8 sm:p-12 text-center space-y-3 shadow-xs"
-        >
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
-          <p className="text-sm font-medium text-slate-500">Memuat sesi yang diarsipkan…</p>
+        <div className="space-y-4 animate-pulse">
+          <div
+            role="status"
+            className="rounded-xl border border-slate-200 bg-white p-8 sm:p-12 text-center space-y-3 shadow-xs"
+          >
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
+            <p className="text-sm font-medium text-slate-500">Memuat sesi yang diarsipkan…</p>
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <div className="h-5 w-32 bg-slate-200 rounded"></div>
+                  <div className="h-8 w-24 bg-slate-100 rounded"></div>
+                </div>
+                <div className="h-3 w-48 bg-slate-100 rounded"></div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : state.status === "authentication-required" ? (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700 space-y-3">
@@ -300,14 +316,23 @@ export function ArchivedSessionsListSurface() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={retry}
-              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 shadow-sm cursor-pointer"
+              onClick={async () => {
+                setIsRetrying(true);
+                try {
+                  await retry();
+                } finally {
+                  setIsRetrying(false);
+                }
+              }}
+              disabled={isRetrying}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 shadow-sm cursor-pointer disabled:opacity-60 active:scale-[0.98] transition-all"
             >
-              Coba lagi
+              {isRetrying && <ButtonSpinner className="h-4 w-4" />}
+              <span>{isRetrying ? "Memuat ulang…" : "Coba lagi"}</span>
             </button>
             <Link
               href="/sessions"
-              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-all"
             >
               Kembali ke Sesi
             </Link>

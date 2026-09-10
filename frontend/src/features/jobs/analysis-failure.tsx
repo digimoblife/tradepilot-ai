@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { retryJob } from "@/lib/api/analyses";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
+import { ButtonSpinner } from "@/components/button-spinner";
 import type { AnalysisJobStatus } from "@/types/analysis-job";
 
 const ERROR_SUMMARY: Record<string, string> = {
@@ -149,8 +150,9 @@ export function AnalysisFailure({ jobStatus, onRetry, onClear }: Props) {
             type="button"
             onClick={handleRetry}
             disabled={retryState === "pending"}
-            className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 active:scale-[0.98] transition-all"
           >
+            {retryState === "pending" && <ButtonSpinner className="h-3.5 w-3.5" />}
             {retryState === "pending" ? "Mengirim ulang…" : "Coba Lagi"}
           </button>
         )}

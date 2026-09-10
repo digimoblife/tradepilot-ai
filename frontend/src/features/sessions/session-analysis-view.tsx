@@ -8,6 +8,7 @@ import { SessionDetailHeader } from "@/features/sessions/session-detail-header";
 import { SessionNavigation } from "@/features/sessions/session-navigation";
 import { useRouteSession } from "@/features/sessions/use-route-session";
 import { getSessionDetail } from "@/features/trade-workspace/api";
+import { ButtonSpinner } from "@/components/button-spinner";
 import type { AnalysisType, SessionDetailAggregate } from "@/features/trade-workspace/types";
 
 type AnalysisRecord = { id: string; type: AnalysisType; completedAt: string; payload: AnalysisPayload };
@@ -229,8 +230,10 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
   const [records, setRecords] = useState<AnalysisRecord[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
 
-  const reloadAnalysis = useCallback(() => {
+  const reloadAnalysis = useCallback(async () => {
+    setIsReloading(true);
     const current = ++generation.current;
     const controller = new AbortController();
     activeControllerRef.current?.abort();
@@ -240,18 +243,21 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
     setSelected(null);
     setFailed(false);
 
-    void getSessionDetail(sessionId, controller.signal)
-      .then((detail) => {
-        if (controller.signal.aborted || current !== generation.current) return;
-        const next = collect(detail);
-        setRecords(next);
-        setSelected(next[0]?.id ?? null);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted && current === generation.current) {
-          setFailed(true);
-        }
-      });
+    try {
+      const detail = await getSessionDetail(sessionId, controller.signal);
+      if (controller.signal.aborted || current !== generation.current) return;
+      const next = collect(detail);
+      setRecords(next);
+      setSelected(next[0]?.id ?? null);
+    } catch {
+      if (!controller.signal.aborted && current === generation.current) {
+        setFailed(true);
+      }
+    } finally {
+      if (current === generation.current) {
+        setIsReloading(false);
+      }
+    }
   }, [sessionId]);
 
   useEffect(() => {
@@ -355,10 +361,12 @@ export function SessionAnalysisView({ sessionId }: { sessionId: string }) {
             </p>
             <button
               type="button"
-              onClick={() => reloadAnalysis()}
-              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]"
+              disabled={isReloading}
+              onClick={() => void reloadAnalysis()}
+              className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-4 text-sm font-semibold text-[var(--color-text-inverse)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50 active:scale-[0.98] transition-all"
             >
-              Muat Ulang
+              {isReloading && <ButtonSpinner className="h-4 w-4" />}
+              <span>{isReloading ? "Memuat ulang…" : "Muat Ulang"}</span>
             </button>
           </section>
         ) : null}
