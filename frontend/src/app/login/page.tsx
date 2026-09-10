@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
@@ -52,7 +52,7 @@ function getSafeNext(next: string | null): string {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, user, loading: authLoading } = useAuth();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,13 +62,6 @@ function LoginForm() {
   const next = searchParams.get("next");
   const safeNext = getSafeNext(next);
 
-  // If already authenticated, redirect to destination
-  useEffect(() => {
-    if (!authLoading && user) {
-      router.push(safeNext);
-    }
-  }, [user, authLoading, safeNext, router]);
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
@@ -77,25 +70,13 @@ function LoginForm() {
       return;
     }
     setSubmitting(true);
-    let success = false;
     try {
       await login({ email, password });
-      success = true;
-    } catch (err: unknown) {
-      if (err instanceof TypeError || (err instanceof Error && err.message.toLowerCase().includes("fetch"))) {
-        setError("Tidak dapat terhubung ke server backend. Pastikan server backend sedang berjalan.");
-      } else {
-        setError("Email atau password salah");
-      }
+      router.push(safeNext);
+    } catch {
+      setError("Email atau password salah");
     } finally {
       setSubmitting(false);
-    }
-
-    if (success) {
-      router.push(safeNext);
-      if (typeof router.refresh === "function") {
-        router.refresh();
-      }
     }
   };
 
