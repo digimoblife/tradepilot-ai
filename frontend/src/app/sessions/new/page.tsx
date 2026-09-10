@@ -3,7 +3,7 @@ import { CreateSessionNavigation } from "@/features/sessions/create-session-navi
 
 export default function NewSessionPage() {
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1">
       {/* Navigation / Back to Sessions */}
       <div className="mb-6 flex items-center justify-between">
         <Link

@@ -217,7 +217,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
   if (loading) {
     return (
-      <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto min-w-0 w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="sr-only">{fallbackTicker}</h1>
         <h2 className="sr-only">Ringkasan Sesi</h2>
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -233,7 +233,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
   if (error && !session) {
     return (
-      <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto min-w-0 w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="sr-only">{fallbackTicker}</h1>
         <h2 className="sr-only">Ringkasan Sesi</h2>
         <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-400 font-semibold">
@@ -391,7 +391,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
       {/* TOP HEADER NAVIGATION BAR */}
       <header className="sticky top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="h-14 sm:h-16 w-full px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 max-w-[1600px] mx-auto">
+        <div className="h-14 sm:h-16 w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-3 max-w-7xl mx-auto">
           {/* Brand & Breadcrumbs */}
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <Link
@@ -461,8 +461,8 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       </header>
 
       {/* MAIN VIEWPORT CANVAS */}
-      <main className="relative pt-4 sm:pt-6 pb-28 w-full px-3 sm:px-6 bg-slate-50 flex-1">
-        <div className="flex flex-col w-full space-y-3 sm:space-y-4 max-w-[1600px] mx-auto">
+      <main className="relative pt-4 sm:pt-6 pb-28 w-full px-4 sm:px-6 lg:px-8 bg-slate-50 flex-1">
+        <div className="flex flex-col w-full space-y-3 sm:space-y-4 max-w-7xl mx-auto">
           {/* In-Trade Floating Banner if Position is Active */}
           {isInTrade && (
             <div className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-3 sm:gap-4">
