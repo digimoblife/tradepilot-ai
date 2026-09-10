@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LoginPage from "@/app/login/page";
@@ -23,11 +23,29 @@ vi.mock("@/lib/auth-context", () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+const originalLocation = window.location;
+const mockLocationReplace = vi.fn();
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockGet.mockReturnValue(null);
   mockUser = null;
   mockLoading = false;
+  mockLocationReplace.mockClear();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: {
+      ...originalLocation,
+      replace: mockLocationReplace,
+    },
+  });
+});
+
+afterAll(() => {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: originalLocation,
+  });
 });
 
 async function submitLogin(next: string | null = null) {
@@ -178,7 +196,7 @@ describe("LoginPage", () => {
     render(await LoginPage());
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/sessions");
+      expect(mockLocationReplace).toHaveBeenCalledWith("/sessions");
     });
   });
 
@@ -189,7 +207,7 @@ describe("LoginPage", () => {
     render(await LoginPage());
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/sessions/new");
+      expect(mockLocationReplace).toHaveBeenCalledWith("/sessions/new");
     });
   });
 
@@ -198,7 +216,7 @@ describe("LoginPage", () => {
     mockLoading = true;
     render(await LoginPage());
 
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockLocationReplace).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
   });
 });

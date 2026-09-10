@@ -64,9 +64,9 @@ function LoginForm() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace(safeNext);
+      window.location.replace(safeNext);
     }
-  }, [loading, user, safeNext, router]);
+  }, [loading, user, safeNext]);
 
   if (!loading && user) {
     return null;
