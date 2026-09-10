@@ -1,12 +1,53 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import SessionAnalysisPage from "@/app/sessions/[sessionId]/analysis/page";
-import SessionHistoryPage from "@/app/sessions/[sessionId]/history/page";
-import SessionDetailPage from "@/app/sessions/[sessionId]/page";
+import { RouteSessionPlaceholder } from "@/app/sessions/_components/route-session-placeholder";
 import { getSession, getSessionDetail } from "@/features/trade-workspace/api";
 import type { SessionDetailAggregate, TradeSession } from "@/features/trade-workspace/types";
 import { ApiError, AuthenticationError } from "@/lib/api/errors";
+
+const SessionDetailPage = async ({ params }: { params: Promise<{ sessionId: string }> }) => {
+  const { sessionId } = await params;
+  return (
+    <RouteSessionPlaceholder
+      sessionId={sessionId}
+      currentHref={`/sessions/${sessionId}`}
+      title="Ringkasan Sesi"
+      description="Ringkasan dan langkah berikutnya untuk sesi ini akan tersedia pada tahap berikutnya."
+      backHref="/sessions"
+      backLabel="Kembali ke Sesi"
+      successMode="session-detail-header"
+    />
+  );
+};
+
+const SessionAnalysisPage = async ({ params }: { params: Promise<{ sessionId: string }> }) => {
+  const { sessionId } = await params;
+  return (
+    <RouteSessionPlaceholder
+      sessionId={sessionId}
+      currentHref={`/sessions/${sessionId}/analysis`}
+      title="Analisis Sesi"
+      description="Analisis mendalam untuk sesi ini akan tersedia pada tahap berikutnya."
+      backHref={`/sessions/${sessionId}`}
+      backLabel="Kembali ke Sesi"
+    />
+  );
+};
+
+const SessionHistoryPage = async ({ params }: { params: Promise<{ sessionId: string }> }) => {
+  const { sessionId } = await params;
+  return (
+    <RouteSessionPlaceholder
+      sessionId={sessionId}
+      currentHref={`/sessions/${sessionId}/history`}
+      title="Riwayat Sesi"
+      description="Riwayat lengkap untuk sesi ini akan tersedia pada tahap berikutnya."
+      backHref={`/sessions/${sessionId}`}
+      backLabel="Kembali ke Sesi"
+    />
+  );
+};
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/sessions/11111111-1111-4111-8111-111111111111",

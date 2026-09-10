@@ -60,6 +60,8 @@ class MarketAnalysisEngine:
         atr14 = float(_get(tech, "atr14", max(1.0, last_price * 0.03)))
         ma_alignment = str(_get(tech, "ma_alignment", "MIXED"))
         rsi14 = float(_get(tech, "rsi14", 50.0))
+        high_52w = _get(tech, "high_52w")
+        low_52w = _get(tech, "low_52w")
         supports = _get(tech, "key_supports") or []
         resistances = _get(tech, "key_resistances") or []
         valid_supports = [float(s) for s in supports if float(s) < last_price]
@@ -67,15 +69,20 @@ class MarketAnalysisEngine:
         nearest_support = valid_supports[0] if valid_supports else round(last_price * 0.97)
         nearest_resistance = valid_resistances[0] if valid_resistances else round(last_price * 1.02)
 
+        company_profile = getattr(snapshot, "company_profile", None)
+        market_context = getattr(snapshot, "market_context", None)
+        ihsg_change = float(_get(market_context, "index_change_percent") or 0.0)
+        ihsg_phrase = f"IHSG sedang {'menguat' if ihsg_change > 0 else 'melemah'} ({'+' if ihsg_change > 0 else ''}{ihsg_change:.2f}%)"
+
         # Build reusable flow phrases
         if foreign_status == "STRONG_ACCUMULATION":
-            foreign_phrase = "Asing terpantau rajin serok barang (Strong Accumulation)"
+            foreign_phrase = "Asing terpantau rajin serok barang skala besar (Strong Accumulation)"
         elif foreign_status == "ACCUMULATION":
-            foreign_phrase = "Asing mulai akumulasi tipis (Accumulation)"
+            foreign_phrase = "Asing mulai akumulasi (Accumulation)"
         elif foreign_status in ("DISTRIBUTION", "STRONG_DISTRIBUTION"):
             foreign_phrase = "Asing terpantau masih pasif/jualan (Distribution)"
         else:
-            foreign_phrase = "Aliran dana asing masih relatif anteng (Neutral)"
+            foreign_phrase = "Aliran dana asing masih relatif netral (Neutral)"
 
         if bandar_status in ("BIG_ACCUMULATION", "ACCUMULATION"):
             bandar_phrase = f"Broker/bandar berada pada posisi serok ({bandar_status.replace('_', ' ').title()})"
@@ -83,6 +90,25 @@ class MarketAnalysisEngine:
             bandar_phrase = f"Broker lokal terpantau masih distribusi ({bandar_status.replace('_', ' ').title()})"
         else:
             bandar_phrase = f"Broker lokal masih gerak santai ({bandar_status.title()})"
+
+        top_buyers = _get(broker_flow, "top_buyers") or []
+        top_buyer_strs = []
+        for b in top_buyers[:3]:
+            b_code = _get(b, "broker") or "-"
+            b_val = float(_get(b, "value_idr") or 0.0)
+            b_pct = _get(b, "market_share_percent")
+            val_fmt = f"Net Rp {b_val / 1e9:.1f} M" if abs(b_val) >= 1e9 else f"Net Rp {b_val / 1e6:.1f} Jt"
+            pct_fmt = f", porsi {b_pct:.1f}%" if b_pct else ""
+            top_buyer_strs.append(f"Broker {b_code} ({val_fmt}{pct_fmt})")
+        top_buyers_formatted = ", disusul ".join(top_buyer_strs) if top_buyer_strs else "Tersebar merata"
+
+        top_sellers = _get(broker_flow, "top_sellers") or []
+        seller_codes = [_get(s, "broker") for s in top_sellers[:3] if _get(s, "broker")]
+        seller_formatted = f"Didominasi broker ({', '.join(seller_codes)})" if seller_codes else "Tersebar merata"
+
+        rsi_condition = "Area Overbought — euforia beli tinggi, waspadai potensi pullback sehat" if rsi14 >= 70 else (
+            "Area Oversold — jenuh jual, ada potensi technical rebound" if rsi14 <= 30 else "Area Netral — momentum wajar"
+        )
 
         # -------------------------------------------------------------
         # BRANCH A: IN-TRADE EVALUATION (Session has Open Position)
@@ -269,67 +295,111 @@ class MarketAnalysisEngine:
 
         if action == "WAIT":
             thesis_text = (
-                f"Harga {snapshot.symbol} sekarang lagi fase santai/sideways di kisaran Rp {last_price:,.0f}. "
-                f"{foreign_phrase}, tapi antrean bid-offer masih seimbang (Rasio Bid/Ask {bid_ask_ratio:.2f}x). "
-                f"Belum ada dorongan kuat buat langsung loncat masuk sekarang."
+                f"Kondisi Pasar: {ihsg_phrase}. Harga {snapshot.symbol} saat ini sedang fase santai/sideways di kisaran Rp {last_price:,.0f}. "
+                f"{foreign_phrase}, antrean bid-offer moderat (Rasio Bid/Ask {bid_ask_ratio:.2f}x). "
+                f"Disarankan menunggu momentum konfirmasi volume sebelum melakukan aksi beli."
             )
             technical_text = (
-                f"• Tren harga masih anteng di area MA50 (Rp {ma50:,.0f}) dengan MA20 di Rp {ma20:,.0f}.\n"
-                f"• Momentum RSI {rsi14:.1f} netral (gak kemahalan, gak kemurahan) dengan fluktuasi harian (ATR14) Rp {atr14:,.0f}."
+                f"• Tren Utama: {ma_alignment.replace('_', ' ').title()}\n"
+                f"  - Harga (Rp {last_price:,.0f}) berkonsolidasi di area MA20 (Rp {ma20:,.0f}) dan MA50 (Rp {ma50:,.0f}).\n"
+                f"• Indikator Momentum:\n"
+                f"  - RSI 14: {rsi14:.1f} ({rsi_condition})\n"
+                f"  - ATR 14: Rp {atr14:,.0f} rentang fluktuasi harian normal.\n"
+                f"• Level Kunci:\n"
+                f"  - Resistance Terdekat / 52W High: Rp {nearest_resistance:,.0f}{f' (52W High: Rp {high_52w:,.0f})' if high_52w else ''}\n"
+                f"  - Support Dinamis / Pullback: Rp {nearest_support:,.0f}{f' (52W Low: Rp {low_52w:,.0f})' if low_52w else ''}"
             )
             flow_text = (
-                f"• {foreign_phrase}.\n"
-                f"• {bandar_phrase} dengan spread antrean harga Rp {spread:,.0f}."
+                f"Status Bandar: {bandar_status.replace('_', ' ').title()}\n"
+                f"• Konsentrasi Top 3 Buyer: {_get(broker_flow, 'top3_buyer_concentration_percent', 0):.1f}%\n"
+                f"• Akumulator Utama: {top_buyers_formatted}\n"
+                f"• Distribusi Penjual: {seller_formatted}\n"
+                f"Status Asing: {foreign_status.replace('_', ' ').title()}\n"
+                f"• {foreign_phrase}\n"
+                f"👉 Kesimpulan Flow: Rasio Bid/Ask {bid_ask_ratio:.2f}x (Spread Rp {spread:,.0f})."
             )
             guidance_text = (
-                f"• Apa yang ditunggu: Tunggu harga berhasil tembus dan bertahan di atas Rp {nearest_resistance:,.0f} dengan volume ramai, "
-                f"ATAU tunggu serok santai kalau harga pullback mendekati area support Rp {nearest_support:,.0f}.\n"
-                f"• Sampai kapan: Pantau sampai sesi penutupan bursa hari ini. Jika harga malah anjlok menembus Rp {invalidation_level:,.0f}, abaikan setup ini."
+                f"📌 Strategi: Wait for Confirmation / Antri Pullback\n"
+                f"• Area Beli Optimal: Rp {entry_min:,.0f} – Rp {entry_max:,.0f}\n"
+                f"• Target Take Profit 1 (TP1): Rp {target_price_1:,.0f}\n"
+                f"• Target Take Profit 2 (TP2): Rp {target_price_2:,.0f}\n"
+                f"• Stop Loss (SL): Rp {stop_loss:,.0f} (Invalidasi Rp {invalidation_level:,.0f})\n"
+                f"• Risk/Reward Ratio: 1 : {risk_reward_ratio}"
             )
             risk_text = (
-                f"Pasang stop loss disiplin di Rp {stop_loss:,.0f} (toleransi batas invalidasi Rp {invalidation_level:,.0f})."
+                f"1. Fluktuasi sentimen pasar acuan ({ihsg_phrase}) dan volatilitas indeks sektoral.\n"
+                f"2. Risiko false breakout atau pelemahan jika harga menembus di bawah batas aman Rp {invalidation_level:,.0f}."
             )
 
         elif action == "BUY":
             thesis_text = (
-                f"Setup {trading_style} pada {snapshot.symbol} terlihat menarik dan punya peluang bagus! "
-                f"Harga di Rp {last_price:,.0f} didukung aliran dana yang masuk dan konfirmasi teknikal yang solid buat entry terukur."
+                f"Kondisi Pasar: {ihsg_phrase}. Saham {snapshot.symbol} menunjukkan kekuatan relatif tinggi "
+                f"didukung akumulasi aliran dana dan konfirmasi teknikal yang solid di harga Rp {last_price:,.0f}."
             )
             technical_text = (
-                f"• Harga bergerak solid di atas support MA20 (Rp {ma20:,.0f}) dan MA50 (Rp {ma50:,.0f}).\n"
-                f"• Momentum RSI {rsi14:.1f} bergerak sehat dalam fase penguatan harga dengan volatilitas harian (ATR14) Rp {atr14:,.0f}."
+                f"• Tren Utama: {ma_alignment.replace('_', ' ').title()}\n"
+                f"  - Harga (Rp {last_price:,.0f}) berada kokoh di atas MA20 (Rp {ma20:,.0f}) dan MA50 (Rp {ma50:,.0f}).\n"
+                f"• Indikator Momentum:\n"
+                f"  - RSI 14: {rsi14:.1f} ({rsi_condition})\n"
+                f"  - ATR 14: Rp {atr14:,.0f} rentang fluktuasi harian normal.\n"
+                f"• Level Kunci:\n"
+                f"  - Resistance Terdekat / 52W High: Rp {nearest_resistance:,.0f}{f' (52W High: Rp {high_52w:,.0f})' if high_52w else ''}\n"
+                f"  - Support Dinamis / Pullback: Rp {nearest_support:,.0f}{f' (52W Low: Rp {low_52w:,.0f})' if low_52w else ''}"
             )
             flow_text = (
-                f"• {foreign_phrase}.\n"
-                f"• {bandar_phrase} dengan antrean bid tebal (Rasio Bid/Ask {bid_ask_ratio:.2f}x)."
+                f"Status Bandar: {bandar_status.replace('_', ' ').title()}\n"
+                f"• Konsentrasi Top 3 Buyer: {_get(broker_flow, 'top3_buyer_concentration_percent', 0):.1f}%\n"
+                f"• Akumulator Utama: {top_buyers_formatted}\n"
+                f"• Distribusi Penjual: {seller_formatted}\n"
+                f"Status Asing: {foreign_status.replace('_', ' ').title()}\n"
+                f"• {foreign_phrase}\n"
+                f"👉 Kesimpulan Flow: Dana institusi/asing masuk aktif dengan antrean bid tebal (Rasio Bid/Ask {bid_ask_ratio:.2f}x)."
             )
             guidance_text = (
-                f"• Area Beli: Masuk santai di rentang Rp {entry_min:,.0f} - Rp {entry_max:,.0f}.\n"
-                f"• Target Cuan: Ambil profit bertahap di TP1 Rp {target_price_1:,.0f} dan TP2 Rp {target_price_2:,.0f}."
+                f"📌 Strategi: {'Buy on Weakness (BoW) / Antri Pullback' if rsi14 >= 70 else 'Buy on Breakout / Follow Through'}\n"
+                f"• Area Beli Optimal: Rp {entry_min:,.0f} – Rp {entry_max:,.0f}\n"
+                f"• Target Take Profit 1 (TP1): Rp {target_price_1:,.0f}\n"
+                f"• Target Take Profit 2 (TP2): Rp {target_price_2:,.0f}\n"
+                f"• Stop Loss (SL): Rp {stop_loss:,.0f} (Invalidasi Rp {invalidation_level:,.0f})\n"
+                f"• Risk/Reward Ratio: 1 : {risk_reward_ratio}"
             )
             risk_text = (
-                f"Pasang stop loss disiplin di Rp {stop_loss:,.0f} (toleransi batas invalidasi Rp {invalidation_level:,.0f})."
+                f"1. Sentimen komoditas dan volatilitas pasar regional ({ihsg_phrase}).\n"
+                f"2. {'Penurunan momentum sesaat akibat aksi profit taking menyusul RSI yang jenuh beli (overbought).' if rsi14 >= 70 else 'Potensi tekanan jual mendadak jika harga gagal menembus level resistance terdekat.'}"
             )
 
         else:  # SKIP
             thesis_text = (
-                f"Setup {snapshot.symbol} sebaiknya dilewati dulu untuk saat ini. "
+                f"Kondisi Pasar: {ihsg_phrase}. Setup {snapshot.symbol} sebaiknya dilewati dulu untuk saat ini. "
                 f"Potensi reward belum sebanding dengan risiko penurunan, dan belum ada tanda-tanda minat beli yang meyakinkan di harga Rp {last_price:,.0f}."
             )
             technical_text = (
-                f"• Struktur harga masih rentan koreksi di bawah rata-rata pergerakan utama (MA20 Rp {ma20:,.0f}, MA50 Rp {ma50:,.0f}).\n"
-                f"• Indikator momentum RSI {rsi14:.1f} belum menunjukkan sinyal pembalikan arah yang valid."
+                f"• Tren Utama: {ma_alignment.replace('_', ' ').title()}\n"
+                f"  - Struktur harga masih rentan koreksi di bawah rata-rata pergerakan utama (MA20 Rp {ma20:,.0f}, MA50 Rp {ma50:,.0f}).\n"
+                f"• Indikator Momentum:\n"
+                f"  - RSI 14: {rsi14:.1f} ({rsi_condition})\n"
+                f"  - ATR 14: Rp {atr14:,.0f} rentang fluktuasi harian normal.\n"
+                f"• Level Kunci:\n"
+                f"  - Resistance Terdekat / 52W High: Rp {nearest_resistance:,.0f}\n"
+                f"  - Support Dinamis / Pullback: Rp {nearest_support:,.0f}"
             )
             flow_text = (
-                f"• Tekanan jual masih dominan dengan aksi {bandar_phrase.lower()}.\n"
-                f"• {foreign_phrase} dengan antrean bid-ask tipis {bid_ask_ratio:.2f}x."
+                f"Status Bandar: {bandar_status.replace('_', ' ').title()}\n"
+                f"• Konsentrasi Top 3 Buyer: {_get(broker_flow, 'top3_buyer_concentration_percent', 0):.1f}%\n"
+                f"• Akumulator Utama: {top_buyers_formatted}\n"
+                f"• Distribusi Penjual: {seller_formatted}\n"
+                f"Status Asing: {foreign_status.replace('_', ' ').title()}\n"
+                f"• {foreign_phrase}\n"
+                f"👉 Kesimpulan Flow: Tekanan jual masih dominan dengan antrean bid-ask tipis (Rasio Bid/Ask {bid_ask_ratio:.2f}x)."
             )
             guidance_text = (
-                f"• Alasan utama: Rasio risk/reward kurang menarik dan konfirmasi bandarmology belum mendukung.\n"
-                f"• Saran: Cari peluang di emiten lain yang punya momentum lebih segar dan akumulasi lebih jelas."
+                f"📌 Strategi: Avoid / Cari Peluang Lain\n"
+                f"• Alasan: Rasio risk/reward kurang menarik dan konfirmasi flow pasar belum mendukung.\n"
+                f"• Batas Pantau: Jangan sentuh sebelum harga mampu bertahan stabil di atas Rp {invalidation_level:,.0f}."
             )
             risk_text = (
-                f"Jika tetap memantau, jangan sentuh sebelum harga mampu bertahan stabil di atas Rp {invalidation_level:,.0f}."
+                f"1. Tekanan jual berkelanjutan dari broker distribusi dan arus dana asing.\n"
+                f"2. Koreksi lanjutan jika harga breakdown di bawah support Rp {nearest_support:,.0f}."
             )
 
         return {

@@ -3,7 +3,10 @@ import { get, post } from "@/lib/api/client";
 import type { BuyDecisionResult, CloseRequest, CloseResponse, CurrentStep, CurrentStepActiveRequest, CurrentStepCode, CurrentStepFailedRequest, CurrentStepMode, CurrentStepWorkflowAction, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, LatestAnalysisSummary, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, RequestStatus, SessionActivityType, SessionDetailAggregate, SessionRecentActivityItem, SessionSummaryClosure, SessionSummaryPosition, SkipDecisionResult, SkipReason, TradeSession, TradeSessionCreateInput, TradeSessionListResponse, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${publicEnv.apiBaseUrl}${path}`, { ...options, credentials: "include" });
+  const normalizedPath = publicEnv.apiBaseUrl.endsWith("/api") && path.startsWith("/api/")
+    ? path.slice(4)
+    : path;
+  const response = await fetch(`${publicEnv.apiBaseUrl}${normalizedPath}`, { ...options, credentials: "include" });
   if (!response.ok) {
     let message = "Permintaan tidak dapat diproses.";
     try { const body = await response.json(); message = body?.detail?.message ?? body?.detail ?? message; } catch { /* non-json error */ }
@@ -38,7 +41,7 @@ export function uploadInitialEvidence(id: string, files: { orderbook: File; char
   return request(`${base}/${id}/initial-evidence`, { method: "POST", body });
 }
 export function readInitialEvidence(id: string): Promise<InitialEvidenceUploadResponse> { return request(`${base}/${id}/initial-evidence`); }
-export function submitInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return post<InitialAnalysisSubmission>(`${base}/${id}/initial-analysis`, {}); }
+export function submitInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return post<InitialAnalysisSubmission>(`${base}/${id}/initial-analysis`); }
 export function readInitialAnalysis(id: string, signal?: AbortSignal): Promise<InitialAnalysisRead> { return get<InitialAnalysisRead>(`${base}/${id}/initial-analysis`, undefined, signal); }
 export function retryInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return post<InitialAnalysisSubmission>(`${base}/${id}/initial-analysis/retry`, {}); }
 export function uploadWaitUpdateInput(id: string, input: { orderbook: File; broker_flow_1d?: File | null; current_price: string; observation_period: ObservationPeriod; observation_timestamp: string }): Promise<WaitUpdateInputResponse> {

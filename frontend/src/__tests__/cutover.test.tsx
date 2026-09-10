@@ -36,6 +36,8 @@ vi.mock("@/lib/auth-context", () => ({
 vi.mock("@/features/trade-workspace/api", () => ({
   getSession: vi.fn(),
   listSessions: vi.fn(),
+  getSessionWorkspaceData: vi.fn().mockResolvedValue({ session: null }),
+  analyzeSession: vi.fn().mockResolvedValue({}),
 }));
 
 beforeEach(() => {
