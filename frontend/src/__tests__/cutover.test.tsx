@@ -89,12 +89,12 @@ describe("Reversible Frontend Cutover", () => {
     mockUser = { id: "user-1", email: "test@example.com" };
     render(<Header />);
 
-    const brandLink = screen.getByRole("link", { name: "TradePilot AI" });
+    const brandLink = screen.getByRole("link", { name: "TradePilot AI — Beranda" });
     expect(brandLink.getAttribute("href")).toBe("/sessions");
 
-    const sessionsLink = screen.getByRole("link", { name: "Sessions" });
+    const sessionsLink = screen.getByRole("link", { name: "Sesi Perdagangan" });
     expect(sessionsLink.getAttribute("href")).toBe("/sessions");
-    expect(screen.getByRole("link", { name: "Archive" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Arsip" }).getAttribute("href")).toBe(
       "/sessions/archived",
     );
     expect(screen.queryByRole("link", { name: /trade workspace/i })).toBeNull();

@@ -30,12 +30,18 @@ describe("global header", () => {
   it("preserves reduced unauthenticated brand and login navigation", () => {
     render(<Header />);
 
-    expect(screen.getByRole("link", { name: "TradePilot AI" })).toHaveAttribute(
+    // Brand link goes to "/" when not logged in
+    expect(
+      screen.getByRole("link", { name: "TradePilot AI — Beranda" }),
+    ).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Masuk" })).toHaveAttribute(
       "href",
-      "/",
+      "/login",
     );
-    expect(screen.getByRole("link", { name: "Masuk" })).toHaveAttribute("href", "/login");
-    expect(screen.queryByRole("navigation", { name: "Navigasi utama" })).toBeNull();
+    // Nav not shown when logged out
+    expect(
+      screen.queryByRole("navigation", { name: "Navigasi utama" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Keluar" })).toBeNull();
   });
 
@@ -43,11 +49,12 @@ describe("global header", () => {
     mockLoading = true;
     render(<Header />);
 
-    expect(screen.getByRole("link", { name: "TradePilot AI" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-    expect(screen.queryByRole("navigation", { name: "Navigasi utama" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "TradePilot AI — Beranda" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.queryByRole("navigation", { name: "Navigasi utama" }),
+    ).toBeNull();
     expect(screen.queryByRole("link", { name: "Masuk" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Keluar" })).toBeNull();
   });
@@ -57,24 +64,31 @@ describe("global header", () => {
     mockUser = { id: "user-a", email };
     render(<Header />);
 
-    expect(screen.getByRole("link", { name: "TradePilot AI" })).toHaveAttribute(
-      "href",
-      "/sessions",
-    );
+    // Brand link goes to /sessions when logged in
+    expect(
+      screen.getByRole("link", { name: "TradePilot AI — Beranda" }),
+    ).toHaveAttribute("href", "/sessions");
+
+    // Desktop nav present
     const navigation = screen.getByRole("navigation", { name: "Navigasi utama" });
     expect(navigation).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sessions" })).toHaveAttribute(
-      "href",
-      "/sessions",
-    );
-    expect(screen.getByRole("link", { name: "Archive" })).toHaveAttribute(
+
+    // Nav links — desktop labels
+    expect(
+      screen.getByRole("link", { name: "Sesi Perdagangan" }),
+    ).toHaveAttribute("href", "/sessions");
+    expect(screen.getByRole("link", { name: "Arsip" })).toHaveAttribute(
       "href",
       "/sessions/archived",
     );
-    expect(screen.getByText(email)).toHaveAttribute("title", email);
-    expect(screen.getAllByRole("button", { name: "Keluar" })).toHaveLength(1);
-    expect(screen.queryByRole("link", { name: /trade workspace/i })).toBeNull();
 
+    // Email visible
+    expect(screen.getByText(email)).toHaveAttribute("title", email);
+
+    // Exactly one logout button
+    expect(screen.getAllByRole("button", { name: "Keluar" })).toHaveLength(1);
+
+    // Unapproved links absent
     for (const unapprovedLabel of [
       "Dashboard",
       "Analytics",
@@ -86,29 +100,34 @@ describe("global header", () => {
       "Reports",
       "Help",
     ]) {
-      expect(screen.queryByRole("link", { name: unapprovedLabel })).toBeNull();
+      expect(
+        screen.queryByRole("link", { name: unapprovedLabel }),
+      ).toBeNull();
     }
   });
 
   it.each([
-    ["/sessions", "Sessions"],
-    ["/sessions/new", "Sessions"],
-    ["/sessions/session-123", "Sessions"],
-    ["/sessions/session-123/analysis", "Sessions"],
-    ["/sessions/session-123/history", "Sessions"],
-    ["/sessions/archived", "Archive"],
+    ["/sessions", "Sesi Perdagangan"],
+    ["/sessions/new", "Sesi Perdagangan"],
+    ["/sessions/session-123", "Sesi Perdagangan"],
+    ["/sessions/session-123/analysis", "Sesi Perdagangan"],
+    ["/sessions/session-123/history", "Sesi Perdagangan"],
+    ["/sessions/archived", "Arsip"],
   ])("marks %s active as %s", (pathname, activeLabel) => {
     mockUser = { id: "user-a", email: "user@example.test" };
     mockPathname = pathname;
     render(<Header />);
 
+    // aria-current="page" on the active desktop nav link
     const activeLink = screen.getByRole("link", { name: activeLabel });
-    const inactiveLabel = activeLabel === "Sessions" ? "Archive" : "Sessions";
     expect(activeLink).toHaveAttribute("aria-current", "page");
-    expect(activeLink).toHaveClass("font-semibold");
-    expect(screen.getByRole("link", { name: inactiveLabel })).not.toHaveAttribute(
-      "aria-current",
-    );
+
+    // The inactive link has no aria-current
+    const inactiveLabel =
+      activeLabel === "Sesi Perdagangan" ? "Arsip" : "Sesi Perdagangan";
+    expect(
+      screen.getByRole("link", { name: inactiveLabel }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("does not mark primary navigation active on the legacy workspace", () => {
@@ -116,30 +135,25 @@ describe("global header", () => {
     mockPathname = "/trade-workspace";
     render(<Header />);
 
-    expect(screen.getByRole("link", { name: "Sessions" })).not.toHaveAttribute(
-      "aria-current",
-    );
-    expect(screen.getByRole("link", { name: "Archive" })).not.toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: "Sesi Perdagangan" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Arsip" })).not.toHaveAttribute(
       "aria-current",
     );
   });
 
-  it("uses a compact two-row mobile structure without fixed shell widths", () => {
-    mockUser = { id: "user-a", email: "very-long-trading-identity@example.test" };
+  it("has a full-width sticky header with max-w-7xl inner container", () => {
+    mockUser = { id: "user-a", email: "user@example.test" };
     const { container } = render(<Header />);
 
-    const shell = container.querySelector("header > div");
-    const navigation = screen.getByRole("navigation", { name: "Navigasi utama" });
-    const email = screen.getByText("very-long-trading-identity@example.test");
+    const headerEl = container.querySelector("header");
+    const innerDiv = container.querySelector("header > div");
 
-    expect(shell).toHaveClass("grid", "grid-cols-[minmax(0,1fr)_auto]");
-    expect(shell).toHaveClass("sm:grid-cols-[auto_minmax(0,1fr)_auto]");
-    expect(navigation).toHaveClass("row-start-2", "sm:row-start-1", "min-w-0");
-    expect(email).toHaveClass("sr-only", "sm:not-sr-only", "sm:truncate");
-    expect(screen.getByRole("link", { name: "Sessions" })).toHaveClass("min-h-11");
-    expect(screen.getByRole("link", { name: "Archive" })).toHaveClass("min-h-11");
-    expect(screen.getByRole("button", { name: "Keluar" })).toHaveClass("min-h-11");
-    expect(shell?.className).not.toMatch(/\bw-(?:screen|\[)/);
+    expect(headerEl).toHaveClass("sticky", "top-0", "w-full");
+    expect(innerDiv).toHaveClass("max-w-7xl", "mx-auto");
+    // No fixed-width shell
+    expect(innerDiv?.className).not.toMatch(/\bw-(?:screen|\[)/);
   });
 
   it("keeps keyboard order logical and logout behavior unchanged", async () => {
@@ -147,12 +161,17 @@ describe("global header", () => {
     mockUser = { id: "user-a", email: "user@example.test" };
     render(<Header />);
 
+    // Tab through: brand → desktop nav links → logout button
     await user.tab();
-    expect(screen.getByRole("link", { name: "TradePilot AI" })).toHaveFocus();
+    expect(
+      screen.getByRole("link", { name: "TradePilot AI — Beranda" }),
+    ).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole("link", { name: "Sessions" })).toHaveFocus();
+    expect(
+      screen.getByRole("link", { name: "Sesi Perdagangan" }),
+    ).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole("link", { name: "Archive" })).toHaveFocus();
+    expect(screen.getByRole("link", { name: "Arsip" })).toHaveFocus();
     await user.tab();
     const logoutButton = screen.getByRole("button", { name: "Keluar" });
     expect(logoutButton).toHaveFocus();
