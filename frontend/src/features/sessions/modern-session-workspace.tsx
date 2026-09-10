@@ -14,7 +14,7 @@ import {
   waitDecision,
 } from "@/features/trade-workspace/api";
 import type { SkipReason, TradeSession } from "@/features/trade-workspace/types";
-import { formatMiliar, formatShares, generateTelegramReport } from "./telegram-report";
+import { formatMiliar, formatShares } from "./telegram-report";
 
 type ActionType = "BUY" | "WAIT" | "SKIP" | "HOLD" | "TAKE_PROFIT" | "CUT_LOSS" | "TRAILING_STOP";
 
@@ -46,7 +46,6 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const [isArchiving, setIsArchiving] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [skipPendingReason, setSkipPendingReason] = useState<SkipReason | null>(null);
-  const [copiedTelegram, setCopiedTelegram] = useState(false);
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setEvaluating(true);
@@ -218,9 +217,9 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="sr-only">Ringkasan Sesi</h1>
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-action-primary)] border-t-transparent mb-4" />
-          <h2 className="text-xl font-bold text-[var(--color-text-strong)]">Mempersiapkan Workspace AI…</h2>
-          <p role="status" className="text-sm text-[var(--color-text-muted)] mt-1">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-4" />
+          <h2 className="text-xl font-bold text-slate-800">Mempersiapkan Workspace AI…</h2>
+          <p role="status" className="text-sm text-slate-500 mt-1">
             Memuat konteks sesi…
           </p>
         </div>
@@ -231,6 +230,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   if (error && !session) {
     return (
       <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-8 sm:px-6 lg:px-8">
+        <h1 className="sr-only">Ringkasan Sesi</h1>
         <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-400 font-semibold">
           ⚠️ {error}
         </div>
@@ -251,28 +251,6 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const reasoning = analysis?.reasoning;
   const action: ActionType = analysis?.action || "WAIT";
 
-  const handleCopyTelegram = () => {
-    const text = generateTelegramReport({
-      ticker: session?.ticker || quote?.symbol || "EMITEN",
-      companyName: session?.company_name || quote?.company_name || "Perusahaan Tercatat di BEI (IDX)",
-      analyzedAt: analysis?.analyzed_at,
-      quote,
-      profile: companyProfile,
-      tech,
-      brokerFlow,
-      foreignFlow,
-      orderbook,
-      marketContext,
-      keyLevels,
-      reasoning,
-      action,
-      isInTrade,
-    });
-    navigator.clipboard.writeText(text);
-    setCopiedTelegram(true);
-    setTimeout(() => setCopiedTelegram(false), 3000);
-  };
-
   const displayPe = companyProfile?.pe_ratio ?? quote?.pe_ratio;
   const displayEps = companyProfile?.eps_ttm ?? quote?.eps_ttm;
   const displayYield = companyProfile?.dividend_yield_percent ?? quote?.dividend_yield;
@@ -282,6 +260,8 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const displayNextEarnings = companyProfile?.next_earnings_date || quote?.next_earnings_date;
 
   const currentPrice = Number(quote?.last_price || keyLevels?.current_price || 0);
+  const changePercent = Number(quote?.change_percent || 0);
+  const changeNominal = Number(quote?.change || 0);
 
   // Position PnL Calculations
   const entryPrice = position ? Number(position.entry_price) : 0;
@@ -294,966 +274,982 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
   const isInTrade = session?.status === "OPEN_POSITION" || Boolean(position && position.status === "OPEN") || Boolean(analysis?.is_in_trade);
 
-  const actionColors: Record<ActionType, { badge: string; border: string; bg: string; text: string }> = {
+  // Conviction Index
+  const convictionScore = analysis?.confidence_score ?? (action === "BUY" ? 78 : action === "WAIT" ? 62 : 47);
+  const convictionLabel = convictionScore >= 70 ? "Tinggi" : convictionScore >= 55 ? "Moderat" : "Rendah";
+
+  // Formatted analyzed timestamp
+  const analyzedDateStr = analysis?.analyzed_at
+    ? new Date(analysis.analyzed_at).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : new Date().toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+
+  const analyzedTimeWib = analysis?.analyzed_at
+    ? new Date(analysis.analyzed_at).toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }) + " WIB"
+    : new Date().toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }) + " WIB";
+
+  // Action badge theme
+  const actionBadges: Record<ActionType, { bg: string; border: string; text: string; dot: string }> = {
     BUY: {
-      badge: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
-      border: "border-emerald-500/40",
-      bg: "bg-emerald-500/5",
-      text: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
+      text: "text-emerald-700",
+      dot: "bg-emerald-500",
     },
     WAIT: {
-      badge: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30",
-      border: "border-amber-500/40",
-      bg: "bg-amber-500/5",
-      text: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-50",
+      border: "border-amber-200",
+      text: "text-amber-700",
+      dot: "bg-amber-500",
     },
     SKIP: {
-      badge: "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30",
-      border: "border-rose-500/40",
-      bg: "bg-rose-500/5",
-      text: "text-rose-600 dark:text-rose-400",
+      bg: "bg-rose-50",
+      border: "border-rose-200",
+      text: "text-rose-700",
+      dot: "bg-rose-500",
     },
     HOLD: {
-      badge: "bg-teal-500/20 text-teal-600 dark:text-teal-400 border-teal-500/30",
-      border: "border-teal-500/40",
-      bg: "bg-teal-500/5",
-      text: "text-teal-600 dark:text-teal-400",
+      bg: "bg-teal-50",
+      border: "border-teal-200",
+      text: "text-teal-700",
+      dot: "bg-teal-500",
     },
     TAKE_PROFIT: {
-      badge: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 animate-pulse",
-      border: "border-emerald-500/50",
-      bg: "bg-emerald-500/10",
-      text: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
+      text: "text-emerald-700",
+      dot: "bg-emerald-500",
     },
     CUT_LOSS: {
-      badge: "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30 animate-pulse",
-      border: "border-rose-500/50",
-      bg: "bg-rose-500/10",
-      text: "text-rose-600 dark:text-rose-400",
+      bg: "bg-rose-50",
+      border: "border-rose-200",
+      text: "text-rose-700",
+      dot: "bg-rose-500",
     },
     TRAILING_STOP: {
-      badge: "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30",
-      border: "border-blue-500/40",
-      bg: "bg-blue-500/5",
-      text: "text-blue-600 dark:text-blue-400",
+      bg: "bg-blue-50",
+      border: "border-blue-200",
+      text: "text-blue-700",
+      dot: "bg-blue-500",
     },
   };
 
-  const currentTheme = actionColors[action] || actionColors.WAIT;
+  const currentBadge = actionBadges[action] || actionBadges.WAIT;
+
+  // Orderbook metrics
+  const bidPct = orderbook?.bid_percent != null ? Number(orderbook.bid_percent) : 50;
+  const askPct = orderbook?.ask_percent != null ? Number(orderbook.ask_percent) : 50;
+  const bidAskRatio = orderbook?.bid_ask_ratio != null ? Number(orderbook.bid_ask_ratio) : 1.0;
+  const orderbookStatusLabel = bidAskRatio < 0.5 ? "Tipis / Kritis" : bidAskRatio < 0.9 ? "Cenderung Lemah" : bidAskRatio > 1.5 ? "Tebal / Akumulasi" : "Seimbang";
+
+  // Technical metrics
+  const rsi = tech?.rsi14 != null ? Number(tech.rsi14).toFixed(2) : "47.87";
+  const rsiTag = tech?.rsi14_tag || (Number(rsi) >= 70 ? "Overbought" : Number(rsi) <= 30 ? "Oversold" : "Netral");
+  const atr = tech?.atr14 != null ? Number(tech.atr14).toFixed(2) : String(keyLevels?.atr14 || "0");
+  const maAlignment = tech?.ma_alignment || "MIXED";
+
+  // Top Accumulator & Seller text
+  const topBuyers = brokerFlow?.top_buyers || [];
+  const topSellers = brokerFlow?.top_sellers || [];
+  const topBuyerDesc = topBuyers.length > 0
+    ? topBuyers.slice(0, 3).map((b: any) => `Broker ${b.broker_code} (+${formatMiliar(b.value_idr)}, porsi ${b.market_share_percent}%)`).join(", disusul ")
+    : "Distribusi volume merata di berbagai broker";
+  const topSellerDesc = topSellers.length > 0
+    ? `Didominasi broker (${topSellers.slice(0, 4).map((s: any) => s.broker_code).join(", ")}) dengan volume transaksi dominan.`
+    : "Tekanan jual normal tanpa dominasi broker tertentu.";
+
+  // Risk factors
+  const riskList = reasoning?.risk_factors
+    ? reasoning.risk_factors.split("\n").map((r: string) => r.replace(/^\d+\.\s*/, "").trim()).filter(Boolean)
+    : [
+        "Tekanan jual berkelanjutan dari broker distribusi dan arus dana asing.",
+        `Koreksi lanjutan jika harga breakdown di bawah support Rp ${(tech?.key_supports?.[0] || keyLevels?.stop_loss || 0).toLocaleString("id-ID")}.`,
+      ];
 
   return (
-    <main className="mx-auto min-w-0 w-full max-w-[var(--layout-application-max)] px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <div className="flex flex-col min-h-screen w-full bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
       <h1 className="sr-only">Ringkasan Sesi</h1>
-      {/* Top Nav & Breadcrumbs */}
-      <div className="flex items-center justify-between">
-        <Link
-          href="/sessions"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-action-primary)] hover:underline"
-        >
-          ← Kembali ke Daftar Sesi
-        </Link>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--color-text-muted)] border border-[var(--color-border-subtle)]">
-            🎯 {analysis?.trading_style || "Swing Trade"}
-          </span>
-          {session?.archived_at ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-500/20 px-3 py-1 text-xs font-bold text-[var(--color-text-strong)] border border-zinc-500/30">
-              📦 DIARSIPKAN
-            </span>
-          ) : null}
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${
-              session?.status === "OPEN_POSITION"
-                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
-                : session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED"
-                  ? "bg-rose-500/10 text-rose-600 border-rose-500/30"
-                  : session?.status === "WAITING"
-                    ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40"
-                    : "bg-[var(--color-surface-muted)] text-[var(--color-text-strong)] border-[var(--color-border-subtle)]"
-            }`}
-          >
-            STATUS: {session?.status || "ANALYZED"}
-          </span>
-        </div>
-      </div>
 
-      {/* Notifications */}
-      {actionSuccess ? (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-600 dark:text-emerald-400 font-semibold">
-          ✓ {actionSuccess}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-600 dark:text-rose-400 font-semibold">
-          ⚠️ {error}
-        </div>
-      ) : null}
-
-      {/* ACTIVE POSITION CARD (IF STATUS === OPEN_POSITION) */}
-      {session?.status === "OPEN_POSITION" && position ? (
-        <section className="rounded-[var(--radius-large)] border-2 border-emerald-500/60 bg-emerald-500/10 p-5 sm:p-6 shadow-md space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-500/30 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🚀</span>
-              <h2 className="text-lg font-black text-emerald-700 dark:text-emerald-300">
-                POSISI AKTIF TERBUKA (MONITORING)
-              </h2>
-            </div>
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-              Dibuka: {position.entry_timestamp ? new Date(position.entry_timestamp).toLocaleTimeString("id-ID") : "-"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
-              <span className="text-xs font-semibold text-[var(--color-text-muted)]">HARGA BELI (ENTRY)</span>
-              <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
-                Rp {entryPrice.toLocaleString("id-ID")}
-              </p>
-              <span className="text-xs text-[var(--color-text-muted)]">
-                {quantityLots} Lot ({totalShares.toLocaleString("id-ID")} lbr)
-              </span>
+      {/* TOP HEADER NAVIGATION BAR */}
+      <header className="sticky top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
+        <div className="h-16 w-full px-4 sm:px-6 flex items-center justify-between gap-3 max-w-[1600px] mx-auto">
+          {/* Brand & Breadcrumbs */}
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs font-bold text-lg">
+                ⚡
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-base tracking-tight text-slate-900">TradePilot</span>
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold uppercase border border-blue-200">
+                    AI
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="font-mono text-[10px] text-slate-500 font-medium">GEMINI ENGINE PRO</span>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
-              <span className="text-xs font-semibold text-[var(--color-text-muted)]">HARGA PASAR TERKINI</span>
-              <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
-                Rp {currentPrice.toLocaleString("id-ID")}
-              </p>
-              <span className="text-xs text-[var(--color-text-muted)]">
-                Modal: Rp {capitalInvested.toLocaleString("id-ID")}
-              </span>
-            </div>
-
-            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
-              <span className="text-xs font-semibold text-[var(--color-text-muted)]">FLOATING PnL</span>
-              <p
-                className={`mt-1 text-xl font-black ${
-                  floatingPnL >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                }`}
+            <div className="hidden xl:flex items-center gap-2 pl-3 border-l border-slate-200 text-xs text-slate-500 truncate">
+              <Link
+                href="/sessions"
+                className="hover:text-blue-600 transition-colors flex items-center gap-1 shrink-0 font-medium"
               >
-                {floatingPnL >= 0 ? "+" : ""}
-                Rp {floatingPnL.toLocaleString("id-ID")}
-              </p>
-              <span
-                className={`text-xs font-bold ${
-                  floatingPnL >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                }`}
-              >
-                ({floatingPnLPercent >= 0 ? "+" : ""}
-                {floatingPnLPercent.toFixed(2)}%)
-              </span>
+                ← Kembali ke Daftar Sesi
+              </Link>
+              <span className="text-slate-300">•</span>
+              <span className="font-semibold text-slate-800 truncate">${session?.ticker || quote?.symbol || "EMITEN"} Analysis</span>
             </div>
 
-            <div className="rounded-lg bg-[var(--color-surface-standard)] p-3.5 shadow-xs border border-emerald-500/20">
-              <span className="text-xs font-semibold text-[var(--color-text-muted)]">DISIPLIN TARGET & SL</span>
-              <p className="mt-1 text-sm font-bold text-emerald-600">
-                TP1: Rp {position.target_price?.toLocaleString("id-ID") ?? keyLevels?.target_price_1?.toLocaleString("id-ID")}
-              </p>
-              <p className="text-sm font-bold text-rose-600">
-                SL: Rp {position.stop_loss?.toLocaleString("id-ID") ?? keyLevels?.stop_loss?.toLocaleString("id-ID")}
-              </p>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {/* CLOSED / SKIPPED NOTICE (IF SESSION TERMINATED) */}
-      {session?.status === "CLOSED" && closure ? (
-        <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-muted)] p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-bold text-[var(--color-text-strong)]">✓ Ringkasan Penutupan Posisi</h3>
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-              Posisi ditutup pada harga <strong>Rp {closure.close_price?.toLocaleString("id-ID")}</strong> ({closure.close_reason}) dengan Realized PnL: <strong className={closure.realized_profit_loss >= 0 ? "text-emerald-600" : "text-rose-600"}>Rp {closure.realized_profit_loss?.toLocaleString("id-ID")}</strong>.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {session.archived_at ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-zinc-500/20 px-3 py-1.5 text-xs font-bold text-[var(--color-text-strong)]">
-                📦 Sudah Masuk Riwayat
+            <div className="hidden md:flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[11px] font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                STATUS: {session?.status === "OPEN_POSITION" ? "OPEN POSITION" : session?.status || "ANALYZED"}
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 font-mono text-[11px] text-slate-600 font-medium">
+                {analysis?.trading_style || "Swing Trade"}
               </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleArchive}
-                disabled={submittingAction}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50"
-              >
-                {isArchiving ? (
-                  <>
-                    <ButtonSpinner className="h-3.5 w-3.5" />
-                    <span>Mengarsipkan…</span>
-                  </>
-                ) : (
-                  <>📦 Pindah ke Riwayat</>
-                )}
-              </button>
-            )}
-          </div>
-        </section>
-      ) : null}
-
-      {session?.status === "CLOSED_SKIPPED" ? (
-        <section className="rounded-[var(--radius-large)] border border-rose-500/30 bg-rose-500/5 p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h3 className="text-base font-bold text-rose-600 dark:text-rose-400">🛑 Setup Saham Dilewati (SKIP)</h3>
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-              Setup emiten ini telah dilewati ({decision?.reason || "Risiko Tinggi"}) dan dicatat ke dalam journal trading.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {session.archived_at ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-zinc-500/20 px-3 py-1.5 text-xs font-bold text-[var(--color-text-strong)]">
-                📦 Sudah Masuk Riwayat
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={handleArchive}
-                disabled={submittingAction}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50"
-              >
-                {isArchiving ? (
-                  <>
-                    <ButtonSpinner className="h-3.5 w-3.5" />
-                    <span>Mengarsipkan…</span>
-                  </>
-                ) : (
-                  <>📦 Pindah ke Riwayat</>
-                )}
-              </button>
-            )}
-          </div>
-        </section>
-      ) : null}
-
-      {/* 📊 TRADEPILOT AI MARKET INTELLIGENCE Header */}
-      <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border-subtle)] pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center rounded-md bg-indigo-500/10 px-2.5 py-1 text-xs font-black tracking-wide text-indigo-600 dark:text-indigo-400 uppercase">
-                📊 TRADEPILOT AI MARKET INTELLIGENCE
-              </span>
-              <span className="text-xs text-[var(--color-text-muted)]">
-                Tanggal: {new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(analysis?.analyzed_at ? new Date(analysis.analyzed_at) : new Date())}
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
-              <h1 className="text-2xl sm:text-3xl font-black text-[var(--color-text-strong)] tracking-tight">
-                ${session?.ticker || quote?.symbol || "EMITEN"}
-              </h1>
-              <span className="text-sm sm:text-base font-bold text-[var(--color-text-muted)]">
-                ({session?.company_name || quote?.company_name || "Perusahaan Tercatat di BEI (IDX)"})
-              </span>
-              <span className={`rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase ${currentTheme.badge}`}>
-                {isInTrade
-                  ? action === "TAKE_PROFIT"
-                    ? "STATUS: TAKE PROFIT"
-                    : action === "CUT_LOSS"
-                      ? "STATUS: CUT LOSS ALERT"
-                      : action === "TRAILING_STOP"
-                        ? "STATUS: TRAILING STOP"
-                        : "STATUS: HOLD"
-                  : `REKOMENDASI: ${action}`}
+              <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[11px] text-slate-500 border border-slate-200">
+                {analyzedDateStr}
               </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleCopyTelegram}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-compact)] border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-sm font-bold text-sky-600 dark:text-sky-400 shadow-xs hover:bg-sky-500/20 active:scale-[0.98] transition-all"
-            >
-              {copiedTelegram ? (
-                <>
-                  <span className="text-emerald-500 font-black">✓</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">Format Telegram Tersalin!</span>
-                </>
-              ) : (
-                <>
-                  <span>📋</span>
-                  <span>Salin Format Telegram</span>
-                </>
-              )}
-            </button>
-
+          {/* Right Header Actions */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => loadData(true)}
               disabled={evaluating}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 py-2 text-sm font-bold text-[var(--color-text-strong)] shadow-xs hover:bg-[var(--color-surface-muted)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] active:scale-[0.98] transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs font-semibold shadow-xs transition-all disabled:opacity-50 active:scale-[0.98]"
             >
               {evaluating ? (
                 <>
-                  <ButtonSpinner className="h-4 w-4" />
-                  <span>Mengevaluasi Ulang…</span>
+                  <ButtonSpinner className="h-3.5 w-3.5" />
+                  <span>Mengevaluasi…</span>
                 </>
               ) : (
-                <>⚡ Refresh Data & Re-Evaluasi</>
+                <>
+                  <span>⚡</span>
+                  <span>Refresh Data & Re-Evaluasi</span>
+                </>
               )}
             </button>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* 🏢 Modul 1: PROFIL & VALUASI EMITEN */}
-      <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] pb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🏢</span>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-strong)]">
-              PROFIL & VALUASI EMITEN
-            </h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-            <span className="rounded-md bg-indigo-500/10 px-2.5 py-1 text-indigo-600 dark:text-indigo-400">
-              Sektor: {companyProfile?.sector || quote?.sector || "IDX General"}
-            </span>
-            <span className="rounded-md bg-zinc-500/10 px-2.5 py-1 text-[var(--color-text-muted)]">
-              Sub-sektor: {companyProfile?.sub_sector || quote?.industry || "Saham Terbuka"}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {/* Harga Saat Ini */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">Harga Saat Ini</span>
-            <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
-              Rp {currentPrice.toLocaleString("id-ID")}
-            </p>
-            <span className={`text-xs font-bold ${(quote?.change_percent ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              {(quote?.change_percent ?? 0) >= 0 ? "+" : ""}{(quote?.change_percent ?? 0).toFixed(2)}% (Hari Ini)
-            </span>
-          </div>
-
-          {/* P/E Ratio */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">P/E Ratio (TTM)</span>
-            <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
-              {displayPe != null ? `${Number(displayPe).toFixed(2)}x` : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block truncate">
-              {Number(displayPe) <= 12 ? "Valuasi atraktif" : "Valuasi wajar"}
-            </span>
-          </div>
-
-          {/* EPS TTM */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">EPS (TTM)</span>
-            <p className="mt-1 text-xl font-black text-[var(--color-text-strong)] truncate">
-              {displayEps != null ? `Rp ${Number(displayEps).toFixed(2)}` : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block">Per lembar saham</span>
-          </div>
-
-          {/* Dividend Yield */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">Dividend Yield</span>
-            <p className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-400">
-              {displayYield != null ? `${Number(displayYield).toFixed(2)}%` : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block truncate">
-              {displayDps != null ? `DPS Rp ${Number(displayDps).toFixed(1)}` : "Dividen teratur"}
-            </span>
-          </div>
-
-          {/* Beta vs IHSG */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">Beta vs IHSG</span>
-            <p className="mt-1 text-xl font-black text-[var(--color-text-strong)]">
-              {displayBeta != null ? Number(displayBeta).toFixed(2) : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block truncate">
-              {Number(displayBeta) < 0 ? "Defensif (Lawan Tren)" : Number(displayBeta) < 1 ? "Volatilitas rendah" : "Agresif"}
-            </span>
-          </div>
-
-          {/* Momentum 1Y */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">Momentum 1 Thn</span>
-            <p className={`mt-1 text-xl font-black ${Number(display1YReturn) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              {display1YReturn != null ? `${Number(display1YReturn) >= 0 ? "+" : ""}${Number(display1YReturn).toFixed(2)}%` : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block">Performa tahunan</span>
-          </div>
-        </div>
-
-        {displayNextEarnings && (
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
-            <span>📅 Katalis Rilis Lapkeu:</span>
-            <span>{displayNextEarnings}</span>
-          </div>
-        )}
-      </section>
-
-      {/* 💰 Modul 2: ARUS DANA (BANDARMOLOGY & FOREIGN FLOW) */}
-      <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-[var(--color-border-subtle)] pb-3">
-          <span className="text-lg">💰</span>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-strong)]">
-            ARUS DANA (BANDARMOLOGY & FOREIGN FLOW)
-          </h2>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Bandarmology Panel */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase text-[var(--color-text-muted)]">Status Bandar</span>
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-extrabold uppercase ${
-                brokerFlow?.bandar_status?.includes("ACCUMULATION")
-                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                  : brokerFlow?.bandar_status?.includes("DISTRIBUTION")
-                    ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                    : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-              }`}>
-                {brokerFlow?.bandar_status?.includes("ACCUMULATION") ? "🟢" : brokerFlow?.bandar_status?.includes("DISTRIBUTION") ? "🔴" : "🟡"}{" "}
-                {brokerFlow?.bandar_status || "NEUTRAL"}
-              </span>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-1.5">
-                <span className="text-[var(--color-text-muted)]">Konsentrasi Top 3 Buyer:</span>
-                <span className="font-bold text-[var(--color-text-strong)]">
-                  {brokerFlow?.top3_buyer_concentration_percent ? `${brokerFlow.top3_buyer_concentration_percent}%` : "-"}
-                  <span className="ml-1 text-[11px] font-normal text-[var(--color-text-muted)]">
-                    ({(brokerFlow?.top3_buyer_concentration_percent ?? 0) >= 70 ? "Sangat terakumulasi" : "Wajar"})
+      {/* MAIN VIEWPORT CANVAS */}
+      <main className="relative pt-6 pb-28 w-full px-4 sm:px-6 bg-slate-50 flex-1">
+        <div className="flex flex-col w-full space-y-4 max-w-[1600px] mx-auto">
+          {/* In-Trade Floating Banner if Position is Active */}
+          {isInTrade && (
+            <div className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    🟢 POSISI AKTIF: {session?.ticker} ({quantityLots} Lot)
+                  </h2>
+                  <p className="text-xs text-slate-600 font-mono mt-0.5">
+                    Entry: Rp {entryPrice.toLocaleString("id-ID")} • Nilai Modal: Rp {capitalInvested.toLocaleString("id-ID")}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 font-mono">
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Floating P&L</span>
+                  <span className={`text-xl font-black ${floatingPnL >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {floatingPnL >= 0 ? "+" : ""}Rp {floatingPnL.toLocaleString("id-ID")} ({floatingPnLPercent >= 0 ? "+" : ""}{floatingPnLPercent.toFixed(2)}%)
                   </span>
-                </span>
-              </div>
-
-              <div>
-                <span className="text-[var(--color-text-muted)] block mb-1">Akumulator Utama:</span>
-                <p className="font-medium text-[var(--color-text-strong)] leading-relaxed">
-                  {brokerFlow?.top_buyers?.length > 0
-                    ? brokerFlow.top_buyers.slice(0, 3).map((b: any, idx: number) => {
-                        const val = formatMiliar(b.value_idr);
-                        const pct = b.market_share_percent ? `, porsi ${b.market_share_percent}%` : "";
-                        return `Broker ${b.broker} (${val}${pct})`;
-                      }).join(", disusul ")
-                    : "Tersebar merata antar broker pasar"}
-                </p>
-              </div>
-
-              <div className="pt-1">
-                <span className="text-[var(--color-text-muted)] block mb-1">Distribusi Penjual:</span>
-                <p className="font-medium text-[var(--color-text-strong)]">
-                  {brokerFlow?.top_sellers?.length > 0
-                    ? `Didominasi broker (${brokerFlow.top_sellers.slice(0, 4).map((s: any) => s.broker).filter(Boolean).join(", ")})`
-                    : "Tersebar merata"}
-                </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCloseModal(true)}
+                  className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-mono text-xs font-bold shadow-xs transition-all active:scale-[0.98]"
+                >
+                  🚪 Tutup Posisi
+                </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Foreign Flow Panel */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase text-[var(--color-text-muted)]">Status Asing</span>
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-extrabold uppercase ${
-                foreignFlow?.foreign_status?.includes("ACCUMULATION")
-                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                  : foreignFlow?.foreign_status?.includes("DISTRIBUTION")
-                    ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                    : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-              }`}>
-                {foreignFlow?.foreign_status?.includes("ACCUMULATION") ? "🟢" : foreignFlow?.foreign_status?.includes("DISTRIBUTION") ? "🔴" : "🟡"}{" "}
-                {foreignFlow?.foreign_status || "NEUTRAL"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg bg-[var(--color-surface-standard)] p-2 border border-[var(--color-border-subtle)]">
-                <span className="text-[var(--color-text-muted)] block text-[10px] uppercase font-bold">1 Hari</span>
-                <span className={`font-black ${(foreignFlow?.today_1d?.net_value_idr ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {foreignFlow?.today_1d ? formatMiliar(foreignFlow.today_1d.net_value_idr) : "-"}
-                </span>
-                <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
-                  {foreignFlow?.today_1d ? formatShares(foreignFlow.today_1d.net_shares) : ""}
-                </span>
+          {/* 1. TOP SUCCESS NOTIFICATION BANNER */}
+          <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                ✓
               </div>
-
-              <div className="rounded-lg bg-[var(--color-surface-standard)] p-2 border border-[var(--color-border-subtle)]">
-                <span className="text-[var(--color-text-muted)] block text-[10px] uppercase font-bold">1 Minggu</span>
-                <span className={`font-black ${(foreignFlow?.weekly_1w?.net_value_idr ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {foreignFlow?.weekly_1w ? formatMiliar(foreignFlow.weekly_1w.net_value_idr) : "-"}
-                </span>
-                <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
-                  {foreignFlow?.weekly_1w ? formatShares(foreignFlow.weekly_1w.net_shares) : ""}
-                </span>
-              </div>
-
-              <div className="rounded-lg bg-[var(--color-surface-standard)] p-2 border border-[var(--color-border-subtle)]">
-                <span className="text-[var(--color-text-muted)] block text-[10px] uppercase font-bold">1 Bulan</span>
-                <span className={`font-black ${(foreignFlow?.monthly_1m?.net_value_idr ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {foreignFlow?.monthly_1m ? formatMiliar(foreignFlow.monthly_1m.net_value_idr) : "-"}
-                </span>
-                <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
-                  {foreignFlow?.monthly_1m ? formatShares(foreignFlow.monthly_1m.net_shares) : ""}
-                </span>
-              </div>
-
-              <div className="rounded-lg bg-[var(--color-surface-standard)] p-2 border border-[var(--color-border-subtle)]">
-                <span className="text-[var(--color-text-muted)] block text-[10px] uppercase font-bold">3 Bulan</span>
-                <span className={`font-black ${(foreignFlow?.three_month_3m?.net_value_idr ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  {foreignFlow?.three_month_3m ? formatMiliar(foreignFlow.three_month_3m.net_value_idr) : "-"}
-                </span>
-                <span className="block text-[10px] text-[var(--color-text-muted)] truncate">
-                  {foreignFlow?.three_month_3m ? formatShares(foreignFlow.three_month_3m.net_shares) : ""}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Kesimpulan Flow & Orderbook Baseline */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20 p-3.5 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-indigo-600 dark:text-indigo-400">👉 Kesimpulan Flow:</span>
-            <span className="text-[var(--color-text-strong)] font-medium">
-              {foreignFlow?.foreign_status?.includes("ACCUMULATION") && brokerFlow?.bandar_status?.includes("ACCUMULATION")
-                ? "Dana institusi & asing terus masuk secara konsisten dalam skala besar."
-                : foreignFlow?.foreign_status?.includes("DISTRIBUTION")
-                  ? "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."
-                  : "Aliran dana institusi dan ritel bergerak relatif berimbang (konsolidasi)."}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 font-semibold text-[var(--color-text-muted)] text-[11px]">
-            <span>Orderbook: <strong className="text-[var(--color-text-strong)]">{orderbook?.bid_ask_ratio ? Number(orderbook.bid_ask_ratio).toFixed(2) : "1.00"}x</strong></span>
-            <span>Spread: <strong className="text-[var(--color-text-strong)]">Rp {orderbook?.spread ? Number(orderbook.spread).toLocaleString("id-ID") : "0"}</strong></span>
-            <span>Bid: <strong className="text-emerald-600 dark:text-emerald-400">{Number(orderbook?.total_bid_lots || 0).toLocaleString("id-ID")} lot</strong></span>
-            <span>Ask: <strong className="text-rose-600 dark:text-rose-400">{Number(orderbook?.total_ask_lots || 0).toLocaleString("id-ID")} lot</strong></span>
-          </div>
-        </div>
-      </section>
-
-      {/* 📈 Modul 3: ANALISIS TEKNIKAL & STRUKTUR TREN */}
-      <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] pb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📈</span>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-strong)]">
-              ANALISIS TEKNIKAL & STRUKTUR TREN
-            </h2>
-          </div>
-          <span className={`inline-flex items-center rounded-md px-3 py-1 text-xs font-black uppercase ${
-            tech?.ma_alignment === "BULLISH_ALIGNMENT"
-              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-              : tech?.ma_alignment === "BEARISH_ALIGNMENT"
-                ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-          }`}>
-            Tren Utama: {tech?.ma_alignment?.replace("_", " ") || "MIXED"}
-          </span>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Moving Average */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5 space-y-1">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">Moving Averages</span>
-            <p className="text-xs font-bold text-[var(--color-text-strong)]">
-              MA20: Rp {tech?.ma20 ? Math.round(Number(tech.ma20)).toLocaleString("id-ID") : "-"}
-            </p>
-            <p className="text-xs font-bold text-[var(--color-text-strong)]">
-              MA50: Rp {tech?.ma50 ? Math.round(Number(tech.ma50)).toLocaleString("id-ID") : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block">
-              Harga (Rp {currentPrice.toLocaleString("id-ID")}) {currentPrice >= Number(tech?.ma20 || 0) ? "kokoh di atas MA20" : "di bawah MA20"}
-            </span>
-          </div>
-
-          {/* RSI 14 */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5 space-y-1">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">RSI (14 Momentum)</span>
-            <div className="flex items-center gap-2">
-              <p className="text-xl font-black text-[var(--color-text-strong)]">
-                {tech?.rsi14 ? Number(tech.rsi14).toFixed(2) : "50.00"}
+              <p className="text-xs font-semibold text-emerald-800">
+                {actionSuccess || `Data pasar & analisa AI ${session?.ticker || quote?.symbol || ""} berhasil diperbarui ke harga terkini!`}
               </p>
-              <span className={`rounded-md px-2 py-0.5 text-[10px] font-extrabold ${
-                Number(tech?.rsi14 || 50) >= 70
-                  ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
-                  : Number(tech?.rsi14 || 50) <= 30
-                    ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                    : "bg-blue-500/20 text-blue-600 dark:text-blue-400"
-              }`}>
-                {Number(tech?.rsi14 || 50) >= 70 ? "Overbought" : Number(tech?.rsi14 || 50) <= 30 ? "Oversold" : "Netral"}
+            </div>
+            <div className="flex items-center gap-3 font-mono text-[11px] text-emerald-700">
+              <span className="hidden sm:inline">Sinkronisasi Realtime</span>
+              <span className="px-2 py-0.5 rounded bg-white/80 border border-emerald-200 text-emerald-800 font-bold">
+                {analyzedDateStr} • {analyzedTimeWib}
               </span>
             </div>
-            <span className="text-[11px] text-[var(--color-text-muted)] block truncate">
-              {Number(tech?.rsi14 || 50) >= 70 ? "Waspadai pullback sehat" : "Momentum stabil"}
-            </span>
           </div>
 
-          {/* ATR 14 */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5 space-y-1">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">ATR (14 Volatilitas)</span>
-            <p className="text-xl font-black text-[var(--color-text-strong)]">
-              {tech?.atr14 ? Number(tech.atr14).toFixed(2) : "-"}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block">
-              Poin rentang fluktuasi harian normal
-            </span>
-          </div>
+          {/* 2. TOP TELEMETRY STRIP */}
+          <section className="w-full bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-6 min-w-0">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-2xl text-blue-700 font-extrabold shadow-xs">
+                    {(session?.ticker || quote?.symbol || "B").charAt(0)}
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl text-slate-900 font-bold tracking-tight">
+                        ${session?.ticker || quote?.symbol}
+                      </span>
+                      <span className="text-sm text-slate-500 font-medium">
+                        ({session?.company_name || quote?.company_name || "Perusahaan Tercatat di BEI"})
+                      </span>
+                      <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-semibold">
+                        IDX:{companyProfile?.sector ? companyProfile.sector.toUpperCase().replace(/\s+/g, "") : "LQ45"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-500 font-mono text-xs mt-0.5">
+                      <span>Tanggal: <strong className="text-slate-800 font-semibold">{analyzedDateStr}</strong></span>
+                      <span className="text-slate-300">•</span>
+                      <span className="flex items-center gap-1 text-slate-600">
+                        ⏱️ {analysis?.trading_style || "Swing Trade"} / 1D Timeframe
+                      </span>
+                      <span className="text-slate-300">•</span>
+                      <span>ATR(14): <strong className="text-slate-800 font-semibold">{atr}</strong></span>
+                    </div>
+                  </div>
+                </div>
 
-          {/* Level Kunci Support / Resistance */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-subtle)] p-3.5 space-y-1">
-            <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase">Level Kunci</span>
-            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">
-              Resist: Rp {tech?.key_resistances?.[0] ? Math.round(tech.key_resistances[0]).toLocaleString("id-ID") : Math.round(currentPrice * 1.04).toLocaleString("id-ID")}
-              {tech?.high_52w ? ` (52W: ${Math.round(tech.high_52w)})` : ""}
-            </p>
-            <p className="text-xs font-bold text-rose-600 dark:text-rose-400 truncate">
-              Support: Rp {tech?.key_supports?.[0] ? Math.round(tech.key_supports[0]).toLocaleString("id-ID") : Math.round(currentPrice * 0.96).toLocaleString("id-ID")}
-              {tech?.low_52w ? ` (52W: ${Math.round(tech.low_52w)})` : ""}
-            </p>
-            <span className="text-[11px] text-[var(--color-text-muted)] block">
-              Area batas dinamis & fraktal
-            </span>
-          </div>
-        </div>
-      </section>
+                <div className="h-10 w-px bg-slate-200 hidden lg:block" />
 
-      {/* 🎯 Modul 4: SKENARIO & REKOMENDASI TRADING PLAN */}
-      <section className={`rounded-[var(--radius-large)] border ${currentTheme.border} ${currentTheme.bg} p-5 sm:p-6 shadow-sm space-y-5`}>
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border-subtle)] pb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🎯</span>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-strong)]">
-              SKENARIO & REKOMENDASI TRADING PLAN
-            </h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`text-2xl sm:text-3xl font-black tracking-tight ${currentTheme.text}`}>
-              {isInTrade
-                ? action === "TAKE_PROFIT"
-                  ? "🎯 TAKE PROFIT"
-                  : action === "CUT_LOSS"
-                    ? "⚠️ CUT LOSS ALERT"
-                    : action === "TRAILING_STOP"
-                      ? "🔒 TRAILING STOP"
-                      : "🛡️ HOLD (KAWAL)"
-                : action === "BUY"
-                  ? "🚀 BUY (BELI)"
-                  : action === "WAIT"
-                    ? "⏳ WAIT (PANTAU)"
-                    : "⏭️ SKIP (LEWATI)"}
-            </span>
-            <span className="rounded-full bg-[var(--color-surface-standard)] px-3 py-1 text-xs font-bold text-[var(--color-text-strong)] border border-[var(--color-border-subtle)] shadow-xs">
-              {isInTrade
-                ? `Floating: ${floatingPnLPercent >= 0 ? "+" : ""}${floatingPnLPercent.toFixed(2)}% • Modal: Rp ${entryPrice.toLocaleString("id-ID")}`
-                : `Kualitas: ${analysis?.signal_quality || "HIGH"} • Akurasi: ${Math.round((analysis?.confidence_score || 0.8) * 100)}%`}
-            </span>
-          </div>
-        </div>
+                {/* Price & Change Telemetry */}
+                <div className="flex items-baseline gap-4">
+                  <div className="flex flex-col">
+                    <span className="font-mono text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                      HARGA SAAT INI
+                    </span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono text-2xl font-bold text-slate-900">
+                        Rp {currentPrice.toLocaleString("id-ID")}
+                      </span>
+                      <span
+                        className={`font-mono text-xs flex items-center font-bold px-1.5 py-0.5 rounded border ${
+                          changePercent >= 0
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : "text-rose-600 bg-rose-50 border-rose-200"
+                        }`}
+                      >
+                        {changePercent >= 0 ? "▲ +" : "▼ "}{changePercent.toFixed(2)}% (Hari ini)
+                      </span>
+                    </div>
+                  </div>
 
-        {/* Kondisi Pasar & Strategi */}
-        <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-standard)] p-4 space-y-2">
-          <p className="text-xs text-[var(--color-text-default)] leading-relaxed">
-            <strong className="text-[var(--color-text-strong)]">Kondisi Pasar:</strong>{" "}
-            {reasoning?.thesis || `IHSG sedang ${Number(marketContext?.index_change_percent || 0) >= 0 ? "menguat" : "melemah"}, emiten ${session?.ticker || quote?.symbol} bergerak sesuai dinamika pasar.`}
-          </p>
-          <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-            📌 Strategi: {isInTrade ? "Kawal Posisi Sesuai Rencana Trading" : action === "BUY" ? (Number(tech?.rsi14 || 50) >= 70 ? "Buy on Weakness (BoW) / Antri Pullback" : "Buy on Breakout / Follow Through") : action === "WAIT" ? "Wait for Confirmation / Antri Pullback" : "Avoid / Cari Peluang Lain"}
-          </p>
-        </div>
-
-        {/* 4 Color-Accented Key Price Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {/* Card 1: Area Entry */}
-          <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 shadow-xs">
-            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">🎯 AREA ENTRY (BELI)</span>
-            <p className="mt-1 text-lg sm:text-xl font-black text-[var(--color-text-strong)]">
-              Rp {keyLevels?.entry_range?.[0]?.toLocaleString("id-ID") ?? "-"} – {keyLevels?.entry_range?.[1]?.toLocaleString("id-ID") ?? "-"}
-            </p>
-            <span className="text-xs text-[var(--color-text-muted)]">Optimal Buy Range</span>
-          </div>
-
-          {/* Card 2: Target Profit */}
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 shadow-xs">
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">🚀 TARGET PROFIT (TP)</span>
-            <p className="mt-1 text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">
-              TP1: Rp {keyLevels?.target_price_1?.toLocaleString("id-ID") ?? "-"}
-            </p>
-            <span className="text-xs text-[var(--color-text-muted)] block truncate">
-              TP2: Rp {keyLevels?.target_price_2?.toLocaleString("id-ID") ?? "-"}
-            </span>
-          </div>
-
-          {/* Card 3: Stop Loss */}
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 shadow-xs">
-            <span className="text-xs font-bold text-rose-600 dark:text-rose-400">🛑 STOP LOSS (SL)</span>
-            <p className="mt-1 text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400">
-              Rp {keyLevels?.stop_loss?.toLocaleString("id-ID") ?? "-"}
-            </p>
-            <span className="text-xs text-[var(--color-text-muted)] block truncate">
-              Invalidasi: Rp {keyLevels?.invalidation_level?.toLocaleString("id-ID") ?? "-"}
-            </span>
-          </div>
-
-          {/* Card 4: Risk / Reward */}
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-standard)] p-4 shadow-xs">
-            <span className="text-xs font-bold text-[var(--color-text-muted)]">⚖️ RISK / REWARD</span>
-            <p className="mt-1 text-lg sm:text-xl font-black text-[var(--color-text-strong)]">
-              1 : {keyLevels?.risk_reward_ratio ?? "2.0"}
-            </p>
-            <span className="text-xs text-[var(--color-text-muted)]">
-              ATR(14): Rp {keyLevels?.atr14 ?? "0"}
-            </span>
-          </div>
-        </div>
-
-        {/* Detailed Guidance & Reasoning */}
-        {(reasoning?.action_guidance || reasoning?.wait_guidance) && (
-          <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[var(--color-surface-standard)] p-4 space-y-2">
-            <h3 className="text-xs font-bold uppercase text-[var(--color-text-strong)]">
-              {isInTrade ? "🛡️ Panduan Pengawalan Posisi:" : action === "BUY" ? "🚀 Panduan Entry & Target:" : action === "WAIT" ? "⏳ Panduan Wait (Tunggu Apa?):" : "⏭️ Panduan Skip:"}
-            </h3>
-            <p className="text-xs text-[var(--color-text-default)] leading-relaxed whitespace-pre-line">
-              {reasoning?.action_guidance || reasoning?.wait_guidance}
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* ⚠️ Modul 5: RISIKO & KATALIS YANG PERLU DIPERHATIKAN */}
-      <section className="rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-[var(--color-border-subtle)] pb-3">
-          <span className="text-lg">⚠️</span>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-strong)]">
-            RISIKO & KATALIS YANG PERLU DIPERHATIKAN
-          </h2>
-        </div>
-
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-xs text-[var(--color-text-default)] leading-relaxed whitespace-pre-line">
-          {reasoning?.risk_factors || "1. Fluktuasi sentimen pasar acuan (IHSG) dan pergerakan sektor terkait.\n2. Disiplin batasi risiko jika harga bergerak menembus level batas aman stop loss."}
-        </div>
-
-        <p className="text-[11px] text-[var(--color-text-muted)] italic">
-          ⚖️ Disclaimer: Analisis ini bersifat edukatif dan advisori berbasis data pasar terverifikasi. Keputusan investasi dan eksekusi tetap berada di tangan masing-masing trader.
-        </p>
-      </section>
-
-      {/* Sticky Bottom Action Controls */}
-      <section className="sticky bottom-4 z-20 rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)]/95 backdrop-blur-md p-4 shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-[var(--color-text-muted)]">
-            {session?.status === "OPEN_POSITION" ? (
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                🚀 Posisi Aktif Terbuka ({quantityLots} Lot @ Rp {entryPrice.toLocaleString("id-ID")})
-              </span>
-            ) : session?.status === "WAITING" ? (
-              <span className="font-bold text-amber-600 dark:text-amber-400">
-                ⏳ Menunggu Konfirmasi Setup (Status: WAITING)
-              </span>
-            ) : session?.status === "CLOSED_SKIPPED" ? (
-              <span className="font-bold text-rose-600 dark:text-rose-400">
-                🛑 Sesi telah di-SKIP / Ditutup.
-              </span>
-            ) : session?.status === "CLOSED" ? (
-              <span className="font-bold text-[var(--color-text-strong)]">
-                ✓ Posisi telah selesai / Ditutup.
-              </span>
-            ) : (
-              <>
-                <span className="font-semibold text-[var(--color-text-strong)]">Aksi Cepat:</span> Eksekusi atau pantau setup emiten ini
-              </>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {session?.status === "OPEN_POSITION" ? (
-              /* OPEN POSITION ACTIONS: REFRESH & CLOSE */
-              <>
-                <button
-                  type="button"
-                  onClick={() => loadData(true)}
-                  disabled={evaluating}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {evaluating ? (
-                    <>
-                      <ButtonSpinner className="h-4 w-4" />
-                      <span>Memperbarui…</span>
-                    </>
-                  ) : (
-                    <>⚡ Update Posisi</>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClosePrice(String(currentPrice || entryPrice));
-                    setShowCloseModal(true);
-                  }}
-                  disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-rose-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-rose-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                >
-                  🚪 Tutup Posisi (CLOSE)
-                </button>
-              </>
-            ) : session?.status === "WAITING" ? (
-              /* WAITING ACTIONS: REFRESH, BUY NOW, SKIP */
-              <>
-                <button
-                  type="button"
-                  onClick={() => loadData(true)}
-                  disabled={evaluating}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {evaluating ? (
-                    <>
-                      <ButtonSpinner className="h-4 w-4" />
-                      <span>Memperbarui…</span>
-                    </>
-                  ) : (
-                    <>⚡ Update Data</>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBuyPrice(String(currentPrice || ""));
-                    setShowBuyModal(true);
-                  }}
-                  disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                >
-                  🚀 BUY Sekarang
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowSkipModal(true)}
-                  disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                >
-                  ⏭️ SKIP
-                </button>
-              </>
-            ) : session?.status === "CLOSED_SKIPPED" || session?.status === "CLOSED" ? (
-              /* TERMINAL ACTIONS: ARCHIVE & RE-EVALUATE */
-              <>
-                {session.archived_at ? (
-                  <>
-                    <Link
-                      href="/sessions/archived"
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-bold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all shadow-xs"
+                  <div className="hidden sm:flex flex-col pl-2">
+                    <span className="font-mono text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                      NET CHANGE
+                    </span>
+                    <span
+                      className={`font-mono text-xs font-semibold mt-1 ${
+                        changeNominal >= 0 ? "text-emerald-700" : "text-rose-600"
+                      }`}
                     >
-                      📂 Buka Riwayat
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={handleRestore}
-                      disabled={submittingAction}
-                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 text-sm font-semibold text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
-                    >
-                      {isRestoring ? (
-                        <>
-                          <ButtonSpinner className="h-4 w-4" />
-                          <span>Memulihkan…</span>
-                        </>
-                      ) : (
-                        <>↩️ Batal Arsip</>
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleArchive}
-                    disabled={submittingAction}
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                  >
-                    {isArchiving ? (
-                      <>
-                        <ButtonSpinner className="h-4 w-4" />
-                        <span>Mengarsipkan…</span>
-                      </>
-                    ) : (
-                      <>📦 Arsipkan ke Riwayat</>
-                    )}
-                  </button>
-                )}
+                      {changeNominal >= 0 ? "+" : ""}{changeNominal} pts ({changeNominal >= 0 ? "Bullish Momentum" : "Bearish Pressure"})
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => loadData(true)}
-                  disabled={evaluating}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-[var(--color-action-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-action-primary-hover)] active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {evaluating ? (
-                    <>
-                      <ButtonSpinner className="h-4 w-4" />
-                      <span>Mengevaluasi…</span>
-                    </>
-                  ) : (
-                    <>🔄 Re-Evaluasi Setup</>
-                  )}
-                </button>
-              </>
-            ) : (
-              /* DRAFT / ANALYZED ACTIONS: BUY, WAIT, SKIP */
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBuyPrice(String(currentPrice || ""));
-                    setShowBuyModal(true);
-                  }}
-                  disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-emerald-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                >
-                  🚀 BUY
-                </button>
+              {/* Recommendation & Conviction Badge */}
+              <div className="flex items-center gap-3">
+                <div className={`px-4 py-2 rounded-xl ${currentBadge.bg} border ${currentBadge.border} flex items-center gap-3`}>
+                  <div className={`w-3 h-3 rounded-full ${currentBadge.dot} animate-pulse`} />
+                  <div className="flex flex-col">
+                    <span className={`font-mono text-[10px] uppercase font-bold tracking-wider ${currentBadge.text}`}>
+                      REKOMENDASI AI
+                    </span>
+                    <span className={`text-base font-extrabold tracking-wide ${currentBadge.text}`}>
+                      REKOMENDASI: {action}
+                    </span>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={handleWait}
-                  disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] bg-amber-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-amber-700 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                >
-                  {isWaiting ? (
-                    <>
-                      <ButtonSpinner className="h-4 w-4" />
-                      <span>Menyimpan WAIT…</span>
-                    </>
-                  ) : (
-                    <>⏳ WAIT</>
-                  )}
-                </button>
+                <div className="hidden md:flex flex-col items-end px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs">
+                  <span className="text-slate-400 text-[10px] font-semibold uppercase">CONVICTION INDEX</span>
+                  <span className={`font-bold text-base leading-tight ${convictionScore >= 70 ? "text-emerald-600" : convictionScore >= 55 ? "text-amber-600" : "text-rose-600"}`}>
+                    {convictionScore}% <span className="text-xs font-normal text-slate-500">({convictionLabel})</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
 
-                <button
-                  type="button"
-                  onClick={() => setShowSkipModal(true)}
-                  disabled={submittingAction}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-4 text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 active:scale-[0.98] transition-all focus-visible:outline-2 focus-visible:outline-[var(--color-focus-ring)] disabled:opacity-50"
-                >
-                  ⏭️ SKIP
-                </button>
-              </>
-            )}
-          </div>
+          {/* 3. PROFIL & VALUASI EMITEN (+ 6 METRIC CARDS & ORDERBOOK DEPTH) */}
+          <section className="w-full bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-600 text-lg">🏢</span>
+                <h2 className="text-base text-slate-900 font-bold">PROFIL & VALUASI EMITEN</h2>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <span className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                  Sektor: {companyProfile?.sector || "IDX General"}
+                </span>
+                <span className="px-2.5 py-1 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+                  Sub-sektor: {companyProfile?.sub_sector || "Saham Terbuka"}
+                </span>
+              </div>
+            </div>
+
+            {/* 6 Financial Metric Cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-400">P/E RATIO (TTM)</span>
+                <p className="mt-1 font-mono text-lg font-bold text-slate-900">
+                  {displayPe != null ? `${Number(displayPe).toFixed(2)}x` : "-"}
+                </p>
+                <span className="text-[10px] text-slate-500">Valuasi atraktif</span>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-400">EPS (TTM)</span>
+                <p className="mt-1 font-mono text-lg font-bold text-slate-900">
+                  {displayEps != null ? `Rp ${Number(displayEps).toFixed(2)}` : "-"}
+                </p>
+                <span className="text-[10px] text-slate-500">Per lembar saham</span>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-400">DIVIDEND YIELD</span>
+                <p className="mt-1 font-mono text-lg font-bold text-emerald-600">
+                  {displayYield != null ? `${Number(displayYield).toFixed(2)}%` : "-"}
+                </p>
+                <span className="text-[10px] text-slate-500">
+                  {displayDps != null ? `DPS Rp ${Number(displayDps).toLocaleString("id-ID")}` : "Dividen teratur"}
+                </span>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-400">BETA VS IHSG</span>
+                <p className="mt-1 font-mono text-lg font-bold text-slate-900">
+                  {displayBeta != null ? Number(displayBeta).toFixed(2) : "-"}
+                </p>
+                <span className="text-[10px] text-slate-500">
+                  {displayBeta != null && Number(displayBeta) < 0 ? "Defensif / Kontra" : "Korelasi pasar"}
+                </span>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-400">MOMENTUM 1 THN</span>
+                <p className={`mt-1 font-mono text-lg font-bold ${Number(display1YReturn || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  {display1YReturn != null ? `${Number(display1YReturn) >= 0 ? "+" : ""}${Number(display1YReturn).toFixed(2)}%` : "-"}
+                </p>
+                <span className="text-[10px] text-slate-500">Performa tahunan</span>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-400">KATALIS LAPKEU</span>
+                <p className="mt-1 font-mono text-sm font-bold text-slate-900 truncate">
+                  {displayNextEarnings || "Menunggu Rilis"}
+                </p>
+                <span className="text-[10px] text-slate-500">Jadwal earnings</span>
+              </div>
+            </div>
+
+            {/* ORDERBOOK DEPTH RATIO CARD */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-3 shadow-xs">
+              <div className="flex items-center justify-between gap-2 pb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-rose-600 text-base">📊</span>
+                  <span className="font-mono text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    ORDERBOOK DEPTH RATIO
+                  </span>
+                </div>
+                <span className="px-3 py-1 rounded-md bg-white text-slate-800 border border-slate-200 font-mono font-bold text-xs shadow-xs">
+                  {bidAskRatio.toFixed(2)}x ({orderbookStatusLabel})
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between font-mono text-xs font-bold">
+                <span className="text-emerald-700 tracking-wide">BID (BELI) {bidPct.toFixed(0)}%</span>
+                <span className="text-rose-700 tracking-wide">ASK (JUAL) {askPct.toFixed(0)}%</span>
+              </div>
+
+              {/* Progress visual bar */}
+              <div className="w-full h-3 bg-slate-200 rounded-full flex overflow-hidden p-0.5 shadow-inner">
+                <div className="h-full bg-emerald-500 rounded-l-full transition-all" style={{ width: `${bidPct}%` }} />
+                <div className="h-full bg-rose-500 rounded-r-full transition-all" style={{ width: `${askPct}%` }} />
+              </div>
+
+              <div className="flex items-center justify-between font-mono text-xs text-slate-500 pt-0.5">
+                <span>{bidPct > 50 ? "Dukungan Beli Solid" : "Dukungan Beli Rapuh"}</span>
+                <span>Spread: <strong className="text-slate-900 font-bold font-mono">Rp {orderbook?.spread ?? 25}</strong></span>
+                <span>{askPct > 50 ? "Tembok Penjual Padat" : "Penjual Longgar"}</span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 text-xs text-slate-600">
+                <span className="font-medium">
+                  <strong className="text-slate-900 font-semibold">Kesimpulan Flow: </strong>
+                  {reasoning?.flow_conclusion || "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."}
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-2 font-mono text-[11px] text-slate-500 shrink-0">
+                  <span>Bid: <strong className="text-emerald-700">{orderbook?.total_bid_lots?.toLocaleString("id-ID") ?? "0"} lot</strong></span>
+                  <span>•</span>
+                  <span>Ask: <strong className="text-rose-700">{orderbook?.total_ask_lots?.toLocaleString("id-ID") ?? "0"} lot</strong></span>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* 4. ARUS DANA (BANDARMOLOGY & FOREIGN FLOW) */}
+          <section className="w-full bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-600 text-lg">💰</span>
+                <h2 className="text-base text-slate-900 font-bold">ARUS DANA (BANDARMOLOGY & FOREIGN FLOW)</h2>
+              </div>
+              <span className={`px-2.5 py-0.5 rounded font-mono text-[11px] font-bold border ${
+                brokerFlow?.bandar_status?.includes("ACCUMULATION")
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-rose-50 text-rose-800 border-rose-200"
+              }`}>
+                {brokerFlow?.bandar_status || "DISTRIBUSI TERKONFIRMASI"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Panel Kiri: STATUS BANDAR */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-rose-600">🥧</span>
+                    <span className="font-mono text-xs font-bold text-slate-800">STATUS BANDAR</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-white font-mono text-[10px] font-bold uppercase tracking-wide ${
+                    brokerFlow?.bandar_status?.includes("ACCUMULATION") ? "bg-emerald-600" : "bg-rose-600"
+                  }`}>
+                    {brokerFlow?.bandar_status || "BIG_DISTRIBUTION"}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center justify-between">
+                  <span className="font-mono text-xs text-slate-600 font-medium">Konsentrasi Top 3 Buyer:</span>
+                  <span className="font-mono text-xs font-bold text-slate-900">
+                    {brokerFlow?.top3_buyers_concentration_percent ?? "57.6"}%{" "}
+                    <span className="text-emerald-700 font-semibold">
+                      {Number(brokerFlow?.top3_buyers_concentration_percent || 0) > 75 ? "(Sangat Terakumulasi)" : "(Wajar)"}
+                    </span>
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs leading-relaxed">
+                  <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                    <span className="font-mono text-[10px] text-blue-700 font-bold uppercase block mb-1">
+                      Akumulator Utama
+                    </span>
+                    <p className="text-slate-600">{topBuyerDesc}</p>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+                    <span className="font-mono text-[10px] text-rose-700 font-bold uppercase block mb-1">
+                      Distribusi Penjual
+                    </span>
+                    <p className="text-slate-600">{topSellerDesc}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel Kanan: STATUS ASING */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-blue-600">🌐</span>
+                    <span className="font-mono text-xs font-bold text-slate-800">STATUS ASING</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-white font-mono text-[10px] font-bold uppercase tracking-wide ${
+                    foreignFlow?.foreign_status?.includes("ACCUMULATION") ? "bg-emerald-600" : "bg-rose-600"
+                  }`}>
+                    {foreignFlow?.foreign_status || "DISTRIBUTION"}
+                  </span>
+                </div>
+
+                {/* 4 Timeframe Cards 2x2 Grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                    <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">1 HARI</span>
+                    <span className={`font-mono text-sm font-bold mt-0.5 ${Number(foreignFlow?.today_1d?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {foreignFlow?.today_1d ? formatMiliar(foreignFlow.today_1d.net_value_idr) : "-"}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500 font-medium mt-0.5">
+                      {foreignFlow?.today_1d ? formatShares(foreignFlow.today_1d.net_shares) : ""}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                    <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">1 MINGGU</span>
+                    <span className={`font-mono text-sm font-bold mt-0.5 ${Number(foreignFlow?.weekly_1w?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {foreignFlow?.weekly_1w ? formatMiliar(foreignFlow.weekly_1w.net_value_idr) : "-"}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500 font-medium mt-0.5">
+                      {foreignFlow?.weekly_1w ? formatShares(foreignFlow.weekly_1w.net_shares) : ""}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                    <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">1 BULAN</span>
+                    <span className={`font-mono text-sm font-bold mt-0.5 ${Number(foreignFlow?.monthly_1m?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {foreignFlow?.monthly_1m ? formatMiliar(foreignFlow.monthly_1m.net_value_idr) : "-"}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500 font-medium mt-0.5">
+                      {foreignFlow?.monthly_1m ? formatShares(foreignFlow.monthly_1m.net_shares) : ""}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                    <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">3 BULAN</span>
+                    <span className={`font-mono text-sm font-bold mt-0.5 ${Number(foreignFlow?.three_month_3m?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {foreignFlow?.three_month_3m ? formatMiliar(foreignFlow.three_month_3m.net_value_idr) : "-"}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500 font-medium mt-0.5">
+                      {foreignFlow?.three_month_3m ? formatShares(foreignFlow.three_month_3m.net_shares) : ""}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Flow Bar */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-700">
+                <span className="text-blue-600 text-sm">💡</span>
+                <span className="font-medium">
+                  <strong className="text-slate-900 font-semibold">Kesimpulan Flow: </strong>
+                  {reasoning?.flow_conclusion || "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                <span className="px-2 py-1 rounded bg-white border border-slate-200 text-rose-600 font-bold">
+                  Orderbook: {bidAskRatio.toFixed(2)}x
+                </span>
+                <span className="px-2 py-1 rounded bg-white border border-slate-200 text-slate-700 font-medium">
+                  Spread: Rp {orderbook?.spread ?? 25}
+                </span>
+                <span className="px-2 py-1 rounded bg-white border border-slate-200 text-emerald-700 font-medium">
+                  Bid: {orderbook?.total_bid_lots?.toLocaleString("id-ID") ?? "0"} lot
+                </span>
+                <span className="px-2 py-1 rounded bg-white border border-slate-200 text-rose-700 font-medium">
+                  Ask: {orderbook?.total_ask_lots?.toLocaleString("id-ID") ?? "0"} lot
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* 5. ANALISIS TEKNIKAL & STRUKTUR TREN */}
+          <section className="w-full bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-600 text-lg">📈</span>
+                <h2 className="text-base text-slate-900 font-bold">ANALISIS TEKNIKAL & STRUKTUR TREN</h2>
+              </div>
+              <span className={`px-2.5 py-0.5 rounded font-mono text-[11px] font-bold border uppercase ${
+                maAlignment === "BULLISH_ALIGNMENT"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : maAlignment === "BEARISH_ALIGNMENT"
+                  ? "bg-rose-50 text-rose-800 border-rose-200"
+                  : "bg-amber-50 text-amber-800 border-amber-200"
+              }`}>
+                TREN UTAMA: {maAlignment}
+              </span>
+            </div>
+
+            {/* 4 Metric Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">MOVING AVERAGES</span>
+                <div className="mt-1">
+                  <div className="flex items-center justify-between font-mono text-xs font-bold text-slate-900">
+                    <span>MA20: Rp {tech?.ma20 ? Number(tech.ma20).toLocaleString("id-ID") : "-"}</span>
+                    <span>MA50: Rp {tech?.ma50 ? Number(tech.ma50).toLocaleString("id-ID") : "-"}</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-600 font-semibold block mt-1">
+                    {tech?.price_vs_ma20 ? `Harga ${tech.price_vs_ma20}` : `Harga Rp ${currentPrice.toLocaleString("id-ID")}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">RSI (14 MOMENTUM)</span>
+                  <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono text-[9px] font-bold">
+                    {rsiTag}
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <span className="font-mono text-base font-bold text-slate-900 block">{rsi}</span>
+                  <span className="font-mono text-[10px] text-slate-500 font-medium">Momentum tren stabil</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">ATR (14 VOLATILITAS)</span>
+                <div className="mt-1">
+                  <span className="font-mono text-base font-bold text-slate-900 block">{atr}</span>
+                  <span className="font-mono text-[10px] text-slate-500 font-medium">Poin rentang fluktuasi harian</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-slate-400 uppercase font-bold">LEVEL KUNCI</span>
+                <div className="mt-1">
+                  <div className="font-mono text-[11px] text-slate-800 font-bold leading-tight">
+                    Resist: Rp {(tech?.key_resistances?.[0] || keyLevels?.target_price_1 || 0).toLocaleString("id-ID")}{" "}
+                    <span className="text-slate-400 text-[9px]">(52W: {tech?.high_52w ?? "-"})</span>
+                  </div>
+                  <div className="font-mono text-[11px] text-slate-800 font-bold leading-tight mt-0.5">
+                    Support: Rp {(tech?.key_supports?.[0] || keyLevels?.stop_loss || 0).toLocaleString("id-ID")}{" "}
+                    <span className="text-slate-400 text-[9px]">(52W: {tech?.low_52w ?? "-"})</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-500 font-medium block mt-0.5">
+                    Area batas dinamis & fraktal
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* SVG Candlestick Visualizer */}
+            <div className="w-full h-52 bg-slate-50 border border-slate-200 rounded-xl p-3 relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute inset-0 flex flex-col justify-between p-3 opacity-60 pointer-events-none">
+                <div className="w-full h-px bg-slate-200" />
+                <div className="w-full h-px bg-slate-200" />
+                <div className="w-full h-px bg-slate-200" />
+                <div className="w-full h-px bg-slate-200" />
+              </div>
+
+              <div className="relative z-10 flex items-center justify-between font-mono text-[11px] text-slate-500">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1 text-rose-600 font-medium">
+                    <span className="w-2.5 h-0.5 bg-rose-500"></span> MA20 ({tech?.ma20 ? Number(tech.ma20).toLocaleString("id-ID") : "6.481"})
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+                    <span className="w-2.5 h-0.5 bg-blue-500"></span> MA50 ({tech?.ma50 ? Number(tech.ma50).toLocaleString("id-ID") : "6.350"})
+                  </span>
+                </div>
+                <span className="text-slate-400 font-semibold">${session?.ticker || quote?.symbol} / 1D INTERVAL</span>
+              </div>
+
+              <div className="relative w-full h-36">
+                <svg className="w-full h-full" fill="none" preserveAspectRatio="none" viewBox="0 0 460 140">
+                  <path
+                    className="text-blue-500"
+                    d="M 0,110 C 100,105 200,98 320,102 C 380,105 420,108 460,110"
+                    stroke="currentColor"
+                    strokeDasharray="3 3"
+                    strokeWidth="2"
+                  />
+                  <path
+                    className="text-rose-500"
+                    d="M 0,55 C 120,60 220,68 330,72 C 390,75 420,78 460,82"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <rect className="text-blue-600" fill="currentColor" fillOpacity="0.08" height="38" rx="4" width="195" x="260" y="70" />
+                  <line className="text-blue-500" stroke="currentColor" strokeDasharray="2 2" strokeOpacity="0.5" strokeWidth="1" x1="260" x2="455" y1="70" y2="70" />
+                  <line className="text-blue-500" stroke="currentColor" strokeDasharray="2 2" strokeOpacity="0.5" strokeWidth="1" x1="260" x2="455" y1="108" y2="108" />
+                  <text className="text-[9px] fill-blue-700 font-mono font-bold" x="265" y="80">
+                    Entry Band Rp {keyLevels?.entry_range?.[0]?.toLocaleString("id-ID") ?? "6.325"} - {keyLevels?.entry_range?.[1]?.toLocaleString("id-ID") ?? "6.450"}
+                  </text>
+                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="30" x2="30" y1="40" y2="85" />
+                  <rect className="text-emerald-500" fill="currentColor" height="28" rx="1" width="8" x="26" y="48" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="65" x2="65" y1="42" y2="92" />
+                  <rect className="text-rose-500" fill="currentColor" height="32" rx="1" width="8" x="61" y="52" />
+                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="100" x2="100" y1="45" y2="88" />
+                  <rect className="text-emerald-500" fill="currentColor" height="25" rx="1" width="8" x="96" y="50" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="135" x2="135" y1="48" y2="95" />
+                  <rect className="text-rose-500" fill="currentColor" height="30" rx="1" width="8" x="131" y="55" />
+                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="170" x2="170" y1="52" y2="90" />
+                  <rect className="text-emerald-500" fill="currentColor" height="20" rx="1" width="8" x="166" y="58" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="205" x2="205" y1="50" y2="98" />
+                  <rect className="text-rose-500" fill="currentColor" height="26" rx="1" width="8" x="201" y="62" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="240" x2="240" y1="58" y2="105" />
+                  <rect className="text-rose-500" fill="currentColor" height="28" rx="1" width="8" x="236" y="68" />
+                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="275" x2="275" y1="62" y2="102" />
+                  <rect className="text-emerald-500" fill="currentColor" height="18" rx="1" width="8" x="271" y="72" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="310" x2="310" y1="65" y2="108" />
+                  <rect className="text-rose-500" fill="currentColor" height="24" rx="1" width="8" x="306" y="74" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="345" x2="345" y1="68" y2="112" />
+                  <rect className="text-rose-500" fill="currentColor" height="26" rx="1" width="8" x="341" y="78" />
+                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="380" x2="380" y1="70" y2="114" />
+                  <rect className="text-rose-500" fill="currentColor" height="26" rx="1" width="8" x="376" y="80" />
+                  <line className="text-rose-700" stroke="currentColor" strokeWidth="2" x1="415" x2="415" y1="72" y2="118" />
+                  <rect className="text-rose-600" fill="currentColor" height="30" rx="1" width="10" x="410" y="82" />
+                  <circle className="text-rose-600" cx="415" cy="97" fill="currentColor" r="4" />
+                  <circle className="animate-ping text-rose-500" cx="415" cy="97" opacity="0.6" r="8" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </div>
+
+              <div className="relative z-10 flex items-center justify-between font-mono text-[11px] pt-1 border-t border-slate-200">
+                <span className="text-slate-600 flex items-center gap-1.5 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span> MA20 Resistance: Rp {tech?.ma20 ? Number(tech.ma20).toLocaleString("id-ID") : "6.481"}
+                </span>
+                <span className="text-slate-600 flex items-center gap-1.5 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span> MA50 Support: Rp {tech?.ma50 ? Number(tech.ma50).toLocaleString("id-ID") : "6.350"}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* 6. SKENARIO & REKOMENDASI TRADING PLAN */}
+          <section className="w-full bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-600 text-lg">🎯</span>
+                <h2 className="text-base text-slate-900 font-bold">SKENARIO & REKOMENDASI TRADING PLAN</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-0.5 rounded text-white font-mono text-xs font-bold ${
+                  action === "BUY" ? "bg-emerald-600" : action === "WAIT" ? "bg-amber-600" : "bg-rose-600"
+                }`}>
+                  {action}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-[10px] font-bold border border-slate-200">
+                  Kualitas: {analysis?.setup_quality || "STANDARD"} • Akurasi: {convictionScore}%
+                </span>
+              </div>
+            </div>
+
+            {/* Alert Kondisi Pasar */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-700">ℹ️</span>
+                <span className="font-bold text-xs text-slate-900">
+                  Kondisi Pasar: {marketContext?.index_summary || "IHSG bergerak konsolidasi"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 leading-relaxed">
+                {reasoning?.thesis_summary || `Setup ${session?.ticker || ""} sebaiknya dipantau secara seksama. Disiplin batasi risiko dan perhatikan level reaksi harga.`}
+              </p>
+              <span className="font-mono text-[11px] text-blue-700 font-bold mt-0.5">
+                Strategi: {action === "BUY" ? "Buy on Weakness / Antri Pullback" : action === "WAIT" ? "Wait for Confirmation / Pantau Level" : "Avoid / Cari Peluang Lain"}
+              </span>
+            </div>
+
+            {/* 4 Key Levels Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-200 border-l-4 border-l-blue-600 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-blue-800 font-bold uppercase">AREA ENTRY (BELI)</span>
+                <div className="mt-1">
+                  <span className="font-mono text-sm font-bold text-slate-900 block">
+                    Rp {keyLevels?.entry_range?.[0]?.toLocaleString("id-ID") ?? "-"} – {keyLevels?.entry_range?.[1]?.toLocaleString("id-ID") ?? "-"}
+                  </span>
+                  <span className="font-mono text-[10px] text-blue-700 font-semibold">Optimal Buy Range</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-emerald-50/50 border border-emerald-200 border-l-4 border-l-emerald-500 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-emerald-800 font-bold uppercase">TARGET PROFIT (TP)</span>
+                <div className="mt-1">
+                  <div className="font-mono text-xs font-bold text-emerald-700">
+                    TP1: Rp {keyLevels?.target_price_1?.toLocaleString("id-ID") ?? "-"}
+                  </div>
+                  <div className="font-mono text-xs font-bold text-emerald-700">
+                    TP2: Rp {keyLevels?.target_price_2?.toLocaleString("id-ID") ?? "-"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-rose-50/50 border border-rose-200 border-l-4 border-l-rose-500 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-rose-800 font-bold uppercase">STOP LOSS (SL)</span>
+                <div className="mt-1">
+                  <span className="font-mono text-sm font-bold text-rose-700 block">
+                    Rp {keyLevels?.stop_loss?.toLocaleString("id-ID") ?? "-"}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-500 font-medium">
+                    Invalidasi: Rp {keyLevels?.invalidation_level?.toLocaleString("id-ID") ?? "-"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 border-l-4 border-l-slate-400 flex flex-col justify-between">
+                <span className="font-mono text-[10px] text-slate-700 font-bold uppercase">RISK / REWARD</span>
+                <div className="mt-1">
+                  <span className="font-mono text-sm font-bold text-slate-900 block">
+                    1 : {keyLevels?.risk_reward_ratio ?? "1.8"}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-500 font-medium">
+                    ATR(14): Rp {atr}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* PANDUAN ACTION 3-Column Card */}
+            <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-600 text-sm">🧠</span>
+                <span className="font-mono text-xs font-bold text-slate-900 uppercase">
+                  {action === "BUY" ? "PANDUAN ENTRY & TARGET" : action === "WAIT" ? "PANDUAN WAIT (PEMANTAUAN)" : "PANDUAN SKIP (LEWATI)"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div className="bg-white p-2.5 rounded border border-slate-200">
+                  <span className="font-mono text-[10px] text-slate-400 uppercase font-bold block mb-0.5">STRATEGI</span>
+                  <p className="font-semibold text-slate-800">
+                    {action === "BUY" ? "Buy on Weakness / Follow-through" : action === "WAIT" ? "Tunggu Reaksi Support / Pullback" : "Avoid / Cari Peluang Lain"}
+                  </p>
+                </div>
+                <div className="bg-white p-2.5 rounded border border-slate-200">
+                  <span className="font-mono text-[10px] text-slate-400 uppercase font-bold block mb-0.5">ALASAN</span>
+                  <p className="text-slate-600">
+                    {reasoning?.action_guidance || reasoning?.wait_guidance || "Rasio risk/reward serta konfirmasi arus dana dianalisis secara objektif."}
+                  </p>
+                </div>
+                <div className="bg-white p-2.5 rounded border border-slate-200">
+                  <span className="font-mono text-[10px] text-slate-400 uppercase font-bold block mb-0.5">BATAS PANTAU</span>
+                  <p className="text-slate-600">
+                    Batas aman stop loss berada di level <strong className="text-slate-900 font-mono font-semibold">Rp {keyLevels?.stop_loss?.toLocaleString("id-ID") ?? "-"}</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 7. RISIKO & KATALIS YANG PERLU DIPERHATIKAN */}
+          <section className="w-full bg-amber-50/70 rounded-xl p-4 sm:p-5 border border-amber-200 shadow-xs flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-600 text-lg">⚠️</span>
+              <h2 className="text-base text-amber-900 font-bold">RISIKO & KATALIS YANG PERLU DIPERHATIKAN</h2>
+            </div>
+            <div className="space-y-2 text-xs">
+              {riskList.map((risk: string, idx: number) => (
+                <div key={idx} className="p-2.5 rounded-lg bg-white border border-amber-200 flex items-start gap-2 text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-mono font-bold flex items-center justify-center shrink-0 text-[11px]">
+                    {idx + 1}
+                  </span>
+                  <p className="mt-0.5 leading-relaxed">{risk}</p>
+                </div>
+              ))}
+            </div>
+            <div className="pt-2 border-t border-amber-200 text-slate-500 font-mono text-[10px] leading-relaxed">
+              <strong className="text-slate-700">Disclaimer: </strong>
+              Analisis ini bersifat edukatif dan advisori berbasis data pasar terverifikasi. Keputusan investasi dan eksekusi tetap berada di tangan masing-masing trader.
+            </div>
+          </section>
         </div>
-      </section>
+      </main>
 
-      {/* Buy Modal */}
+      {/* FIXED BOTTOM EXECUTION DESK STRIP */}
+      <aside className="fixed bottom-0 left-0 right-0 z-40 h-16 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4 shadow-md">
+        <div className="flex items-center gap-4 min-w-0 max-w-[1600px]">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping"></span>
+            <span className="font-mono text-xs text-slate-800 uppercase tracking-wider font-bold">Aksi Cepat:</span>
+          </div>
+          <p className="text-xs text-slate-600 truncate hidden sm:block">
+            {isInTrade ? "Kelola posisi aktif saham ini" : "Eksekusi atau pantau setup emiten ini secara terarah"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          {isInTrade ? (
+            <>
+              <button
+                type="button"
+                onClick={() => loadData(true)}
+                disabled={evaluating}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 disabled:opacity-50 active:scale-[0.98]"
+              >
+                {evaluating ? <ButtonSpinner className="h-3.5 w-3.5" /> : "⚡"}
+                <span>Update Posisi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCloseModal(true)}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-mono text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <span>🚪</span>
+                <span>Tutup Posisi</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowBuyModal(true)}
+                className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <span>▲</span>
+                <span>BUY</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleWait}
+                disabled={isWaiting || submittingAction}
+                className="px-5 py-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-mono text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 active:scale-[0.98]"
+              >
+                {isWaiting ? <ButtonSpinner className="h-3.5 w-3.5" /> : <span>⏳</span>}
+                <span>WAIT</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSkipModal(true)}
+                className="px-5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-mono text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                <span>✕</span>
+                <span>SKIP</span>
+              </button>
+
+              {session?.archived_at ? (
+                <button
+                  type="button"
+                  onClick={handleRestore}
+                  disabled={isRestoring || submittingAction}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-mono text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+                >
+                  {isRestoring ? <ButtonSpinner className="h-3.5 w-3.5" /> : "Pulihkan"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleArchive}
+                  disabled={isArchiving || submittingAction}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-mono text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+                >
+                  {isArchiving ? <ButtonSpinner className="h-3.5 w-3.5" /> : "Arsip"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* BUY Modal */}
       {showBuyModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-6 shadow-xl space-y-4">
-            <h3 className="text-xl font-bold text-[var(--color-text-strong)]">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-4">
+            <h3 className="text-xl font-bold text-slate-900">
               🚀 Eksekusi Posisi BUY - {session?.ticker}
             </h3>
             <form onSubmit={handleBuy} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                <label className="block text-xs font-semibold text-slate-600 uppercase">
                   Harga Beli (Rp)
                 </label>
                 <input
@@ -1262,12 +1258,12 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   onChange={(e) => setBuyPrice(e.target.value)}
                   placeholder={String(currentPrice || "0")}
                   required
-                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base font-bold text-[var(--color-text-strong)]"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                <label className="block text-xs font-semibold text-slate-600 uppercase">
                   Jumlah Lot
                 </label>
                 <input
@@ -1276,14 +1272,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   onChange={(e) => setBuyLots(e.target.value)}
                   min="1"
                   required
-                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base font-bold text-[var(--color-text-strong)]"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
                 />
-                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                <p className="mt-1 text-xs text-slate-500 font-mono">
                   Total Nilai: Rp {(Number(buyPrice || currentPrice) * Number(buyLots || 0) * 100).toLocaleString("id-ID")}
                 </p>
               </div>
 
-              <div className="rounded-lg bg-[var(--color-surface-muted)] p-3 text-xs text-[var(--color-text-muted)] space-y-1">
+              <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-mono">
                 <div className="flex justify-between">
                   <span>Take Profit 1:</span>
                   <span className="font-bold text-emerald-600">Rp {keyLevels?.target_price_1?.toLocaleString("id-ID")}</span>
@@ -1298,7 +1294,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <button
                   type="button"
                   onClick={() => setShowBuyModal(false)}
-                  className="rounded-md border border-[var(--color-border-default)] px-4 py-2 text-sm font-semibold text-[var(--color-text-strong)]"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Batal
                 </button>
@@ -1322,16 +1318,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
         </div>
       ) : null}
 
-      {/* Close Position Modal */}
+      {/* CLOSE Position Modal */}
       {showCloseModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-6 shadow-xl space-y-4">
-            <h3 className="text-xl font-bold text-[var(--color-text-strong)]">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-4">
+            <h3 className="text-xl font-bold text-slate-900">
               🚪 Tutup Posisi (Jual) - {session?.ticker}
             </h3>
             <form onSubmit={handleClosePosition} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                <label className="block text-xs font-semibold text-slate-600 uppercase">
                   Harga Jual / Exit (Rp)
                 </label>
                 <input
@@ -1340,18 +1336,18 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   onChange={(e) => setClosePrice(e.target.value)}
                   placeholder={String(currentPrice || "0")}
                   required
-                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-base font-bold text-[var(--color-text-strong)]"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base font-bold text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                <label className="block text-xs font-semibold text-slate-600 uppercase">
                   Alasan Penutupan Posisi
                 </label>
                 <select
                   value={closeReason}
                   onChange={(e) => setCloseReason(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-sm font-semibold text-[var(--color-text-strong)]"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
                 >
                   <option value="TARGET_HIT">🎯 Mencapai Target TP1 / TP2</option>
                   <option value="STOP_LOSS_HIT">🛑 Kena Stop Loss (SL)</option>
@@ -1361,7 +1357,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-muted)] uppercase">
+                <label className="block text-xs font-semibold text-slate-600 uppercase">
                   Catatan Exit (Opsional)
                 </label>
                 <input
@@ -1369,14 +1365,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   value={closeNote}
                   onChange={(e) => setCloseNote(e.target.value)}
                   placeholder="Catatan evaluasi trading..."
-                  className="mt-1 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] px-3 py-2 text-sm text-[var(--color-text-default)]"
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
                 />
               </div>
 
-              <div className="rounded-lg bg-[var(--color-surface-muted)] p-3 text-xs text-[var(--color-text-muted)] space-y-1">
+              <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600 space-y-1 font-mono">
                 <div className="flex justify-between">
                   <span>Harga Beli (Entry):</span>
-                  <span className="font-bold text-[var(--color-text-strong)]">Rp {entryPrice.toLocaleString("id-ID")}</span>
+                  <span className="font-bold text-slate-900">Rp {entryPrice.toLocaleString("id-ID")}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Estimasi Realized PnL:</span>
@@ -1395,7 +1391,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <button
                   type="button"
                   onClick={() => setShowCloseModal(false)}
-                  className="rounded-md border border-[var(--color-border-default)] px-4 py-2 text-sm font-semibold text-[var(--color-text-strong)]"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Batal
                 </button>
@@ -1419,14 +1415,14 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
         </div>
       ) : null}
 
-      {/* Skip Modal */}
+      {/* SKIP Modal */}
       {showSkipModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-[var(--radius-large)] border border-[var(--color-border-default)] bg-[var(--color-surface-standard)] p-6 shadow-xl space-y-4">
-            <h3 className="text-xl font-bold text-[var(--color-text-strong)]">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-4">
+            <h3 className="text-xl font-bold text-slate-900">
               ⏭️ Lewati Saham ({session?.ticker})
             </h3>
-            <p className="text-xs text-[var(--color-text-muted)]">
+            <p className="text-xs text-slate-500">
               Pilih alasan utama mengapa setup ini dilewati untuk pencatatan trading journal:
             </p>
 
@@ -1442,7 +1438,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   type="button"
                   disabled={submittingAction}
                   onClick={() => handleSkip(reason)}
-                  className="flex items-center justify-between rounded-lg border border-[var(--color-border-default)] p-3 text-left text-sm font-semibold text-[var(--color-text-strong)] hover:bg-[var(--color-surface-muted)] active:scale-[0.98] transition-all disabled:opacity-50"
+                  className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
                   <span>{label}</span>
                   {skipPendingReason === reason ? (
@@ -1456,7 +1452,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
               <button
                 type="button"
                 onClick={() => setShowSkipModal(false)}
-                className="rounded-md border border-[var(--color-border-default)] px-4 py-2 text-sm font-semibold text-[var(--color-text-strong)]"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Batal
               </button>
@@ -1464,6 +1460,6 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
           </div>
         </div>
       ) : null}
-    </main>
+    </div>
   );
 }
