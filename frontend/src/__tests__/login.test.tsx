@@ -5,23 +5,29 @@ import LoginPage from "@/app/login/page";
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 const mockGet = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => ({ get: mockGet }),
 }));
 
 // Mock auth context
+let mockUser: { id: string; email: string } | null = null;
+let mockLoading = false;
 const mockLogin = vi.fn();
+
 vi.mock("@/lib/auth-context", () => ({
-  useAuth: () => ({ login: mockLogin, user: null, loading: false }),
+  useAuth: () => ({ login: mockLogin, user: mockUser, loading: mockLoading }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockGet.mockReturnValue(null);
+  mockUser = null;
+  mockLoading = false;
 });
 
 async function submitLogin(next: string | null = null) {
@@ -165,4 +171,35 @@ describe("LoginPage", () => {
       mockPush.mockClear();
     }
   });
+
+  it("redirects already-authenticated user to /sessions when next is not provided", async () => {
+    mockUser = { id: "user-1", email: "auth@test.com" };
+    mockLoading = false;
+    render(await LoginPage());
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/sessions");
+    });
+  });
+
+  it("redirects already-authenticated user to safeNext when next query param is provided", async () => {
+    mockUser = { id: "user-1", email: "auth@test.com" };
+    mockLoading = false;
+    mockGet.mockReturnValue("/sessions/new");
+    render(await LoginPage());
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/sessions/new");
+    });
+  });
+
+  it("does not redirect while auth context is still loading", async () => {
+    mockUser = { id: "user-1", email: "auth@test.com" };
+    mockLoading = true;
+    render(await LoginPage());
+
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
 });
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
@@ -52,7 +52,7 @@ function getSafeNext(next: string | null): string {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +61,16 @@ function LoginForm() {
 
   const next = searchParams.get("next");
   const safeNext = getSafeNext(next);
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(safeNext);
+    }
+  }, [loading, user, safeNext, router]);
+
+  if (!loading && user) {
+    return null;
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
