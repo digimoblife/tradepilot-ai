@@ -9,7 +9,6 @@ import pytest
 
 import app
 from app.config import WorkerConfig
-from app.consumers.analysis_jobs import AnalysisJobConsumer
 from app.runtime import (
     _assert_real_validation_factory,
     _build_validation_callback_factory,
@@ -80,38 +79,14 @@ class _FakeFactory:
         return _FakeSession()
 
 
-class _FakeQ:
-    def __init__(self, session: Any = None) -> None:
+class _FakeConsumer:
+    async def run_once(self) -> None:
         pass
-
-    async def claim_next(self, **kwargs: Any) -> None:
-        return None
-
-
-class _FakeP:
-    def __init__(self, session: Any = None) -> None:
-        pass
-
-    async def process(self, **kwargs: Any) -> Any:
-        import uuid
-        from dataclasses import dataclass
-
-        @dataclass
-        class _Result:
-            job_id: Any = uuid.uuid4()
-            job_status: str = "COMPLETED"
-
-        return _Result()
 
 
 @pytest.fixture
-def fake_consumer() -> AnalysisJobConsumer:
-    return AnalysisJobConsumer(
-        session_factory=_FakeFactory(),
-        queue=_FakeQ,
-        processor=_FakeP,
-        worker_id="test-worker",
-    )
+def fake_consumer() -> _FakeConsumer:
+    return _FakeConsumer()
 
 
 class _FakeHb:
