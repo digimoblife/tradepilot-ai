@@ -20,8 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.api.health import router as health_router
 from app.config import AppConfig
 from app.database.session import get_db_session
-from app.schemas.manifest import load_production_manifest
-from app.schemas.registry import LocalSchemaRegistry
 
 pytestmark = pytest.mark.database
 
@@ -40,7 +38,6 @@ def _build_app(override_session: AsyncSession | None = None) -> FastAPI:
     """Build a minimal FastAPI app with the health router.
 
     Optionally overrides ``get_db_session`` with *override_session*.
-    Optionally sets up a real schema registry on ``app.state``.
     """
     app = FastAPI()
     app.include_router(health_router)
@@ -53,18 +50,6 @@ def _build_app(override_session: AsyncSession | None = None) -> FastAPI:
         app.dependency_overrides[get_db_session] = _override
 
     return app
-
-
-def _add_schema_registry(app: FastAPI) -> None:
-    """Load and attach a real production schema registry."""
-    config = AppConfig()
-    from pathlib import Path
-
-    pkg = Path(config.schema_package_root)
-    manifest = load_production_manifest(pkg)
-    registry = LocalSchemaRegistry(manifest, pkg)
-    app.state.schema_manifest = manifest
-    app.state.schema_registry = registry
 
 
 async def _ensure_worker_heartbeats_table(engine: AsyncEngine) -> None:
@@ -131,65 +116,28 @@ class TestHealth:
 
 
 class TestReady:
-    async def test_ready_database_and_schema(self, db_session: AsyncSession) -> None:
+    async def test_ready_database(self, db_session: AsyncSession) -> None:
         app = _build_app(db_session)
-        _add_schema_registry(app)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get("/health/ready")
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "ready"
         assert body["database"]["status"] == "healthy"
-        assert body["schema_registry"]["status"] == "healthy"
 
     async def test_database_unavailable(self) -> None:
         """Simulate DB failure by passing a session whose connection will fail."""
-        app = _build_app()  # No override -> will fail because no DB session available
-        _add_schema_registry(app)
+        from unittest.mock import AsyncMock
+
+        failing_session = AsyncMock(spec=AsyncSession)
+        failing_session.execute.side_effect = ConnectionRefusedError("connection refused")
+        app = _build_app(failing_session)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get("/health/ready")
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "unhealthy"
         assert body["database"]["status"] == "unhealthy"
-
-    async def test_schema_registry_unavailable(self, db_session: AsyncSession) -> None:
-        app = _build_app(db_session)
-        # Deliberately do NOT attach a schema registry
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get("/health/ready")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "unhealthy"
-        assert body["schema_registry"]["status"] == "unhealthy"
-
-
-# ===================================================================
-# 3. GET /health/schema-registry
-# ===================================================================
-
-
-class TestSchemaRegistry:
-    async def test_healthy(self, db_session: AsyncSession) -> None:
-        app = _build_app(db_session)
-        _add_schema_registry(app)
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get("/health/schema-registry")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "healthy"
-        assert isinstance(body["registered_resources"], int)
-        assert body["registered_resources"] > 0
-        assert isinstance(body["compiled_validators"], int)
-        assert body["compiled_validators"] > 0
-
-    async def test_not_loaded(self, db_session: AsyncSession) -> None:
-        app = _build_app(db_session)
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get("/health/schema-registry")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "not_loaded"
 
 
 # ===================================================================
@@ -331,12 +279,11 @@ class TestProviderOutage:
     async def test_readiness_ignores_provider(self, db_session: AsyncSession) -> None:
         """Provider (Gemini/DeepSeek) unavailability does not affect readiness."""
         app = _build_app(db_session)
-        _add_schema_registry(app)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get("/health/ready")
         assert resp.status_code == 200
         body = resp.json()
-        # Readiness should be "ready" when DB + schema registry are fine
+        # Readiness should be "ready" when DB is fine
         # regardless of whether AI providers are available
         assert body["status"] == "ready"
         # Provider fields must not appear in the response

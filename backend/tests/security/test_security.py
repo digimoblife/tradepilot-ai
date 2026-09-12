@@ -157,10 +157,10 @@ class TestCrossUserAccess:
         sid_a = await _create_session(engine, uid_a)
         eid_a = await _upload_evidence(engine, sid_a, uid_a)
 
-        from app.repositories.evidence import EvidenceRepository
+        from app.models.evidence import Evidence
 
-        repo = EvidenceRepository(db_session)
-        result = await repo.get_by_id_for_user(eid_a, uid_b)
+        stmt = select(Evidence).where(Evidence.id == eid_a, Evidence.owner_id == uid_b)
+        result = (await db_session.execute(stmt)).unique().scalar_one_or_none()
         assert result is None, "User B should not see User A's evidence"
 
 
@@ -218,7 +218,7 @@ class TestUnsafeUploadPaths:
         self, engine: AsyncEngine, db_session: AsyncSession
     ) -> None:
         """Original filename is metadata only, never used in storage path."""
-        from app.repositories.evidence import EvidenceRepository
+        from app.models.evidence import Evidence
 
         uid = await _create_user(engine, "mf")
         sid = await _create_session(engine, uid)
@@ -237,8 +237,8 @@ class TestUnsafeUploadPaths:
                 ),
                 {"id": eid, "sid": sid, "oid": uid},
             )
-        repo = EvidenceRepository(db_session)
-        ev = await repo.get_by_id_for_user(eid, uid)
+        stmt = select(Evidence).where(Evidence.id == eid, Evidence.owner_id == uid)
+        ev = (await db_session.execute(stmt)).unique().scalar_one_or_none()
         assert ev is not None
         assert ev.original_filename == "../../secret.txt"
         assert ev.storage_object_key == "safe-key.png"

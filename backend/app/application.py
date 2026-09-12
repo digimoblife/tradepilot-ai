@@ -18,8 +18,6 @@ from app.api.security import (
 )
 from app.config import AppConfig
 from app.logging import configure_logging, get_logger
-from app.schemas.manifest import load_production_manifest
-from app.schemas.registry import LocalSchemaRegistry
 from app.trade_workspace.api.routes.trade_sessions import router as rebuild_trade_sessions_router
 
 log = get_logger(__name__)
@@ -68,13 +66,6 @@ def create_application() -> FastAPI:
     # HTTPS redirect (production only)
     if config.enable_https_redirect:
         app.add_middleware(HTTPSRedirectMiddleware)
-
-    # Load and validate production schema manifest + registry on startup
-    package_root = Path(config.schema_package_root)
-    manifest = load_production_manifest(package_root)
-    registry = LocalSchemaRegistry(manifest, package_root)
-    app.state.schema_manifest = manifest
-    app.state.schema_registry = registry
 
     # Register centralized exception handlers (TP-1007)
     register_handlers(app)

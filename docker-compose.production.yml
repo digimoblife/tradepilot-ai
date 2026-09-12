@@ -34,7 +34,6 @@ services:
       STORAGE_ROOT: /data/evidence
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
-      PROVIDER_ORDER: ${PROVIDER_ORDER:-gemini}
 
       # ---- Auth (TP-1001 / TP-1704) ----
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-tradepilot_session}
@@ -73,7 +72,6 @@ services:
       STORAGE_ROOT: ${STORAGE_ROOT:-/data/evidence}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
-      PROVIDER_ORDER: ${PROVIDER_ORDER:-gemini}
     volumes:
       - evidence_data:/data/evidence
       - ./schemas:/app/schemas:ro

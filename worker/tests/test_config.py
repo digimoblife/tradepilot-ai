@@ -10,7 +10,6 @@ def test_defaults() -> None:
     assert config.log_level == "INFO"
     assert config.worker_poll_interval_seconds == 5
     assert config.gemini_model == "gemini-3.5-flash-lite"
-    assert config.provider_order == "gemini"
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,6 +45,5 @@ def test_missing_credentials_do_not_block(
 ) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     config = WorkerConfig()
     assert config.app_env == "development"

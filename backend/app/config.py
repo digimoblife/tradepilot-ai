@@ -21,7 +21,6 @@ class AppConfig(BaseSettings):
     db_pool_timeout_seconds: int = Field(default=30, ge=1)
     db_pool_recycle_seconds: int = Field(default=1800, ge=1)
     db_echo: bool = False
-    schema_package_root: str = "schemas/production/v1"
     storage_root: str = "storage/local"
     max_upload_size_bytes: int = Field(default=10485760, ge=1)
     auth_cookie_name: str = "tradepilot_session"
@@ -31,11 +30,6 @@ class AppConfig(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_timeout_seconds: int = Field(default=120, ge=1)
-    deepseek_api_key: str = ""
-    deepseek_model: str = "deepseek-chat"
-    deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_timeout_seconds: int = Field(default=120, ge=1)
-    provider_order: str = "gemini"
 
     # ---- ZAPI Market Data Provider ----
     zapi_api_key: str = ""
@@ -58,7 +52,6 @@ class AppConfig(BaseSettings):
         default=[
             "/health",
             "/health/ready",
-            "/health/schema-registry",
             "/health/worker",
             "/api/auth/login",
         ]

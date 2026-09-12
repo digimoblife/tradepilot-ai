@@ -21,7 +21,7 @@ COPY prompts prompts/
 # both the worker's own modules and backend shared modules
 # are importable under the same 'app' namespace.
 RUN for dir in calculations database models repositories \
-           schemas services storage validation auth lifecycle trade_workspace; do \
+           services storage validation auth lifecycle trade_workspace; do \
         ln -s "/app/backend/app/$dir" "/app/worker/app/$dir"; \
     done
 RUN ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py

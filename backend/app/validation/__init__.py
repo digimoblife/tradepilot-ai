@@ -25,7 +25,6 @@ from app.validation.partial_exit import (
     validate_partial_exit,
 )
 from app.validation.risk_reward import validate_risk_reward
-from app.validation.service import UnifiedValidationResult, UnifiedValidationService
 from app.validation.state_consistency import (
     StateConsistencyValidationResult,
     validate_state_consistency,
@@ -42,8 +41,6 @@ __all__ = [
     "ClosingValidationResult",
     "ConfirmedActionSnapshot",
     "ContextSummaryValidationResult",
-    "UnifiedValidationResult",
-    "UnifiedValidationService",
     "JsonSchemaValidationResult",
     "JsonSchemaValidationService",
     "MarketSnapshotValidationResult",

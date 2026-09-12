@@ -2,13 +2,8 @@ import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
-from app.models.enums import SessionEventType
-from app.models.session_event import SessionEvent
-from app.models.trade_action import TradeAction
 from app.models.trade_session import TradeSession
 from app.models.trade_state import TradeState
-from app.repositories.session_event import SessionEventRepository
-from app.repositories.trade_action import TradeActionRepository
 from app.repositories.trade_session import TradeSessionRepository
 from app.repositories.trade_state import TradeStateRepository
 
@@ -32,18 +27,11 @@ async def test_multi_repository_atomic_commit(session, engine):
     uid = await _make_user(engine)
     ts_repo = TradeSessionRepository(session)
     state_repo = TradeStateRepository(session)
-    event_repo = SessionEventRepository(session)
 
     ts = TradeSession(owner_id=uid, ticker="ATOMIC")
     await ts_repo.add(ts)
     state = TradeState(session_id=ts.id)
     await state_repo.add(state)
-    event = SessionEvent(
-        session_id=ts.id,
-        event_type=SessionEventType.SESSION_CREATED,
-        occurred_at=__import__("datetime").datetime(2026, 7, 18, 9, 0, 0),
-    )
-    await event_repo.add(event)
     await session.commit()
 
     async with engine.begin() as c:
@@ -51,10 +39,6 @@ async def test_multi_repository_atomic_commit(session, engine):
         assert r.first() is not None
         r = await c.execute(
             text("SELECT session_id FROM trade_states WHERE session_id = :sid"), {"sid": ts.id}
-        )
-        assert r.first() is not None
-        r = await c.execute(
-            text("SELECT id FROM session_events WHERE session_id = :sid"), {"sid": ts.id}
         )
         assert r.first() is not None
 
@@ -65,35 +49,21 @@ async def test_multi_repository_database_failure_rollback(session, engine):
     uid = await _make_user(engine)
     ts_repo = TradeSessionRepository(session)
     state_repo = TradeStateRepository(session)
-    action_repo = TradeActionRepository(session)
 
     ts = TradeSession(owner_id=uid, ticker="FAILROLL")
     await ts_repo.add(ts)
-    state = TradeState(session_id=ts.id)
-    await state_repo.add(state)
-
-    a1 = TradeAction(
-        session_id=ts.id,
-        action_type="POSITION_OPENED",
-        confirmed_at=__import__("datetime").datetime(2026, 7, 18, 10, 0, 0),
-        idempotency_key="fail-dup",
-    )
-    await action_repo.add(a1)
-    a2 = TradeAction(
-        session_id=ts.id,
-        action_type="STOP_LOSS_CONFIRMED",
-        confirmed_at=__import__("datetime").datetime(2026, 7, 18, 11, 0, 0),
-        idempotency_key="fail-dup",
-    )
+    s1 = TradeState(session_id=ts.id)
+    await state_repo.add(s1)
+    s2 = TradeState(session_id=ts.id)
     with pytest.raises(IntegrityError):
-        await action_repo.add(a2)
+        await state_repo.add(s2)
     await session.rollback()
 
     async with engine.begin() as c:
         r = await c.execute(text("SELECT id FROM trade_sessions WHERE ticker = 'FAILROLL'"))
         assert r.first() is None
         r = await c.execute(
-            text("SELECT id FROM trade_actions WHERE idempotency_key = 'fail-dup'")
+            text("SELECT session_id FROM trade_states WHERE session_id = :sid"), {"sid": ts.id}
         )
         assert r.first() is None
 
@@ -103,25 +73,15 @@ async def test_integrity_error_propagates(session, engine):
     await _clean(engine)
     uid = await _make_user(engine)
     ts_repo = TradeSessionRepository(session)
-    action_repo = TradeActionRepository(session)
+    state_repo = TradeStateRepository(session)
 
     ts = TradeSession(owner_id=uid, ticker="IERR")
     await ts_repo.add(ts)
-    a1 = TradeAction(
-        session_id=ts.id,
-        action_type="POSITION_OPENED",
-        confirmed_at=__import__("datetime").datetime(2026, 7, 18, 10, 0, 0),
-        idempotency_key="ierr",
-    )
-    await action_repo.add(a1)
-    a2 = TradeAction(
-        session_id=ts.id,
-        action_type="STOP_LOSS_CONFIRMED",
-        confirmed_at=__import__("datetime").datetime(2026, 7, 18, 11, 0, 0),
-        idempotency_key="ierr",
-    )
+    s1 = TradeState(session_id=ts.id)
+    await state_repo.add(s1)
+    s2 = TradeState(session_id=ts.id)
     with pytest.raises(IntegrityError):
-        await action_repo.add(a2)
+        await state_repo.add(s2)
     await session.rollback()
 
 

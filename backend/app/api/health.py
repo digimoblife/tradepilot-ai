@@ -1,9 +1,9 @@
 """Application health and readiness endpoints (TP-1602).
 
-Provides four endpoints:
+Provides health endpoints:
 * ``GET /health`` — process is running (lightweight).
-* ``GET /health/ready`` — database + schema registry readiness.
-* ``GET /health/schema-registry`` — production schema registry status.
+* ``GET /health/ready`` — database readiness.
+* ``GET /health/storage`` — storage backend status.
 * ``GET /health/worker`` — latest worker heartbeat status.
 """
 
@@ -40,14 +40,6 @@ class ComponentStatus(BaseModel):
 class ReadinessResponse(BaseModel):
     status: str
     database: ComponentStatus
-    schema_registry: ComponentStatus
-
-
-class SchemaRegistryStatus(BaseModel):
-    status: str
-    registered_resources: int | None = None
-    compiled_validators: int | None = None
-    detail: str | None = None
 
 
 class WorkerHeartbeatStatus(BaseModel):
@@ -158,18 +150,13 @@ async def health() -> HealthResponse:
 @router.get("/health/ready", response_model=ReadinessResponse)
 async def health_ready(
     db: AsyncSession = Depends(get_db_session),
-    request: Request = None,  # type: ignore[assignment]
 ) -> ReadinessResponse:
-    """Combined readiness: database + schema registry."""
+    """Readiness probe: database reachable."""
     db_status = await _check_database(db)
-    sr_status = _check_schema_registry(request)
-    overall = (
-        "ready" if db_status.status == "healthy" and sr_status.status == "healthy" else "unhealthy"
-    )
+    overall = "ready" if db_status.status == "healthy" else "unhealthy"
     return ReadinessResponse(
         status=overall,
         database=db_status,
-        schema_registry=sr_status,
     )
 
 
@@ -179,52 +166,6 @@ async def _check_database(db: AsyncSession) -> ComponentStatus:
         return _component_healthy("database reachable")
     except Exception as exc:
         return _component_unhealthy(str(exc))
-
-
-def _check_schema_registry(request) -> ComponentStatus:
-    app = getattr(request, "app", None)
-    if app is None:
-        return _component_unhealthy("no application context")
-    registry = getattr(app.state, "schema_registry", None)
-    if registry is None:
-        return _component_unhealthy("schema registry not loaded")
-    try:
-        count = getattr(registry, "registered_resource_count", 0)
-        if count > 0:
-            return _component_healthy(f"{count} resource(s) registered")
-        return _component_unhealthy("schema registry is empty")
-    except Exception as exc:
-        return _component_unhealthy(str(exc))
-
-
-# ---------------------------------------------------------------------------
-# GET /health/schema-registry
-# ---------------------------------------------------------------------------
-
-
-@router.get("/health/schema-registry", response_model=SchemaRegistryStatus)
-async def health_schema_registry(request: Request = None) -> SchemaRegistryStatus:  # type: ignore[assignment]
-    """Detailed schema registry status."""
-    app = getattr(request, "app", None)
-    if app is None:
-        return SchemaRegistryStatus(status="unavailable", detail="no application context")
-
-    manifest = getattr(app.state, "schema_manifest", None)
-    registry = getattr(app.state, "schema_registry", None)
-
-    if manifest is None or registry is None:
-        return SchemaRegistryStatus(status="not_loaded", detail="schema registry not initialised")
-
-    try:
-        resources = getattr(registry, "registered_resource_count", 0)
-        validators = getattr(registry, "compiled_validator_count", 0)
-        return SchemaRegistryStatus(
-            status="healthy",
-            registered_resources=resources,
-            compiled_validators=validators,
-        )
-    except Exception as exc:
-        return SchemaRegistryStatus(status="error", detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

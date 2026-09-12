@@ -20,11 +20,7 @@ class WorkerConfig(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_timeout_seconds: int = Field(default=120, ge=1)
-    deepseek_api_key: str = ""
-    deepseek_model: str = "deepseek-chat"
-    deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_timeout_seconds: int = Field(default=120, ge=1)
-    provider_order: str = "gemini"
+
 
 
 AppConfig = WorkerConfig

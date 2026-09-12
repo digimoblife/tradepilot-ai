@@ -16,8 +16,6 @@ _CONFIG_VARS = [
     "DB_ECHO",
     "GEMINI_API_KEY",
     "GEMINI_MODEL",
-    "PROVIDER_ORDER",
-    "DEEPSEEK_API_KEY",
 ]
 
 
@@ -38,7 +36,6 @@ def test_dev_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.api_port == 8000
     assert config.log_level == "INFO"
     assert config.gemini_model == "gemini-3.5-flash-lite"
-    assert config.provider_order == "gemini"
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,6 +79,5 @@ def test_missing_ai_keys_do_not_block(
 ) -> None:
     _clear_config_env(monkeypatch)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     config = _config_from_process_env()
     assert config.app_env == "development"

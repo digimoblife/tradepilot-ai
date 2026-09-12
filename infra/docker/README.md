@@ -84,7 +84,6 @@ Configuration is read from the root `.env` file. Key variables:
 | `NEXT_PUBLIC_API_BASE_URL`    | `http://localhost:8000`                     |
 | `EVIDENCE_STORAGE_PATH`       | `/data/evidence` (inside containers)        |
 | `GEMINI_MODEL`                | `gemini-3.1-flash-lite`                     |
-| `PROVIDER_ORDER`              | `gemini`                                    |
 
 ## Test Database
 
