@@ -520,7 +520,7 @@ class TestMiddlewareBackendURL:
         assert "import app.main" in dockerfile
         assert "import app.json_safe" in dockerfile
         assert "import app.lifecycle" in dockerfile
-        assert "import app.jobs.processor" in dockerfile
+        assert "import app.consumers.rebuild_analysis_requests" in dockerfile
         assert "import app.trade_workspace" in dockerfile
 
     def test_worker_build_assertion_covers_entrypoint_import_chain(self) -> None:
@@ -532,7 +532,8 @@ class TestMiddlewareBackendURL:
             "app.main",
             "app.json_safe",
             "app.lifecycle",
-            "app.jobs.processor",
+            "app.runtime",
+            "app.consumers.rebuild_analysis_requests",
             "app.trade_workspace",
             "app.trade_workspace.workers.analysis_processor",
             "app.trade_workspace.ai.context_builder",

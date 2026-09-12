@@ -18,10 +18,10 @@ COPY worker/app worker/app/
 COPY prompts prompts/
 
 # Symlink backend shared modules into the worker's app package so that
-# both the worker's own modules and backend shared modules (e.g. app.jobs)
+# both the worker's own modules and backend shared modules
 # are importable under the same 'app' namespace.
-RUN for dir in ai context calculations database models repositories \
-           schemas services storage validation auth jobs lifecycle trade_workspace; do \
+RUN for dir in calculations database models repositories \
+           schemas services storage validation auth lifecycle trade_workspace; do \
         ln -s "/app/backend/app/$dir" "/app/worker/app/$dir"; \
     done
 RUN ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py
@@ -30,7 +30,8 @@ RUN PYTHONPATH=/app/worker python -c "\
 import app.main; \
 import app.json_safe; \
 import app.lifecycle; \
-import app.jobs.processor; \
+import app.runtime; \
+import app.consumers.rebuild_analysis_requests; \
 import app.trade_workspace; \
 import app.trade_workspace.workers.analysis_processor; \
 import app.trade_workspace.ai.context_builder; \

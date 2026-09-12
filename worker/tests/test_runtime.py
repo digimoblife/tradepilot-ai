@@ -10,8 +10,6 @@ import pytest
 import app
 from app.config import WorkerConfig
 from app.runtime import (
-    _assert_real_validation_factory,
-    _build_validation_callback_factory,
     _create_consumer,
     run_worker,
 )
@@ -29,11 +27,7 @@ def _extend_app_namespace() -> None:
 _extend_app_namespace()
 
 
-def _make_initial_analysis_payload() -> dict[str, object]:
-    import json
-    fixture_path = _REPO_ROOT / "schemas" / "fixtures" / "valid" / "v1" / "initial_analysis_v2.valid.json"
-    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
-    return payload
+
 
 
 def _skip_startup_validation(config: WorkerConfig) -> None:
@@ -214,97 +208,3 @@ def test_worker_creates_rebuild_consumer() -> None:
     processor = consumer._processor_factory(MagicMock())
     assert isinstance(processor, RebuildAnalysisProcessor)
     assert isinstance(processor._image_resolver, LocalEvidenceImageResolver)
-
-
-def test_initial_analysis_validator_accepts_valid_payload() -> None:
-    _extend_app_namespace()
-
-    from app.validation import UnifiedValidationService
-
-    service = UnifiedValidationService(schema_package_root=str(_REPO_ROOT / "schemas" / "production" / "v1"))
-    validate_factory = _build_validation_callback_factory(service)
-    validate = validate_factory(
-        analysis_type="INITIAL_ANALYSIS",
-        session_status_before_job="READY_FOR_ANALYSIS",
-        canonical_facts={
-            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            "ticker": "BBRI",
-        },
-    )
-
-    is_valid, issues = validate(_make_initial_analysis_payload())
-    assert is_valid is True
-    assert issues == ()
-
-
-def test_initial_analysis_validator_returns_concrete_issues_for_invalid_payload() -> None:
-    _extend_app_namespace()
-
-    from app.validation import UnifiedValidationService
-
-    service = UnifiedValidationService(schema_package_root=str(_REPO_ROOT / "schemas" / "production" / "v1"))
-    validate_factory = _build_validation_callback_factory(service)
-    validate = validate_factory(
-        analysis_type="INITIAL_ANALYSIS",
-        session_status_before_job="READY_FOR_ANALYSIS",
-        canonical_facts={
-            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            "ticker": "BBRI",
-        },
-    )
-
-    payload = _make_initial_analysis_payload()
-    market_facts = payload["market_facts"]
-    assert isinstance(market_facts, dict)
-    market_facts["high"] = "invalid_string_type"
-
-    is_valid, issues = validate(payload)
-    assert is_valid is False
-    assert issues
-    assert any(issue.message for issue in issues)
-
-
-def test_initial_analysis_validator_continues_after_schema_errors_only_for_initial_analysis() -> None:
-    calls: list[dict[str, object]] = []
-
-    class FakeResult:
-        valid = True
-        issues: tuple[object, ...] = ()
-
-    class FakeValidationService:
-        def validate(self, payload: dict[str, object], **kwargs: object) -> FakeResult:
-            calls.append(dict(kwargs))
-            return FakeResult()
-
-    validate_factory = _build_validation_callback_factory(FakeValidationService())
-    initial_validate = validate_factory(
-        analysis_type="INITIAL_ANALYSIS",
-        session_status_before_job="READY_FOR_ANALYSIS",
-        canonical_facts={},
-    )
-    watching_validate = validate_factory(
-        analysis_type="WATCHING_UPDATE",
-        session_status_before_job="WATCHING",
-        canonical_facts={},
-    )
-
-    initial_validate({"ok": True})
-    watching_validate({"ok": True})
-
-    assert calls[0]["continue_on_schema_errors"] is True
-    assert calls[1]["continue_on_schema_errors"] is False
-
-
-def test_placeholder_validator_factory_is_rejected() -> None:
-    _extend_app_namespace()
-
-    import app.jobs.processor as processor_module
-
-    with pytest.raises(
-        RuntimeError,
-        match="placeholder _always_invalid",
-    ):
-        _assert_real_validation_factory(
-            lambda **kwargs: processor_module._always_invalid,
-            processor_module._always_invalid,
-        )
