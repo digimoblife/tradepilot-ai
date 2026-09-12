@@ -18,9 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
-from app.api.routes.evidence import evidence_router
-from app.api.routes.evidence import session_router as evidence_session_router
-from app.api.routes.trade_sessions import router as ts_router
+from app.trade_workspace.api.routes.trade_sessions import router as ts_router
 from app.api.security import (
     _SECURITY_HEADERS,
     CSRFProtectionMiddleware,
@@ -46,8 +44,6 @@ def _build_app(override_session: AsyncSession | None = None) -> FastAPI:
     register_handlers(app)
     app.include_router(health_router)
     app.include_router(auth_router)
-    app.include_router(evidence_session_router)
-    app.include_router(evidence_router)
     app.include_router(ts_router)
     if override_session is not None:
 
@@ -179,7 +175,7 @@ class TestUnauthorizedEvidenceAccess:
     ) -> None:
         app = _build_app(db_session)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get("/api/evidence/sessions")
+            resp = await ac.get(f"/api/v2/trade-sessions/{uuid.uuid4()}/initial-evidence")
         assert resp.status_code in (401, 403), "Unauthenticated access should fail"
 
     async def test_unauthenticated_evidence_download_fails(
@@ -187,7 +183,7 @@ class TestUnauthorizedEvidenceAccess:
     ) -> None:
         app = _build_app(db_session)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get(f"/api/evidence/{uuid.uuid4()}/file")
+            resp = await ac.get(f"/api/v2/trade-sessions/{uuid.uuid4()}/initial-evidence")
         assert resp.status_code in (401, 403), "Unauthenticated download should fail"
 
 
@@ -273,7 +269,7 @@ class TestSecurityHeaders:
         app = _build_app(db_session)
         app.add_middleware(SecurityHeadersMiddleware)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get(f"/api/evidence/{eid}/file")
+            resp = await ac.get(f"/api/v2/trade-sessions/{sid}/initial-evidence")
         # Even without auth (no cookie), the response should have nosniff
         assert "X-Content-Type-Options" in resp.headers or resp.status_code in (401, 403)
 

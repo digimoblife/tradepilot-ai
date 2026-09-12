@@ -16,9 +16,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.auth import router as auth_router
-from app.api.routes.trade_sessions import router as ts_router
 from app.cli.create_user import create_user
 from app.database.session import get_db_session
+from app.trade_workspace.api.routes.trade_sessions import router as ts_router
 
 pytestmark = pytest.mark.database
 
@@ -98,7 +98,7 @@ class TestAuthIntegration:
 
             # List sessions
             sessions_resp = await ac.get(
-                "/api/trade-sessions", cookies={"tradepilot_session": cookie}
+                "/api/v2/trade-sessions", cookies={"tradepilot_session": cookie}
             )
             assert sessions_resp.status_code == 200
 
