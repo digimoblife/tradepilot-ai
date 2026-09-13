@@ -1035,7 +1035,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   {action}
                 </span>
                 <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-[10px] font-bold border border-slate-200">
-                  Kualitas: {analysis?.setup_quality || "STANDARD"} • Akurasi: {convictionScore}%
+                  Kualitas: {analysis?.signal_quality || "STANDARD"} • Akurasi: {convictionScore}%
                 </span>
               </div>
             </div>
