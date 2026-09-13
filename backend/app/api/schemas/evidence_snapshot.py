@@ -118,6 +118,8 @@ class CompanyProfileDomain(BaseModel):
     beta: float | None = None
     one_year_return_percent: float | None = None
     next_earnings_date: str | None = None
+    technical_summary: str | None = None
+    revenue: str | None = None
 
 
 class EvidenceSnapshotSchema(BaseModel):

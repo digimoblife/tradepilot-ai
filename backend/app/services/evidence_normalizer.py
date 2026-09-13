@@ -473,6 +473,15 @@ class EvidenceNormalizer:
             else None
         )
 
+        technical_summary = investing.get("technicalSummary")
+        clean_technical_summary = (
+            technical_summary.strip()
+            if isinstance(technical_summary, str) and technical_summary.strip()
+            else None
+        )
+        revenue = investing.get("revenue")
+        clean_revenue = revenue.strip() if isinstance(revenue, str) and revenue.strip() else None
+
         return CompanyProfileDomain(
             sector=clean_sector,
             sub_sector=clean_sub_sector,
@@ -481,6 +490,8 @@ class EvidenceNormalizer:
             dividend_yield_percent=div_yield,
             dividend_per_share=div_share,
             eps_ttm=eps,
+            technical_summary=clean_technical_summary,
+            revenue=clean_revenue,
             beta=beta,
             one_year_return_percent=one_year_return,
             next_earnings_date=clean_earnings_date,

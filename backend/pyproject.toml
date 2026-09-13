@@ -46,6 +46,11 @@ exclude = ["migrations"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+# Dense single-line evidence-table templates for Gemini prompts; wrapping them
+# would only hurt readability of the literal table layout.
+"app/services/market_analysis_prompt.py" = ["E501"]
+
 [tool.ruff.format]
 quote-style = "double"
 
