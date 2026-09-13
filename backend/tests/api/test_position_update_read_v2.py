@@ -91,6 +91,7 @@ async def _add_analysis_request(
     processed_response: dict[str, object] | None = None,
     error_code: str | None = None,
     error_message: str | None = None,
+    input_snapshot: dict[str, object] | None = None,
 ) -> uuid.UUID:
     request_id = uuid.uuid4()
     values: dict[str, object] = {
@@ -104,7 +105,7 @@ async def _add_analysis_request(
         "provider": "gemini",
         "model": "gemini-2.5-flash",
         "prompt_version": "v2",
-        "input_snapshot": {"ticker": "BBRI"},
+        "input_snapshot": input_snapshot or {"ticker": "BBRI"},
         "processed_response": processed_response,
         "error_code": error_code,
         "error_message": error_message,
@@ -240,3 +241,46 @@ async def test_position_update_read_contract(engine: AsyncEngine) -> None:
         # Check non-existent session (Test case 12)
         res_missing = await other_client.get(f"/api/v2/trade-sessions/{uuid.uuid4()}/position-updates")
         assert res_missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_position_update_read_surfaces_market_facts_when_present(
+    engine: AsyncEngine,
+) -> None:
+    user_id, session_id, position_id, email = await _seed_user_and_session(engine)
+
+    with_facts_id = await _add_analysis_request(
+        engine,
+        session_id,
+        created_at=datetime(2026, 7, 30, 9, 0, tzinfo=timezone.utc),
+        processed_response={"update_summary": "Kondisi stabil."},
+        input_snapshot={
+            "ticker": "BBRI",
+            "market_facts": {
+                "pe_ratio": 12.5,
+                "index_change_percent": 0.42,
+                "next_earnings_date": "2026-08-05",
+            },
+        },
+    )
+    without_facts_id = await _add_analysis_request(
+        engine,
+        session_id,
+        created_at=datetime(2026, 7, 30, 13, 0, tzinfo=timezone.utc),
+        processed_response={"update_summary": "Belum ada perubahan berarti."},
+    )
+
+    app = _build_app(engine)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await _login(client, email)
+        res = await client.get(f"/api/v2/trade-sessions/{session_id}/position-updates")
+        assert res.status_code == 200
+        updates = res.json()["updates"]
+
+        by_id = {u["analysis_request_id"]: u for u in updates}
+        assert by_id[str(with_facts_id)]["market_facts"] == {
+            "pe_ratio": 12.5,
+            "index_change_percent": 0.42,
+            "next_earnings_date": "2026-08-05",
+        }
+        assert by_id[str(without_facts_id)]["market_facts"] is None

@@ -16,6 +16,13 @@ from app.trade_workspace.models.analysis_request import (
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
 
+def _extract_market_facts(snapshot: object) -> dict[str, object] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    facts = snapshot.get("market_facts")
+    return facts if isinstance(facts, dict) else None
+
+
 class WaitUpdateAnalysisReadError(Exception):
     """Base error for the rebuild WAIT Update read contract."""
 
@@ -38,6 +45,7 @@ class WaitUpdateAnalysisReadResult:
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    market_facts: dict[str, object] | None = None
 
 
 class WaitUpdateAnalysisReadService:
@@ -75,6 +83,7 @@ class WaitUpdateAnalysisReadService:
 
         is_completed = request.status is AnalysisRequestV2Status.COMPLETED
         is_failed = request.status is AnalysisRequestV2Status.FAILED
+        market_facts = _extract_market_facts(request.input_snapshot)
         return WaitUpdateAnalysisReadResult(
             analysis_request_id=request.id,
             session_id=trade_session.id,
@@ -92,4 +101,5 @@ class WaitUpdateAnalysisReadService:
             created_at=request.created_at,
             started_at=request.started_at,
             completed_at=request.completed_at,
+            market_facts=market_facts,
         )

@@ -497,6 +497,7 @@ async def read_position_updates(
             completed_at=u.completed_at,
             evidence_id=str(u.evidence_id) if u.evidence_id else None,
             original_filename=u.original_filename,
+            market_facts=u.market_facts,
         )
         for u in result.updates
     ]
@@ -603,6 +604,7 @@ async def read_wait_update_analysis(
         created_at=result.created_at,
         started_at=result.started_at,
         completed_at=result.completed_at,
+        market_facts=result.market_facts,
     )
 
 

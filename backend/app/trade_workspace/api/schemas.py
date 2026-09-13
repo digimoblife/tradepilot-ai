@@ -309,6 +309,7 @@ class PositionUpdateItemResponse(BaseModel):
     completed_at: datetime | None
     evidence_id: str | None = None
     original_filename: str | None = None
+    market_facts: dict[str, object] | None = None
 
 
 class PositionUpdatesReadResponse(BaseModel):

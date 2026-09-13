@@ -61,6 +61,7 @@ async def _seed(
     error_code: str | None = "OLD_ERROR",
     error_message: str | None = "old error",
     with_evidence: bool = True,
+    input_snapshot: dict[str, object] | None = None,
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
     user_id, session_id = uuid.uuid4(), uuid.uuid4()
     request_id = request_id or uuid.uuid4()
@@ -102,7 +103,7 @@ async def _seed(
                 provider="gemini",
                 model="gemini-3.1-flash-lite",
                 prompt_version="v1",
-                input_snapshot={"immutable": "preserved"},
+                input_snapshot=input_snapshot or {"immutable": "preserved"},
                 raw_response=raw_response,
                 processed_response=processed_response,
                 error_code=error_code,
@@ -238,6 +239,45 @@ async def test_read_returns_latest_wait_result_without_exposing_input_or_raw_res
     assert payload["session_status"] == "WAITING"
     assert older_id != newer_id
     assert user_id
+
+
+async def test_read_surfaces_market_facts_when_present(
+    engine: AsyncEngine, db_session: AsyncSession
+) -> None:
+    _, session_id, request_id, email = await _seed(
+        engine,
+        request_status=AnalysisRequestV2Status.COMPLETED,
+        processed_response={"update_summary": "Terbaru"},
+        input_snapshot={
+            "ticker": "BBRI",
+            "market_facts": {"pe_ratio": 12.5, "index_change_percent": 0.42},
+        },
+    )
+    status_code, payload = await _request(
+        db_session,
+        f"/api/v2/trade-sessions/{session_id}/wait-update-analysis",
+        email=email,
+    )
+    assert status_code == 200
+    assert payload["analysis_request_id"] == str(request_id)
+    assert payload["market_facts"] == {"pe_ratio": 12.5, "index_change_percent": 0.42}
+
+
+async def test_read_market_facts_is_null_when_absent(
+    engine: AsyncEngine, db_session: AsyncSession
+) -> None:
+    _, session_id, _, email = await _seed(
+        engine,
+        request_status=AnalysisRequestV2Status.COMPLETED,
+        processed_response={"update_summary": "Terbaru"},
+    )
+    status_code, payload = await _request(
+        db_session,
+        f"/api/v2/trade-sessions/{session_id}/wait-update-analysis",
+        email=email,
+    )
+    assert status_code == 200
+    assert payload["market_facts"] is None
 
 
 @pytest.mark.parametrize(

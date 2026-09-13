@@ -260,6 +260,7 @@ export interface WaitUpdateAnalysisRead {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  market_facts?: MarketFactsSnapshot | null;
 }
 
 export interface WaitUpdateRecoveryResponse {
@@ -424,6 +425,7 @@ export interface PositionUpdateItem {
   completed_at: string | null;
   evidence_id?: string | null;
   original_filename?: string | null;
+  market_facts?: MarketFactsSnapshot | null;
 }
 
 export interface PositionUpdatesRead {

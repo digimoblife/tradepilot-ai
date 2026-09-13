@@ -20,6 +20,17 @@ import { safeErrorMessage } from "./safe-error";
 import { ClosePositionForm } from "./components/close-position-form";
 import { PositionUpdateFeedback } from "./components/position-update-feedback";
 import { PositionUpdateForm } from "./components/position-update-form";
+import {
+  MarketFactsStrip,
+  PriceDeltaBadge,
+  ResultFieldCard,
+  SingleGauge,
+  WarningList,
+  toPercent,
+  toStringList,
+} from "./components/analysis-result-metrics";
+import type { MarketFactsSnapshot } from "./types";
+import type { ReactNode } from "react";
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 60;
@@ -55,28 +66,89 @@ function isTerminal(status: RequestStatus): boolean {
   return status === "COMPLETED" || status === "FAILED";
 }
 
-export function PositionUpdateResultView({ result }: { result: PositionUpdateResult }) {
+export function PositionUpdateResultView({
+  result,
+  marketFacts,
+  entryPrice,
+}: {
+  result: PositionUpdateResult;
+  marketFacts?: MarketFactsSnapshot | null;
+  /** Confirmed entry price for the position, used to render a delta-from-entry badge. */
+  entryPrice?: unknown;
+}) {
+  const targetProbabilityPct = toPercent(result.target_probability);
+  const warnings = toStringList(result.warnings);
+  const priceDelta =
+    entryPrice != null && result.current_price != null ? (
+      <PriceDeltaBadge currentPrice={result.current_price} entryPrice={entryPrice} />
+    ) : null;
+
   return (
     <section aria-label="Hasil Position Update" className="grid gap-[var(--space-4)]">
       <h3 className="sr-only">Hasil Position Update</h3>
+
+      <MarketFactsStrip marketFacts={marketFacts} />
+
       {resultSections.map(([key, label]) => {
         const val = result[key];
         if (val === undefined) return null;
-        return (<div key={key} className="contents">
-          <article key={key} className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] p-4">
-            <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{label}</h4>
-            <p className="mt-2 whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
-              {displayValue(val)}
-            </p>
-          </article>
-          {key === "orderbook_assessment" && result.broker_flow_analysis && (
-            <article className="rounded-[var(--radius-compact)] border border-[var(--color-border-default)] bg-[var(--color-elevated-background)] p-4">
-              <h4 className="text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">Analisa Broker Flow</h4>
-              <p className="mt-2 text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{result.broker_flow_analysis.assessment}</p>
-              <p className="mt-1 whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{result.broker_flow_analysis.analysis}</p>
-            </article>
-          )}
-        </div>);
+
+        let body: ReactNode;
+        if (key === "current_price") {
+          body = (
+            <div className="flex flex-wrap items-center gap-2">
+              <span>{displayValue(val)}</span>
+              {priceDelta}
+            </div>
+          );
+        } else if (key === "target_probability") {
+          body =
+            targetProbabilityPct !== null ? (
+              <SingleGauge percent={targetProbabilityPct} />
+            ) : (
+              displayValue(val)
+            );
+        } else if (key === "warnings" && warnings.length > 0) {
+          body = <WarningList items={warnings} tone="danger" />;
+        } else if (key === "monitoring_points") {
+          const points = toStringList(val);
+          body =
+            points.length > 0 ? (
+              <ul className="space-y-1.5">
+                {points.map((point, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span aria-hidden="true" className="mt-0.5 text-[var(--color-status-information)]">
+                      •
+                    </span>
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              displayValue(val)
+            );
+        } else {
+          body = <p className="whitespace-pre-wrap">{displayValue(val)}</p>;
+        }
+
+        const tone: "neutral" | "danger" =
+          key === "warnings" && warnings.length > 0 ? "danger" : "neutral";
+
+        return (
+          <div key={key} className="contents">
+            <ResultFieldCard label={label} tone={tone}>
+              {body}
+            </ResultFieldCard>
+            {key === "orderbook_assessment" && result.broker_flow_analysis && (
+              <ResultFieldCard label="Analisa Broker Flow">
+                <p className="font-semibold text-[var(--color-text-strong)]">
+                  {result.broker_flow_analysis.assessment}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{result.broker_flow_analysis.analysis}</p>
+              </ResultFieldCard>
+            )}
+          </div>
+        );
       })}
     </section>
   );
@@ -441,7 +513,11 @@ export function PositionUpdatePanel({
               )}
 
               {item.request_status === "COMPLETED" && item.processed_response && (
-                <PositionUpdateResultView result={item.processed_response} />
+                <PositionUpdateResultView
+                  result={item.processed_response}
+                  marketFacts={item.market_facts}
+                  entryPrice={effectivePosition?.entry_price}
+                />
               )}
             </article>
           ))}

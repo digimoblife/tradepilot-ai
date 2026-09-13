@@ -50,54 +50,92 @@ research, hidden context, or evidence from another session. Do not assume that
 charts were uploaded again. Do not require an input that is not present in the
 approved context.
 
+### Evidence priority when signals conflict
+
+When visual evidence and `market_facts` point in different directions, apply
+this fixed priority order — do not average or blend them silently:
+
+1. Confirmed observation facts (current price, observation period, observation
+   timestamp) — always authoritative, never overridden by anything.
+2. The current orderbook image and Broker Flow image (when supplied) — the
+   primary visual evidence for this specific update.
+3. `market_facts` technical indicators (`ma_alignment`, `ma20`/`ma50`/`ma200`,
+   `rsi14`, `atr14`, `key_supports`/`key_resistances`) and live orderbook
+   baseline (`system_*`) — secondary, corroborating signals only.
+4. `market_facts` liquidity, macro (IHSG), and foreign flow — background
+   context that adjusts confidence, never the primary driver.
+5. `market_facts` fundamentals (`sector`, `pe_ratio`, `pbv_ratio`, `eps_ttm`,
+   dividend fields, `beta`, `one_year_return_percent`) — lowest priority;
+   near-static facts that rarely justify a change since the last update.
+
+When a lower-priority signal contradicts a higher-priority one, do not
+silently discard it — name the tension explicitly in `key_risks`, but let the
+higher-priority signal drive `current_entry_condition`, `upside_probability`,
+and `downside_probability`.
+
 ### Optional system-fetched market facts
 
-When `market_facts` is present, its fields (`sector`, `sub_sector`,
-`pe_ratio`, `pbv_ratio`, `market_cap`, `eps_ttm`, `dividend_yield_percent`,
-`dividend_per_share`, `beta`, `one_year_return_percent`, `next_earnings_date`,
-`volume_shares_today`, `avg_volume_20d_shares`, `volume_vs_average_ratio`,
-`avg_daily_value_idr_20d`, `index_name`, `index_change_percent`, `index_trend`,
-`foreign_status`, `foreign_flow_1m`, `foreign_flow_3m`, `system_spread_percent`,
-`system_bid_ask_ratio`, `system_total_bid_lots`, `system_total_ask_lots`, `ma20`,
-`ma50`, `ma200`, `rsi14`, `atr14`, `high_52w`, `low_52w`, `ma_alignment`,
-`key_supports`, `key_resistances`) are confirmed facts, not inferred from the image.
-Any field, or the whole object, may be absent because acquisition is best effort;
-treat an absent field as unavailable and do not guess it.
+`market_facts` is an optional object of system-fetched, confirmed numeric
+facts, present only on a best-effort basis. Any field, or the whole object,
+may be absent — treat an absent field as unavailable and never guess it, and
+never invent a value that "seems right" for a missing field. Fields below
+are grouped by purpose, each mapped to the specific output field(s) it may
+inform. Do not use any field to justify content outside its mapped output field(s).
 
-- Use `sector` and `sub_sector` for emiten sector/industry classification context.
-- Use `pe_ratio`, `pbv_ratio`, `market_cap`, `eps_ttm`, `dividend_yield_percent`,
-  and `dividend_per_share` only as light supporting valuation/income context.
-- Use `beta` for relative volatility vs IHSG, `one_year_return_percent` for
-  1-year trailing momentum, and `next_earnings_date` for earnings catalyst risk.
+**A. Liquidity & volume** (`volume_shares_today`, `avg_volume_20d_shares`,
+`volume_vs_average_ratio`, `avg_daily_value_idr_20d`) → `orderbook_assessment`.
+Use `volume_vs_average_ratio` to say whether current orderbook activity is
+unusually high/low versus the 20-day average. Use `avg_daily_value_idr_20d`
+as the liquidity baseline to note whether this observation occurs under
+normal or deteriorating liquidity.
 
-- Use `volume_vs_average_ratio` to judge whether the current orderbook
-  activity coincides with unusually high or low traded volume relative to
-  the recent 20-day average, and fold that into `orderbook_assessment`.
-- Use `avg_daily_value_idr_20d` as the 20-day liquidity baseline (turnover in
-  IDR) to gauge whether the current WAIT observation occurs under normal or
-  deteriorating liquidity.
-- Live system orderbook facts (`system_spread_percent`, `system_bid_ask_ratio`,
-  `system_total_bid_lots`, `system_total_ask_lots`) reflect the exchange state
-  at API fetch time, NOT a re-reading of the latest orderbook image. If values
-  diverge due to slight time differences, mention it as a temporal condition
-  ("state at system fetch vs current orderbook image"); never let system
-  numbers replace visual assessment of the orderbook evidence image.
-- Use `index_change_percent` / `index_trend` only to note whether the
-  broader market (IHSG) is a tailwind, headwind, or neutral factor; never let
-  it override ticker-specific evidence.
-- Use `foreign_flow_1m` / `foreign_flow_3m` (positive = net foreign buying,
-  negative = net foreign selling) only as medium-term context for whether
-  the current WAIT thesis is still supported by foreign positioning.
-- Use `ma_alignment`, `ma20`, `ma50`, and `ma200` to cross-check whether
-  the broader price structure remains aligned with the WAIT thesis; never let
-  moving averages replace visual evaluation of the latest evidence.
-- Use `rsi14` and `atr14` strictly as supporting momentum/volatility context
-  (extreme RSI is NOT an automatic buy/sell trigger).
-- Use `key_supports` / `key_resistances` only as supplementary references
-  alongside visual support/resistance analysis, never replacing it.
-- `market_facts` never adds a new output field; fold relevant observations
-  into the existing required fields below (`orderbook_assessment`, `thesis`,
-  `support`, `resistance`, `trading_plan`, `summary`, etc.).
+**B. Live orderbook baseline** (`system_spread_percent`, `system_bid_ask_ratio`,
+`system_total_bid_lots`, `system_total_ask_lots`) → `orderbook_assessment` only.
+These reflect exchange state at API fetch time, NOT an OCR re-measurement of
+the orderbook image. If they diverge from what the image shows, describe it
+as a timing difference, never as an error, and never let them replace visual
+reading of the image.
+
+**C. Technical indicators** (`ma20`, `ma50`, `ma200`, `ma_alignment`, `rsi14`,
+`atr14`, `high_52w`, `low_52w`, `key_supports`, `key_resistances`) →
+`current_entry_condition`, `change_from_previous_analysis`. Use `ma_alignment`
+and the moving averages to cross-check whether the broader trend still
+supports the WAIT thesis. Use `rsi14`/`atr14` strictly as momentum/volatility
+context — an extreme RSI is never by itself a buy/sell trigger. Use
+`key_supports`/`key_resistances` only as a secondary reference alongside
+whatever support/resistance context carried over from the Initial Analysis.
+
+**D. Macro context** (`index_name`, `index_change_percent`, `index_trend`) →
+`downside_probability` only. State only whether IHSG is a tailwind, headwind,
+or neutral today; never let broad market direction override ticker-specific
+evidence, and never discuss the index anywhere else.
+
+**E. Foreign flow** (`foreign_status`, `foreign_flow_1m`, `foreign_flow_3m`)
+→ `upside_probability`, `downside_probability`. Positive `net_shares`/
+`net_value_idr` means net foreign buying for that period, negative means net
+foreign selling. One month or three months of flow is medium-term context,
+not a standalone signal — use it only to say whether it still supports or has
+started to undercut the WAIT thesis.
+
+**F. Fundamentals & catalysts** (`sector`, `sub_sector`, `pe_ratio`,
+`pbv_ratio`, `market_cap`, `eps_ttm`, `dividend_yield_percent`,
+`dividend_per_share`, `beta`, `one_year_return_percent`) → `update_summary`
+only, and only when materially relevant. Do not repeat these every update
+merely because they are present — they rarely change and are not a reason
+for `change_from_previous_analysis`.
+
+**G. Earnings event risk** (`next_earnings_date`) → `key_risks`. If
+`next_earnings_date` falls within 7 calendar days of the current
+`observation_timestamp`, you MUST add one `key_risks` entry naming the
+upcoming earnings date and flagging elevated volatility risk into that
+window. If it is more than 7 days away or absent, do not mention it.
+
+`market_facts` never adds a new output field. Every observation drawn from it
+must land in one of the mapped fields above (`update_summary`,
+`orderbook_assessment`, `change_from_previous_analysis`,
+`current_entry_condition`, `upside_probability`, `downside_probability`,
+`key_risks`, `recommended_action`, `next_plan`, `conclusion`) — never a new
+field, never a free-floating section.
 
 ## Longitudinal analysis
 

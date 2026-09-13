@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   readWaitUpdateAnalysis,
   retryWaitUpdateAnalysis,
@@ -17,6 +17,16 @@ import type {
 } from "./types";
 import { WaitUpdateForm } from "./components/wait-update-form";
 import { WaitUpdateFeedback } from "./components/wait-update-feedback";
+import {
+  ActionBadge,
+  MarketFactsStrip,
+  ResultFieldCard,
+  SingleGauge,
+  WarningList,
+  toPercent,
+  toStringList,
+} from "./components/analysis-result-metrics";
+import type { MarketFactsSnapshot } from "./types";
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 60;
@@ -57,27 +67,75 @@ function isTerminal(status: RequestStatus): boolean {
   return status === "COMPLETED" || status === "FAILED";
 }
 
-export function WaitUpdateResultView({ result }: { result: WaitUpdateResult }) {
+export function WaitUpdateResultView({
+  result,
+  marketFacts,
+}: {
+  result: WaitUpdateResult;
+  marketFacts?: MarketFactsSnapshot | null;
+}) {
+  const upsidePct = toPercent(result.upside_probability);
+  const downsidePct = toPercent(result.downside_probability);
+  const recommendedAction =
+    typeof result.recommended_action === "string" ? result.recommended_action : null;
+  const keyRisks = toStringList(result.key_risks);
+
   return (
-    <section aria-label="Hasil WAIT Update" className="min-w-0 max-w-[var(--layout-text-readable)] space-y-[var(--space-3)] rounded-[var(--radius-standard)] border border-[var(--color-status-information)] bg-[var(--color-surface-advisory)] p-[var(--space-card)]">
+    <section
+      aria-label="Hasil WAIT Update"
+      className="min-w-0 max-w-[var(--layout-text-readable)] space-y-[var(--space-3)] rounded-[var(--radius-standard)] border border-[var(--color-status-information)] bg-[var(--color-surface-advisory)] p-[var(--space-card)]"
+    >
       <h3 className="sr-only">Hasil WAIT Update</h3>
-      {resultSections.map(([key, label]) => (
-        <div key={key} className="contents">
-        <article className="min-w-0 border-b border-[var(--color-border-default)] pb-[var(--space-3)] last:border-b-0 last:pb-0">
-          <h3 className="break-words text-[var(--text-size-label)] font-semibold leading-[var(--text-line-body)] text-[var(--color-text-strong)]">{label}</h3>
-          <p className="mt-[var(--space-2)] break-words whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">
-            {displayValue(result[key])}
-          </p>
-        </article>
-        {key === "orderbook_assessment" && result.broker_flow_analysis && (
-          <article className="min-w-0 border-b border-[var(--color-border-default)] pb-[var(--space-3)] last:border-b-0 last:pb-0">
-            <h3 className="break-words text-[var(--text-size-label)] font-semibold leading-[var(--text-line-body)] text-[var(--color-text-strong)]">Analisa Broker Flow</h3>
-            <p className="mt-[var(--space-2)] break-words text-[var(--text-size-compact-body)] font-semibold text-[var(--color-text-strong)]">{result.broker_flow_analysis.assessment}</p>
-            <p className="mt-[var(--space-1)] break-words whitespace-pre-wrap text-[var(--text-size-compact-body)] leading-[var(--text-line-body)] text-[var(--color-text-default)]">{result.broker_flow_analysis.analysis}</p>
-          </article>
-        )}
-        </div>
-      ))}
+
+      <MarketFactsStrip marketFacts={marketFacts} />
+
+      {resultSections.map(([key, label]) => {
+        const val = result[key];
+        if (val === undefined) return null;
+
+        let body: ReactNode;
+        if (key === "recommended_action") {
+          body = recommendedAction ? (
+            <ActionBadge action={recommendedAction} />
+          ) : (
+            displayValue(val)
+          );
+        } else if (key === "upside_probability") {
+          body =
+            upsidePct !== null ? (
+              <SingleGauge percent={upsidePct} tone="success" />
+            ) : (
+              displayValue(val)
+            );
+        } else if (key === "downside_probability") {
+          body =
+            downsidePct !== null ? (
+              <SingleGauge percent={downsidePct} tone="danger" />
+            ) : (
+              displayValue(val)
+            );
+        } else if (key === "key_risks" && keyRisks.length > 0) {
+          body = <WarningList items={keyRisks} tone="warning" />;
+        } else {
+          body = <p className="whitespace-pre-wrap">{displayValue(val)}</p>;
+        }
+
+        return (
+          <div key={key} className="contents">
+            <ResultFieldCard label={label} headingLevel="h3">
+              {body}
+            </ResultFieldCard>
+            {key === "orderbook_assessment" && result.broker_flow_analysis && (
+              <ResultFieldCard label="Analisa Broker Flow" headingLevel="h3">
+                <p className="font-semibold text-[var(--color-text-strong)]">
+                  {result.broker_flow_analysis.assessment}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{result.broker_flow_analysis.analysis}</p>
+              </ResultFieldCard>
+            )}
+          </div>
+        );
+      })}
     </section>
   );
 }
@@ -246,7 +304,10 @@ export function WaitUpdatePanel({
     <section aria-label="WAIT Update" className="space-y-4">
       <WaitUpdateFeedback error={error} processing={processing} requestStatus={requestStatus} effectiveSessionStatus={effectiveSessionStatus} retryEligible={retryEligible} busy={busy !== null} errorCode={analysis?.error_code} errorMessage={analysis?.error_message} onRetry={retry} />
       {analysis?.request_status === "COMPLETED" && analysis.processed_response && (
-        <WaitUpdateResultView result={analysis.processed_response} />
+        <WaitUpdateResultView
+          result={analysis.processed_response}
+          marketFacts={analysis.market_facts}
+        />
       )}
       {sessionStatus === "WAITING" && !processing && !uploaded && <WaitUpdateForm file={file} brokerFlowFile={brokerFlowFile} currentPrice={currentPrice} period={period} timestamp={timestamp} periods={periods} busy={busy !== null} onFileChange={setFile} onBrokerFlowFileChange={setBrokerFlowFile} onCurrentPriceChange={setCurrentPrice} onPeriodChange={setPeriod} onTimestampChange={setTimestamp} onSubmit={upload} />}
       {uploaded && !processing && (

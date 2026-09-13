@@ -19,6 +19,13 @@ from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
 
 
+def _extract_market_facts(snapshot: object) -> dict[str, object] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    facts = snapshot.get("market_facts")
+    return facts if isinstance(facts, dict) else None
+
+
 class PositionUpdateReadError(Exception):
     """Base error for the rebuild Position Update read contract."""
 
@@ -58,6 +65,7 @@ class PositionUpdateItemReadResult:
     completed_at: datetime | None
     evidence_id: uuid.UUID | None = None
     original_filename: str | None = None
+    market_facts: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +148,7 @@ class PositionUpdateReadService:
             ev_rec = evidence_by_request_id.get(r.id)
             is_completed = r.status is AnalysisRequestV2Status.COMPLETED
             is_failed = r.status is AnalysisRequestV2Status.FAILED
+            market_facts = _extract_market_facts(r.input_snapshot)
             items.append(
                 PositionUpdateItemReadResult(
                     analysis_request_id=r.id,
@@ -159,6 +168,7 @@ class PositionUpdateReadService:
                     completed_at=r.completed_at,
                     evidence_id=ev_rec.id if ev_rec else None,
                     original_filename=ev_rec.original_filename if ev_rec else None,
+                    market_facts=market_facts,
                 )
             )
 
