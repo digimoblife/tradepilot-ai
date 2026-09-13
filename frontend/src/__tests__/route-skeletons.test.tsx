@@ -6,13 +6,11 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ArchivedSessionsPage from "@/app/sessions/archived/page";
-import SessionAnalysisPage from "@/app/sessions/[sessionId]/analysis/page";
-import SessionHistoryPage from "@/app/sessions/[sessionId]/history/page";
 import SessionDetailPage from "@/app/sessions/[sessionId]/page";
 import NewSessionPage from "@/app/sessions/new/page";
 import SessionsPage from "@/app/sessions/page";
-import { getSession, getSessionDetail, getSessionWorkspaceData, listArchivedSessions, listSessions } from "@/features/trade-workspace/api";
-import type { SessionDetailAggregate, TradeSession } from "@/features/trade-workspace/types";
+import { getSession, getSessionWorkspaceData, listArchivedSessions, listSessions } from "@/features/trade-workspace/api";
+import type { TradeSession } from "@/features/trade-workspace/types";
 import { middleware } from "@/middleware";
 
 vi.mock("next/navigation", () => ({
@@ -22,7 +20,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/trade-workspace/api", () => ({
   getSession: vi.fn(),
-  getSessionDetail: vi.fn(),
   listSessions: vi.fn(),
   listArchivedSessions: vi.fn(),
   analyzeSession: vi.fn().mockResolvedValue({}),
@@ -57,28 +54,11 @@ const routeSession: TradeSession = {
   closed_at: null,
   archived_at: null,
 };
-const detail: SessionDetailAggregate = {
-  session: {
-    id: sessionId, ticker: "BBRI", company_name: "Bank Rakyat Indonesia", status: "DRAFT",
-    initial_note: null, created_at: "2026-08-04T00:00:00Z",
-    updated_at: "2026-08-04T00:00:00Z", closed_at: null,
-  },
-  initial_evidence: [], initial_analysis: null, decisions: [], wait_updates: [],
-  position: null, position_updates: [], closure: null,
-  latest_analysis: null, recent_activity: [],
-  current_step: {
-    code: "INITIAL_EVIDENCE", mode: "ACTIONABLE",
-    workflow_actions: ["SUBMIT_INITIAL_EVIDENCE"], active_request: null,
-    failed_request: null, read_only: false,
-  },
-};
 const protectedRoutes = [
   "/sessions",
   "/sessions/new",
   "/sessions/archived",
   `/sessions/${sessionId}`,
-  `/sessions/${sessionId}/analysis`,
-  `/sessions/${sessionId}/history`,
 ];
 
 afterEach(() => {
@@ -89,7 +69,6 @@ afterEach(() => {
 describe("UX2.1 route shells", () => {
   beforeEach(() => {
     vi.mocked(getSession).mockResolvedValue(routeSession);
-    vi.mocked(getSessionDetail).mockResolvedValue(detail);
     vi.mocked(listSessions).mockResolvedValue({ sessions: [] });
     vi.mocked(listArchivedSessions).mockResolvedValue({ sessions: [] });
   });
@@ -106,16 +85,6 @@ describe("UX2.1 route shells", () => {
       },
       {
         page: await SessionDetailPage({ params: Promise.resolve({ sessionId }) }),
-        heading: "BBRI",
-        backHref: "/sessions",
-      },
-      {
-        page: await SessionAnalysisPage({ params: Promise.resolve({ sessionId }) }),
-        heading: "BBRI",
-        backHref: "/sessions",
-      },
-      {
-        page: await SessionHistoryPage({ params: Promise.resolve({ sessionId }) }),
         heading: "BBRI",
         backHref: "/sessions",
       },
@@ -182,8 +151,6 @@ describe("UX2.1 route shells", () => {
     const sessionRouteFiles = [
       "src/app/sessions/archived/page.tsx",
       "src/app/sessions/[sessionId]/page.tsx",
-      "src/app/sessions/[sessionId]/analysis/page.tsx",
-      "src/app/sessions/[sessionId]/history/page.tsx",
     ];
 
     for (const routeFile of ["src/app/sessions/new/page.tsx", ...sessionRouteFiles]) {

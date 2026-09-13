@@ -19,16 +19,10 @@ from app.trade_workspace.api.routes.trade_sessions import router as rebuild_rout
 from app.trade_workspace.models.position import PositionV2, PositionV2Status
 from app.trade_workspace.models.trade_closure import TradeClosureV2
 from app.trade_workspace.models.trade_session import TradeSessionV2, TradeSessionV2Status
-from app.trade_workspace.queue.analysis_request_queue import AnalysisRequestQueue
 
 pytestmark = pytest.mark.database
 
 CLOSE_TIMESTAMP = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
-
-
-class RecordingTransport:
-    async def publish(self, payload: bytes) -> None:
-        pass
 
 
 async def _seed_user_and_session(
@@ -86,7 +80,6 @@ def _build_app(engine: AsyncEngine) -> FastAPI:
     register_handlers(app)
     app.include_router(auth_router)
     app.include_router(rebuild_router)
-    app.state.rebuild_analysis_queue = AnalysisRequestQueue(RecordingTransport())
 
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -346,15 +339,3 @@ async def test_close_api_rejections_and_atomicity(engine: AsyncEngine) -> None:
             },
         )
         assert res_dup.status_code == 409
-
-        # 7. Submitting Position Update to closed session -> 409
-        res_post_upd = await client.post(
-            f"/api/v2/trade-sessions/{session_id}/position-updates"
-        )
-        assert res_post_upd.status_code == 409
-
-        # 8. History remains readable -> 200
-        res_read = await client.get(
-            f"/api/v2/trade-sessions/{session_id}/position-updates"
-        )
-        assert res_read.status_code == 200

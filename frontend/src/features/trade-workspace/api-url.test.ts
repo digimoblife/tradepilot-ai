@@ -6,7 +6,7 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-import { createSession, getSession, getSessionDetail, listSessions, submitInitialAnalysis, uploadInitialEvidence, uploadPositionUpdateInput, uploadWaitUpdateInput } from "./api";
+import { createSession, getSession, listSessions } from "./api";
 
 describe("Trade Workspace API Base URL composition", () => {
   beforeEach(() => {
@@ -97,34 +97,6 @@ describe("Trade Workspace API Base URL composition", () => {
     ]);
   });
 
-  it("loads the canonical detail aggregate with credentials and AbortSignal", async () => {
-    const response = {
-      session: {}, initial_evidence: [], initial_analysis: null, decisions: [],
-      wait_updates: [], position: null, position_updates: [], closure: null,
-      latest_analysis: null, recent_activity: [],
-      current_step: {
-        code: "INITIAL_EVIDENCE", mode: "ACTIONABLE",
-        workflow_actions: ["SUBMIT_INITIAL_EVIDENCE"], active_request: null,
-        failed_request: null, read_only: false,
-      },
-    };
-    const controller = new AbortController();
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(response), { status: 200 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    expect(await getSessionDetail("session-1", controller.signal)).toEqual(response);
-    const [requestedUrl, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(requestedUrl).toBe(
-      "https://tradepilotai.deployroom.my.id/api/v2/trade-sessions/session-1/detail",
-    );
-    expect(options.method).toBe("GET");
-    expect(options.credentials).toBe("include");
-    expect(options.signal).toBe(controller.signal);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
   it("posts the exact V2 create payload through the credentialed shared client", async () => {
     const response = {
       id: "33333333-3333-4333-8333-333333333333",
@@ -154,65 +126,4 @@ describe("Trade Workspace API Base URL composition", () => {
     expect(JSON.parse(String(options.body))).toEqual(payload);
   });
 
-  it("uploads the one exact initial-evidence multipart set with credentials", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ evidence: [] }), { status: 201 }));
-    vi.stubGlobal("fetch", fetchMock);
-    const files = {
-      orderbook: new File(["orderbook"], "orderbook.png", { type: "image/png" }),
-      chart_3_month: new File(["chart-3"], "three.png", { type: "image/png" }),
-      chart_6_month: new File(["chart-6"], "six.png", { type: "image/png" }),
-      foreign_flow_1w: new File(["foreign-flow"], "foreign-flow.png", { type: "image/png" }),
-    };
-
-    await uploadInitialEvidence("session-1", files);
-
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://tradepilotai.deployroom.my.id/api/v2/trade-sessions/session-1/initial-evidence");
-    expect(options.method).toBe("POST");
-    expect(options.credentials).toBe("include");
-    expect([...((options.body as FormData).keys())]).toEqual(["orderbook", "chart_3_month", "chart_6_month", "foreign_flow_1w"]);
-  });
-
-  it("submits Initial Analysis through its separate credentialed endpoint without a body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "request-1" }), { status: 201 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await submitInitialAnalysis("session-1");
-
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://tradepilotai.deployroom.my.id/api/v2/trade-sessions/session-1/initial-analysis");
-    expect(options.method).toBe("POST");
-    expect(options.credentials).toBe("include");
-    expect(options.body).toBeUndefined();
-  });
-
-  it("sends optional Broker Flow under the exact multipart field for WAIT and Position", async () => {
-    const fetchMock = vi.fn().mockImplementation(
-      () => Promise.resolve(new Response(JSON.stringify({}), { status: 201 })),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    const orderbook = new File(["orderbook"], "orderbook.png", { type: "image/png" });
-    const brokerFlow = new File(["broker"], "broker-flow.png", { type: "image/png" });
-    const common = {
-      orderbook,
-      broker_flow_1d: brokerFlow,
-      current_price: "5000",
-      observation_period: "MORNING" as const,
-      observation_timestamp: "2026-08-08T03:00:00Z",
-    };
-
-    await uploadWaitUpdateInput("session-1", common);
-    await uploadPositionUpdateInput("session-1", common);
-
-    for (const call of fetchMock.mock.calls) {
-      const options = call[1] as RequestInit;
-      expect([...((options.body as FormData).keys())]).toEqual([
-        "orderbook",
-        "broker_flow_1d",
-        "current_price",
-        "observation_period",
-        "observation_timestamp",
-      ]);
-    }
-  });
 });

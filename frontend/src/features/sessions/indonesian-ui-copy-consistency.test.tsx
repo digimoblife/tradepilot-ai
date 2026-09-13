@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { SESSION_DETAIL_STATUS_PRESENTATIONS } from "./session-detail-header";
 import { SESSION_STATUS_PRESENTATIONS } from "./session-list-card";
-import { SKIP_REASON_OPTIONS } from "./session-decision-surface";
 
 describe("UX7.4 — Indonesian UI Copy Consistency", () => {
   it("maps persisted session status technical values to approved Indonesian presentation labels", () => {
@@ -19,19 +18,6 @@ describe("UX7.4 — Indonesian UI Copy Consistency", () => {
     expect(SESSION_DETAIL_STATUS_PRESENTATIONS.OPEN_POSITION.label).toBe("Posisi Terbuka");
     expect(SESSION_DETAIL_STATUS_PRESENTATIONS.CLOSED.label).toBe("Selesai");
     expect(SESSION_DETAIL_STATUS_PRESENTATIONS.CLOSED_SKIPPED.label).toBe("Dilewati");
-  });
-
-  it("maps all 7 canonical SKIP reason values to approved Indonesian presentation labels without mutating values", () => {
-    expect(SKIP_REASON_OPTIONS).toHaveLength(7);
-    expect(SKIP_REASON_OPTIONS).toEqual([
-      { value: "RISK_TOO_HIGH", label: "Risiko Terlalu Tinggi" },
-      { value: "SETUP_NOT_ATTRACTIVE", label: "Setup Tidak Menarik" },
-      { value: "ORDERBOOK_WEAK", label: "Orderbook Lemah" },
-      { value: "MARKET_CONDITION_UNFAVORABLE", label: "Kondisi Pasar Tidak Mendukung" },
-      { value: "WAITING_TOO_LONG", label: "Waktu Tunggu Terlalu Lama" },
-      { value: "USER_DECISION", label: "Keputusan Pengguna" },
-      { value: "OTHER", label: "Lainnya" },
-    ]);
   });
 
   it("verifies normalized presentation wording contains no mixed-language presentation artifacts", () => {

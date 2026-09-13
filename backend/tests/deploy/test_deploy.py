@@ -439,19 +439,7 @@ class TestGatewayRefresh:
 
 
 # ===================================================================
-# 12. Worker health check in rollback
-# ===================================================================
-
-
-class TestRollbackWorkerHealth:
-    def test_rollback_checks_worker_health(self, tmp_home: Path) -> None:
-        """Rollback must verify /health/worker returns healthy."""
-        rollback = (_SCRIPTS_DIR / "rollback.sh").read_text()
-        assert "/health/worker" in rollback
-
-
-# ===================================================================
-# 13. No host Nginx management
+# 12. No host Nginx management
 # ===================================================================
 
 
@@ -494,51 +482,7 @@ class TestMiddlewareBackendURL:
         assert "INTERNAL_API_BASE_URL" in content
         assert "${INTERNAL_API_BASE_URL:-http://backend:8000}" in content
 
-    def test_compose_storage_root_worker(self) -> None:
-        """Worker must receive STORAGE_ROOT matching backend."""
-        content = (self._repo_root / "docker-compose.production.yml").read_text()
-        assert "STORAGE_ROOT: ${STORAGE_ROOT:-/data/evidence}" in content
-
     def test_compose_storage_volume_mounts(self) -> None:
-        """Both backend and worker must mount evidence_data:/data/evidence."""
+        """Backend must mount evidence_data:/data/evidence."""
         content = (self._repo_root / "docker-compose.production.yml").read_text()
         assert "evidence_data:/data/evidence" in content
-
-    def test_worker_prompts_packaged_and_mounted(self) -> None:
-        """Production worker image and compose runtime must include prompts."""
-        compose = (self._repo_root / "docker-compose.production.yml").read_text()
-        dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
-        worker_section = compose.split("  worker:", 1)[1].split("  frontend:", 1)[0]
-        assert "COPY prompts prompts/" in dockerfile
-        assert "./prompts:/app/prompts:ro" in worker_section
-
-    def test_worker_packages_canonical_runtime_modules(self) -> None:
-        """Worker image must expose root-level and shared processor modules including trade_workspace."""
-        dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
-        assert "ln -s /app/backend/app/json_safe.py /app/worker/app/json_safe.py" in dockerfile
-        assert "trade_workspace" in dockerfile
-        assert "import app.main" in dockerfile
-        assert "import app.json_safe" in dockerfile
-        assert "import app.lifecycle" in dockerfile
-        assert "import app.consumers.rebuild_analysis_requests" in dockerfile
-        assert "import app.trade_workspace" in dockerfile
-
-    def test_worker_build_assertion_covers_entrypoint_import_chain(self) -> None:
-        """Worker build must fail if a required runtime import is omitted."""
-        dockerfile = (self._repo_root / "infra/docker/worker.Dockerfile").read_text()
-        assertion = 'PYTHONPATH=/app/worker python -c "'
-        assert assertion in dockerfile
-        required_modules = (
-            "app.main",
-            "app.json_safe",
-            "app.lifecycle",
-            "app.runtime",
-            "app.consumers.rebuild_analysis_requests",
-            "app.trade_workspace",
-            "app.trade_workspace.workers.analysis_processor",
-            "app.trade_workspace.ai.context_builder",
-            "app.trade_workspace.ai.gemini_adapter",
-            "app.trade_workspace.services.analysis_request_queue",
-        )
-        for module in required_modules:
-            assert f"import {module}" in dockerfile

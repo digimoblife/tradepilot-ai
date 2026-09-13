@@ -166,7 +166,7 @@ ${COMPOSE_CMD} up -d --force-recreate gateway 2>&1 || _fail "gateway refresh fai
 # ---------------------------------------------------------------------------
 
 _info "Verifying container status"
-for svc in postgres backend worker frontend gateway; do
+for svc in postgres backend frontend gateway; do
     status=$(${COMPOSE_CMD} ps --format json "${svc}" 2>/dev/null | python3 -c "
 import sys,json
 try:
@@ -175,7 +175,7 @@ try:
 except: print('unknown')
 " 2>/dev/null || echo "unknown")
     echo "  ${svc}: ${status}"
-    if [[ "${svc}" != "worker" && "${status}" != "running" ]]; then
+    if [[ "${status}" != "running" ]]; then
         _fail "Service ${svc} is not running (state: ${status})"
     fi
 done
@@ -193,22 +193,11 @@ for attempt in $(seq 1 "${RETRY_ATTEMPTS}"); do
 
     LIVES=$(curl -sf "${HEALTH_URL}/health" 2>/dev/null || echo "FAIL")
     READY=$(curl -sf "${HEALTH_URL}/health/ready" 2>/dev/null || echo "FAIL")
-    WORKER=$(curl -sf "${HEALTH_URL}/health/worker" 2>/dev/null || echo "FAIL")
 
-    # Check that all three endpoints respond and worker reports healthy
-    WORKER_HEALTHY=false
-    if [[ "${WORKER}" != "FAIL" ]]; then
-        WS=$(echo "${WORKER}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
-        if [[ "${WS}" == "healthy" ]]; then
-            WORKER_HEALTHY=true
-        fi
-    fi
-
-    if [[ "${LIVES}" != "FAIL" && "${READY}" != "FAIL" && "${WORKER_HEALTHY}" == "true" ]]; then
+    if [[ "${LIVES}" != "FAIL" && "${READY}" != "FAIL" ]]; then
         HEALTHY=true
         echo "  /health:    ${LIVES}"
         echo "  /ready:     ${READY}"
-        echo "  /worker:    ${WORKER}"
         break
     fi
 

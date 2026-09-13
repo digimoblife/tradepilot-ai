@@ -175,7 +175,7 @@ class TestUnauthorizedEvidenceAccess:
     ) -> None:
         app = _build_app(db_session)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get(f"/api/v2/trade-sessions/{uuid.uuid4()}/initial-evidence")
+            resp = await ac.get(f"/api/v2/trade-sessions/{uuid.uuid4()}")
         assert resp.status_code in (401, 403), "Unauthenticated access should fail"
 
     async def test_unauthenticated_evidence_download_fails(
@@ -183,7 +183,7 @@ class TestUnauthorizedEvidenceAccess:
     ) -> None:
         app = _build_app(db_session)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get(f"/api/v2/trade-sessions/{uuid.uuid4()}/initial-evidence")
+            resp = await ac.get(f"/api/v2/trade-sessions/{uuid.uuid4()}/detail")
         assert resp.status_code in (401, 403), "Unauthenticated download should fail"
 
 
@@ -269,7 +269,7 @@ class TestSecurityHeaders:
         app = _build_app(db_session)
         app.add_middleware(SecurityHeadersMiddleware)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            resp = await ac.get(f"/api/v2/trade-sessions/{sid}/initial-evidence")
+            resp = await ac.get(f"/api/v2/trade-sessions/{sid}/detail")
         # Even without auth (no cookie), the response should have nosniff
         assert "X-Content-Type-Options" in resp.headers or resp.status_code in (401, 403)
 

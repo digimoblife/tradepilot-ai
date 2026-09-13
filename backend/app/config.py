@@ -52,7 +52,6 @@ class AppConfig(BaseSettings):
         default=[
             "/health",
             "/health/ready",
-            "/health/worker",
             "/api/auth/login",
         ]
     )

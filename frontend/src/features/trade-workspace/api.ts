@@ -1,6 +1,6 @@
 import { publicEnv } from "@/lib/env";
 import { get, post } from "@/lib/api/client";
-import type { BuyDecisionResult, CloseRequest, CloseResponse, CurrentStep, CurrentStepActiveRequest, CurrentStepCode, CurrentStepFailedRequest, CurrentStepMode, CurrentStepWorkflowAction, DecisionAvailability, EvidenceFile, InitialAnalysisRead, InitialAnalysisSubmission, InitialEvidenceUploadResponse, LatestAnalysisSummary, ObservationPeriod, PositionUpdateAnalysisSubmission, PositionUpdateInputResponse, PositionUpdatesRead, RequestStatus, SessionActivityType, SessionDetailAggregate, SessionRecentActivityItem, SessionSummaryClosure, SessionSummaryPosition, SkipDecisionResult, SkipReason, TradeSession, TradeSessionCreateInput, TradeSessionListResponse, WaitDecisionResult, WaitUpdateAnalysisRead, WaitUpdateAnalysisSubmission, WaitUpdateInputResponse, WaitUpdateRecoveryResponse } from "./types";
+import type { BuyDecisionResult, CloseRequest, CloseResponse, CurrentStep, CurrentStepActiveRequest, CurrentStepCode, CurrentStepFailedRequest, CurrentStepMode, CurrentStepWorkflowAction, EvidenceFile, LatestAnalysisSummary, RequestStatus, SessionActivityType, SessionDetailAggregate, SessionRecentActivityItem, SessionSummaryClosure, SessionSummaryPosition, SkipDecisionResult, SkipReason, TradeSession, TradeSessionCreateInput, TradeSessionListResponse, WaitDecisionResult } from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const normalizedPath = publicEnv.apiBaseUrl.endsWith("/api") && path.startsWith("/api/")
@@ -26,37 +26,9 @@ export function listArchivedSessions(signal?: AbortSignal): Promise<TradeSession
 export function getSession(id: string, signal?: AbortSignal): Promise<TradeSession> {
   return get<TradeSession>(`${base}/${id}`, undefined, signal);
 }
-export async function getSessionDetail(
-  id: string,
-  signal?: AbortSignal,
-): Promise<SessionDetailAggregate> {
-  const payload = await get<unknown>(`${base}/${id}/detail`, undefined, signal);
-  return parseSessionDetailAggregate(payload);
-}
 export function createSession(input: TradeSessionCreateInput, signal?: AbortSignal): Promise<TradeSession> {
   return post<TradeSession>(base, input, { signal });
 }
-export function uploadInitialEvidence(id: string, files: { orderbook: File; chart_3_month: File; chart_6_month: File; foreign_flow_1w: File }): Promise<InitialEvidenceUploadResponse> {
-  const body = new FormData(); body.append("orderbook", files.orderbook); body.append("chart_3_month", files.chart_3_month); body.append("chart_6_month", files.chart_6_month); body.append("foreign_flow_1w", files.foreign_flow_1w);
-  return request(`${base}/${id}/initial-evidence`, { method: "POST", body });
-}
-export function readInitialEvidence(id: string): Promise<InitialEvidenceUploadResponse> { return request(`${base}/${id}/initial-evidence`); }
-export function submitInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return post<InitialAnalysisSubmission>(`${base}/${id}/initial-analysis`); }
-export function readInitialAnalysis(id: string, signal?: AbortSignal): Promise<InitialAnalysisRead> { return get<InitialAnalysisRead>(`${base}/${id}/initial-analysis`, undefined, signal); }
-export function retryInitialAnalysis(id: string): Promise<InitialAnalysisSubmission> { return post<InitialAnalysisSubmission>(`${base}/${id}/initial-analysis/retry`, {}); }
-export function uploadWaitUpdateInput(id: string, input: { orderbook: File; broker_flow_1d?: File | null; current_price: string; observation_period: ObservationPeriod; observation_timestamp: string }): Promise<WaitUpdateInputResponse> {
-  const body = new FormData();
-  body.append("orderbook", input.orderbook);
-  if (input.broker_flow_1d) body.append("broker_flow_1d", input.broker_flow_1d);
-  body.append("current_price", input.current_price);
-  body.append("observation_period", input.observation_period);
-  body.append("observation_timestamp", input.observation_timestamp);
-  return request(`${base}/${id}/wait-update-input`, { method: "POST", body });
-}
-export function submitWaitUpdateAnalysis(id: string): Promise<WaitUpdateAnalysisSubmission> { return post<WaitUpdateAnalysisSubmission>(`${base}/${id}/wait-updates`, {}); }
-export function readWaitUpdateAnalysis(id: string, signal?: AbortSignal): Promise<WaitUpdateAnalysisRead> { return get<WaitUpdateAnalysisRead>(`${base}/${id}/wait-update-analysis`, undefined, signal); }
-export function retryWaitUpdateAnalysis(id: string): Promise<WaitUpdateRecoveryResponse> { return post<WaitUpdateRecoveryResponse>(`${base}/${id}/wait-update-analysis/retry`, {}); }
-export function getAvailableActions(id: string): Promise<DecisionAvailability> { return get<DecisionAvailability>(`${base}/${id}/available-actions`); }
 export function waitDecision(id: string): Promise<WaitDecisionResult> { return post<WaitDecisionResult>(`${base}/${id}/decisions/wait`, {}); }
 export function skipDecision(id: string, body: { reason: SkipReason; note?: string | null }): Promise<SkipDecisionResult> {
   return post<SkipDecisionResult>(`${base}/${id}/decisions/skip`, body);
@@ -65,17 +37,6 @@ export function buyDecision(id: string, body: { entry_price: string; entry_times
   return post<BuyDecisionResult>(`${base}/${id}/decisions/buy`, body);
 }
 
-export function uploadPositionUpdateInput(id: string, input: { orderbook: File; broker_flow_1d?: File | null; current_price: string; observation_period: ObservationPeriod; observation_timestamp: string }): Promise<PositionUpdateInputResponse> {
-  const body = new FormData();
-  body.append("orderbook", input.orderbook);
-  if (input.broker_flow_1d) body.append("broker_flow_1d", input.broker_flow_1d);
-  body.append("current_price", input.current_price);
-  body.append("observation_period", input.observation_period);
-  body.append("observation_timestamp", input.observation_timestamp);
-  return request(`${base}/${id}/position-update-input`, { method: "POST", body });
-}
-export function submitPositionUpdateAnalysis(id: string): Promise<PositionUpdateAnalysisSubmission> { return post<PositionUpdateAnalysisSubmission>(`${base}/${id}/position-updates`, {}); }
-export function readPositionUpdates(id: string, signal?: AbortSignal): Promise<PositionUpdatesRead> { return get<PositionUpdatesRead>(`${base}/${id}/position-updates`, undefined, signal); }
 export function closePosition(id: string, body: CloseRequest): Promise<CloseResponse> {
   return post<CloseResponse>(`${base}/${id}/close`, body);
 }

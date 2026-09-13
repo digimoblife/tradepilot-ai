@@ -150,7 +150,10 @@ async def test_direct_ownership_isolation_all_12_operations(
 
     # 4. Initial Analysis submission (Prerequisite: DRAFT)
     resp_init_analysis = await client.post(f"/api/v2/trade-sessions/{draft_session_id}/initial-analysis")
-    assert resp_init_analysis.status_code in (404, 403)
+    # POST is no longer registered on this path (only GET, for reading a completed
+    # analysis) since the analysis submission flow was retired, so FastAPI answers
+    # 405 rather than 404.
+    assert resp_init_analysis.status_code in (404, 403, 405)
 
     # 5. BUY decision (Prerequisite: ANALYZED)
     buy_payload = {
@@ -206,7 +209,10 @@ async def test_direct_ownership_isolation_all_12_operations(
 
     # 11. Position Update analysis submission (Prerequisite: OPEN_POSITION)
     resp_pos_sub = await client.post(f"/api/v2/trade-sessions/{open_pos_session_id}/position-updates")
-    assert resp_pos_sub.status_code in (404, 403)
+    # POST is no longer registered on this path (only GET, for reading position
+    # update history) since the analysis submission flow was retired, so FastAPI
+    # answers 405 rather than 404.
+    assert resp_pos_sub.status_code in (404, 403, 405)
 
     # 12. Close submission (Prerequisite: OPEN_POSITION)
     close_payload = {

@@ -18,8 +18,8 @@ from app.api.schemas.evidence_snapshot import (
     QuoteDomain,
 )
 from app.config import AppConfig
+from app.services.gemini_client import GeminiAdapterError, GeminiAdapterResult
 from app.services.market_analysis_engine import MarketAnalysisEngine, MarketAnalysisEngineError
-from app.trade_workspace.ai.gemini_adapter import GeminiAdapterError, GeminiAdapterResult
 
 
 def _snapshot() -> EvidenceSnapshotSchema:

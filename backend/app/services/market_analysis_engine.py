@@ -16,6 +16,7 @@ from typing import Any
 
 from app.api.schemas.evidence_snapshot import EvidenceSnapshotSchema
 from app.config import AppConfig
+from app.services.gemini_client import GeminiAdapter, GeminiAdapterError
 from app.services.market_analysis_prompt import (
     IN_TRADE_OUTPUT_SCHEMA,
     PRE_TRADE_OUTPUT_SCHEMA,
@@ -23,7 +24,6 @@ from app.services.market_analysis_prompt import (
     build_pre_trade_evidence_table,
     load_prompt,
 )
-from app.trade_workspace.ai.gemini_adapter import GeminiAdapter, GeminiAdapterError
 
 logger = logging.getLogger(__name__)
 

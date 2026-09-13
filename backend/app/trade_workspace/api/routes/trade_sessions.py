@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -18,14 +16,6 @@ from app.trade_workspace.api.schemas import (
     CloseResponse,
     DecisionAvailabilityResponse,
     InitialAnalysisReadResponse,
-    InitialAnalysisSubmissionResponse,
-    InitialEvidenceResponse,
-    InitialEvidenceUploadResponse,
-    PositionDetailResponse,
-    PositionUpdateAnalysisSubmissionResponse,
-    PositionUpdateInputResponse,
-    PositionUpdateItemResponse,
-    PositionUpdatesReadResponse,
     SessionDetailAggregateResponse,
     SkipDecisionRequest,
     SkipDecisionResponse,
@@ -34,13 +24,7 @@ from app.trade_workspace.api.schemas import (
     TradeSessionListResponse,
     TradeSessionResponse,
     WaitDecisionResponse,
-    WaitUpdateAnalysisReadResponse,
-    WaitUpdateAnalysisRecoveryResponse,
-    WaitUpdateAnalysisSubmissionResponse,
-    WaitUpdateInputResponse,
 )
-from app.trade_workspace.models.analysis_request import AnalysisRequestV2ObservationPeriod
-from app.trade_workspace.models.evidence_upload import EvidenceUploadV2Type
 from app.trade_workspace.services.buy_decision import (
     BuyDecisionError,
     BuyDecisionService,
@@ -50,34 +34,9 @@ from app.trade_workspace.services.close import (
     CloseService,
 )
 from app.trade_workspace.services.decision_availability import DecisionAvailabilityService
-from app.trade_workspace.services.evidence_uploads import (
-    InitialEvidenceInput,
-    InitialEvidenceUploadError,
-    InitialEvidenceUploadService,
-)
 from app.trade_workspace.services.initial_analysis_read import (
     InitialAnalysisReadError,
     InitialAnalysisReadService,
-)
-from app.trade_workspace.services.initial_analysis_retry import (
-    InitialAnalysisRetryError,
-    InitialAnalysisRetryService,
-)
-from app.trade_workspace.services.initial_analysis_submission import (
-    InitialAnalysisSubmissionError,
-    InitialAnalysisSubmissionService,
-)
-from app.trade_workspace.services.position_update_analysis_submission import (
-    PositionUpdateAnalysisSubmissionError,
-    PositionUpdateAnalysisSubmissionService,
-)
-from app.trade_workspace.services.position_update_input import (
-    PositionUpdateInputError,
-    PositionUpdateInputService,
-)
-from app.trade_workspace.services.position_update_read import (
-    PositionUpdateReadNotFoundError,
-    PositionUpdateReadService,
 )
 from app.trade_workspace.services.session_detail_aggregate import (
     SessionDetailAggregateNotFoundError,
@@ -94,22 +53,6 @@ from app.trade_workspace.services.trade_sessions import (
 from app.trade_workspace.services.wait_decision import (
     WaitDecisionError,
     WaitDecisionService,
-)
-from app.trade_workspace.services.wait_update_analysis_read import (
-    WaitUpdateAnalysisReadError,
-    WaitUpdateAnalysisReadService,
-)
-from app.trade_workspace.services.wait_update_analysis_retry import (
-    WaitUpdateAnalysisRetryError,
-    WaitUpdateAnalysisRetryService,
-)
-from app.trade_workspace.services.wait_update_analysis_submission import (
-    WaitUpdateAnalysisSubmissionError,
-    WaitUpdateAnalysisSubmissionService,
-)
-from app.trade_workspace.services.wait_update_input import (
-    WaitUpdateInputError,
-    WaitUpdateInputService,
 )
 
 router = APIRouter(prefix="/api/v2/trade-sessions", tags=["rebuild-trade-sessions"])
@@ -141,22 +84,6 @@ def _not_found() -> HTTPException:
     )
 
 
-def _upload_error(exc: Exception) -> HTTPException:
-    code = getattr(exc, "code", "INITIAL_EVIDENCE_UPLOAD_FAILED")
-    message = {
-        "SESSION_NOT_FOUND": "Trade session not found",
-        "SESSION_NOT_ELIGIBLE": "Trade session is not eligible for initial evidence",
-        "INITIAL_EVIDENCE_EXISTS": "Initial evidence already exists",
-        "INITIAL_EVIDENCE_INVALID_FILE": "Initial evidence files are invalid",
-        "INITIAL_EVIDENCE_STORAGE_FAILED": "Initial evidence storage failed",
-        "INITIAL_EVIDENCE_PERSISTENCE_FAILED": "Initial evidence could not be persisted",
-    }.get(code, "Initial evidence upload failed")
-    return HTTPException(
-        status_code=getattr(exc, "status_code", 422),
-        detail={"code": code, "message": message},
-    )
-
-
 def _archive_error(exc: ArchiveError) -> HTTPException:
     if exc.code == "SESSION_NOT_FOUND":
         return _not_found()
@@ -173,22 +100,6 @@ def _archive_error(exc: ArchiveError) -> HTTPException:
     )
 
 
-def _safe_original_filename(filename: str | None) -> str:
-    value = (filename or "upload").replace("\\", "/").split("/")[-1].strip()
-    return (value or "upload")[:255]
-
-
-def _evidence_response(item: object) -> InitialEvidenceResponse:
-    return InitialEvidenceResponse(
-        id=str(item.id),
-        evidence_type=item.evidence_type.value,
-        original_filename=item.original_filename,
-        mime_type=item.mime_type,
-        size_bytes=item.size_bytes,
-        uploaded_at=item.uploaded_at,
-    )
-
-
 @router.post("", response_model=TradeSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_trade_session(
     body: TradeSessionCreateRequest,
@@ -202,447 +113,6 @@ async def create_trade_session(
         note=body.note,
     )
     return _to_response(trade_session)
-
-
-@router.post(
-    "/{session_id}/initial-evidence",
-    response_model=InitialEvidenceUploadResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def upload_initial_evidence(
-    session_id: uuid.UUID,
-    orderbook: UploadFile = File(...),
-    chart_3_month: UploadFile = File(...),
-    chart_6_month: UploadFile = File(...),
-    foreign_flow_1w: UploadFile = File(...),
-    broker_flow_1d: UploadFile | None = File(None),
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> InitialEvidenceUploadResponse:
-    if broker_flow_1d is not None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "INITIAL_EVIDENCE_INVALID_FILE",
-                "message": "BROKER_FLOW_1D is not valid Initial Evidence",
-            },
-        )
-    uploads = (
-        (orderbook, EvidenceUploadV2Type.ORDERBOOK),
-        (chart_3_month, EvidenceUploadV2Type.CHART_3_MONTH),
-        (chart_6_month, EvidenceUploadV2Type.CHART_6_MONTH),
-        (foreign_flow_1w, EvidenceUploadV2Type.FOREIGN_FLOW_1W),
-    )
-    inputs = [
-        InitialEvidenceInput(
-            evidence_type=evidence_type,
-            original_filename=_safe_original_filename(upload.filename),
-            mime_type=upload.content_type or "",
-            content=await upload.read(),
-        )
-        for upload, evidence_type in uploads
-    ]
-    try:
-        records = await InitialEvidenceUploadService(db_session).upload(
-            user_id=current_user.id,
-            session_id=session_id,
-            files=inputs,
-        )
-    except InitialEvidenceUploadError as exc:
-        raise _upload_error(exc) from exc
-    return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
-
-
-@router.get(
-    "/{session_id}/initial-evidence",
-    response_model=InitialEvidenceUploadResponse,
-)
-async def read_initial_evidence(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> InitialEvidenceUploadResponse:
-    try:
-        records = await InitialEvidenceUploadService(db_session).get_initial_evidence(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except InitialEvidenceUploadError as exc:
-        raise _upload_error(exc) from exc
-    return InitialEvidenceUploadResponse(evidence=[_evidence_response(item) for item in records])
-
-
-@router.post(
-    "/{session_id}/wait-update-input",
-    response_model=WaitUpdateInputResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def submit_wait_update_input(
-    session_id: uuid.UUID,
-    orderbook: UploadFile = File(...),
-    broker_flow_1d: UploadFile | None = File(None),
-    foreign_flow_1w: UploadFile | None = File(None),
-    current_price: Decimal = Form(...),
-    observation_period: AnalysisRequestV2ObservationPeriod = Form(...),
-    observation_timestamp: datetime = Form(...),
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> WaitUpdateInputResponse:
-    if foreign_flow_1w is not None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "WAIT_UPDATE_INPUT_INVALID",
-                "message": "FOREIGN_FLOW_1W is not valid WAIT Update evidence",
-            },
-        )
-    try:
-        result = await WaitUpdateInputService(db_session).submit(
-            user_id=current_user.id,
-            session_id=session_id,
-            original_filename=_safe_original_filename(orderbook.filename),
-            mime_type=orderbook.content_type or "",
-            content=await orderbook.read(),
-            current_price=current_price,
-            observation_period=observation_period,
-            observation_timestamp=observation_timestamp,
-            broker_flow_original_filename=(
-                _safe_original_filename(broker_flow_1d.filename)
-                if broker_flow_1d is not None
-                else None
-            ),
-            broker_flow_mime_type=(
-                broker_flow_1d.content_type or "" if broker_flow_1d is not None else None
-            ),
-            broker_flow_content=(
-                await broker_flow_1d.read() if broker_flow_1d is not None else None
-            ),
-        )
-    except WaitUpdateInputError as exc:
-        if exc.code == "SESSION_NOT_FOUND":
-            raise _not_found() from exc
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return WaitUpdateInputResponse(
-        evidence_id=str(result.evidence_id),
-        session_id=str(result.session_id),
-        evidence_type=result.evidence_type.value,
-        original_filename=result.original_filename,
-        mime_type=result.mime_type,
-        size_bytes=result.size_bytes,
-        current_price=result.current_price,
-        observation_period=result.observation_period.value,
-        observation_timestamp=result.observation_timestamp,
-        uploaded_at=result.uploaded_at,
-        session_status=result.session_status.value,
-    )
-
-
-@router.post(
-    "/{session_id}/position-update-input",
-    response_model=PositionUpdateInputResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def submit_position_update_input(
-    session_id: uuid.UUID,
-    orderbook: UploadFile = File(...),
-    broker_flow_1d: UploadFile | None = File(None),
-    foreign_flow_1w: UploadFile | None = File(None),
-    current_price: Decimal = Form(...),
-    observation_period: AnalysisRequestV2ObservationPeriod = Form(...),
-    observation_timestamp: datetime = Form(...),
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> PositionUpdateInputResponse:
-    if foreign_flow_1w is not None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "POSITION_UPDATE_INPUT_INVALID",
-                "message": "FOREIGN_FLOW_1W is not valid Position Update evidence",
-            },
-        )
-    try:
-        result = await PositionUpdateInputService(db_session).submit(
-            user_id=current_user.id,
-            session_id=session_id,
-            original_filename=_safe_original_filename(orderbook.filename),
-            mime_type=orderbook.content_type or "",
-            content=await orderbook.read(),
-            current_price=current_price,
-            observation_period=observation_period,
-            observation_timestamp=observation_timestamp,
-            broker_flow_original_filename=(
-                _safe_original_filename(broker_flow_1d.filename)
-                if broker_flow_1d is not None
-                else None
-            ),
-            broker_flow_mime_type=(
-                broker_flow_1d.content_type or "" if broker_flow_1d is not None else None
-            ),
-            broker_flow_content=(
-                await broker_flow_1d.read() if broker_flow_1d is not None else None
-            ),
-        )
-    except PositionUpdateInputError as exc:
-        if exc.code == "SESSION_NOT_FOUND":
-            raise _not_found() from exc
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return PositionUpdateInputResponse(
-        evidence_id=str(result.evidence_id),
-        session_id=str(result.session_id),
-        position_id=str(result.position_id),
-        evidence_type=result.evidence_type.value,
-        original_filename=result.original_filename,
-        mime_type=result.mime_type,
-        size_bytes=result.size_bytes,
-        current_price=result.current_price,
-        observation_period=result.observation_period.value,
-        observation_timestamp=result.observation_timestamp,
-        uploaded_at=result.uploaded_at,
-        session_status=result.session_status.value,
-        position_status=result.position_status.value,
-    )
-
-
-@router.post(
-    "/{session_id}/position-updates",
-    response_model=PositionUpdateAnalysisSubmissionResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def submit_position_update_analysis(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> PositionUpdateAnalysisSubmissionResponse:
-    try:
-        result = await PositionUpdateAnalysisSubmissionService(db_session).submit(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except PositionUpdateAnalysisSubmissionError as exc:
-        if exc.code == "SESSION_NOT_FOUND":
-            raise _not_found() from exc
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return PositionUpdateAnalysisSubmissionResponse(
-        analysis_request_id=str(result.analysis_request_id),
-        session_id=str(result.session_id),
-        position_id=str(result.position_id),
-        analysis_type=result.analysis_type.value,
-        request_status=result.request_status.value,
-        evidence_id=str(result.evidence_id),
-        observation_period=result.observation_period.value,
-        session_status=result.session_status.value,
-        position_status=result.position_status.value,
-        created_at=result.created_at,
-    )
-
-
-@router.get(
-    "/{session_id}/position-updates",
-    response_model=PositionUpdatesReadResponse,
-)
-async def read_position_updates(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> PositionUpdatesReadResponse:
-    try:
-        result = await PositionUpdateReadService(db_session).get_all(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except PositionUpdateReadNotFoundError as exc:
-        raise _not_found() from exc
-
-    position_resp = (
-        PositionDetailResponse(
-            id=str(result.position.id),
-            session_id=str(result.position.session_id),
-            status=result.position.status.value,
-            entry_price=result.position.entry_price,
-            entry_timestamp=result.position.entry_at,
-            quantity=result.position.quantity,
-            stop_loss=result.position.stop_loss,
-            target_price=result.position.target_price,
-            note=result.position.note,
-            created_at=result.position.created_at,
-        )
-        if result.position is not None
-        else None
-    )
-
-    updates_resp = [
-        PositionUpdateItemResponse(
-            analysis_request_id=str(u.analysis_request_id),
-            session_id=str(u.session_id),
-            analysis_type=u.analysis_type.value,
-            request_status=u.request_status.value,
-            current_price=u.current_price,
-            observation_period=u.observation_period.value if u.observation_period else None,
-            observation_timestamp=u.observation_at,
-            processed_response=u.processed_response,
-            error_code=u.error_code,
-            error_message=u.error_message,
-            created_at=u.created_at,
-            started_at=u.started_at,
-            completed_at=u.completed_at,
-            evidence_id=str(u.evidence_id) if u.evidence_id else None,
-            original_filename=u.original_filename,
-            market_facts=u.market_facts,
-        )
-        for u in result.updates
-    ]
-
-    return PositionUpdatesReadResponse(
-        position=position_resp,
-        updates=updates_resp,
-    )
-
-
-
-@router.post(
-    "/{session_id}/initial-analysis",
-    response_model=InitialAnalysisSubmissionResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def submit_initial_analysis(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> InitialAnalysisSubmissionResponse:
-    try:
-        result = await InitialAnalysisSubmissionService(db_session).submit(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except InitialAnalysisSubmissionError as exc:
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return InitialAnalysisSubmissionResponse(
-        analysis_request_id=str(result.analysis_request_id),
-        session_id=str(result.session_id),
-        analysis_type=result.analysis_type.value,
-        request_status=result.request_status.value,
-        session_status=result.session_status.value,
-        created_at=result.created_at,
-    )
-
-
-@router.post(
-    "/{session_id}/wait-updates",
-    response_model=WaitUpdateAnalysisSubmissionResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def submit_wait_update_analysis(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> WaitUpdateAnalysisSubmissionResponse:
-    try:
-        result = await WaitUpdateAnalysisSubmissionService(db_session).submit(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except WaitUpdateAnalysisSubmissionError as exc:
-        if exc.code == "SESSION_NOT_FOUND":
-            raise _not_found() from exc
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return WaitUpdateAnalysisSubmissionResponse(
-        analysis_request_id=str(result.analysis_request_id),
-        session_id=str(result.session_id),
-        analysis_type=result.analysis_type.value,
-        request_status=result.request_status.value,
-        evidence_id=str(result.evidence_id),
-        observation_period=result.observation_period.value,
-        session_status=result.session_status.value,
-        created_at=result.created_at,
-    )
-
-
-@router.get(
-    "/{session_id}/wait-update-analysis",
-    response_model=WaitUpdateAnalysisReadResponse,
-)
-async def read_wait_update_analysis(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> WaitUpdateAnalysisReadResponse:
-    try:
-        result = await WaitUpdateAnalysisReadService(db_session).get_latest(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except WaitUpdateAnalysisReadError as exc:
-        raise _not_found() from exc
-    return WaitUpdateAnalysisReadResponse(
-        analysis_request_id=str(result.analysis_request_id),
-        session_id=str(result.session_id),
-        analysis_type=result.analysis_type.value,
-        request_status=result.request_status.value,
-        session_status=result.session_status.value,
-        processed_response=result.processed_response,
-        error_code=result.error_code,
-        error_message=result.error_message,
-        observation_period=(
-            result.observation_period.value if result.observation_period is not None else None
-        ),
-        created_at=result.created_at,
-        started_at=result.started_at,
-        completed_at=result.completed_at,
-        market_facts=result.market_facts,
-    )
-
-
-@router.post(
-    "/{session_id}/wait-update-analysis/retry",
-    response_model=WaitUpdateAnalysisRecoveryResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def retry_wait_update_analysis(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> WaitUpdateAnalysisRecoveryResponse:
-    try:
-        result = await WaitUpdateAnalysisRetryService(db_session).retry(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except WaitUpdateAnalysisRetryError as exc:
-        if exc.code == "SESSION_NOT_FOUND":
-            raise _not_found() from exc
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return WaitUpdateAnalysisRecoveryResponse(
-        analysis_request_id=str(result.analysis_request_id),
-        session_id=str(result.session_id),
-        analysis_type=result.analysis_type.value,
-        request_status=result.request_status.value,
-        session_status=result.session_status.value,
-        observation_period=(
-            result.observation_period.value
-            if hasattr(result.observation_period, "value")
-            else None
-        ),
-        created_at=result.created_at,
-    )
 
 
 @router.get(
@@ -674,38 +144,6 @@ async def read_initial_analysis(
         started_at=result.started_at,
         completed_at=result.completed_at,
         market_facts=result.market_facts,
-    )
-
-
-@router.post(
-    "/{session_id}/initial-analysis/retry",
-    response_model=InitialAnalysisSubmissionResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def retry_initial_analysis(
-    session_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> InitialAnalysisSubmissionResponse:
-    try:
-        result = await InitialAnalysisRetryService(db_session).retry(
-            user_id=current_user.id,
-            session_id=session_id,
-        )
-    except InitialAnalysisRetryError as exc:
-        if exc.code == "SESSION_NOT_FOUND":
-            raise _not_found() from exc
-        raise HTTPException(
-            status_code=exc.status_code,
-            detail={"code": exc.code, "message": str(exc)},
-        ) from exc
-    return InitialAnalysisSubmissionResponse(
-        analysis_request_id=str(result.analysis_request_id),
-        session_id=str(result.session_id),
-        analysis_type=result.analysis_type.value,
-        request_status=result.request_status.value,
-        session_status=result.session_status.value,
-        created_at=result.created_at,
     )
 
 

@@ -1,3 +1,12 @@
+"""Shared Gemini request boundary for TradePilot AI backend services.
+
+Used by MarketAnalysisEngine (the live analysis pipeline) for both the
+pre-trade and in-trade analysis calls. Kept intentionally provider-agnostic
+at the call site: callers supply a prompt, optional image parts, and a
+structured-output JSON schema, and get back parsed JSON or a sanitized
+``GeminiAdapterError``.
+"""
+
 from __future__ import annotations
 
 import json
@@ -13,7 +22,7 @@ DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 @dataclass(frozen=True, slots=True)
 class GeminiImagePart:
-    """Ordered image data supplied to the rebuild Gemini boundary."""
+    """Ordered image data supplied to the Gemini request boundary."""
 
     data: bytes
     mime_type: str
@@ -21,7 +30,7 @@ class GeminiImagePart:
 
 @dataclass(frozen=True, slots=True)
 class GeminiAdapterResult:
-    """The explicit result returned by the rebuild Gemini adapter."""
+    """The explicit result returned by the Gemini adapter."""
 
     provider: str
     model: str
@@ -30,7 +39,7 @@ class GeminiAdapterResult:
 
 
 class GeminiAdapterError(Exception):
-    """Sanitized errors raised by the rebuild Gemini boundary."""
+    """Sanitized errors raised by the Gemini request boundary."""
 
 
 class _GeminiClient(Protocol):
@@ -64,7 +73,7 @@ class _GoogleGeminiClient:
 
 
 class GeminiAdapter:
-    """Single Gemini-only request boundary for rebuild runtime use."""
+    """Single Gemini-only request boundary shared by backend services."""
 
     provider = "gemini"
 

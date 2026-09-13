@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from app.trade_workspace.ai.gemini_adapter import (
+from app.services.gemini_client import (
     DEFAULT_GEMINI_MODEL,
     GeminiAdapter,
     GeminiAdapterError,
@@ -90,7 +90,7 @@ async def test_absent_model_configuration_uses_production_default(
 ) -> None:
     monkeypatch.delenv("GEMINI_MODEL", raising=False)
     monkeypatch.setattr(
-        "app.trade_workspace.ai.gemini_adapter.AppConfig",
+        "app.services.gemini_client.AppConfig",
         lambda: SimpleNamespace(
             gemini_model="",
             gemini_api_key="",
