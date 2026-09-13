@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ButtonSpinner } from "@/components/button-spinner";
-import { InstitutionalBrand, Modal } from "@/components/ui";
+import { Modal } from "@/components/ui";
 import {
   analyzeSession,
   archiveSessionV2,
@@ -14,7 +14,12 @@ import {
   skipDecision,
   waitDecision,
 } from "@/features/trade-workspace/api";
-import type { SkipReason, TradeSession } from "@/features/trade-workspace/types";
+import {
+  MarketFactsStrip,
+  PriceDeltaBadge,
+  WarningList,
+} from "@/features/trade-workspace/components/analysis-result-metrics";
+import type { MarketFactsSnapshot, SkipReason, TradeSession } from "@/features/trade-workspace/types";
 import { formatMiliar, formatShares } from "./telegram-report";
 
 type ActionType = "BUY" | "WAIT" | "SKIP" | "HOLD" | "TAKE_PROFIT" | "CUT_LOSS" | "TRAILING_STOP";
@@ -34,6 +39,10 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showSkipModal, setShowSkipModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+
+  // Fundamental valuation block is collapsed by default once a position is
+  // active (data is largely static since entry); pre-trade always shows it.
+  const [showFundamentals, setShowFundamentals] = useState(false);
 
   const [buyPrice, setBuyPrice] = useState("");
   const [buyLots, setBuyLots] = useState("10");
@@ -278,6 +287,9 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const floatingPnLPercent = capitalInvested > 0 ? (floatingPnL / capitalInvested) * 100 : 0;
 
   const isInTrade = session?.status === "OPEN_POSITION" || Boolean(position && position.status === "OPEN") || Boolean(analysis?.is_in_trade);
+  // Pre-trade always shows fundamentals in full (due-diligence context);
+  // in-trade collapses them behind a toggle since the data is largely static.
+  const fundamentalsExpanded = !isInTrade || showFundamentals;
 
   // Conviction Index
   const convictionScore = analysis?.confidence_score ?? (action === "BUY" ? 78 : action === "WAIT" ? 62 : 47);
@@ -384,6 +396,77 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
         `Koreksi lanjutan jika harga breakdown di bawah support Rp ${(tech?.key_supports?.[0] || keyLevels?.stop_loss || 0).toLocaleString("id-ID")}.`,
       ];
 
+  // In-trade action labels (STATUS badge + guidance section), mirroring the
+  // pre-trade BUY/WAIT/SKIP labels but for the HOLD/TAKE_PROFIT/CUT_LOSS/
+  // TRAILING_STOP actions MarketAnalysisEngine returns once a position is open.
+  const inTradeStatusLabel: Record<string, string> = {
+    HOLD: "STATUS: HOLD",
+    TAKE_PROFIT: "STATUS: TAKE PROFIT",
+    CUT_LOSS: "STATUS: CUT LOSS ALERT",
+    TRAILING_STOP: "STATUS: TRAILING STOP",
+  };
+  const inTradeStrategyLabel: Record<string, string> = {
+    HOLD: "Kawal Posisi Sesuai Rencana Trading",
+    TAKE_PROFIT: "Ambil Profit Bertahap di Target",
+    CUT_LOSS: "Cut Loss Sesuai Batas Risiko",
+    TRAILING_STOP: "Kunci Profit dengan Trailing Stop",
+  };
+  const inTradeGuidanceHeading: Record<string, string> = {
+    HOLD: "PANDUAN PENGAWALAN POSISI",
+    TAKE_PROFIT: "PANDUAN TAKE PROFIT",
+    CUT_LOSS: "PANDUAN CUT LOSS",
+    TRAILING_STOP: "PANDUAN TRAILING STOP",
+  };
+
+  // Market facts strip (Fase 3): flattens the live evidence snapshot's nested
+  // domains (company_profile / market_context / foreign_flow) into the shape
+  // MarketFactsStrip already expects — no backend field is invented here.
+  const marketFactsSnapshot: MarketFactsSnapshot | null = isInTrade
+    ? {
+        sector: companyProfile?.sector ?? null,
+        sub_sector: companyProfile?.sub_sector ?? null,
+        pe_ratio: displayPe ?? null,
+        pbv_ratio: companyProfile?.pbv_ratio ?? quote?.pbv_ratio ?? null,
+        beta: displayBeta ?? null,
+        next_earnings_date: displayNextEarnings ?? null,
+        index_name: marketContext?.index_change_percent != null ? "IHSG" : null,
+        index_change_percent: marketContext?.index_change_percent ?? null,
+        ma_alignment: maAlignment ?? null,
+        foreign_status: foreignFlow?.foreign_status ?? null,
+      }
+    : null;
+
+  // In-trade warnings (Fase 3): only surfaced when the underlying condition
+  // is actually true in the live data — never invented.
+  const inTradeWarnings: string[] = [];
+  if (isInTrade) {
+    if (keyLevels?.distance_to_sl_percent != null && Number(keyLevels.distance_to_sl_percent) <= 0) {
+      inTradeWarnings.push("⚠️ Harga sudah menembus level Stop Loss (SL). Segera evaluasi posisi.");
+    } else if (keyLevels?.distance_to_sl_percent != null && Number(keyLevels.distance_to_sl_percent) < 3) {
+      inTradeWarnings.push(`⚠️ Harga mendekati Stop Loss — tersisa ${Number(keyLevels.distance_to_sl_percent).toFixed(2)}% toleransi.`);
+    }
+    if (action === "CUT_LOSS") {
+      inTradeWarnings.push("🛑 AI merekomendasikan CUT LOSS — pertimbangkan menutup posisi untuk membatasi risiko.");
+    }
+    if (keyLevels?.trailing_stop_note) {
+      inTradeWarnings.push(`🔒 ${keyLevels.trailing_stop_note}`);
+    }
+  }
+
+  // Real candlestick chart data (backend returns newest-first, up to 15 bars).
+  const rawBars: Array<{ date: string; open: number; high: number; low: number; close: number }> =
+    historical?.recent_bars || [];
+  const chartBars = [...rawBars].reverse(); // oldest -> newest, left to right
+  const chartHigh = chartBars.length > 0 ? Math.max(...chartBars.map((b) => Number(b.high))) : 0;
+  const chartLow = chartBars.length > 0 ? Math.min(...chartBars.map((b) => Number(b.low))) : 0;
+  const chartRange = chartHigh - chartLow || 1;
+  const CHART_W = 460;
+  const CHART_H = 140;
+  const CHART_PAD = 8;
+  const barSlot = chartBars.length > 0 ? CHART_W / chartBars.length : 0;
+  const priceToY = (price: number) =>
+    CHART_H - CHART_PAD - ((price - chartLow) / chartRange) * (CHART_H - CHART_PAD * 2);
+
   return (
     <div className="flex flex-col min-h-screen w-full bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
       <h1 className="sr-only">{session?.ticker || "BBRI"}</h1>
@@ -392,32 +475,19 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
       {/* TOP HEADER NAVIGATION BAR */}
       <header className="sticky top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
         <div className="h-14 sm:h-16 w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-3 max-w-7xl mx-auto">
-          {/* Brand & Breadcrumbs */}
+          {/* Back navigation & Breadcrumbs */}
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <Link
               href="/sessions"
-              className="flex sm:hidden items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors shrink-0 font-mono text-xs sm:text-sm font-bold"
               title="Kembali ke Daftar Sesi"
             >
-              ←
+              <span aria-hidden="true">←</span>
+              <span className="hidden sm:inline">Kembali ke Daftar Sesi</span>
             </Link>
 
-            <InstitutionalBrand
-              iconSizeClass="w-8 h-8 sm:w-9 sm:h-9"
-              textSizeClass="text-sm sm:text-base"
-              showEngineTag={true}
-              className="shrink-0"
-            />
-
-            <div className="hidden xl:flex items-center gap-2 pl-3 border-l border-slate-200 text-xs text-slate-500 truncate">
-              <Link
-                href="/sessions"
-                className="hover:text-blue-600 transition-colors flex items-center gap-1 shrink-0 font-medium"
-              >
-                ← Kembali ke Daftar Sesi
-              </Link>
-              <span className="text-slate-300">•</span>
-              <span className="font-semibold text-slate-800 truncate">${session?.ticker || quote?.symbol || "EMITEN"} Analysis</span>
+            <div className="hidden xl:flex items-center gap-2 pl-3 border-l border-slate-200 text-xs text-slate-500 min-w-0">
+              <span className="font-semibold text-slate-800 block truncate">${session?.ticker || quote?.symbol || "EMITEN"} Analysis</span>
             </div>
 
             <div className="hidden md:flex items-center gap-2 shrink-0">
@@ -472,8 +542,9 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   <h2 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
                     🟢 POSISI AKTIF: {session?.ticker} ({quantityLots} Lot)
                   </h2>
-                  <p className="text-[11px] sm:text-xs text-slate-600 font-mono mt-0.5">
-                    Entry: Rp {entryPrice.toLocaleString("id-ID")} • Modal: Rp {capitalInvested.toLocaleString("id-ID")}
+                  <p className="text-[11px] sm:text-xs text-slate-600 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <span>Entry: Rp {entryPrice.toLocaleString("id-ID")} • Modal: Rp {capitalInvested.toLocaleString("id-ID")}</span>
+                    <PriceDeltaBadge currentPrice={currentPrice} entryPrice={entryPrice} />
                   </p>
                 </div>
               </div>
@@ -492,6 +563,16 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   🚪 Tutup Posisi
                 </button>
               </div>
+              {marketFactsSnapshot && (
+                <div className="w-full pt-2 border-t border-emerald-500/20">
+                  <MarketFactsStrip marketFacts={marketFactsSnapshot} />
+                </div>
+              )}
+              {inTradeWarnings.length > 0 && (
+                <div className="w-full pt-2 border-t border-emerald-500/20 text-xs text-slate-700">
+                  <WarningList items={inTradeWarnings} tone={action === "CUT_LOSS" ? "danger" : "warning"} />
+                </div>
+              )}
             </div>
           )}
 
@@ -507,7 +588,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
             </div>
             <div className="flex items-center gap-2 font-mono text-[10px] sm:text-[11px] text-emerald-700 pl-7 sm:pl-0">
               <span className="hidden sm:inline">Sinkronisasi Realtime</span>
-              <span className="px-1.5 sm:px-2 py-0.5 rounded bg-white/80 border border-emerald-200 text-emerald-800 font-bold truncate">
+              <span className="px-1.5 sm:px-2 py-0.5 rounded bg-white/80 border border-emerald-200 text-emerald-800 font-bold block truncate">
                 {analyzedDateStr} • {analyzedTimeWib}
               </span>
             </div>
@@ -526,7 +607,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                       <span className="text-xl sm:text-2xl text-slate-900 font-bold tracking-tight">
                         ${session?.ticker || quote?.symbol}
                       </span>
-                      <span className="text-xs sm:text-sm text-slate-500 font-medium truncate max-w-[170px] sm:max-w-none">
+                      <span className="text-xs sm:text-sm text-slate-500 font-medium block truncate max-w-[170px] sm:max-w-none">
                         ({session?.company_name || quote?.company_name || "BEI"})
                       </span>
                       <span className="font-mono text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-semibold">
@@ -590,10 +671,10 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${currentBadge.dot} animate-pulse shrink-0`} />
                   <div className="flex flex-col">
                     <span className={`font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-wider ${currentBadge.text}`}>
-                      REKOMENDASI AI
+                      {isInTrade ? "STATUS POSISI" : "REKOMENDASI AI"}
                     </span>
                     <span className={`text-sm sm:text-base font-extrabold tracking-wide ${currentBadge.text}`}>
-                      REKOMENDASI: {action}
+                      {isInTrade ? (inTradeStatusLabel[action] ?? `STATUS: ${action}`) : `REKOMENDASI: ${action}`}
                     </span>
                   </div>
                 </div>
@@ -622,63 +703,86 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
                   Sub: {companyProfile?.sub_sector || "Saham Terbuka"}
                 </span>
+                {isInTrade && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFundamentals((v) => !v)}
+                    className="ml-auto px-2 py-0.5 sm:px-2.5 sm:py-1 rounded bg-white border border-slate-300 text-slate-600 font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    {showFundamentals ? "Sembunyikan Detail ▴" : "Tampilkan Detail Fundamental ▾"}
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Compact summary shown in-trade while fundamentals are collapsed */}
+            {isInTrade && !fundamentalsExpanded && (
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] sm:text-xs text-slate-600">
+                <span className="px-2 py-0.5 rounded bg-slate-50 border border-slate-200">
+                  P/E: <strong className="text-slate-900">{displayPe != null ? `${Number(displayPe).toFixed(2)}x` : "-"}</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded bg-slate-50 border border-slate-200">
+                  Katalis Lapkeu: <strong className="text-slate-900">{displayNextEarnings || "Menunggu Rilis"}</strong>
+                </span>
+              </div>
+            )}
 
             {/* 6 Financial Metric Cards */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">P/E RATIO (TTM)</span>
-                <p className="mt-1 font-mono text-base sm:text-lg font-bold text-slate-900">
-                  {displayPe != null ? `${Number(displayPe).toFixed(2)}x` : "-"}
-                </p>
-                <span className="text-[9px] sm:text-[10px] text-slate-500">Valuasi atraktif</span>
-              </div>
+            {fundamentalsExpanded && (
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between min-w-0">
+                  <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">P/E RATIO (TTM)</span>
+                  <p className="mt-1 font-mono text-base sm:text-lg font-bold text-slate-900">
+                    {displayPe != null ? `${Number(displayPe).toFixed(2)}x` : "-"}
+                  </p>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500">Valuasi atraktif</span>
+                </div>
 
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">EPS (TTM)</span>
-                <p className="mt-1 font-mono text-base sm:text-lg font-bold text-slate-900">
-                  {displayEps != null ? `Rp ${Number(displayEps).toFixed(2)}` : "-"}
-                </p>
-                <span className="text-[9px] sm:text-[10px] text-slate-500">Per lembar saham</span>
-              </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between min-w-0">
+                  <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">EPS (TTM)</span>
+                  <p className="mt-1 font-mono text-base sm:text-lg font-bold text-slate-900">
+                    {displayEps != null ? `Rp ${Number(displayEps).toFixed(2)}` : "-"}
+                  </p>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500">Per lembar saham</span>
+                </div>
 
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">DIVIDEND YIELD</span>
-                <p className="mt-1 font-mono text-base sm:text-lg font-bold text-emerald-600">
-                  {displayYield != null ? `${Number(displayYield).toFixed(2)}%` : "-"}
-                </p>
-                <span className="text-[9px] sm:text-[10px] text-slate-500 truncate">
-                  {displayDps != null ? `DPS Rp ${Number(displayDps).toLocaleString("id-ID")}` : "Dividen teratur"}
-                </span>
-              </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between min-w-0">
+                  <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">DIVIDEND YIELD</span>
+                  <p className="mt-1 font-mono text-base sm:text-lg font-bold text-emerald-600">
+                    {displayYield != null ? `${Number(displayYield).toFixed(2)}%` : "-"}
+                  </p>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500 block truncate">
+                    {displayDps != null ? `DPS Rp ${Number(displayDps).toLocaleString("id-ID")}` : "Dividen teratur"}
+                  </span>
+                </div>
 
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">BETA VS IHSG</span>
-                <p className="mt-1 font-mono text-base sm:text-lg font-bold text-slate-900">
-                  {displayBeta != null ? Number(displayBeta).toFixed(2) : "-"}
-                </p>
-                <span className="text-[9px] sm:text-[10px] text-slate-500">
-                  {displayBeta != null && Number(displayBeta) < 0 ? "Defensif / Kontra" : "Korelasi pasar"}
-                </span>
-              </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between min-w-0">
+                  <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">BETA VS IHSG</span>
+                  <p className="mt-1 font-mono text-base sm:text-lg font-bold text-slate-900">
+                    {displayBeta != null ? Number(displayBeta).toFixed(2) : "-"}
+                  </p>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500">
+                    {displayBeta != null && Number(displayBeta) < 0 ? "Defensif / Kontra" : "Korelasi pasar"}
+                  </span>
+                </div>
 
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">MOMENTUM 1 THN</span>
-                <p className={`mt-1 font-mono text-base sm:text-lg font-bold ${Number(display1YReturn || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                  {display1YReturn != null ? `${Number(display1YReturn) >= 0 ? "+" : ""}${Number(display1YReturn).toFixed(2)}%` : "-"}
-                </p>
-                <span className="text-[9px] sm:text-[10px] text-slate-500">Performa tahunan</span>
-              </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between min-w-0">
+                  <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">MOMENTUM 1 THN</span>
+                  <p className={`mt-1 font-mono text-base sm:text-lg font-bold ${Number(display1YReturn || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {display1YReturn != null ? `${Number(display1YReturn) >= 0 ? "+" : ""}${Number(display1YReturn).toFixed(2)}%` : "-"}
+                  </p>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500">Performa tahunan</span>
+                </div>
 
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">KATALIS LAPKEU</span>
-                <p className="mt-1 font-mono text-xs sm:text-sm font-bold text-slate-900 truncate">
-                  {displayNextEarnings || "Menunggu Rilis"}
-                </p>
-                <span className="text-[9px] sm:text-[10px] text-slate-500">Jadwal earnings</span>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 sm:p-3 flex flex-col justify-between min-w-0">
+                  <span className="font-mono text-[9px] sm:text-[10px] font-semibold uppercase text-slate-400">KATALIS LAPKEU</span>
+                  <p className="mt-1 font-mono text-xs sm:text-sm font-bold text-slate-900 truncate">
+                    {displayNextEarnings || "Menunggu Rilis"}
+                  </p>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500">Jadwal earnings</span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ORDERBOOK DEPTH RATIO CARD */}
             <div className="p-3 sm:p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2.5 sm:gap-3 shadow-xs">
@@ -714,7 +818,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
               <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
                 <span className="font-medium leading-relaxed">
                   <strong className="text-slate-900 font-semibold">Kesimpulan Flow: </strong>
-                  {reasoning?.flow_conclusion || "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."}
+                  {reasoning?.flow_analysis || "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."}
                 </span>
                 <span className="flex items-center gap-2 font-mono text-[10px] sm:text-[11px] text-slate-500 shrink-0">
                   <span>Bid: <strong className="text-emerald-700">{orderbook?.total_bid_lots?.toLocaleString("id-ID") ?? "0"} lot</strong></span>
@@ -798,42 +902,42 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
                 {/* 4 Timeframe Cards 2x2 Grid */}
                 <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col min-w-0">
                     <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">1 HARI</span>
-                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 truncate ${Number(foreignFlow?.today_1d?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 block truncate ${Number(foreignFlow?.today_1d?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       {foreignFlow?.today_1d ? formatMiliar(foreignFlow.today_1d.net_value_idr) : "-"}
                     </span>
-                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 block truncate">
                       {foreignFlow?.today_1d ? formatShares(foreignFlow.today_1d.net_shares) : ""}
                     </span>
                   </div>
 
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col min-w-0">
                     <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">1 MINGGU</span>
-                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 truncate ${Number(foreignFlow?.weekly_1w?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 block truncate ${Number(foreignFlow?.weekly_1w?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       {foreignFlow?.weekly_1w ? formatMiliar(foreignFlow.weekly_1w.net_value_idr) : "-"}
                     </span>
-                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 block truncate">
                       {foreignFlow?.weekly_1w ? formatShares(foreignFlow.weekly_1w.net_shares) : ""}
                     </span>
                   </div>
 
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col min-w-0">
                     <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">1 BULAN</span>
-                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 truncate ${Number(foreignFlow?.monthly_1m?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 block truncate ${Number(foreignFlow?.monthly_1m?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       {foreignFlow?.monthly_1m ? formatMiliar(foreignFlow.monthly_1m.net_value_idr) : "-"}
                     </span>
-                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 block truncate">
                       {foreignFlow?.monthly_1m ? formatShares(foreignFlow.monthly_1m.net_shares) : ""}
                     </span>
                   </div>
 
-                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col">
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-white border border-slate-200 flex flex-col min-w-0">
                     <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">3 BULAN</span>
-                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 truncate ${Number(foreignFlow?.three_month_3m?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    <span className={`font-mono text-xs sm:text-sm font-bold mt-0.5 block truncate ${Number(foreignFlow?.three_month_3m?.net_value_idr || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                       {foreignFlow?.three_month_3m ? formatMiliar(foreignFlow.three_month_3m.net_value_idr) : "-"}
                     </span>
-                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 block truncate">
                       {foreignFlow?.three_month_3m ? formatShares(foreignFlow.three_month_3m.net_shares) : ""}
                     </span>
                   </div>
@@ -847,7 +951,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <span className="text-blue-600 text-sm">💡</span>
                 <span className="font-medium text-[11px] sm:text-xs leading-relaxed">
                   <strong className="text-slate-900 font-semibold">Kesimpulan Flow: </strong>
-                  {reasoning?.flow_conclusion || "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."}
+                  {reasoning?.flow_analysis || "Tekanan jual asing masih terasa, konfirmasi akumulasi baru masih ditunggu."}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 font-mono text-[10px] sm:text-[11px]">
@@ -887,7 +991,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
 
             {/* 4 Metric Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between min-w-0">
                 <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">MOVING AVERAGES</span>
                 <div className="mt-1">
                   <div className="flex flex-col font-mono text-[11px] sm:text-xs font-bold text-slate-900 leading-tight">
@@ -900,7 +1004,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 </div>
               </div>
 
-              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">RSI (14)</span>
                   <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono text-[9px] font-bold">
@@ -913,7 +1017,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 </div>
               </div>
 
-              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between min-w-0">
                 <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">ATR (14)</span>
                 <div className="mt-1">
                   <span className="font-mono text-sm sm:text-base font-bold text-slate-900 block">{atr}</span>
@@ -921,7 +1025,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 </div>
               </div>
 
-              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between">
+              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-between min-w-0">
                 <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold">LEVEL KUNCI</span>
                 <div className="mt-1">
                   <div className="font-mono text-[10px] sm:text-[11px] text-slate-800 font-bold leading-tight truncate">
@@ -940,7 +1044,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
             </div>
 
             {/* SVG Candlestick Visualizer */}
-            <div className="w-full h-44 sm:h-52 bg-slate-50 border border-slate-200 rounded-xl p-2.5 sm:p-3 relative overflow-hidden flex flex-col justify-between">
+            <div className="w-full h-44 sm:h-52 bg-slate-50 border border-slate-200 rounded-xl p-2.5 sm:p-3 relative overflow-hidden flex flex-col justify-between min-w-0">
               <div className="absolute inset-0 flex flex-col justify-between p-3 opacity-60 pointer-events-none">
                 <div className="w-full h-px bg-slate-200" />
                 <div className="w-full h-px bg-slate-200" />
@@ -961,53 +1065,46 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
               </div>
 
               <div className="relative w-full h-28 sm:h-36">
-                <svg className="w-full h-full" fill="none" preserveAspectRatio="none" viewBox="0 0 460 140">
-                  <path
-                    className="text-blue-500"
-                    d="M 0,110 C 100,105 200,98 320,102 C 380,105 420,108 460,110"
-                    stroke="currentColor"
-                    strokeDasharray="3 3"
-                    strokeWidth="2"
-                  />
-                  <path
-                    className="text-rose-500"
-                    d="M 0,55 C 120,60 220,68 330,72 C 390,75 420,78 460,82"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  />
-                  <rect className="text-blue-600" fill="currentColor" fillOpacity="0.08" height="38" rx="4" width="195" x="260" y="70" />
-                  <line className="text-blue-500" stroke="currentColor" strokeDasharray="2 2" strokeOpacity="0.5" strokeWidth="1" x1="260" x2="455" y1="70" y2="70" />
-                  <line className="text-blue-500" stroke="currentColor" strokeDasharray="2 2" strokeOpacity="0.5" strokeWidth="1" x1="260" x2="455" y1="108" y2="108" />
-                  <text className="text-[9px] fill-blue-700 font-mono font-bold" x="265" y="80">
-                    Entry Band Rp {keyLevels?.entry_range?.[0]?.toLocaleString("id-ID") ?? "6.325"} - {keyLevels?.entry_range?.[1]?.toLocaleString("id-ID") ?? "6.450"}
-                  </text>
-                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="30" x2="30" y1="40" y2="85" />
-                  <rect className="text-emerald-500" fill="currentColor" height="28" rx="1" width="8" x="26" y="48" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="65" x2="65" y1="42" y2="92" />
-                  <rect className="text-rose-500" fill="currentColor" height="32" rx="1" width="8" x="61" y="52" />
-                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="100" x2="100" y1="45" y2="88" />
-                  <rect className="text-emerald-500" fill="currentColor" height="25" rx="1" width="8" x="96" y="50" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="135" x2="135" y1="48" y2="95" />
-                  <rect className="text-rose-500" fill="currentColor" height="30" rx="1" width="8" x="131" y="55" />
-                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="170" x2="170" y1="52" y2="90" />
-                  <rect className="text-emerald-500" fill="currentColor" height="20" rx="1" width="8" x="166" y="58" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="205" x2="205" y1="50" y2="98" />
-                  <rect className="text-rose-500" fill="currentColor" height="26" rx="1" width="8" x="201" y="62" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="240" x2="240" y1="58" y2="105" />
-                  <rect className="text-rose-500" fill="currentColor" height="28" rx="1" width="8" x="236" y="68" />
-                  <line className="text-emerald-600" stroke="currentColor" strokeWidth="1" x1="275" x2="275" y1="62" y2="102" />
-                  <rect className="text-emerald-500" fill="currentColor" height="18" rx="1" width="8" x="271" y="72" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="310" x2="310" y1="65" y2="108" />
-                  <rect className="text-rose-500" fill="currentColor" height="24" rx="1" width="8" x="306" y="74" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="345" x2="345" y1="68" y2="112" />
-                  <rect className="text-rose-500" fill="currentColor" height="26" rx="1" width="8" x="341" y="78" />
-                  <line className="text-rose-600" stroke="currentColor" strokeWidth="1" x1="380" x2="380" y1="70" y2="114" />
-                  <rect className="text-rose-500" fill="currentColor" height="26" rx="1" width="8" x="376" y="80" />
-                  <line className="text-rose-700" stroke="currentColor" strokeWidth="2" x1="415" x2="415" y1="72" y2="118" />
-                  <rect className="text-rose-600" fill="currentColor" height="30" rx="1" width="10" x="410" y="82" />
-                  <circle className="text-rose-600" cx="415" cy="97" fill="currentColor" r="4" />
-                  <circle className="animate-ping text-rose-500" cx="415" cy="97" opacity="0.6" r="8" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
+                {chartBars.length > 0 ? (
+                  <svg className="w-full h-full" fill="none" preserveAspectRatio="none" viewBox={`0 0 ${CHART_W} ${CHART_H}`}>
+                    {chartBars.map((bar, idx) => {
+                      const open = Number(bar.open);
+                      const close = Number(bar.close);
+                      const high = Number(bar.high);
+                      const low = Number(bar.low);
+                      const bullish = close >= open;
+                      const cx = idx * barSlot + barSlot / 2;
+                      const bodyTop = priceToY(Math.max(open, close));
+                      const bodyBottom = priceToY(Math.min(open, close));
+                      const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+                      const bodyWidth = Math.max(2, barSlot * 0.5);
+                      return (
+                        <g key={bar.date || idx} className={bullish ? "text-emerald-500" : "text-rose-500"}>
+                          <line
+                            stroke="currentColor"
+                            strokeWidth="1"
+                            x1={cx}
+                            x2={cx}
+                            y1={priceToY(high)}
+                            y2={priceToY(low)}
+                          />
+                          <rect
+                            fill="currentColor"
+                            x={cx - bodyWidth / 2}
+                            y={bodyTop}
+                            width={bodyWidth}
+                            height={bodyHeight}
+                            rx="1"
+                          />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-slate-400 font-mono">
+                    Data historis belum tersedia
+                  </div>
+                )}
               </div>
 
               <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between font-mono text-[10px] sm:text-[11px] gap-0.5 pt-1 border-t border-slate-200">
@@ -1029,9 +1126,7 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 <h2 className="text-sm sm:text-base text-slate-900 font-bold">SKENARIO & REKOMENDASI TRADING PLAN</h2>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className={`px-2.5 py-0.5 rounded text-white font-mono text-xs font-bold ${
-                  action === "BUY" ? "bg-emerald-600" : action === "WAIT" ? "bg-amber-600" : "bg-rose-600"
-                }`}>
+                <span className={`px-2.5 py-0.5 rounded text-white font-mono text-xs font-bold ${currentBadge.dot}`}>
                   {action}
                 </span>
                 <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-[10px] font-bold border border-slate-200">
@@ -1049,60 +1144,134 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                 </span>
               </div>
               <p className="text-xs text-slate-700 leading-relaxed">
-                {reasoning?.thesis_summary || `Setup ${session?.ticker || ""} sebaiknya dipantau secara seksama. Disiplin batasi risiko dan perhatikan level reaksi harga.`}
+                {reasoning?.thesis || `Setup ${session?.ticker || ""} sebaiknya dipantau secara seksama. Disiplin batasi risiko dan perhatikan level reaksi harga.`}
               </p>
               <span className="font-mono text-[10px] sm:text-[11px] text-blue-700 font-bold mt-0.5">
-                Strategi: {action === "BUY" ? "Buy on Weakness / Antri Pullback" : action === "WAIT" ? "Wait for Confirmation / Pantau Level" : "Avoid / Cari Peluang Lain"}
+                Strategi: {isInTrade
+                  ? (inTradeStrategyLabel[action] ?? "Kawal Posisi Sesuai Rencana Trading")
+                  : action === "BUY"
+                    ? "Buy on Weakness / Antri Pullback"
+                    : action === "WAIT"
+                      ? "Wait for Confirmation / Pantau Level"
+                      : "Avoid / Cari Peluang Lain"}
               </span>
             </div>
 
-            {/* 4 Key Levels Cards */}
+            {/* 4 Key Levels Cards — state-aware: distance-to-TP1/SL & trailing stop when in-trade */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-              <div className="p-2.5 sm:p-3 rounded-lg bg-blue-50/50 border border-blue-200 border-l-4 border-l-blue-600 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] text-blue-800 font-bold uppercase">AREA ENTRY</span>
-                <div className="mt-1">
-                  <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 block truncate">
-                    Rp {keyLevels?.entry_range?.[0]?.toLocaleString("id-ID") ?? "-"} – {keyLevels?.entry_range?.[1]?.toLocaleString("id-ID") ?? "-"}
-                  </span>
-                  <span className="font-mono text-[9px] sm:text-[10px] text-blue-700 font-semibold">Optimal Buy Range</span>
-                </div>
-              </div>
-
-              <div className="p-2.5 sm:p-3 rounded-lg bg-emerald-50/50 border border-emerald-200 border-l-4 border-l-emerald-500 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] text-emerald-800 font-bold uppercase">TARGET PROFIT</span>
-                <div className="mt-1">
-                  <div className="font-mono text-[11px] sm:text-xs font-bold text-emerald-700 truncate">
-                    TP1: Rp {keyLevels?.target_price_1?.toLocaleString("id-ID") ?? "-"}
+              {isInTrade ? (
+                <>
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-emerald-50/50 border border-emerald-200 border-l-4 border-l-emerald-500 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-emerald-800 font-bold uppercase">JARAK MENUJU TP1</span>
+                    <div className="mt-1">
+                      <span className="font-mono text-xs sm:text-sm font-bold text-emerald-700 block truncate">
+                        {keyLevels?.distance_to_tp1_percent != null && Number(keyLevels.distance_to_tp1_percent) <= 0
+                          ? "✓ TP1 TERCAPAI"
+                          : keyLevels?.distance_to_tp1_percent != null
+                            ? `+${Number(keyLevels.distance_to_tp1_percent).toFixed(2)}% lagi`
+                            : "-"}
+                      </span>
+                      <span className="font-mono text-[9px] sm:text-[10px] text-emerald-700 font-semibold">
+                        TP1: Rp {keyLevels?.target_price_1?.toLocaleString("id-ID") ?? "-"}
+                        {keyLevels?.distance_to_tp1_idr != null && Number(keyLevels.distance_to_tp1_idr) > 0
+                          ? ` (Rp ${Number(keyLevels.distance_to_tp1_idr).toLocaleString("id-ID")} lagi)`
+                          : ""}
+                      </span>
+                    </div>
                   </div>
-                  <div className="font-mono text-[11px] sm:text-xs font-bold text-emerald-700 truncate">
-                    TP2: Rp {keyLevels?.target_price_2?.toLocaleString("id-ID") ?? "-"}
+
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-emerald-50/50 border border-emerald-200 border-l-4 border-l-emerald-500 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-emerald-800 font-bold uppercase">TARGET PROFIT</span>
+                    <div className="mt-1">
+                      <div className="font-mono text-[11px] sm:text-xs font-bold text-emerald-700 truncate">
+                        TP1: Rp {keyLevels?.target_price_1?.toLocaleString("id-ID") ?? "-"}
+                      </div>
+                      <div className="font-mono text-[11px] sm:text-xs font-bold text-emerald-700 truncate">
+                        TP2: Rp {keyLevels?.target_price_2?.toLocaleString("id-ID") ?? "-"}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="p-2.5 sm:p-3 rounded-lg bg-rose-50/50 border border-rose-200 border-l-4 border-l-rose-500 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] text-rose-800 font-bold uppercase">STOP LOSS (SL)</span>
-                <div className="mt-1">
-                  <span className="font-mono text-xs sm:text-sm font-bold text-rose-700 block truncate">
-                    Rp {keyLevels?.stop_loss?.toLocaleString("id-ID") ?? "-"}
-                  </span>
-                  <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium truncate">
-                    Invalid: Rp {keyLevels?.invalidation_level?.toLocaleString("id-ID") ?? "-"}
-                  </span>
-                </div>
-              </div>
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-rose-50/50 border border-rose-200 border-l-4 border-l-rose-500 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-rose-800 font-bold uppercase">JARAK MENUJU SL</span>
+                    <div className="mt-1">
+                      <span className="font-mono text-xs sm:text-sm font-bold text-rose-700 block truncate">
+                        {keyLevels?.distance_to_sl_percent != null && Number(keyLevels.distance_to_sl_percent) <= 0
+                          ? "⚠️ JEBOL SL!"
+                          : keyLevels?.distance_to_sl_percent != null
+                            ? `${Number(keyLevels.distance_to_sl_percent).toFixed(2)}% toleransi`
+                            : "-"}
+                      </span>
+                      <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium block break-words">
+                        SL: Rp {keyLevels?.stop_loss?.toLocaleString("id-ID") ?? "-"}
+                        {keyLevels?.distance_to_sl_idr != null && Number(keyLevels.distance_to_sl_idr) > 0
+                          ? ` (Rp ${Number(keyLevels.distance_to_sl_idr).toLocaleString("id-ID")} di atas)`
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 border-l-4 border-l-slate-400 flex flex-col justify-between">
-                <span className="font-mono text-[9px] sm:text-[10px] text-slate-700 font-bold uppercase">RISK / REWARD</span>
-                <div className="mt-1">
-                  <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 block">
-                    1 : {keyLevels?.risk_reward_ratio ?? "1.8"}
-                  </span>
-                  <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium">
-                    ATR(14): Rp {atr}
-                  </span>
-                </div>
-              </div>
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-blue-50/50 border border-blue-200 border-l-4 border-l-blue-500 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-blue-800 font-bold uppercase">SARAN TRAILING STOP</span>
+                    <div className="mt-1">
+                      <span className="font-mono text-xs sm:text-sm font-bold text-blue-700 block truncate">
+                        Rp {(keyLevels?.trailing_stop ?? keyLevels?.stop_loss)?.toLocaleString("id-ID") ?? "-"}
+                      </span>
+                      <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium block break-words">
+                        {keyLevels?.trailing_stop_note || "Pertahankan Stop Loss"}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-blue-50/50 border border-blue-200 border-l-4 border-l-blue-600 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-blue-800 font-bold uppercase">AREA ENTRY</span>
+                    <div className="mt-1">
+                      <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 block truncate">
+                        Rp {keyLevels?.entry_range?.[0]?.toLocaleString("id-ID") ?? "-"} – {keyLevels?.entry_range?.[1]?.toLocaleString("id-ID") ?? "-"}
+                      </span>
+                      <span className="font-mono text-[9px] sm:text-[10px] text-blue-700 font-semibold">Optimal Buy Range</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-emerald-50/50 border border-emerald-200 border-l-4 border-l-emerald-500 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-emerald-800 font-bold uppercase">TARGET PROFIT</span>
+                    <div className="mt-1">
+                      <div className="font-mono text-[11px] sm:text-xs font-bold text-emerald-700 truncate">
+                        TP1: Rp {keyLevels?.target_price_1?.toLocaleString("id-ID") ?? "-"}
+                      </div>
+                      <div className="font-mono text-[11px] sm:text-xs font-bold text-emerald-700 truncate">
+                        TP2: Rp {keyLevels?.target_price_2?.toLocaleString("id-ID") ?? "-"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-rose-50/50 border border-rose-200 border-l-4 border-l-rose-500 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-rose-800 font-bold uppercase">STOP LOSS (SL)</span>
+                    <div className="mt-1">
+                      <span className="font-mono text-xs sm:text-sm font-bold text-rose-700 block truncate">
+                        Rp {keyLevels?.stop_loss?.toLocaleString("id-ID") ?? "-"}
+                      </span>
+                      <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium block truncate">
+                        Invalid: Rp {keyLevels?.invalidation_level?.toLocaleString("id-ID") ?? "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-slate-50 border border-slate-200 border-l-4 border-l-slate-400 flex flex-col justify-between min-w-0">
+                    <span className="font-mono text-[9px] sm:text-[10px] text-slate-700 font-bold uppercase">RISK / REWARD</span>
+                    <div className="mt-1">
+                      <span className="font-mono text-xs sm:text-sm font-bold text-slate-900 block">
+                        1 : {keyLevels?.risk_reward_ratio ?? "1.8"}
+                      </span>
+                      <span className="font-mono text-[9px] sm:text-[10px] text-slate-500 font-medium">
+                        ATR(14): Rp {atr}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* PANDUAN ACTION 3-Column Card */}
@@ -1110,14 +1279,26 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
               <div className="flex items-center gap-1.5">
                 <span className="text-blue-600 text-sm">🧠</span>
                 <span className="font-mono text-xs font-bold text-slate-900 uppercase">
-                  {action === "BUY" ? "PANDUAN ENTRY & TARGET" : action === "WAIT" ? "PANDUAN WAIT (PEMANTAUAN)" : "PANDUAN SKIP (LEWATI)"}
+                  {isInTrade
+                    ? (inTradeGuidanceHeading[action] ?? "PANDUAN PENGAWALAN POSISI")
+                    : action === "BUY"
+                      ? "PANDUAN ENTRY & TARGET"
+                      : action === "WAIT"
+                        ? "PANDUAN WAIT (PEMANTAUAN)"
+                        : "PANDUAN SKIP (LEWATI)"}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 text-xs">
                 <div className="bg-white p-2.5 rounded border border-slate-200">
                   <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 uppercase font-bold block mb-0.5">STRATEGI</span>
                   <p className="font-semibold text-slate-800">
-                    {action === "BUY" ? "Buy on Weakness / Follow-through" : action === "WAIT" ? "Tunggu Reaksi Support / Pullback" : "Avoid / Cari Peluang Lain"}
+                    {isInTrade
+                      ? (inTradeStrategyLabel[action] ?? "Kawal Posisi Sesuai Rencana Trading")
+                      : action === "BUY"
+                        ? "Buy on Weakness / Follow-through"
+                        : action === "WAIT"
+                          ? "Tunggu Reaksi Support / Pullback"
+                          : "Avoid / Cari Peluang Lain"}
                   </p>
                 </div>
                 <div className="bg-white p-2.5 rounded border border-slate-200">

@@ -9,6 +9,13 @@ import { ApiError, AuthenticationError } from "@/lib/api/errors";
 
 vi.mock("@/features/trade-workspace/api", () => ({
   listSessions: vi.fn(),
+  getSessionWorkspaceData: vi.fn().mockResolvedValue({
+    session: null,
+    analysis: null,
+    position: null,
+    closure: null,
+    decision: null,
+  }),
 }));
 
 function session(

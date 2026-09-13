@@ -160,13 +160,17 @@ def build_in_trade_evidence_table(
     stop_loss: float,
     target_price: float,
     floating_pnl_percent: float,
+    floating_pnl_idr: float,
     distance_to_tp1_percent: float,
+    distance_to_tp1_idr: float,
     distance_to_sl_percent: float,
+    distance_to_sl_idr: float,
     setup_note: str | None = None,
 ) -> str:
     """Build the tabular evidence block for the in-trade (open position) prompt."""
     quote = snapshot.quote
     orderbook = snapshot.orderbook
+    historical = snapshot.historical_ohlcv
     foreign_flow = snapshot.foreign_flow
     broker_flow = snapshot.broker_flow
     market_context = snapshot.market_context
@@ -181,9 +185,9 @@ def build_in_trade_evidence_table(
 - Catatan Setup Awal: {_na(setup_note)}
 
 ### 2. STATUS POSISI SAAT INI (dihitung sistem)
-- Harga Saat Ini: Rp {current_price:,.0f} | Floating P/L: {floating_pnl_percent:+.2f}%
-- Jarak ke Target: {distance_to_tp1_percent:+.2f}%
-- Jarak ke Stop Loss: {distance_to_sl_percent:+.2f}%
+- Harga Saat Ini: Rp {current_price:,.0f} | Floating P/L: Rp {floating_pnl_idr:+,.0f} ({floating_pnl_percent:+.2f}%)
+- Jarak ke Target: Rp {distance_to_tp1_idr:+,.0f} ({distance_to_tp1_percent:+.2f}%)
+- Jarak ke Stop Loss: Rp {distance_to_sl_idr:+,.0f} ({distance_to_sl_percent:+.2f}%)
 
 ### 3. VALUASI & FUNDAMENTAL (Investing)
 - P/E Ratio: {_na(getattr(profile, "pe_ratio", None), "x")} | P/BV Ratio: {_na(getattr(profile, "pbv_ratio", None), "x")} | Market Cap: {_na(getattr(quote, "market_cap", None))}
@@ -197,7 +201,7 @@ def build_in_trade_evidence_table(
 - Best Bid: Rp {_na(orderbook.best_bid)} ({_na(orderbook.total_bid_lots, " lot")}) | Best Ask: Rp {_na(orderbook.best_ask)} ({_na(orderbook.total_ask_lots, " lot")})
 - Spread: Rp {_na(orderbook.spread)} ({_na(orderbook.spread_percent, "%")}) | Bid/Ask Ratio: {_na(orderbook.bid_ask_ratio, "x")}
 
-### 5. TEKNIKAL & PRICE ACTION (IDX)
+### 5. TEKNIKAL & PRICE ACTION ({_na(historical.horizon_days)} Hari Bursa) (IDX)
 - Moving Averages: MA20 {_na(tech.get("ma20"))} | MA50 {_na(tech.get("ma50"))} | MA200 {_na(tech.get("ma200"))} -> {_na(tech.get("ma_alignment"))}
 - RSI(14): {_na(tech.get("rsi14"))} | ATR(14): Rp {_na(tech.get("atr14"))}
 - Key Support: {_fmt_levels(tech.get("key_supports"))} | Key Resistance: {_fmt_levels(tech.get("key_resistances"))}
