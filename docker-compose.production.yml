@@ -58,6 +58,8 @@ services:
     volumes:
       - evidence_data:/data/evidence
       - ./schemas:/app/schemas:ro
+      - ./prompts:/prompts:ro
+      - ./prompts:/app/prompts:ro
     depends_on:
       postgres:
         condition: service_healthy

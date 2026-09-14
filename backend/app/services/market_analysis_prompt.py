@@ -12,7 +12,21 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-_PROMPTS_ROOT = Path(__file__).resolve().parents[3] / "prompts" / "market_analysis"
+def _find_prompts_root() -> Path:
+    candidates = [
+        Path(__file__).resolve().parents[3] / "prompts" / "market_analysis",
+        Path(__file__).resolve().parents[2] / "prompts" / "market_analysis",
+        Path("/app/prompts/market_analysis"),
+        Path("/prompts/market_analysis"),
+        Path.cwd() / "prompts" / "market_analysis",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
+_PROMPTS_ROOT = _find_prompts_root()
 
 
 class PromptFileNotFoundError(Exception):
@@ -21,7 +35,8 @@ class PromptFileNotFoundError(Exception):
 
 def load_prompt(name: str) -> str:
     """Load an approved market-analysis prompt file by name (without extension)."""
-    path = _PROMPTS_ROOT / f"{name}.md"
+    prompts_root = _find_prompts_root()
+    path = prompts_root / f"{name}.md"
     if not path.is_file():
         raise PromptFileNotFoundError(f"Market analysis prompt file is missing: {path.name}")
     text = path.read_text(encoding="utf-8")
