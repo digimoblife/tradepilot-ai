@@ -35,6 +35,11 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
 
+      # ---- ZAPI Market Data Provider ----
+      ZAPI_API_KEY: ${ZAPI_API_KEY:-}
+      ZAPI_BASE_URL: ${ZAPI_BASE_URL:-https://api.zpi.web.id}
+      ZAPI_TIMEOUT_SECONDS: ${ZAPI_TIMEOUT_SECONDS:-15}
+
       # ---- Auth (TP-1001 / TP-1704) ----
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-tradepilot_session}
       AUTH_SESSION_LIFETIME_SECONDS: ${AUTH_SESSION_LIFETIME_SECONDS:-604800}
