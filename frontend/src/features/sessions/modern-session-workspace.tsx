@@ -273,18 +273,22 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
   const display1YReturn = companyProfile?.one_year_return_percent ?? quote?.one_year_return;
   const displayNextEarnings = companyProfile?.next_earnings_date || quote?.next_earnings_date;
 
-  const currentPrice = Number(quote?.last_price || keyLevels?.current_price || 0);
-  const changePercent = Number(quote?.change_percent || 0);
-  const changeNominal = Number(quote?.change || 0);
-
   // Position PnL Calculations
   const entryPrice = position ? Number(position.entry_price) : 0;
   const quantityLots = position ? Number(position.quantity) : 0;
   const totalShares = quantityLots * 100;
   const capitalInvested = entryPrice * totalShares;
+
+  const rawMarketPrice = Number(quote?.last_price || keyLevels?.current_price || 0);
+  const hasMarketPrice = rawMarketPrice > 0;
+  // If live market price is temporarily 0 or not yet fetched, fallback to entryPrice so we never calculate a false -100% loss
+  const currentPrice = hasMarketPrice ? rawMarketPrice : entryPrice;
+  const changePercent = Number(quote?.change_percent || 0);
+  const changeNominal = Number(quote?.change || 0);
+
   const currentValue = currentPrice * totalShares;
-  const floatingPnL = currentValue - capitalInvested;
-  const floatingPnLPercent = capitalInvested > 0 ? (floatingPnL / capitalInvested) * 100 : 0;
+  const floatingPnL = hasMarketPrice ? currentValue - capitalInvested : 0;
+  const floatingPnLPercent = hasMarketPrice && capitalInvested > 0 ? (floatingPnL / capitalInvested) * 100 : 0;
 
   const isInTrade = session?.status === "OPEN_POSITION" || Boolean(position && position.status === "OPEN") || Boolean(analysis?.is_in_trade);
   // Pre-trade always shows fundamentals in full (due-diligence context);
@@ -544,16 +548,22 @@ export function ModernSessionWorkspace({ sessionId }: { sessionId: string }) {
                   </h2>
                   <p className="text-[11px] sm:text-xs text-slate-600 font-mono mt-0.5 flex flex-wrap items-center gap-1.5">
                     <span>Entry: Rp {entryPrice.toLocaleString("id-ID")} • Modal: Rp {capitalInvested.toLocaleString("id-ID")}</span>
-                    <PriceDeltaBadge currentPrice={currentPrice} entryPrice={entryPrice} />
+                    {hasMarketPrice && <PriceDeltaBadge currentPrice={currentPrice} entryPrice={entryPrice} />}
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between w-full sm:w-auto gap-3 sm:gap-4 font-mono pt-1 sm:pt-0 border-t sm:border-t-0 border-emerald-500/20">
                 <div className="text-left sm:text-right">
                   <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 block">Floating P&L</span>
-                  <span className={`text-base sm:text-xl font-black ${floatingPnL >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                    {floatingPnL >= 0 ? "+" : ""}Rp {floatingPnL.toLocaleString("id-ID")} ({floatingPnLPercent >= 0 ? "+" : ""}{floatingPnLPercent.toFixed(2)}%)
-                  </span>
+                  {hasMarketPrice ? (
+                    <span className={`text-base sm:text-xl font-black ${floatingPnL >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {floatingPnL >= 0 ? "+" : ""}Rp {floatingPnL.toLocaleString("id-ID")} ({floatingPnLPercent >= 0 ? "+" : ""}{floatingPnLPercent.toFixed(2)}%)
+                    </span>
+                  ) : (
+                    <span className="text-xs sm:text-sm font-semibold text-slate-500">
+                      Menunggu Data Pasar…
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"

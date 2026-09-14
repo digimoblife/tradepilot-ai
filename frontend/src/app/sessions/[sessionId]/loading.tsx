@@ -1,4 +1,5 @@
 import { ButtonSpinner } from "@/components/button-spinner";
+import { InstitutionalBrand } from "@/components/ui";
 
 export default function SessionWorkspaceLoading() {
   return (
@@ -11,15 +12,11 @@ export default function SessionWorkspaceLoading() {
       <header className="sticky top-0 left-0 right-0 z-40 bg-white border-b border-slate-200">
         <div className="h-14 sm:h-16 w-full px-3 sm:px-6 flex items-center justify-between gap-3 max-w-[1600px] mx-auto">
           <div className="flex items-center gap-3 animate-pulse">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-              ⚡
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-slate-900 text-sm sm:text-base">TradePilot</span>
-              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
-                AI
-              </span>
-            </div>
+            <InstitutionalBrand
+              iconSizeClass="w-8 h-8 sm:w-9 sm:h-9"
+              textSizeClass="text-sm sm:text-base"
+              showEngineTag={false}
+            />
           </div>
           <div className="flex items-center gap-2">
             <ButtonSpinner className="h-4 w-4 text-blue-600" />
