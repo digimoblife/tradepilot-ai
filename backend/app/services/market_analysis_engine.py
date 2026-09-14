@@ -175,6 +175,13 @@ class MarketAnalysisEngine:
         )
         dist_to_sl_pct = ((last_price - stop_loss) / last_price * 100) if last_price > 0 else 0.0
 
+        # Nominal Rupiah amounts (in addition to the percentages above) so the
+        # prompt evidence carries the same figures a human reads on the UI.
+        total_shares = float(position.get("quantity") or 0) * 100
+        floating_pnl_idr = (last_price - entry_price) * total_shares
+        dist_to_tp1_idr = target_price - last_price
+        dist_to_sl_idr = last_price - stop_loss
+
         evidence_table = build_in_trade_evidence_table(
             snapshot=snapshot,
             position=position,
@@ -184,8 +191,11 @@ class MarketAnalysisEngine:
             stop_loss=stop_loss,
             target_price=target_price,
             floating_pnl_percent=round(floating_pnl_pct, 2),
+            floating_pnl_idr=round(floating_pnl_idr, 0),
             distance_to_tp1_percent=round(dist_to_tp1_pct, 2),
+            distance_to_tp1_idr=round(dist_to_tp1_idr, 0),
             distance_to_sl_percent=round(dist_to_sl_pct, 2),
+            distance_to_sl_idr=round(dist_to_sl_idr, 0),
             setup_note=setup_note,
         )
         prompt_text = self._compose_prompt("in_trade_position_update", evidence_table)
@@ -208,6 +218,9 @@ class MarketAnalysisEngine:
         key_levels["distance_to_tp1_percent"] = round(dist_to_tp1_pct, 2)
         key_levels["distance_to_sl_percent"] = round(dist_to_sl_pct, 2)
         key_levels["floating_pnl_percent"] = round(floating_pnl_pct, 2)
+        key_levels["distance_to_tp1_idr"] = round(dist_to_tp1_idr, 0)
+        key_levels["distance_to_sl_idr"] = round(dist_to_sl_idr, 0)
+        key_levels["floating_pnl_idr"] = round(floating_pnl_idr, 0)
 
         return {
             "symbol": snapshot.symbol,

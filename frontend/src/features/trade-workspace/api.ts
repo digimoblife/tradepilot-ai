@@ -80,8 +80,12 @@ export function getSessionWorkspaceData(
   sessionId: string,
   refresh: boolean = false,
   signal?: AbortSignal,
+  options?: { passive?: boolean },
 ): Promise<{ session: TradeSession; analysis: any; position: any; closure: any; decision: any }> {
-  const query = refresh ? "?refresh=true" : "";
+  const params = new URLSearchParams();
+  if (refresh) params.set("refresh", "true");
+  if (options?.passive) params.set("passive", "true");
+  const query = params.toString() ? `?${params.toString()}` : "";
   return get(`/api/sessions/${sessionId}/workspace${query}`, undefined, signal);
 }
 

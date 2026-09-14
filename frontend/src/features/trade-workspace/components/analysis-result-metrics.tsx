@@ -208,7 +208,7 @@ export function PriceDeltaBadge({
 }) {
   const current = typeof currentPrice === "number" ? currentPrice : parseFloat(String(currentPrice));
   const entry = typeof entryPrice === "number" ? entryPrice : parseFloat(String(entryPrice));
-  if (!Number.isFinite(current) || !Number.isFinite(entry) || entry === 0) return null;
+  if (!Number.isFinite(current) || !Number.isFinite(entry) || entry <= 0 || current <= 0) return null;
 
   const percent = ((current - entry) / entry) * 100;
   const positive = percent >= 0;

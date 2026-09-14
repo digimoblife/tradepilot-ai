@@ -71,6 +71,41 @@ drive `action`.
 - **HOLD**: position within normal expected range, evidence still broadly
   supports the original thesis, no immediate action needed.
 
+## Confidence calibration
+
+`confidence_score` is not a free choice — anchor it to how many priority
+tiers above actually agree:
+
+- **0.75–1.0 (high)**: position facts/P&L, orderbook, and technical structure
+  all point the same direction as your chosen `action`; no material
+  conflicting signal anywhere in the evidence.
+- **0.45–0.74 (medium)**: the top 1-2 priority tiers support your action, but
+  a lower-priority tier (money flow, fundamentals, IHSG) disagrees, or one
+  key field is null/unavailable.
+- **below 0.45 (low)**: signals genuinely conflict across multiple tiers, or
+  several important fields are missing — say so explicitly in
+  `risk_factors` rather than picking a confident-sounding number anyway.
+
+## Internal consistency guardrail
+
+Before returning your JSON, sanity-check your own `key_levels` against the
+`action` you chose — these are logical requirements, not suggestions:
+
+- `TAKE_PROFIT`: your `target_price_1` should be at or behind `current_price`
+  (you are at/past the target, not still far from it).
+- `CUT_LOSS`: your `stop_loss` should be at or ahead of `current_price` (you
+  are at/past the stop, not comfortably above it).
+- `TRAILING_STOP`: `trailing_stop` must sit between `entry_price` and
+  `current_price` (never below the original `stop_loss`, never above the
+  current price).
+- `HOLD`: `current_price` should sit between your `stop_loss` and
+  `target_price_1`.
+
+If the confirmed position facts genuinely put you in a contradictory spot
+(e.g. price already past target but thesis says HOLD), resolve it by
+picking the action that matches reality and explain the discrepancy in
+`thesis` — never silently emit numbers that contradict your own `action`.
+
 ## MARKET EVIDENCE (system-computed, confirmed facts)
 
 The application injects the following tabular block before this prompt at
@@ -101,7 +136,7 @@ per the Ground Rules above.
 - Best Bid: Rp {best_bid} ({total_bid_lots} lot) | Best Ask: Rp {best_ask} ({total_ask_lots} lot)
 - Spread: Rp {spread} ({spread_percent}%) | Bid/Ask Ratio: {bid_ask_ratio}x
 
-### 5. TEKNIKAL & PRICE ACTION ({horizon_days} Hari Bursa)            (IDX)
+### 5. TEKNIKAL & PRICE ACTION ({horizon_days} Hari Bursa) (IDX)
 - Moving Averages: MA20 {ma20} | MA50 {ma50} | MA200 {ma200} -> {ma_alignment}
 - RSI(14): {rsi14} | ATR(14): Rp {atr14}
 - Key Support: {key_supports} | Key Resistance: {key_resistances}
@@ -157,3 +192,42 @@ Notes on fields the application fills in itself — do not produce these:
 `analyzed_at`, `reasoning.setup_note`, `key_levels.floating_pnl` (IDR
 amount — computed from your `current_price`/`entry_price` echo and the
 confirmed quantity, not something you compute yourself).
+
+## Example (abbreviated — illustrates reasoning depth and output shape only)
+
+Given evidence roughly like: entry Rp 6.200, current price Rp 6.325 (floating
++2.02%), target Rp 6.500 (distance +2.77%), stop Rp 6.100 (distance +3.56%),
+orderbook bid/ask 1.3x (buy-side stronger), MA20 > MA50 (bullish alignment),
+foreign flow neutral, no earnings within 7 days:
+
+```json
+{
+  "action": "HOLD",
+  "signal_quality": "MEDIUM",
+  "confidence_score": 0.68,
+  "key_levels": {
+    "current_price": 6325,
+    "entry_price": 6200,
+    "target_price_1": 6500,
+    "target_price_2": 6650,
+    "stop_loss": 6100,
+    "invalidation_level": 6050,
+    "trailing_stop": 6100,
+    "trailing_stop_note": "Profit masih moderat, pertahankan SL awal sampai mendekati target.",
+    "distance_to_tp1_percent": 2.77,
+    "distance_to_sl_percent": 3.56,
+    "floating_pnl_percent": 2.02,
+    "atr14": 95
+  },
+  "reasoning": {
+    "thesis": "Posisi masih dalam profit moderat dan berada di antara SL dan target, dengan struktur teknikal (MA20 di atas MA50) dan orderbook yang masih mendukung kelanjutan tren naik.",
+    "technical_analysis": "MA20 di atas MA50 (bullish alignment), harga belum menyentuh resistance kunci.",
+    "flow_analysis": "Orderbook bid/ask 1.3x menunjukkan tekanan beli sedikit lebih kuat; status asing netral, belum ada konfirmasi akumulasi berarti.",
+    "action_guidance": "Tahan posisi, pantau reaksi harga saat mendekati Rp 6.500. Belum perlu menggeser stop loss.",
+    "risk_factors": "Konfirmasi arus dana asing masih lemah — jika bandar mulai distribusi, thesis HOLD ini perlu ditinjau ulang."
+  }
+}
+```
+
+This is a *shape and depth* reference only — never copy these numbers into
+a real response; always derive from the actual evidence supplied.

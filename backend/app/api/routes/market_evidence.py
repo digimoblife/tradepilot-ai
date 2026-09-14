@@ -292,6 +292,14 @@ async def analyze_trade_session(
 async def get_session_workspace_data(
     session_id: uuid.UUID,
     refresh: bool = Query(default=False, description="Force re-evaluation of market evidence"),
+    passive: bool = Query(
+        default=False,
+        description=(
+            "If true, never trigger a live ZAPI/Gemini analysis on a cache miss — "
+            "return whatever is already cached (possibly null). Used by list-style "
+            "views that read many sessions at once and must not fan out live calls."
+        ),
+    ),
     config: AppConfig = Depends(get_config),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
@@ -326,7 +334,9 @@ async def get_session_workspace_data(
 
     cached_analysis = _ANALYSIS_CACHE.get(str(session_id))
 
-    if not cached_analysis or refresh:
+    if (not cached_analysis and passive) and not refresh:
+        cached_analysis = None
+    elif not cached_analysis or refresh:
         collector = MarketDataCollector(config)
         try:
             snapshot, _ = await collector.acquire_snapshot(

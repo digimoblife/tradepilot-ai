@@ -1,10 +1,12 @@
 /**
- * InstitutionalBrand — the TradePilot ⚡ logo lockup.
+ * InstitutionalBrand — the TradePilot logo lockup.
  *
  * Used in:
- *  - ModernSessionWorkspace sticky header
+ *  - Global Header (every page)
  *  - Login page
  *
+ * Renders the real brand mark (frontend/public/icon-192.png — the same asset
+ * used for the site favicon/app icons in layout.tsx), not a placeholder icon.
  * Props allow customising size for different placements.
  */
 export interface InstitutionalBrandProps {
@@ -26,11 +28,11 @@ export function InstitutionalBrand({
 }: InstitutionalBrandProps) {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <div
-        className={`${iconSizeClass} rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs font-bold`}
-      >
-        ⚡
-      </div>
+      <img
+        src="/icon-192.png"
+        alt="TradePilot AI"
+        className={`${iconSizeClass} rounded-lg shadow-xs shrink-0 object-cover`}
+      />
       <div className="flex flex-col">
         <div className="flex items-center gap-1">
           <span className={`font-bold tracking-tight text-slate-900 ${textSizeClass}`}>
